@@ -121,7 +121,7 @@ def _get_optimization_options(args):
         optimization_options.disable_attention_mask()
     return optimization_options
 
-if __name__ == "__main__":
+def main():
     args = parse_args()
     optimization_options = _get_optimization_options(args)
 
@@ -142,7 +142,8 @@ if __name__ == "__main__":
     else:
         print("The model has been optimized.")
 
-
+if __name__ == "__main__":
+    main()
 
 
 
