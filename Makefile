@@ -13,6 +13,7 @@ style:
 test:
 	python -m pytest tests
 
+# Utilities to release to PyPi
 build_dist_install_tools:
 	pip install build
 	pip install twine
