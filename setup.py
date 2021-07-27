@@ -30,8 +30,8 @@ setup(
     tests_require=["nose", "nose-cover3"],
     entry_points={
         "console_scripts": [
-            "optimus_convert=optimus.convert_to_onnx:main",
-            "optimus_optimize=optimus.optimize_model:main",
+            "optimus_convert=optimus.onnxruntime.convert:main",
+            "optimus_optimize=optimus.onnxruntime.optimize_model:main",
         ],
     },
     include_package_data=True,
