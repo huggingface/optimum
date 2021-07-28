@@ -3,14 +3,15 @@
 # Optimus
 
 ## Install
-To install this package use
+To install the latest release of this package:
+
 `pip install optimus`
 
-or 
+or from current main branch:
 
 `pip install https://github.com/huggingface/optimus.git`
 
-or
+or for development, clone the repo and install it from the local copy:
 
 ```
 git clone https://github.com/huggingface/optimus.git
