@@ -1,19 +1,17 @@
 import os
+from pathlib import Path
 from argparse import ArgumentParser
+import onnx
 from onnxruntime.transformers.optimizer import MODEL_CLASSES
 from onnxruntime.transformers.onnx_model_bert import BertOptimizationOptions
+from utils import generate_identified_filename
 
 
 def parser(parser=ArgumentParser()):
     parser.add_argument(
         "--onnx_model_path",
-        type=str,
+        type=Path,
         help="Input ONNX model path.",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        help="Optimized ONNX model path.",
     )
     parser.add_argument(
         "--type_model",
@@ -94,7 +92,13 @@ def parser(parser=ArgumentParser()):
         action="store_true",
         help="No attention mask. Only works for model_type=bert.",
     )
+    parser.add_argument(
+        "--quantize_dynamic",
+        action="store_true",
+        help="Apply dynamic quantization.",
+    )
     return parser
+
 
 def _get_optimization_options(args):
     optimization_options = BertOptimizationOptions(args.type_model)
@@ -120,11 +124,11 @@ def _get_optimization_options(args):
         optimization_options.disable_attention_mask()
     return optimization_options
 
+
 def optimize(
         onnx_model_path,
         type_model,
         opt_level,
-        output,
         optimization_options=None,
         use_gpu=False,
         only_onnxruntime=False,
@@ -134,7 +138,7 @@ def optimize(
     from onnxruntime.transformers.optimizer import optimize_model
 
     optimizer = optimize_model(
-        onnx_model_path,
+        onnx_model_path.as_posix(),
         type_model,
         opt_level=opt_level,
         optimization_options=optimization_options,
@@ -142,41 +146,62 @@ def optimize(
         only_onnxruntime=only_onnxruntime,
     )
 
-    optimizer.save_model_to_file(output, use_external_format)
+    optimized_model_path = generate_identified_filename(onnx_model_path, "-optimized")
+    optimizer.save_model_to_file(optimized_model_path.as_posix(), use_external_format)
+    print(f"Optimized model saved to: {optimized_model_path}")
 
     if optimizer.is_fully_optimized():
         print("The model has been fully optimized.")
     else:
         print("The model has been optimized.")
 
+    return optimized_model_path
+
+
+def quantize(onnx_model_path, optimize_model=False, use_external_format=False):
+    from onnxruntime.quantization import quantize_dynamic, QuantType, onnx_model
+
+    model = onnx.load(onnx_model_path.as_posix())
+    model = onnx_model.ONNXModel(model)
+    model.replace_gemm_with_matmul()
+    tmp_model_path = generate_identified_filename(onnx_model_path, "-tmp")
+    onnx.save_model(model.model, tmp_model_path.as_posix())
+    quantized_model_path = generate_identified_filename(onnx_model_path, "-quantized")
+
+    quantize_dynamic(
+        tmp_model_path,
+        quantized_model_path,
+        activation_type=QuantType.QUInt8,
+        weight_type=QuantType.QUInt8,
+        optimize_model=optimize_model,
+        use_external_data_format=use_external_format
+    )
+
+    print(f"Quantized model saved to: {quantized_model_path}")
+    os.remove(tmp_model_path)
+
+    return quantized_model_path
 
 def main():
     args = parser().parse_args()
     optimization_options = _get_optimization_options(args)
 
-    if args.onnx_model_path is None or not os.path.exists(args.onnx_model_path) or not args.onnx_model_path.endswith(".onnx"):
+    if args.onnx_model_path is None or not args.onnx_model_path.is_file():
         raise Exception("Invalid ONNX model path.")
 
-    output = args.onnx_model_path[:-5] + "-optimized.onnx" if args.output is None else args.output
-
-    optimize(
+    args.optimized_output = optimize(
         args.onnx_model_path,
         args.type_model,
         args.opt_level,
-        output=output,
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
         only_onnxruntime=args.only_onnxruntime,
         use_external_format=args.use_external_format
     )
 
+    if args.quantize_dynamic:
+        args.quantized_output = quantize(args.optimized_output, use_external_format=args.use_external_format)
+
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
