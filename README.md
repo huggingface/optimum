@@ -1,4 +1,5 @@
 [![Python package](https://github.com/huggingface/optimus/actions/workflows/python-package.yml/badge.svg)](https://github.com/huggingface/optimus/actions/workflows/python-package.yml)
+[![CircleCI](https://circleci.com/gh/huggingface/optimus/tree/main.svg?style=shield&circle-token=026e4937611321cb42253133d756da423907a597)](https://circleci.com/gh/huggingface/optimus/tree/main)
 
 # Optimus
 
