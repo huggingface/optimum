@@ -4,17 +4,20 @@ from argparse import ArgumentParser
 import onnx
 from onnxruntime.transformers.optimizer import MODEL_CLASSES
 from onnxruntime.transformers.onnx_model_bert import BertOptimizationOptions
-from utils import generate_identified_filename
+from .utils import generate_identified_filename
 
 
-def parser(parser=ArgumentParser()):
+def parser_optimize(parser=None):
+    if parser is None:
+        parser = ArgumentParser()
+
     parser.add_argument(
         "--onnx_model_path",
         type=Path,
         help="Input ONNX model path.",
     )
     parser.add_argument(
-        "--type_model",
+        "--model_type",
         type=str,
         choices=list(MODEL_CLASSES.keys()),
         default="bert",
@@ -101,7 +104,7 @@ def parser(parser=ArgumentParser()):
 
 
 def _get_optimization_options(args):
-    optimization_options = BertOptimizationOptions(args.type_model)
+    optimization_options = BertOptimizationOptions(args.model_type)
     if args.disable_gelu:
         optimization_options.enable_gelu = False
     if args.disable_layer_norm:
@@ -127,7 +130,7 @@ def _get_optimization_options(args):
 
 def optimize(
         onnx_model_path,
-        type_model,
+        model_type,
         opt_level,
         optimization_options=None,
         use_gpu=False,
@@ -139,7 +142,7 @@ def optimize(
 
     optimizer = optimize_model(
         onnx_model_path.as_posix(),
-        type_model,
+        model_type,
         opt_level=opt_level,
         optimization_options=optimization_options,
         use_gpu=use_gpu,
@@ -183,7 +186,7 @@ def quantize(onnx_model_path, optimize_model=False, use_external_format=False):
     return quantized_model_path
 
 def main():
-    args = parser().parse_args()
+    args = parser_optimize().parse_args()
     optimization_options = _get_optimization_options(args)
 
     if args.onnx_model_path is None or not args.onnx_model_path.is_file():
@@ -191,7 +194,7 @@ def main():
 
     args.optimized_output = optimize(
         args.onnx_model_path,
-        args.type_model,
+        args.model_type,
         args.opt_level,
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
@@ -205,3 +208,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
