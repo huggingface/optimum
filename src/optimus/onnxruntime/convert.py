@@ -1,4 +1,3 @@
-import os
 from argparse import ArgumentParser
 from pathlib import Path
 from transformers.onnx import export, validate_model_outputs
@@ -6,7 +5,10 @@ from transformers.onnx.__main__ import check_supported_model_or_raise, get_model
 from transformers import AutoTokenizer
 
 
-def parser(parser=ArgumentParser()):
+def parser_export(parser=None):
+    if parser is None:
+        parser = ArgumentParser()
+
     parser.add_argument(
         "--model",
         type=str,
@@ -15,7 +17,7 @@ def parser(parser=ArgumentParser()):
     )
     parser.add_argument(
         "--output",
-        type=str,
+        type=Path,
         required=True,
         help="Path indicating where to store generated ONNX model.",
     )
@@ -35,7 +37,7 @@ def parser(parser=ArgumentParser()):
         "--atol",
         type=float,
         default=1e-4,
-        help="Absolute difference tolerence when validating the model.",
+        help="Absolute difference tolerance when validating the model.",
     )
     return parser
 
@@ -50,17 +52,17 @@ def convert_to_onnx(model_name_or_path, output, features="default", opset=12):
 
 
 def main():
-    args = parser().parse_args()
-    output = args.output if args.output.endswith(".onnx") else os.path.join(args.output, "model.onnx")
-    output = Path(output).resolve()
+    args = parser_export().parse_args()
+    args.output = args.output if args.output.suffix else args.output.joinpath("model.onnx")
 
-    if not output.parent.exists():
-        output.parent.mkdir(parents=True)
+    if not args.output.parent.exists():
+        args.output.parent.mkdir(parents=True)
 
-    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, output, args.features, args.opset)
+    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.features, args.opset)
 
-    validate_model_outputs(onnx_config, tokenizer, model, output, onnx_outputs, args.atol)
+    validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, args.atol)
 
 
 if __name__ == "__main__":
     main()
+

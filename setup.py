@@ -25,13 +25,21 @@ setup(
     license="MIT",
     package_dir={"": "src"},
     packages=find_packages("src"),
-    install_requires=[],
+    install_requires=[
+        "coloredlogs",
+        "sympy",
+        "transformers>=4.9.0",
+        "torch>=1.8",
+        "onnx",
+        "onnxruntime"
+    ],
     test_suite="nose.collector",
     tests_require=["nose", "nose-cover3"],
     entry_points={
         "console_scripts": [
-            "optimus_convert=optimus.onnxruntime.convert:main",
+            "optimus_export=optimus.onnxruntime.convert:main",
             "optimus_optimize=optimus.onnxruntime.optimize_model:main",
+            "optimus_export_optimize=optimus.onnxruntime.convert_and_optimize:main"
         ],
     },
     include_package_data=True,
