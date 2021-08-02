@@ -2,6 +2,6 @@ pytest
 coloredlogs
 sympy
 transformers>=4.9.0
-torch>=1.6
+torch>=1.8
 onnx
 onnxruntime

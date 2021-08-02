@@ -25,7 +25,14 @@ setup(
     license="MIT",
     package_dir={"": "src"},
     packages=find_packages("src"),
-    install_requires=[],
+    install_requires=[
+        "coloredlogs",
+        "sympy",
+        "transformers>=4.9.0",
+        "torch>=1.8",
+        "onnx",
+        "onnxruntime"
+    ],
     test_suite="nose.collector",
     tests_require=["nose", "nose-cover3"],
     entry_points={
