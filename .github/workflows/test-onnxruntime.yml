@@ -11,8 +11,6 @@ on:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -36,5 +34,6 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with unittest
+      working-directory: tests
       run: |
         python -m unittest discover -s onnxruntime -p 'test_*.py'
