@@ -1,4 +1,4 @@
-[![ONNX Runtime](https://github.com/huggingface/optimus/actions/workflows/test-onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimus/actions/workflows/python-test.yml)
+[![ONNX Runtime](https://github.com/huggingface/optimus/actions/workflows/test-onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimus/actions/workflows/test-onnxruntime.yml)
 
 # Optimus
 
