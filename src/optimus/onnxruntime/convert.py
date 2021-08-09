@@ -1,11 +1,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 from transformers import AutoTokenizer
-from transformers.utils import check_min_version
 from transformers.onnx import export, validate_model_outputs
-
-check_min_version("4.10.0.dev0")
-
 from transformers.onnx.features import FeaturesManager
 
 
