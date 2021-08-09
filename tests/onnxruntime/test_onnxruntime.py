@@ -18,7 +18,7 @@ class TestOptimize(unittest.TestCase):
                 tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(
                     model_name,
                     onnx_model,
-                    features="default",
+                    feature="default",
                     opset=12
                 )
                 validate_model_outputs(onnx_config, tokenizer, model, onnx_model, onnx_outputs, atol=1e-4)
