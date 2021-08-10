@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 install_requires = [
     "coloredlogs",
     "sympy",
-    "transformers>=4.9.0",
+    "transformers>=4.9.2",
     "torch>=1.8"
 ]
 
