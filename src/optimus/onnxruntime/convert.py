@@ -30,7 +30,7 @@ def parser_export(parser=None):
     parser.add_argument(
         "--opset",
         type=int,
-        default=12,
+        default=None,
         help="ONNX opset version to export the model with.",
     )
     parser.add_argument(
@@ -42,11 +42,12 @@ def parser_export(parser=None):
     return parser
 
 
-def convert_to_onnx(model_name_or_path, output, feature="default", opset=12):
+def convert_to_onnx(model_name_or_path, output, feature="default", opset=None):
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
     model = FeaturesManager.get_model_from_feature(feature, model_name_or_path)
     model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
     onnx_config = model_onnx_config(model.config)
+    opset = onnx_config.default_onnx_opset if opset is None else opset
     onnx_inputs, onnx_outputs = export(tokenizer, model, onnx_config, opset, output)
     return tokenizer, model, onnx_config, onnx_outputs
 
