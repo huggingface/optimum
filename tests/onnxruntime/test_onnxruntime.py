@@ -15,12 +15,7 @@ class TestOptimize(unittest.TestCase):
             with self.subTest(model_name=model_name):
                 onnx_model = Path(tmp_dir.name).joinpath(model_name + ".onnx")
 
-                tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(
-                    model_name,
-                    onnx_model,
-                    features="default",
-                    opset=12
-                )
+                tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(model_name, onnx_model)
                 validate_model_outputs(onnx_config, tokenizer, model, onnx_model, onnx_outputs, atol=1e-4)
 
                 optimized_model = optimize(onnx_model, model_type="bert", opt_level=1, only_onnxruntime=True)

@@ -1,8 +1,8 @@
 from argparse import ArgumentParser
 from pathlib import Path
-from transformers.onnx import export, validate_model_outputs
-from transformers.onnx.__main__ import check_supported_model_or_raise, get_model_from_features
 from transformers import AutoTokenizer
+from transformers.onnx import export, validate_model_outputs
+from transformers.onnx.features import FeaturesManager
 
 
 def parser_export(parser=None):
@@ -22,15 +22,15 @@ def parser_export(parser=None):
         help="Path indicating where to store generated ONNX model.",
     )
     parser.add_argument(
-        "--features",
-        choices=["default"],
+        "--feature",
+        choices=list(FeaturesManager.AVAILABLE_FEATURES),
         default="default",
-        help="Export the model with some additional features.",
+        help="Export the model with some additional feature.",
     )
     parser.add_argument(
         "--opset",
         type=int,
-        default=12,
+        default=None,
         help="ONNX opset version to export the model with.",
     )
     parser.add_argument(
@@ -42,11 +42,12 @@ def parser_export(parser=None):
     return parser
 
 
-def convert_to_onnx(model_name_or_path, output, features="default", opset=12):
+def convert_to_onnx(model_name_or_path, output, feature="default", opset=None):
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    model = get_model_from_features(features, model_name_or_path)
-    model_type, model_onnx_config = check_supported_model_or_raise(model, features=features)
+    model = FeaturesManager.get_model_from_feature(feature, model_name_or_path)
+    model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
     onnx_config = model_onnx_config(model.config)
+    opset = onnx_config.default_onnx_opset if opset is None else opset
     onnx_inputs, onnx_outputs = export(tokenizer, model, onnx_config, opset, output)
     return tokenizer, model, onnx_config, onnx_outputs
 
@@ -58,7 +59,7 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
-    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.features, args.opset)
+    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.feature, args.opset)
 
     validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, args.atol)
 
