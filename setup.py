@@ -1,15 +1,24 @@
 from setuptools import find_packages, setup
+import sys
 
+python_v = "".join(sys.version.split(".", 2)[:2])
 
 install_requires = [
     "coloredlogs",
+    "datasets >= 1.2.1",
+    "scipy",
+    "sklearn",
     "sympy",
     "transformers>=4.9.2",
-    "torch>=1.8"
 ]
 
 extras = {
-    "onnxruntime": ["onnx", "onnxruntime"]
+    "onnxruntime": ["torch>=1.8", "onnx", "onnxruntime"],
+    "intel": [
+        f"torch @ https://download.pytorch.org/whl/cpu/torch-1.9.0%2Bcpu-cp{python_v}-cp{python_v}-linux_x86_64.whl",
+        "pycocotools",
+        "lpot @ git+https://github.com/intel/lpot.git"
+    ]
 }
 
 setup(
