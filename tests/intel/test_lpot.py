@@ -11,7 +11,7 @@ from transformers import (
     TrainingArguments,
 )
 from datasets import load_dataset, load_metric
-from optimus.intel.lpot import quantize_dynamic
+from optimus.intel.lpot import LpotQuantizer
 
 task_to_keys = {
     "cola": ("sentence", None),
@@ -62,7 +62,7 @@ class TestLPOT(unittest.TestCase):
 
         def compute_metrics(p: EvalPrediction):
             preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-            preds =  np.argmax(preds, axis=1)
+            preds = np.argmax(preds, axis=1)
             result = metric.compute(predictions=preds, references=p.label_ids)
             if len(result) > 1:
                 result["combined_score"] = np.mean(list(result.values())).item()
@@ -84,7 +84,8 @@ class TestLPOT(unittest.TestCase):
         def eval_func(model):
             return take_eval_steps(model, trainer, metric_name)
 
-        model = quantize_dynamic(model, lpot_config, eval_func=eval_func)
+        quantizer = LpotQuantizer(lpot_config, model, eval_func)
+        model = quantizer.fit_dynamic()
         metric = take_eval_steps(model, trainer, metric_name)
         print(f"Quantized model obtained with {metric_name} of {metric}.")
 

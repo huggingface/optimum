@@ -508,20 +508,22 @@ def main():
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for Quantization approach.")
 
-        from optimus.intel.lpot import quantization_approach, quantize_dynamic, quantize_ptq,  quantize_qat
-        approach = quantization_approach(model_args.config)
+        from optimus.intel.lpot import LpotQuantizer, LpotQuantizationMode
 
-        if approach == "post_training_dynamic_quant":
-            model = quantize_dynamic(model, model_args.config, eval_func)
+        quantizer = LpotQuantizer(model_args.config, model, eval_func)
+
+        if quantizer.approach == LpotQuantizationMode.DYNAMIC:
+            model = quantizer.fit_dynamic()
             identifier = "model_dyn.pt"
-        elif approach == "post_training_static_quant":
-            eval_dataloader = trainer.get_eval_dataloader()
-            model = quantize_ptq(model, model_args.config, eval_func, eval_dataloader)
+        elif quantizer.approach == LpotQuantizationMode.STATIC:
+            quantizer.calib_dataloader = trainer.get_eval_dataloader()
+            model = quantizer.fit_static()
             identifier = "model_ptq.pt"
-        elif approach == "quant_aware_training":
+        elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for Quantization aware training approach.")
-            model = quantize_qat(model, model_args.config, eval_func, train_func)
+            quantizer.train_func = train_func
+            model = quantizer.fit_aware_training()
             identifier = "model_qat.pt"
         else:
             raise ValueError(f"Unknown quantization approach.")

@@ -1,1 +1,1 @@
-from .quantization import quantize_dynamic, quantize_ptq,  quantize_qat, quantization_approach
+from .quantization import LpotQuantizer, LpotQuantizationMode
