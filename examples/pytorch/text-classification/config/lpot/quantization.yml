@@ -19,6 +19,8 @@ model:                                               # mandatory. used to specif
   name: bert
   framework: pytorch                                 # mandatory. possible values are tensorflow, mxnet, pytorch, pytorch_ipex, onnxrt_integerops and onnxrt_qlinearops.
 
+device: cpu
+
 quantization:                                        # optional. tuning constraints on model-wise for advance user to reduce tuning space.
   approach: post_training_dynamic_quant
 

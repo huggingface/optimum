@@ -506,8 +506,9 @@ def main():
         raise ValueError("Unknown provider, you should pick one in " + ", ".join(AVAILABLE_PROVIDERS))
 
     if model_args.quantize and model_args.provider == "lpot":
-        if model_args.config_path is None:
-            raise ValueError("A config file must be provided.")
+
+        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "lpot", "quantization.yml")
+        config_path = model_args.config_path if model_args.config_path is not None else default_config
 
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
@@ -515,13 +516,19 @@ def main():
         from optimus.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotQuantizationConfig
 
         q8_config = LpotQuantizationConfig(
-            model_args.config_path,
+            config_path,
             save_path=os.path.join(training_args.output_dir, "quantization.yml")
         )
 
         # Set quantization approach if specified
         if model_args.quantization_approach is not None:
-            q8_config.set_value("quantization.approach", model_args.quantization_approach)
+            supported_approach = {"static", "dynamic", "aware_training"}
+            if model_args.quantization_approach not in supported_approach:
+                raise ValueError(
+                    "Unknown quantization approach. Supported approach are " + ", ".join(supported_approach)
+                )
+            quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper())
+            q8_config.set_value("quantization.approach", quant_approach)
 
         quantizer = LpotQuantizer(q8_config.path, model, eval_func)
 
