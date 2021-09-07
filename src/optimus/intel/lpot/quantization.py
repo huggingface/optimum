@@ -1,8 +1,49 @@
+import yaml
+from functools import reduce
+
+
 class LpotQuantizationMode:
 
     DYNAMIC = "post_training_dynamic_quant"
     STATIC = "post_training_static_quant"
     AWARE_TRAINING = "quant_aware_training"
+
+
+class LpotQuantizationConfig:
+
+    def __init__(self, config_path, overwrite=False, save_path=None):
+        self.path = config_path
+        self.config = self.read_config(config_path)
+        self.overwrite = overwrite
+        self.save_path = save_path
+
+    @staticmethod
+    def read_config(config_path):
+        with open(config_path, 'r') as f:
+            try:
+                config = yaml.safe_load(f)
+            except yaml.YAMLError as exc:
+                print(exc)
+        return config
+
+    def get_value(self, keys):
+        return reduce(lambda d, key: d.get(key) if d else None, keys.split("."), self.config)
+
+    def set_value(self, keys, value):
+        d = self.config
+        keys = keys.split('.')
+        for key in keys[:-1]:
+            d = d.setdefault(key, {})
+        d[keys[-1]] = value
+        self.save_config()
+
+    def save_config(self):
+        if self.save_path is None and not self.overwrite:
+            raise ValueError("Needs either temporary config path or overwrite be set to True.")
+        self.path = self.save_path if self.save_path is not None else self.path
+
+        with open(self.path, "w") as f:
+            yaml.dump(self.config, f)
 
 
 class LpotQuantizer:
