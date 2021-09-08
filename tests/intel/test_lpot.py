@@ -35,11 +35,9 @@ class TestLPOT(unittest.TestCase):
         padding = "max_length"
         max_seq_length = 128
         max_eval_samples = 200
-        lpot_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
         metric_name = "eval_accuracy"
         dataset = load_dataset("glue", task)
         metric = load_metric("glue", task)
-
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         config = AutoConfig.from_pretrained(model_name)
         model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)
@@ -84,9 +82,15 @@ class TestLPOT(unittest.TestCase):
         def eval_func(model):
             return take_eval_steps(model, trainer, metric_name)
 
-        quantizer = LpotQuantizer(lpot_config, model, eval_func)
-        model = quantizer.fit_dynamic()
-        metric = take_eval_steps(model, trainer, metric_name)
+        quantizer = LpotQuantizer.from_config(
+            os.path.dirname(os.path.abspath(__file__)),
+            "quantization.yml",
+            model,
+            eval_func,
+        )
+
+        q_model = quantizer.fit_dynamic()
+        metric = take_eval_steps(q_model.model, trainer, metric_name)
         print(f"Quantized model obtained with {metric_name} of {metric}.")
 
 

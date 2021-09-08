@@ -1,5 +1,8 @@
 import yaml
+import os
+import requests
 from functools import reduce
+from huggingface_hub import hf_hub_download
 
 
 class LpotQuantizationMode:
@@ -11,11 +14,11 @@ class LpotQuantizationMode:
 
 class LpotQuantizationConfig:
 
-    def __init__(self, config_path, overwrite=False, save_path=None):
+    def __init__(self, config_path, save_path=None, overwrite=False):
         self.path = config_path
         self.config = self.read_config(config_path)
-        self.overwrite = overwrite
         self.save_path = save_path
+        self.overwrite = overwrite
 
     @staticmethod
     def read_config(config_path):
@@ -35,27 +38,48 @@ class LpotQuantizationConfig:
         for key in keys[:-1]:
             d = d.setdefault(key, {})
         d[keys[-1]] = value
-        self.save_config()
+        self._save_pretrained()
 
-    def save_config(self):
+    def _save_pretrained(self):
         if self.save_path is None and not self.overwrite:
-            raise ValueError("Needs either temporary config path or overwrite be set to True.")
-        self.path = self.save_path if self.save_path is not None else self.path
+            raise ValueError("Needs either path or overwrite set to True.")
 
+        self.path = self.save_path if self.save_path is not None else self.path
         with open(self.path, "w") as f:
             yaml.dump(self.config, f)
+
+    @classmethod
+    def from_pretrained(cls, config_name_or_path, config_name, cache_dir=None, **kwargs):
+        revision = None
+        if len(config_name_or_path.split("@")) == 2:
+            config_name_or_path, revision = config_name_or_path.split("@")
+
+        if os.path.isdir(config_name_or_path) and config_name in os.listdir(config_name_or_path):
+            config_file = os.path.join(config_name_or_path, config_name)
+        else:
+            try:
+                config_file = hf_hub_download(
+                    repo_id=config_name_or_path,
+                    filename=config_name,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                )
+            except requests.exceptions.RequestException:
+                raise ValueError(f"{config_name} NOT FOUND in HuggingFace Hub")
+
+        config = cls(config_file, **kwargs)
+        return config
 
 
 class LpotQuantizer:
 
     def __init__(self, config_path, model, eval_func, train_func=None, calib_dataloader=None):
         from lpot.conf.config import Conf
-        from lpot.conf.dotdict import deep_get
 
         self.config_path = config_path
-        self.config = Conf(config_path)
+        self.config = Conf(config_path).usr_cfg
+        self.approach = self.config.quantization.approach
         self.model = model
-        self.approach = deep_get(self.config.usr_cfg, "quantization.approach")
         self._eval_func = eval_func
         self._train_func = train_func
         self._calib_dataloader = calib_dataloader
@@ -97,7 +121,7 @@ class LpotQuantizer:
     def fit_dynamic(self):
         quantizer = self.init_quantizer()
         model = quantizer()
-        return model.model
+        return model
 
     def fit_static(self):
         self.adaptor_calib()
@@ -109,7 +133,7 @@ class LpotQuantizer:
         quantizer.calib_dataloader = self._calib_dataloader
 
         model = quantizer()
-        return model.model
+        return model
 
     def fit_aware_training(self):
         self.adaptor_calib()
@@ -121,7 +145,27 @@ class LpotQuantizer:
         quantizer.q_func = self._train_func
 
         model = quantizer()
-        return model.model
+        return model
+
+    @classmethod
+    def from_config(
+            cls,
+            config_name_or_path,
+            config_name,
+            model,
+            eval_func,
+            cache_dir=None,
+            **quantizer_kwargs
+    ):
+
+        q8_config = LpotQuantizationConfig.from_pretrained(
+            config_name_or_path,
+            config_name,
+            cache_dir=cache_dir,
+        )
+
+        quantizer = cls(q8_config.path, model, eval_func, **quantizer_kwargs)
+        return quantizer
 
 
 SUPPORTED_QUANT_APPROACH = {

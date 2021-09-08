@@ -131,7 +131,6 @@ class DataTrainingArguments:
         default=None, metadata={"help": "A csv or a json file containing the validation data."}
     )
 
-
     def __post_init__(self):
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
@@ -196,7 +195,7 @@ class ModelArguments:
         default=None,
         metadata={"help": "Quantization approach."}
     )
-    config_path: str = field(
+    config_name_or_path: str = field(
         default=None,
         metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
     )
@@ -507,17 +506,18 @@ def main():
 
     if model_args.quantize and model_args.provider == "lpot":
 
-        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "lpot", "quantization.yml")
-        config_path = model_args.config_path if model_args.config_path is not None else default_config
+        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "lpot")
 
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
         from optimus.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotQuantizationConfig
 
-        q8_config = LpotQuantizationConfig(
-            config_path,
-            save_path=os.path.join(training_args.output_dir, "quantization.yml")
+        q8_config = LpotQuantizationConfig.from_pretrained(
+            model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
+            "quantization.yml",
+            cache_dir=model_args.cache_dir,
+            save_path=os.path.join(training_args.output_dir, "quantization.yml"),
         )
 
         # Set quantization approach if specified
@@ -533,25 +533,21 @@ def main():
         quantizer = LpotQuantizer(q8_config.path, model, eval_func)
 
         if quantizer.approach == LpotQuantizationMode.DYNAMIC:
-            model = quantizer.fit_dynamic()
-            identifier = "model_dyn.pt"
+            q_model = quantizer.fit_dynamic()
         elif quantizer.approach == LpotQuantizationMode.STATIC:
             quantizer.calib_dataloader = trainer.get_eval_dataloader()
-            model = quantizer.fit_static()
-            identifier = "model_ptq.pt"
+            q_model = quantizer.fit_static()
         elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for Quantization aware training approach.")
             quantizer.train_func = train_func
-            model = quantizer.fit_aware_training()
-            identifier = "model_qat.pt"
+            q_model = quantizer.fit_aware_training()
         else:
             raise ValueError(f"Unknown quantization approach.")
 
-        metric = take_eval_steps(model, trainer, metric_name)
-        output = os.path.join(training_args.output_dir, identifier)
-        torch.save(model, output)
-        print(f"Optimized model with {metric_name} of {metric} saved to: {output}")
+        metric = take_eval_steps(q_model.model, trainer, metric_name)
+        q_model.save(training_args.output_dir)
+        print(f"Optimized model with {metric_name} of {metric} saved to: {training_args.output_dir}")
 
 
 def _mp_fn(index):

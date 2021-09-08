@@ -17,7 +17,8 @@ extras = {
     "intel": [
         f"torch @ https://download.pytorch.org/whl/cpu/torch-1.9.0%2Bcpu-cp{python_v}-cp{python_v}-linux_x86_64.whl",
         "pycocotools",
-        "lpot @ git+https://github.com/intel/lpot.git"
+        "lpot @ git+https://github.com/intel/lpot.git",
+        "huggingface_hub",
     ]
 }
 
