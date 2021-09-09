@@ -9,7 +9,13 @@ install_requires = [
 ]
 
 extras = {
-    "onnxruntime": ["onnx", "onnxruntime"]
+    "onnxruntime": ["onnx", "onnxruntime"],
+    "intel": [
+        "pycocotools",
+        "lpot @ git+https://github.com/intel/lpot.git",
+        "huggingface_hub",
+        "datasets >= 1.2.1",
+    ]
 }
 
 setup(
