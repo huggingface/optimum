@@ -527,17 +527,17 @@ def main():
                 raise ValueError(
                     "Unknown quantization approach. Supported approach are " + ", ".join(supported_approach)
                 )
-            quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper())
+            quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper()).value
             q8_config.set_value("quantization.approach", quant_approach)
 
         quantizer = LpotQuantizer(q8_config.path, model, eval_func=eval_func)
 
-        if quantizer.approach == LpotQuantizationMode.DYNAMIC:
+        if quantizer.approach == LpotQuantizationMode.DYNAMIC.value:
             q_model = quantizer.fit_dynamic()
-        elif quantizer.approach == LpotQuantizationMode.STATIC:
+        elif quantizer.approach == LpotQuantizationMode.STATIC.value:
             quantizer.calib_dataloader = trainer.get_eval_dataloader()
             q_model = quantizer.fit_static()
-        elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING:
+        elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for Quantization aware training approach.")
             quantizer.train_func = train_func

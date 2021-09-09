@@ -1,12 +1,13 @@
 import yaml
 import os
 import requests
+from enum import Enum
 from functools import reduce
 from huggingface_hub import hf_hub_download
 from typing import ClassVar
 
 
-class LpotQuantizationMode:
+class LpotQuantizationMode(Enum):
 
     DYNAMIC = "post_training_dynamic_quant"
     STATIC = "post_training_static_quant"
@@ -197,9 +198,9 @@ class LpotQuantizerForSequenceClassification(LpotQuantizer):
 
 
 SUPPORTED_QUANT_APPROACH = {
-    LpotQuantizationMode.STATIC,
-    LpotQuantizationMode.DYNAMIC,
-    LpotQuantizationMode.AWARE_TRAINING
+    LpotQuantizationMode.STATIC.value,
+    LpotQuantizationMode.DYNAMIC.value,
+    LpotQuantizationMode.AWARE_TRAINING.value
 }
 
 
