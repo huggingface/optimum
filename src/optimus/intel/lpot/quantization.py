@@ -4,7 +4,10 @@ import requests
 from enum import Enum
 from functools import reduce
 from huggingface_hub import hf_hub_download
-from typing import ClassVar
+from typing import Any, Callable, ClassVar, Optional, Union
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from torch import nn
+from torch.utils.data import DataLoader
 
 
 class LpotQuantizationMode(Enum):
@@ -16,25 +19,41 @@ class LpotQuantizationMode(Enum):
 
 class LpotQuantizationConfig:
 
-    def __init__(self, config_path, save_path=None, overwrite=False):
+    def __init__(
+            self,
+            config_path: str,
+            save_path: Optional[str] = None,
+            overwrite: Optional[bool] = False,
+    ):
+        """
+        Args:
+            config_path (:obj:`str`):
+                Path to the YAML configuration file used to control the tuning behavior.
+            save_path (:obj:`str`, `optional`):
+                Path used to save the configuration file.
+            overwrite (:obj:`bool`, `optional`):
+                Whether or not overwrite the configuration file when the latter is modified and saved.
+        Returns:
+            config: LpotQuantizationConfig object.
+        """
+
         self.path = config_path
-        self.config = self.read_config(config_path)
+        self.config = self._read_config()
         self.save_path = save_path
         self.overwrite = overwrite
 
-    @staticmethod
-    def read_config(config_path):
-        with open(config_path, 'r') as f:
+    def _read_config(self):
+        with open(self.path, 'r') as f:
             try:
                 config = yaml.safe_load(f)
             except yaml.YAMLError as exc:
                 print(exc)
         return config
 
-    def get_value(self, keys):
+    def get_config(self, keys: str):
         return reduce(lambda d, key: d.get(key) if d else None, keys.split("."), self.config)
 
-    def set_value(self, keys, value):
+    def set_config(self, keys: str, value: Any):
         d = self.config
         keys = keys.split('.')
         for key in keys[:-1]:
@@ -51,7 +70,31 @@ class LpotQuantizationConfig:
             yaml.dump(self.config, f)
 
     @classmethod
-    def from_pretrained(cls, config_name_or_path, config_name, cache_dir=None, **kwargs):
+    def from_pretrained(
+            cls,
+            config_name_or_path: Union[str, os.PathLike],
+            config_name: str,
+            cache_dir: Optional[Union[str, os.PathLike]] = None,
+            **config_kwargs
+    ):
+        """
+        Instantiate a LpotQuantizationConfig object from a configuration file which can either be hosted on
+        huggingface.co or from a local directory path.
+
+        Args:
+            config_name_or_path (:obj:`Union[str, os.PathLike]`):
+                Repository name in the Hub or path to a local directory containing the configuration file.
+            config_name (:obj:`str`):
+                Name of the configuration file.
+            cache_dir (:obj:`Union[str, os.PathLike]`, `optional`):
+                Path to a directory in which a downloaded configuration should be cached if the standard cache should
+                not be used.
+            config_kwargs (:obj:`Dict`, `optional`):
+                config_kwargs will be passed to the LpotQuantizationConfig object during initialization.
+        Returns:
+            config: LpotQuantizationConfig object.
+        """
+
         revision = None
         if len(config_name_or_path.split("@")) == 2:
             config_name_or_path, revision = config_name_or_path.split("@")
@@ -69,7 +112,7 @@ class LpotQuantizationConfig:
             except requests.exceptions.RequestException:
                 raise ValueError(f"{config_name} NOT FOUND in HuggingFace Hub")
 
-        config = cls(config_file, **kwargs)
+        config = cls(config_file, **config_kwargs)
         return config
 
 
@@ -77,7 +120,32 @@ class LpotQuantizer:
 
     TRANSFORMERS_AUTO_CLASS: ClassVar
 
-    def __init__(self, config_path, model, tokenizer=None, eval_func=None, train_func=None, calib_dataloader=None):
+    def __init__(
+            self,
+            config_path: str,
+            model: Union[PreTrainedModel, nn.Module],
+            tokenizer: Optional[PreTrainedTokenizerBase] = None,
+            eval_func: Optional[Callable] = None,
+            train_func: Optional[Callable] = None,
+            calib_dataloader: Optional[DataLoader] = None,
+    ):
+        """
+        Args:
+            config_path (:obj:`str`):
+                Path to the YAML configuration file used to control the tuning behavior.
+            model (:obj:`Union[PreTrainedModel, nn.Module]`):
+                FP32 model specified for low precision tuning.
+            tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
+                Tokenizer used to preprocess the data.
+            eval_func (:obj:`Callable`, `optional`):
+                Evaluation function provided by user.
+            train_func (:obj:`Callable`, `optional`):
+                Training function provided by user.
+            calib_dataloader (:obj:`Callable`, `optional`):
+                DataLoader for calibration.
+        Returns:
+            quantizer: LpotQuantizer object.
+        """
         from lpot.conf.config import Conf
 
         self.config_path = config_path
@@ -102,15 +170,15 @@ class LpotQuantizer:
         return self._calib_dataloader
 
     @eval_func.setter
-    def eval_func(self, func):
+    def eval_func(self, func: Callable):
         self._eval_func = func
 
     @train_func.setter
-    def train_func(self, func):
+    def train_func(self, func: Callable):
         self._train_func = func
 
     @calib_dataloader.setter
-    def calib_dataloader(self, dataloader):
+    def calib_dataloader(self, dataloader: DataLoader):
         self._calib_dataloader = dataloader
 
     def init_quantizer(self):
@@ -163,12 +231,32 @@ class LpotQuantizer:
     @classmethod
     def from_config(
             cls,
-            config_name_or_path,
-            config_name,
-            model_name_or_path=None,
-            cache_dir=None,
+            config_name_or_path: Union[str, os.PathLike],
+            config_name: str,
+            model_name_or_path: Optional[Union[str, os.PathLike]] = None,
+            cache_dir: Optional[Union[str, os.PathLike]] = None,
             **quantizer_kwargs
     ):
+        """
+        Instantiate a LpotQuantizer object from a configuration file which can either be hosted on huggingface.co or
+        from a local directory path.
+
+        Args:
+            config_name_or_path (:obj:`Union[str, os.PathLike]`):
+                Repository name in the Hub or path to a local directory containing the configuration file.
+            config_name (:obj:`str`):
+                Name of the configuration file.
+            model_name_or_path (:obj:Union[str, os.PathLike]`, `optional`):
+                Used to instantiate the model and tokenizer if specified, otherwise config_name_or_path is used.
+            cache_dir (:obj:`Union[str, os.PathLike]`, `optional`):
+                Path to a directory in which a downloaded configuration should be cached if the standard cache should
+                not be used.
+            quantizer_kwargs (:obj:`Dict`, `optional`):
+                quantizer_kwargs will be passed to the LpotQuantizer object during initialization.
+        Returns:
+            quantizer: LpotQuantizer object.
+        """
+
         from transformers import AutoTokenizer
 
         q8_config = LpotQuantizationConfig.from_pretrained(
@@ -207,11 +295,13 @@ SUPPORTED_QUANT_APPROACH = {
 def quantization_approach(config):
     """
     Extract quantization approach from YAML configuration file.
+
     Args:
         config: YAML configuration file used to control the tuning behavior.
     Returns:
         approach: Name of the quantization approach.
     """
+
     from lpot.conf.config import Conf
     from lpot.conf.dotdict import deep_get
 
@@ -227,6 +317,7 @@ def quantization_approach(config):
 def quantize_dynamic(model, config,  eval_func):
     """
     Apply LPOT dynamic quantization.
+
     Args:
         model: FP32 model specified for low precision tuning.
         config: YAML configuration file used to control the tuning behavior.
@@ -234,6 +325,7 @@ def quantize_dynamic(model, config,  eval_func):
     Returns:
         model: Quantized model.
     """
+
     from lpot.experimental import Quantization, common
 
     quantizer = Quantization(config)
@@ -249,6 +341,7 @@ def quantize_dynamic(model, config,  eval_func):
 def quantize_static(model, config, eval_func, calib_dataloader):
     """
     Apply LPOT post-training quantization.
+
     Args:
         model: FP32 model specified for low precision tuning.
         config: YAML configuration file used to control the tuning behavior.
@@ -257,6 +350,7 @@ def quantize_static(model, config, eval_func, calib_dataloader):
     Returns:
         model: Quantized model.
     """
+
     from lpot.experimental import Quantization, common
     from lpot.adaptor.pytorch import PyTorchAdaptor
     from .utils import model_calibration
@@ -277,6 +371,7 @@ def quantize_static(model, config, eval_func, calib_dataloader):
 def quantize_aware_training(model, config, eval_func, train_func):
     """
     Apply LPOT quantization aware training.
+
     Args:
         model: FP32 model specified for low precision tuning.
         config: YAML configuration file used to control the entire tuning behavior.
@@ -285,6 +380,7 @@ def quantize_aware_training(model, config, eval_func, train_func):
     Returns:
         model: Quantized model.
     """
+
     from lpot.experimental import Quantization, common
     from lpot.adaptor.pytorch import PyTorchAdaptor
     from .utils import model_calibration

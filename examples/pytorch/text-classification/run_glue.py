@@ -528,7 +528,7 @@ def main():
                     "Unknown quantization approach. Supported approach are " + ", ".join(supported_approach)
                 )
             quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper()).value
-            q8_config.set_value("quantization.approach", quant_approach)
+            q8_config.set_config("quantization.approach", quant_approach)
 
         quantizer = LpotQuantizer(q8_config.path, model, eval_func=eval_func)
 
