@@ -3,6 +3,7 @@ import os
 import requests
 from functools import reduce
 from huggingface_hub import hf_hub_download
+from typing import ClassVar
 
 
 class LpotQuantizationMode:
@@ -73,13 +74,16 @@ class LpotQuantizationConfig:
 
 class LpotQuantizer:
 
-    def __init__(self, config_path, model, eval_func, train_func=None, calib_dataloader=None):
+    TRANSFORMERS_AUTO_CLASS: ClassVar
+
+    def __init__(self, config_path, model, tokenizer=None, eval_func=None, train_func=None, calib_dataloader=None):
         from lpot.conf.config import Conf
 
         self.config_path = config_path
         self.config = Conf(config_path).usr_cfg
         self.approach = self.config.quantization.approach
         self.model = model
+        self.tokenizer = tokenizer
         self._eval_func = eval_func
         self._train_func = train_func
         self._calib_dataloader = calib_dataloader
@@ -96,6 +100,10 @@ class LpotQuantizer:
     def calib_dataloader(self):
         return self._calib_dataloader
 
+    @eval_func.setter
+    def eval_func(self, func):
+        self._eval_func = func
+
     @train_func.setter
     def train_func(self, func):
         self._train_func = func
@@ -109,6 +117,10 @@ class LpotQuantizer:
 
         quantizer = Quantization(self.config_path)
         quantizer.model = common.Model(self.model)
+
+        if self._eval_func is None:
+            raise ValueError("eval_func must be provided for quantization.")
+
         quantizer.eval_func = self._eval_func
         return quantizer
 
@@ -152,20 +164,36 @@ class LpotQuantizer:
             cls,
             config_name_or_path,
             config_name,
-            model,
-            eval_func,
+            model_name_or_path=None,
             cache_dir=None,
             **quantizer_kwargs
     ):
+        from transformers import AutoTokenizer
 
         q8_config = LpotQuantizationConfig.from_pretrained(
             config_name_or_path,
             config_name,
             cache_dir=cache_dir,
         )
-
-        quantizer = cls(q8_config.path, model, eval_func, **quantizer_kwargs)
+        model_name_or_path = model_name_or_path if model_name_or_path is not None else config_name_or_path
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(
+            model_name_or_path,
+            cache_dir=cache_dir,
+        )
+        quantizer_kwargs.update({'tokenizer': tokenizer})
+        quantizer = cls(q8_config.path, model, **quantizer_kwargs)
         return quantizer
+
+
+class LpotQuantizerForQuestionAnswering(LpotQuantizer):
+    from transformers import AutoModelForQuestionAnswering
+    TRANSFORMERS_AUTO_CLASS = AutoModelForQuestionAnswering
+
+
+class LpotQuantizerForSequenceClassification(LpotQuantizer):
+    from transformers import AutoModelForSequenceClassification
+    TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
 
 
 SUPPORTED_QUANT_APPROACH = {

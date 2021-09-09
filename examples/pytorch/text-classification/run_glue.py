@@ -530,7 +530,7 @@ def main():
             quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper())
             q8_config.set_value("quantization.approach", quant_approach)
 
-        quantizer = LpotQuantizer(q8_config.path, model, eval_func)
+        quantizer = LpotQuantizer(q8_config.path, model, eval_func=eval_func)
 
         if quantizer.approach == LpotQuantizationMode.DYNAMIC:
             q_model = quantizer.fit_dynamic()

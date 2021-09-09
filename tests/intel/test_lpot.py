@@ -11,7 +11,7 @@ from transformers import (
     TrainingArguments,
 )
 from datasets import load_dataset, load_metric
-from optimus.intel.lpot import LpotQuantizer
+from optimus.intel.lpot.quantization import LpotQuantizerForSequenceClassification
 
 task_to_keys = {
     "cola": ("sentence", None),
@@ -31,6 +31,7 @@ class TestLPOT(unittest.TestCase):
 
     def test_quantization(self):
         model_name = "textattack/bert-base-uncased-SST-2"
+        config_path = os.path.dirname(os.path.abspath(__file__))
         task = "sst2"
         padding = "max_length"
         max_seq_length = 128
@@ -38,13 +39,17 @@ class TestLPOT(unittest.TestCase):
         metric_name = "eval_accuracy"
         dataset = load_dataset("glue", task)
         metric = load_metric("glue", task)
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        config = AutoConfig.from_pretrained(model_name)
-        model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)
-
         data_collator = default_data_collator
-        max_seq_length = min(max_seq_length, tokenizer.model_max_length)
         sentence1_key, sentence2_key = task_to_keys[task]
+
+        quantizer = LpotQuantizerForSequenceClassification.from_config(
+            config_path,
+            "quantization.yml",
+            model_name_or_path=model_name,
+        )
+
+        tokenizer = quantizer.tokenizer
+        model = quantizer.model
 
         def preprocess_function(examples):
             args = (
@@ -82,12 +87,7 @@ class TestLPOT(unittest.TestCase):
         def eval_func(model):
             return take_eval_steps(model, trainer, metric_name)
 
-        quantizer = LpotQuantizer.from_config(
-            os.path.dirname(os.path.abspath(__file__)),
-            "quantization.yml",
-            model,
-            eval_func,
-        )
+        quantizer.eval_func = eval_func
 
         q_model = quantizer.fit_dynamic()
         metric = take_eval_steps(q_model.model, trainer, metric_name)
