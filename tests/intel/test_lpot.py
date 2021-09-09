@@ -1,5 +1,6 @@
 import unittest
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import numpy as np
 from transformers import (
     AutoConfig,
@@ -12,6 +13,7 @@ from transformers import (
 )
 from datasets import load_dataset, load_metric
 from optimus.intel.lpot.quantization import LpotQuantizerForSequenceClassification
+
 
 task_to_keys = {
     "cola": ("sentence", None),
