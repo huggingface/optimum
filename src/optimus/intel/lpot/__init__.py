@@ -1,1 +1,2 @@
-from .quantization import LpotQuantizer, LpotQuantizationMode, LpotQuantizationConfig
+from .quantization import LpotQuantizer, LpotQuantizationMode
+from .config import LpotConfig
