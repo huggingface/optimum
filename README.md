@@ -1,4 +1,5 @@
 [![ONNX Runtime](https://github.com/huggingface/optimus/actions/workflows/test-onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimus/actions/workflows/test-onnxruntime.yml)
+[![LPOT](https://github.com/huggingface/optimus/actions/workflows/test-intel.yml/badge.svg)](https://github.com/huggingface/optimus/actions/workflows/test-intel.yml)
 
 # Optimus
 
@@ -27,4 +28,16 @@ Convert a hub model:
 Optimize a hub model:
 `optimus_optimize` 
 
+Apply LPOT quantization:
 
+```bash
+python examples/pytorch/text-classification/run_glue.py \
+    --model_name_or_path textattack/bert-base-uncased-SST-2 \
+    --task_name sst2 \
+    --provider lpot \
+    --quantize \
+    --quantization_approach dynamic \
+    --config_name_or_path echarlaix/bert-base-dynamic-quant-test \
+    --do_eval \
+    --output_dir /tmp/sst2_output/
+```
