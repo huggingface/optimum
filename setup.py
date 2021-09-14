@@ -1,4 +1,13 @@
+import re
 from setuptools import find_packages, setup
+
+# Ensure we match the version set in optimus/version.py
+try:
+    filepath = './src/optimus/version.py'
+    with open( filepath ) as version_file:
+        __version__, = re.findall('__version__ = "(.*)"', version_file.read())
+except Exception as error:
+    assert False,  "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 
 install_requires = [
@@ -20,7 +29,7 @@ extras = {
 
 setup(
     name="optimus",
-    version="0.1",
+    version=__version__,
     description="Optimus Library is an extension of the Hugging Face Transformers library, providing a framework to "
                 "integrate third-party libraries from Hardware Partners and interface with their specific "
                 "functionality.",
@@ -37,10 +46,10 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    keywords="",
+    keywords="transformers, quantization, pruning, training, ipu",
     url="",
-    author="",
-    author_email="",
+    author="HuggingFace Inc. Special Ops Team",
+    author_email="hardware@huggingface.co",
     license="Apache",
     package_dir={"": "src"},
     packages=find_packages("src"),
