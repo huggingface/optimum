@@ -39,7 +39,7 @@ class TestLPOT(unittest.TestCase):
         max_seq_length = 128
         max_eval_samples = 200
         metric_name = "eval_accuracy"
-        dataset = load_dataset("glue", task)
+        dataset = load_dataset("glue", task, split="validation")
         metric = load_metric("glue", task)
         data_collator = default_data_collator
         sentence1_key, sentence2_key = task_to_keys[task]
@@ -61,8 +61,7 @@ class TestLPOT(unittest.TestCase):
             result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
             return result
 
-        encoded_dataset = dataset.map(preprocess_function, batched=True)
-        eval_dataset = encoded_dataset["validation"]
+        eval_dataset = dataset.map(preprocess_function, batched=True)
         eval_dataset = eval_dataset.select(range(max_eval_samples))
 
         def compute_metrics(p: EvalPrediction):
@@ -98,4 +97,3 @@ class TestLPOT(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

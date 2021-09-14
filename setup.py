@@ -21,7 +21,9 @@ extras = {
 setup(
     name="optimus",
     version="0.1",
-    description="optimus is a python package for optimizing and exporting machine learning models to ONNX.",
+    description="Optimus Library is an extension of the Hugging Face Transformers library, providing a framework to "
+                "integrate third-party libraries from Hardware Partners and interface with their specific "
+                "functionality.",
     long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     classifiers=[
@@ -31,16 +33,15 @@ setup(
         "Intended Audience :: Education",
         "Intended Audience :: Science/Research",
         "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="",
     url="",
     author="",
     author_email="",
-    license="MIT",
+    license="Apache",
     package_dir={"": "src"},
     packages=find_packages("src"),
     install_requires=install_requires,

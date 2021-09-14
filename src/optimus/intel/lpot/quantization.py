@@ -1,9 +1,5 @@
-import yaml
 import os
-import requests
 from enum import Enum
-from functools import reduce
-from huggingface_hub import hf_hub_download
 from typing import Any, Callable, ClassVar, Optional, Union
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 from torch import nn
@@ -15,105 +11,6 @@ class LpotQuantizationMode(Enum):
     DYNAMIC = "post_training_dynamic_quant"
     STATIC = "post_training_static_quant"
     AWARE_TRAINING = "quant_aware_training"
-
-
-class LpotQuantizationConfig:
-
-    def __init__(
-            self,
-            config_path: str,
-            save_path: Optional[str] = None,
-            overwrite: Optional[bool] = False,
-    ):
-        """
-        Args:
-            config_path (:obj:`str`):
-                Path to the YAML configuration file used to control the tuning behavior.
-            save_path (:obj:`str`, `optional`):
-                Path used to save the configuration file.
-            overwrite (:obj:`bool`, `optional`):
-                Whether or not overwrite the configuration file when the latter is modified and saved.
-        Returns:
-            config: LpotQuantizationConfig object.
-        """
-
-        self.path = config_path
-        self.config = self._read_config()
-        self.save_path = save_path
-        self.overwrite = overwrite
-
-    def _read_config(self):
-        with open(self.path, 'r') as f:
-            try:
-                config = yaml.safe_load(f)
-            except yaml.YAMLError as exc:
-                print(exc)
-        return config
-
-    def get_config(self, keys: str):
-        return reduce(lambda d, key: d.get(key) if d else None, keys.split("."), self.config)
-
-    def set_config(self, keys: str, value: Any):
-        d = self.config
-        keys = keys.split('.')
-        for key in keys[:-1]:
-            d = d.setdefault(key, {})
-        d[keys[-1]] = value
-        self._save_pretrained()
-
-    def _save_pretrained(self):
-        if self.save_path is None and not self.overwrite:
-            raise ValueError("Needs either path or overwrite set to True.")
-
-        self.path = self.save_path if self.save_path is not None else self.path
-        with open(self.path, "w") as f:
-            yaml.dump(self.config, f)
-
-    @classmethod
-    def from_pretrained(
-            cls,
-            config_name_or_path: Union[str, os.PathLike],
-            config_name: str,
-            cache_dir: Optional[Union[str, os.PathLike]] = None,
-            **config_kwargs
-    ):
-        """
-        Instantiate a LpotQuantizationConfig object from a configuration file which can either be hosted on
-        huggingface.co or from a local directory path.
-
-        Args:
-            config_name_or_path (:obj:`Union[str, os.PathLike]`):
-                Repository name in the Hub or path to a local directory containing the configuration file.
-            config_name (:obj:`str`):
-                Name of the configuration file.
-            cache_dir (:obj:`Union[str, os.PathLike]`, `optional`):
-                Path to a directory in which a downloaded configuration should be cached if the standard cache should
-                not be used.
-            config_kwargs (:obj:`Dict`, `optional`):
-                config_kwargs will be passed to the LpotQuantizationConfig object during initialization.
-        Returns:
-            config: LpotQuantizationConfig object.
-        """
-
-        revision = None
-        if len(config_name_or_path.split("@")) == 2:
-            config_name_or_path, revision = config_name_or_path.split("@")
-
-        if os.path.isdir(config_name_or_path) and config_name in os.listdir(config_name_or_path):
-            config_file = os.path.join(config_name_or_path, config_name)
-        else:
-            try:
-                config_file = hf_hub_download(
-                    repo_id=config_name_or_path,
-                    filename=config_name,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                )
-            except requests.exceptions.RequestException:
-                raise ValueError(f"{config_name} NOT FOUND in HuggingFace Hub")
-
-        config = cls(config_file, **config_kwargs)
-        return config
 
 
 class LpotQuantizer:
@@ -221,7 +118,7 @@ class LpotQuantizer:
         quantizer = self.init_quantizer()
 
         if self._train_func is None:
-            raise ValueError("train_func must be provided for quantization aware training .")
+            raise ValueError("train_func must be provided for quantization aware training.")
 
         quantizer.q_func = self._train_func
 
@@ -258,8 +155,9 @@ class LpotQuantizer:
         """
 
         from transformers import AutoTokenizer
+        from .config import LpotConfig
 
-        q8_config = LpotQuantizationConfig.from_pretrained(
+        q8_config = LpotConfig.from_pretrained(
             config_name_or_path,
             config_name,
             cache_dir=cache_dir,
@@ -396,4 +294,3 @@ def quantize_aware_training(model, config, eval_func, train_func):
     model = quantizer()
 
     return model.model
-
