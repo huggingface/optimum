@@ -21,9 +21,9 @@ extras = {
     "onnxruntime": ["onnx", "onnxruntime"],
     "intel": [
         "pycocotools",
-        "lpot @ git+https://github.com/intel/lpot.git",
+        "lpot>=1.6",
         "huggingface_hub",
-        "datasets >= 1.2.1",
+        "datasets>=1.2.1",
     ]
 }
 
