@@ -12,7 +12,7 @@ from transformers import (
     TrainingArguments,
 )
 from datasets import load_dataset, load_metric
-from optimus.intel.lpot.quantization import LpotQuantizerForSequenceClassification
+from optimum.intel.lpot.quantization import LpotQuantizerForSequenceClassification
 
 
 task_to_keys = {

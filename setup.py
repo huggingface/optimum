@@ -1,9 +1,9 @@
 import re
 from setuptools import find_packages, setup
 
-# Ensure we match the version set in optimus/version.py
+# Ensure we match the version set in optimum/version.py
 try:
-    filepath = './src/optimus/version.py'
+    filepath = 'src/optimum/version.py'
     with open( filepath ) as version_file:
         __version__, = re.findall('__version__ = "(.*)"', version_file.read())
 except Exception as error:
@@ -28,9 +28,9 @@ extras = {
 }
 
 setup(
-    name="optimus",
+    name="optimum",
     version=__version__,
-    description="Optimus Library is an extension of the Hugging Face Transformers library, providing a framework to "
+    description="Optimum Library is an extension of the Hugging Face Transformers library, providing a framework to "
                 "integrate third-party libraries from Hardware Partners and interface with their specific "
                 "functionality.",
     long_description=open("README.md", "r", encoding="utf-8").read(),
@@ -57,9 +57,9 @@ setup(
     extras_require=extras,
     entry_points={
         "console_scripts": [
-            "optimus_export=optimus.onnxruntime.convert:main",
-            "optimus_optimize=optimus.onnxruntime.optimize_model:main",
-            "optimus_export_optimize=optimus.onnxruntime.convert_and_optimize:main"
+            "optimum_export=optimum.onnxruntime.convert:main",
+            "optimum_optimize=optimum.onnxruntime.optimize_model:main",
+            "optimum_export_optimize=optimum.onnxruntime.convert_and_optimize:main"
         ],
     },
     include_package_data=True,
