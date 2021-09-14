@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 import tempfile
 from transformers.onnx import validate_model_outputs
-from optimus.onnxruntime import convert_to_onnx, optimize, quantize
+from optimum.onnxruntime import convert_to_onnx, optimize, quantize
 
 
 class TestOptimize(unittest.TestCase):

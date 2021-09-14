@@ -511,7 +511,7 @@ def main():
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
-        from optimus.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotConfig
+        from optimum.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotConfig
 
         q8_config = LpotConfig.from_pretrained(
             model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
