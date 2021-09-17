@@ -12,12 +12,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-def model_calibration(self, q_model, dataloader, iterations=1):
-    import torch
-    assert iterations > 0
-    with torch.no_grad():
-        for idx, input in enumerate(dataloader):
-            _ = q_model(**input)
-            if idx >= iterations - 1:
-                break
+from torch.utils.data import DataLoader
+
+
+class LpotDataloader:
+
+    def __init__(self, dataloader: DataLoader):
+        self.dataloader = dataloader
+        self.batch_size = dataloader.batch_size
+
+    def __iter__(self):
+        for input in self.dataloader:
+            if isinstance(input, dict) and "labels" in input:
+                yield input, input["labels"]
+            else:
+                yield input, None
 

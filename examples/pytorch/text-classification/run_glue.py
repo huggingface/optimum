@@ -536,7 +536,9 @@ def main():
         if quantizer.approach == LpotQuantizationMode.DYNAMIC.value:
             q_model = quantizer.fit_dynamic()
         elif quantizer.approach == LpotQuantizationMode.STATIC.value:
-            quantizer.calib_dataloader = trainer.get_eval_dataloader()
+            from optimum.intel.lpot.utils import LpotDataloader
+            eval_dataloader = trainer.get_eval_dataloader()
+            quantizer.calib_dataloader = LpotDataloader(eval_dataloader)
             q_model = quantizer.fit_static()
         elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:

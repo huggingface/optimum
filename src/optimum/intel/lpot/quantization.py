@@ -18,6 +18,7 @@ from typing import Any, Callable, ClassVar, Optional, Union
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 from torch import nn
 from torch.utils.data import DataLoader
+from optimum.intel.lpot.utils import LpotDataloader
 
 
 class LpotQuantizationMode(Enum):
@@ -38,7 +39,7 @@ class LpotQuantizer:
             tokenizer: Optional[PreTrainedTokenizerBase] = None,
             eval_func: Optional[Callable] = None,
             train_func: Optional[Callable] = None,
-            calib_dataloader: Optional[DataLoader] = None,
+            calib_dataloader: Optional[LpotDataloader] = None,
     ):
         """
         Args:
@@ -89,7 +90,7 @@ class LpotQuantizer:
         self._train_func = func
 
     @calib_dataloader.setter
-    def calib_dataloader(self, dataloader: DataLoader):
+    def calib_dataloader(self, dataloader: LpotDataloader):
         self._calib_dataloader = dataloader
 
     def init_quantizer(self):
@@ -104,19 +105,12 @@ class LpotQuantizer:
         quantizer.eval_func = self._eval_func
         return quantizer
 
-    @staticmethod
-    def adaptor_calib():
-        from lpot.adaptor.pytorch import PyTorchAdaptor
-        from .utils import model_calibration
-        PyTorchAdaptor.model_calibration = model_calibration
-
     def fit_dynamic(self):
         quantizer = self.init_quantizer()
         model = quantizer()
         return model
 
     def fit_static(self):
-        self.adaptor_calib()
         quantizer = self.init_quantizer()
 
         if self._calib_dataloader is None:
@@ -128,7 +122,6 @@ class LpotQuantizer:
         return model
 
     def fit_aware_training(self):
-        self.adaptor_calib()
         quantizer = self.init_quantizer()
 
         if self._train_func is None:
