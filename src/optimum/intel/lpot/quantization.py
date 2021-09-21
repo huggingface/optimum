@@ -18,7 +18,7 @@ from typing import Any, Callable, ClassVar, Optional, Union
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 from torch import nn
 from torch.utils.data import DataLoader
-from optimum.intel.lpot.utils import LpotDataloader
+from optimum.intel.lpot.utils import LpotDataLoader
 
 
 class LpotQuantizationMode(Enum):
@@ -39,7 +39,7 @@ class LpotQuantizer:
             tokenizer: Optional[PreTrainedTokenizerBase] = None,
             eval_func: Optional[Callable] = None,
             train_func: Optional[Callable] = None,
-            calib_dataloader: Optional[LpotDataloader] = None,
+            calib_dataloader: Optional[DataLoader] = None,
     ):
         """
         Args:
@@ -67,6 +67,8 @@ class LpotQuantizer:
         self.tokenizer = tokenizer
         self._eval_func = eval_func
         self._train_func = train_func
+        if calib_dataloader is not None:
+            calib_dataloader = LpotDataLoader.from_pytorch_dataloader(calib_dataloader)
         self._calib_dataloader = calib_dataloader
 
     @property
@@ -90,8 +92,8 @@ class LpotQuantizer:
         self._train_func = func
 
     @calib_dataloader.setter
-    def calib_dataloader(self, dataloader: LpotDataloader):
-        self._calib_dataloader = dataloader
+    def calib_dataloader(self, dataloader: DataLoader):
+        self._calib_dataloader = LpotDataLoader.from_pytorch_dataloader(dataloader)
 
     def init_quantizer(self):
         from lpot.experimental import Quantization, common
@@ -301,3 +303,4 @@ def quantize_aware_training(model, config, eval_func, train_func):
     model = quantizer()
 
     return model.model
+

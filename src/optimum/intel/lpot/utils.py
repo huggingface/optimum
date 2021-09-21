@@ -15,16 +15,21 @@
 from torch.utils.data import DataLoader
 
 
-class LpotDataloader:
+class LpotDataLoader(DataLoader):
 
-    def __init__(self, dataloader: DataLoader):
-        self.dataloader = dataloader
-        self.batch_size = dataloader.batch_size
+    @classmethod
+    def from_pytorch_dataloader(cls, dataloader: DataLoader):
+        if not isinstance(dataloader, DataLoader):
+            raise TypeError(f"Expected a PyTorch DataLoader, got: {type(dataloader)}.")
+        lpot_dataloader = cls(dataloader.dataset)
+        for key, value in dataloader.__dict__.items():
+            lpot_dataloader.__dict__[key] = value
+        return lpot_dataloader
 
     def __iter__(self):
-        for input in self.dataloader:
-            if isinstance(input, dict) and "labels" in input:
-                yield input, input["labels"]
-            else:
-                yield input, None
+        for input in super().__iter__():
+            if not isinstance(input, (dict, tuple, list)):
+                raise TypeError(f"Model calibration cannot use input of type {type(input)}.")
+            label = input.get("labels") if isinstance(input, dict) else None
+            yield input, label
 
