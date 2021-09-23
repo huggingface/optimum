@@ -26,7 +26,7 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
-    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.features, args.opset)
+    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.feature, args.opset)
     validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, atol=args.atol)
 
     optimization_options = _get_optimization_options(args)
@@ -34,7 +34,9 @@ def main():
     args.optimized_output = optimize(
         args.output,
         args.model_type,
-        args.opt_level,
+        num_heads=args.num_heads,
+        hidden_size=args.hidden_size,
+        opt_level=args.opt_level,
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
         only_onnxruntime=args.only_onnxruntime,

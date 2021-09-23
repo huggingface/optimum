@@ -16,8 +16,12 @@ import os
 from pathlib import Path
 from argparse import ArgumentParser
 import onnx
-from onnxruntime.transformers.optimizer import MODEL_CLASSES
+try:
+    from onnxruntime.transformers.optimizer import MODEL_TYPES
+except ImportError:
+    from onnxruntime.transformers.optimizer import MODEL_CLASSES as MODEL_TYPES
 from onnxruntime.transformers.onnx_model_bert import BertOptimizationOptions
+from typing import Optional
 from .utils import generate_identified_filename
 
 
@@ -31,18 +35,6 @@ def parser_optimize(parser=None):
         help="Input ONNX model path.",
     )
     parser.add_argument(
-        "--model_type",
-        type=str,
-        choices=list(MODEL_CLASSES.keys()),
-        default="bert",
-        help="Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys()),
-    )
-    parser.add_argument(
-        "--use_external_format",
-        action="store_true",
-        help="Allow exporting model >= than 2Gb.",
-    )
-    parser.add_argument(
         "--opt_level",
         type=int,
         choices=[0, 1, 2, 99],
@@ -50,14 +42,45 @@ def parser_optimize(parser=None):
         help="ONNX Runtime optimization level.",
     )
     parser.add_argument(
-        "--use_gpu",
-        action="store_true",
-        help="Use GPU inference.",
+        "--model_type",
+        type=str,
+        choices=list(MODEL_TYPES.keys()),
+        default="bert",
+        help="Model type selected in the list: " + ", ".join(MODEL_TYPES.keys()),
+    )
+    parser.add_argument(
+        "--num_heads",
+        type=int,
+        default=0,
+        help="Number of attention heads. 12 for bert-base model and 16 for bert-large."
+             "For bert model_type, 0 allows to detect the parameter from graph automatically",
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=0,
+        help="Model hidden size. 768 for bert-base model and 1024 for bert-large."
+             "For bert model_type, 0 allows to detect the parameter from graph automatically",
     )
     parser.add_argument(
         "--only_onnxruntime",
         action="store_true",
         help="Optimized by ONNX Runtime only.",
+    )
+    parser.add_argument(
+        "--quantize_dynamic",
+        action="store_true",
+        help="Apply dynamic quantization.",
+    )
+    parser.add_argument(
+        "--use_external_format",
+        action="store_true",
+        help="Allow exporting model >= than 2Gb.",
+    )
+    parser.add_argument(
+        "--use_gpu",
+        action="store_true",
+        help="Use GPU inference.",
     )
     parser.add_argument(
         "--disable_gelu",
@@ -109,11 +132,6 @@ def parser_optimize(parser=None):
         action="store_true",
         help="No attention mask. Only works for model_type=bert.",
     )
-    parser.add_argument(
-        "--quantize_dynamic",
-        action="store_true",
-        help="Apply dynamic quantization.",
-    )
     return parser
 
 
@@ -143,20 +161,46 @@ def _get_optimization_options(args):
 
 
 def optimize(
-        onnx_model_path,
-        model_type,
-        opt_level,
-        optimization_options=None,
-        use_gpu=False,
-        only_onnxruntime=False,
-        use_external_format=False
+        onnx_model_path: Path,
+        model_type: str,
+        num_heads: Optional[int] = 0,
+        hidden_size: Optional[int] = 0,
+        opt_level: Optional[int] = None,
+        optimization_options: Optional[BertOptimizationOptions] = None,
+        use_gpu: Optional[bool] = False,
+        only_onnxruntime: Optional[bool] = False,
+        use_external_format: Optional[bool] = False
 ):
+    """
+    Given an ONNX model, create an optimized ONNX model and save it.
 
+    Args:
+        onnx_model_path (:obj:`Path`):
+            Path indicating the ONNX model to optimize.
+        model_type (:obj:`str`):
+            Model type used to obtain the optimizer class, the default opt_level and export tools.
+        num_heads (:obj:`int`, `optional`):
+            Number of attention heads. For model_type bert, 0 allows to detect the parameter from graph automatically.
+        hidden_size (:obj:`int`, `optional`):
+            Model hidden size. For model_type bert, 0 allows to detect the parameter from graph automatically.
+        opt_level (:obj:`int`, `optional`):
+            Define the ONNX Runtime graph optimization level.
+        optimization_options (:obj:`BertOptimizationOptions`, `optional`):
+            Optimization options used to turn on or off the different fusion options.
+        use_gpu (:obj:`bool`, `optional`):
+            Whether to use GPU for inference.
+        only_onnxruntime (:obj:`bool`, `optional`):
+            Whether to only use ONNX Runtime to optimize model and no graph fusion in Python.
+        use_external_format (:obj:`bool`, `optional`):
+            Allow exporting model >= than 2Gb.
+    """
     from onnxruntime.transformers.optimizer import optimize_model
 
     optimizer = optimize_model(
         onnx_model_path.as_posix(),
         model_type,
+        num_heads,
+        hidden_size,
         opt_level=opt_level,
         optimization_options=optimization_options,
         use_gpu=use_gpu,
@@ -175,7 +219,22 @@ def optimize(
     return optimized_model_path
 
 
-def quantize(onnx_model_path, optimize_model=False, use_external_format=False):
+def quantize(
+        onnx_model_path: Path,
+        optimize_model: Optional[bool] = False,
+        use_external_format: Optional[bool] = False
+):
+    """
+    Given an ONNX model, create a quantized ONNX model and save it.
+
+    Args:
+        onnx_model_path (:obj:`Path`):
+            Path indicating the ONNX model to quantize.
+        optimize_model (:obj:`bool`, `optional`):
+            Whether to optimize the model before quantization.
+        use_external_format (:obj:`bool`, `optional`):
+            Allow exporting model >= than 2Gb.
+    """
     from onnxruntime.quantization import quantize_dynamic, QuantType, onnx_model
 
     model = onnx.load(onnx_model_path.as_posix())
@@ -199,6 +258,7 @@ def quantize(onnx_model_path, optimize_model=False, use_external_format=False):
 
     return quantized_model_path
 
+
 def main():
     args = parser_optimize().parse_args()
     optimization_options = _get_optimization_options(args)
@@ -209,7 +269,9 @@ def main():
     args.optimized_output = optimize(
         args.onnx_model_path,
         args.model_type,
-        args.opt_level,
+        num_heads=args.num_heads,
+        hidden_size=args.hidden_size,
+        opt_level=args.opt_level,
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
         only_onnxruntime=args.only_onnxruntime,

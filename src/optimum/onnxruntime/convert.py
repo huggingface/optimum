@@ -17,6 +17,7 @@ from pathlib import Path
 from transformers import AutoTokenizer
 from transformers.onnx import export, validate_model_outputs
 from transformers.onnx.features import FeaturesManager
+from typing import Optional
 
 
 def parser_export(parser=None):
@@ -27,7 +28,7 @@ def parser_export(parser=None):
         "--model",
         type=str,
         required=True,
-        help="Model's id or path.",
+        help="Path to model or model identifier from huggingface.co/models.",
     )
     parser.add_argument(
         "--output",
@@ -56,7 +57,25 @@ def parser_export(parser=None):
     return parser
 
 
-def convert_to_onnx(model_name_or_path, output, feature="default", opset=None):
+def convert_to_onnx(
+        model_name_or_path: str,
+        output: Path,
+        feature: Optional[str] = "default",
+        opset: Optional[int] = None
+):
+    """
+    Load and export a model to an ONNX Intermediate Representation (IR).
+
+    Args:
+        model_name_or_path (:obj:`str`):
+            Repository name in the Hugging Face Hub or path to a local directory containing the model to export.
+        output (:obj:`Path`):
+            Path indicating where to store the generated ONNX model.
+        feature (:obj:`str`, `optional`):
+            Export the model with some additional feature.
+        opset (:obj:`int`, `optional`):
+            Define the ONNX opset version used to export the model.
+    """
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
     model = FeaturesManager.get_model_from_feature(feature, model_name_or_path)
     model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
