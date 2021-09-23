@@ -16,7 +16,10 @@ import os
 from pathlib import Path
 from argparse import ArgumentParser
 import onnx
-from onnxruntime.transformers.optimizer import MODEL_CLASSES
+try:
+    from onnxruntime.transformers.optimizer import MODEL_TYPES
+except ImportError:
+    from onnxruntime.transformers.optimizer import MODEL_CLASSES as MODEL_TYPES
 from onnxruntime.transformers.onnx_model_bert import BertOptimizationOptions
 from .utils import generate_identified_filename
 
@@ -33,9 +36,9 @@ def parser_optimize(parser=None):
     parser.add_argument(
         "--model_type",
         type=str,
-        choices=list(MODEL_CLASSES.keys()),
+        choices=list(MODEL_TYPES.keys()),
         default="bert",
-        help="Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys()),
+        help="Model type selected in the list: " + ", ".join(MODEL_TYPES.keys()),
     )
     parser.add_argument(
         "--use_external_format",
