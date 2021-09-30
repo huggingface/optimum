@@ -14,8 +14,9 @@
 
 import unittest
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import numpy as np
+import tempfile
+import yaml
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
@@ -26,87 +27,152 @@ from transformers import (
     TrainingArguments,
 )
 from datasets import load_dataset, load_metric
-from optimum.intel.lpot.quantization import LpotQuantizerForSequenceClassification
 
-
-task_to_keys = {
-    "cola": ("sentence", None),
-    "mnli": ("premise", "hypothesis"),
-    "mnli-mm": ("premise", "hypothesis"),
-    "mrpc": ("sentence1", "sentence2"),
-    "qnli": ("question", "sentence"),
-    "qqp": ("question1", "question2"),
-    "rte": ("sentence1", "sentence2"),
-    "sst2": ("sentence", None),
-    "stsb": ("sentence1", "sentence2"),
-    "wnli": ("sentence1", "sentence2"),
-}
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 class TestLPOT(unittest.TestCase):
 
-    def test_quantization(self):
-        model_name = "textattack/bert-base-uncased-SST-2"
-        config_path = os.path.dirname(os.path.abspath(__file__))
-        task = "sst2"
-        padding = "max_length"
-        max_seq_length = 128
-        max_eval_samples = 200
-        metric_name = "eval_accuracy"
-        dataset = load_dataset("glue", task, split="validation")
-        metric = load_metric("glue", task)
-        data_collator = default_data_collator
-        sentence1_key, sentence2_key = task_to_keys[task]
+    def test_dynamic_quantization(self):
 
-        quantizer = LpotQuantizerForSequenceClassification.from_config(
-            config_path,
-            "quantization.yml",
-            model_name_or_path=model_name,
+        from optimum.intel.lpot.quantization import (
+            LpotQuantizer,
+            LpotQuantizedModelForSequenceClassification,
         )
 
-        tokenizer = quantizer.tokenizer
-        model = quantizer.model
-
-        def preprocess_function(examples):
-            args = (
-                (examples[sentence1_key],) if sentence2_key is None else (
-                examples[sentence1_key], examples[sentence2_key])
-            )
-            result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
-            return result
-
-        eval_dataset = dataset.map(preprocess_function, batched=True)
+        model_name = "textattack/bert-base-uncased-SST-2"
+        task = "sst2"
+        max_eval_samples = 100
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        metric = load_metric("glue", task)
+        eval_dataset = load_dataset("glue", task, split="validation")
+        eval_dataset = eval_dataset.map(
+            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128),
+            batched=True
+        )
         eval_dataset = eval_dataset.select(range(max_eval_samples))
 
         def compute_metrics(p: EvalPrediction):
             preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
             preds = np.argmax(preds, axis=1)
             result = metric.compute(predictions=preds, references=p.label_ids)
-            if len(result) > 1:
-                result["combined_score"] = np.mean(list(result.values())).item()
             return result
 
         trainer = Trainer(
             model=model,
+            train_dataset=None,
             eval_dataset=eval_dataset,
             compute_metrics=compute_metrics,
             tokenizer=tokenizer,
-            data_collator=data_collator,
+            data_collator=default_data_collator,
         )
 
-        def take_eval_steps(model, trainer, metric_name):
+        def eval_func(model):
             trainer.model = model
             metrics = trainer.evaluate()
-            return metrics.get(metric_name)
+            return metrics.get("eval_accuracy")
+
+        model_metric = eval_func(model)
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
+
+        quantizer = LpotQuantizer(config_path, model, eval_func=eval_func)
+
+        q_model = quantizer.fit_dynamic()
+        q_model_metric = eval_func(q_model.model)
+
+        # Verification accuracy loss is under 2%
+        self.assertTrue(q_model_metric >= model_metric * 0.98)
+
+        # Verification model saving and loading
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            trainer.save_model(tmp_dir)
+            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+                yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+            from optimum.intel.lpot.quantization import LpotQuantizedModelForSequenceClassification
+
+            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+                model_name_or_path=tmp_dir,
+                q_model_name="pytorch_model.bin",
+                config_name="lpot_config.yml",
+            )
+            loaded_model.eval()
+            loaded_model_metric = eval_func(loaded_model)
+            self.assertEqual(q_model_metric, loaded_model_metric)
+
+    def test_quantization_from_config(self):
+
+        from optimum.intel.lpot.quantization import (
+            LpotQuantizerForSequenceClassification,
+            LpotQuantizedModelForSequenceClassification,
+        )
+
+        model_name = "textattack/bert-base-uncased-SST-2"
+        task = "sst2"
+        max_eval_samples = 100
+        config_dir = os.path.dirname(os.path.abspath(__file__))
+
+        quantizer = LpotQuantizerForSequenceClassification.from_config(
+            config_dir,
+            "quantization.yml",
+            model_name_or_path=model_name,
+        )
+        tokenizer = quantizer.tokenizer
+        model = quantizer.model
+
+        metric = load_metric("glue", task)
+        eval_dataset = load_dataset("glue", task, split="validation")
+        eval_dataset = eval_dataset.map(
+            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128),
+            batched=True
+        )
+        eval_dataset = eval_dataset.select(range(max_eval_samples))
+
+        def compute_metrics(p: EvalPrediction):
+            preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+            preds = np.argmax(preds, axis=1)
+            result = metric.compute(predictions=preds, references=p.label_ids)
+            return result
+
+        trainer = Trainer(
+            model=model,
+            train_dataset=None,
+            eval_dataset=eval_dataset,
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer,
+            data_collator=default_data_collator,
+        )
 
         def eval_func(model):
-            return take_eval_steps(model, trainer, metric_name)
+            trainer.model = model
+            metrics = trainer.evaluate()
+            return metrics.get("eval_accuracy")
+
+        model_metric = eval_func(model)
 
         quantizer.eval_func = eval_func
 
         q_model = quantizer.fit_dynamic()
-        metric = take_eval_steps(q_model.model, trainer, metric_name)
-        print(f"Quantized model obtained with {metric_name} of {metric}.")
+        q_model_metric = eval_func(q_model.model)
+
+        # Verification accuracy loss is under 2%
+        self.assertTrue(q_model_metric >= model_metric * 0.98)
+
+        # Verification model saving and loading
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            trainer.save_model(tmp_dir)
+            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+                yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+                model_name_or_path=tmp_dir,
+                q_model_name="pytorch_model.bin",
+                config_name="lpot_config.yml",
+            )
+            loaded_model.eval()
+            loaded_model_metric = eval_func(loaded_model)
+            self.assertEqual(q_model_metric, loaded_model_metric)
 
 
 if __name__ == "__main__":

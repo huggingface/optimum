@@ -45,6 +45,7 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
+import yaml
 
 AVAILABLE_PROVIDERS = {"lpot"}
 
@@ -204,6 +205,13 @@ class ModelArguments:
         default="eval_accuracy",
         metadata={"help": "Eval metric used for tuning strategy."}
     )
+    load_quantized_model: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether or not load the model after LPOT quantization."
+        },
+    )
+
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -546,9 +554,26 @@ def main():
         else:
             raise ValueError(f"Unknown quantization approach.")
 
-        metric = take_eval_steps(q_model.model, trainer, metric_name)
-        q_model.save(training_args.output_dir)
-        print(f"Optimized model with {metric_name} of {metric} saved to: {training_args.output_dir}")
+        metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
+
+        trainer.save_model(training_args.output_dir)
+        with open(os.path.join(training_args.output_dir, "lpot_config.yml"), 'w') as f:
+            yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+        print(f"Optimized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
+
+        if model_args.load_quantized_model:
+            # Load the model obtained after LPOT quantization
+            from optimum.intel.lpot.quantization import LpotQuantizedModelForSequenceClassification
+
+            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+                model_name_or_path=training_args.output_dir,
+                q_model_name="pytorch_model.bin",
+                config_name="lpot_config.yml",
+            )
+            loaded_model.eval()
+            metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
+            print(f"model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
 
 
 def _mp_fn(index):

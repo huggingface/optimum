@@ -13,10 +13,11 @@
 #  limitations under the License.
 
 import os
+import torch
+import torch.quantization as tq
 from enum import Enum
-from typing import Any, Callable, ClassVar, Optional, Union
+from typing import Any, Callable, ClassVar, Dict, Optional, Union
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
-from torch import nn
 from torch.utils.data import DataLoader
 
 
@@ -34,7 +35,7 @@ class LpotQuantizer:
     def __init__(
             self,
             config_path: str,
-            model: Union[PreTrainedModel, nn.Module],
+            model: Union[PreTrainedModel, torch.nn.Module],
             tokenizer: Optional[PreTrainedTokenizerBase] = None,
             eval_func: Optional[Callable] = None,
             train_func: Optional[Callable] = None,
@@ -44,7 +45,7 @@ class LpotQuantizer:
         Args:
             config_path (:obj:`str`):
                 Path to the YAML configuration file used to control the tuning behavior.
-            model (:obj:`Union[PreTrainedModel, nn.Module]`):
+            model (:obj:`Union[PreTrainedModel, torch.nn.Module]`):
                 FP32 model specified for low precision tuning.
             tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
                 Tokenizer used to preprocess the data.
@@ -193,6 +194,161 @@ class LpotQuantizerForQuestionAnswering(LpotQuantizer):
 
 
 class LpotQuantizerForSequenceClassification(LpotQuantizer):
+    from transformers import AutoModelForSequenceClassification
+    TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
+
+
+quant_mapping = {
+    LpotQuantizationMode.STATIC.value: tq.quantization_mappings.get_default_static_quant_module_mappings(),
+    LpotQuantizationMode.DYNAMIC.value: tq.quantization_mappings.get_default_dynamic_quant_module_mappings(),
+    LpotQuantizationMode.AWARE_TRAINING.value: tq.quantization_mappings.get_default_qat_module_mappings()
+}
+
+
+def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> torch.nn.Module:
+    """
+    Apply LPOT quantization steps on the given model.
+
+    Args:
+        q_config (:obj:`Dict`):
+            Dictionary containing all quantization information such as approach, dtype, scheme and granularity.
+        model (:obj:`torch.nn.Module`):
+            Model to quantize.
+    Returns:
+        q_model (:obj:`torch.nn.Module`):
+            Quantized model.
+    """
+    import copy
+    from lpot.adaptor.pytorch import _cfg_to_qconfig, _propagate_qconfig
+
+    approach = q_config.get("approach")
+    if approach not in quant_mapping:
+        raise ValueError("Unknown quantization approach. Supported approach are " + ", ".join(quant_mapping.keys()))
+
+    op_cfgs = _cfg_to_qconfig(q_config, approach)
+    q_model = copy.deepcopy(model)
+
+    if approach == LpotQuantizationMode.DYNAMIC.value:
+        white_list = tq.quantization_mappings.get_default_dynamic_quant_module_mappings()
+    else:
+        white_list = tq.quantization_mappings.get_default_qconfig_propagation_list() - \
+                     {torch.nn.LayerNorm, torch.nn.InstanceNorm3d, torch.nn.Embedding}
+
+    q_mapping = quant_mapping.get(approach)
+
+    q_model.eval()
+    if approach != LpotQuantizationMode.AWARE_TRAINING.value:
+        _propagate_qconfig(q_model, op_cfgs, white_list=white_list, approach=approach)
+
+    if approach == LpotQuantizationMode.STATIC.value:
+        tq.add_observer_(q_model)
+    elif approach == LpotQuantizationMode.AWARE_TRAINING.value:
+        _propagate_qconfig(q_model, op_cfgs, is_qat_convert=True, white_list=white_list)
+        tq.convert(q_model, mapping=q_mapping, inplace=True, remove_qconfig=False)
+        _propagate_qconfig(q_model, op_cfgs, white_list=white_list)
+        tq.add_observer_(q_model, white_list, set(q_mapping.values()))
+
+    if approach == LpotQuantizationMode.AWARE_TRAINING.value:
+        tq.convert(q_model, inplace=True)
+    else:
+        tq.convert(q_model, mapping=q_mapping, inplace=True)
+
+    return q_model
+
+
+class LpotQuantizedModel:
+
+    TRANSFORMERS_AUTO_CLASS: ClassVar
+
+    def __init__(self, *args, **kwargs):
+        raise EnvironmentError(
+            f"{self.__class__.__name__} is designed to be instantiated using the"
+            f"`{self.__class__.__name__}.from_pretrained(model_name_or_path)` method."
+        )
+
+    @classmethod
+    def from_pretrained(
+            cls,
+            model_name_or_path: str,
+            config_name: str,
+            q_model_name: Optional[str] = None,
+            state_dict: Optional[Dict[str, torch.Tensor]] = None,
+            **kwargs
+    ) -> torch.nn.Module:
+        """
+        Instantiate a quantized pytorch model from a given LPOT configuration file.
+
+        Args:
+            model_name_or_path (:obj:`str`):
+                Repository name in the Hub or path to a local directory hosting the model.
+            config_name (:obj:`str`):
+                Name of the configuration file.
+            q_model_name (:obj:`str`, `optional`):
+                Name of the state dictionary located in model_name_or_path used to load the quantized model. If
+                state_dict is specified, the latter will not be used.
+            state_dict (:obj:`Dict[str, torch.Tensor]`, `optional`):
+                State dictionary of the quantized model, if not specified q_model_name will be used to load the
+                state dictionary.
+        Returns:
+            q_model: Quantized model.
+        """
+
+        if state_dict is None and q_model_name is None:
+            raise RuntimeError("`LpotQuantizedModel` requires either a `state_dict` or `q_model_name` argument")
+
+        from .config import LpotConfig
+
+        cache_dir = kwargs.get("cache_dir", None)
+
+        deploy_config = LpotConfig.from_pretrained(
+            model_name_or_path,
+            config_name,
+            cache_dir=cache_dir,
+        )
+
+        model_kwargs = kwargs
+
+        model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(
+            model_name_or_path,
+            state_dict=state_dict,
+            **model_kwargs
+        )
+
+        q_model = apply_quantization_from_config(deploy_config.config, model)
+
+        if state_dict is None:
+            revision = None
+            if len(model_name_or_path.split("@")) == 2:
+                model_name_or_path, revision = model_name_or_path.split("@")
+
+            if os.path.isdir(model_name_or_path) and q_model_name in os.listdir(model_name_or_path):
+                state_dict_path = os.path.join(model_name_or_path, q_model_name)
+            else:
+                from huggingface_hub import hf_hub_download
+                import requests
+                try:
+                    state_dict_path = hf_hub_download(
+                        repo_id=model_name_or_path,
+                        filename=q_model_name,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                    )
+                except requests.exceptions.RequestException:
+                    raise ValueError(f"{q_model_name} NOT FOUND in HuggingFace Hub")
+
+            state_dict = torch.load(state_dict_path)
+
+        q_model.load_state_dict(state_dict)
+
+        return q_model
+
+
+class LpotQuantizedModelForQuestionAnswering(LpotQuantizedModel):
+    from transformers import AutoModelForQuestionAnswering
+    TRANSFORMERS_AUTO_CLASS = AutoModelForQuestionAnswering
+
+
+class LpotQuantizedModelForSequenceClassification(LpotQuantizedModel):
     from transformers import AutoModelForSequenceClassification
     TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
 
