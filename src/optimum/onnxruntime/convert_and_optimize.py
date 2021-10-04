@@ -29,11 +29,16 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
-    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.feature, args.opset)
+    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(
+        args.model_name_or_path,
+        args.output,
+        args.feature,
+        args.opset
+    )
     validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, atol=args.atol)
 
     if model.config.model_type not in SUPPORTED_MODEL_TYPE:
-        raise ValueError(f"{model.config.model_type} ({args.model}) is not supported for ONNX Runtime "
+        raise ValueError(f"{model.config.model_type} ({args.model_name_or_path}) is not supported for ONNX Runtime "
                          f"optimization. Supported model types are " + ", ".join(SUPPORTED_MODEL_TYPE))
 
     optimization_options = _get_optimization_options(args)

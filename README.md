@@ -43,7 +43,7 @@ Export a model to an ONNX Intermediate Representation (IR):
 
 ```bash
 optimum_export \
-    --model textattack/bert-base-uncased-SST-2 \
+    --model_name_or_path textattack/bert-base-uncased-SST-2 \
     --output /tmp/onnx_models/model.onnx
 ```
 
@@ -60,7 +60,7 @@ The two steps mentioned above can be performed in one step using the following c
 
 ```bash
 optimum_export_optimize \
-    --model textattack/bert-base-uncased-SST-2 \
+    --model_name_or_path textattack/bert-base-uncased-SST-2 \
     --output /tmp/onnx_models/model.onnx
     --opt_level 1 \
     --quantize \
