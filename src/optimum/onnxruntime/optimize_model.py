@@ -39,7 +39,12 @@ def parser_optimize(parser=None):
         type=int,
         choices=[0, 1, 2, 99],
         default=0,
-        help="ONNX Runtime optimization level.",
+        help="Optimization level performed by ONNX Runtime of the loaded graph."
+             "0 will disable all optimizations."
+             "1 will enable basic optimizations."
+             "2 will enable basic and extended optimizations, including complex node fusions applied to the nodes "
+             "assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent."
+             "99 will enable all available optimizations including layout optimizations.",
     )
     parser.add_argument(
         "--model_type",
@@ -65,7 +70,7 @@ def parser_optimize(parser=None):
     parser.add_argument(
         "--only_onnxruntime",
         action="store_true",
-        help="Optimized by ONNX Runtime only.",
+        help="Whether to only use ONNX Runtime to optimize model and no graph fusion in Python.",
     )
     parser.add_argument(
         "--quantize_dynamic",
@@ -80,7 +85,8 @@ def parser_optimize(parser=None):
     parser.add_argument(
         "--use_gpu",
         action="store_true",
-        help="Use GPU inference.",
+        help="Whether to optimize the model for GPU inference."
+             "The optimized graph might contain operators for GPU or CPU only when opt_level > 1.",
     )
     parser.add_argument(
         "--disable_gelu",
@@ -184,11 +190,17 @@ def optimize(
         hidden_size (:obj:`int`):
             Model hidden size. For model_type bert, 0 allows to detect the parameter from graph automatically.
         opt_level (:obj:`int`, `optional`):
-            Define the ONNX Runtime graph optimization level.
+            Optimization level performed by ONNX Runtime of the loaded graph.
+            0 will disable all optimizations.
+            1 will enable basic optimizations.
+            2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
+            assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
+            99 will enable all available optimizations including layout optimizations.
         optimization_options (:obj:`BertOptimizationOptions`, `optional`):
             Optimization options used to turn on or off the different fusion options.
         use_gpu (:obj:`bool`):
-            Whether to use GPU for inference.
+            Whether to optimize the model for GPU inference. The optimized graph might contain operators for GPU or CPU
+            only when opt_level > 1.
         only_onnxruntime (:obj:`bool`):
             Whether to only use ONNX Runtime to optimize model and no graph fusion in Python.
         use_external_format (:obj:`bool`):
