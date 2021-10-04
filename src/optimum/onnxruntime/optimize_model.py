@@ -163,13 +163,13 @@ def _get_optimization_options(args):
 def optimize(
         onnx_model_path: Path,
         model_type: str,
-        num_heads: Optional[int] = 0,
-        hidden_size: Optional[int] = 0,
+        num_heads: int = 0,
+        hidden_size: int = 0,
         opt_level: Optional[int] = None,
         optimization_options: Optional[BertOptimizationOptions] = None,
-        use_gpu: Optional[bool] = False,
-        only_onnxruntime: Optional[bool] = False,
-        use_external_format: Optional[bool] = False
+        use_gpu: bool = False,
+        only_onnxruntime: bool = False,
+        use_external_format: bool = False
 ):
     """
     Given an ONNX model, create an optimized ONNX model and save it.
@@ -179,19 +179,19 @@ def optimize(
             Path indicating the ONNX model to optimize.
         model_type (:obj:`str`):
             Model type used to obtain the optimizer class, the default opt_level and export tools.
-        num_heads (:obj:`int`, `optional`):
+        num_heads (:obj:`int`):
             Number of attention heads. For model_type bert, 0 allows to detect the parameter from graph automatically.
-        hidden_size (:obj:`int`, `optional`):
+        hidden_size (:obj:`int`):
             Model hidden size. For model_type bert, 0 allows to detect the parameter from graph automatically.
         opt_level (:obj:`int`, `optional`):
             Define the ONNX Runtime graph optimization level.
         optimization_options (:obj:`BertOptimizationOptions`, `optional`):
             Optimization options used to turn on or off the different fusion options.
-        use_gpu (:obj:`bool`, `optional`):
+        use_gpu (:obj:`bool`):
             Whether to use GPU for inference.
-        only_onnxruntime (:obj:`bool`, `optional`):
+        only_onnxruntime (:obj:`bool`):
             Whether to only use ONNX Runtime to optimize model and no graph fusion in Python.
-        use_external_format (:obj:`bool`, `optional`):
+        use_external_format (:obj:`bool`):
             Allow exporting model >= than 2Gb.
     """
     from onnxruntime.transformers.optimizer import optimize_model
@@ -221,8 +221,8 @@ def optimize(
 
 def quantize(
         onnx_model_path: Path,
-        optimize_model: Optional[bool] = False,
-        use_external_format: Optional[bool] = False
+        optimize_model: bool = False,
+        use_external_format: bool = False
 ):
     """
     Given an ONNX model, create a quantized ONNX model and save it.
@@ -230,9 +230,9 @@ def quantize(
     Args:
         onnx_model_path (:obj:`Path`):
             Path indicating the ONNX model to quantize.
-        optimize_model (:obj:`bool`, `optional`):
+        optimize_model (:obj:`bool`):
             Whether to optimize the model before quantization.
-        use_external_format (:obj:`bool`, `optional`):
+        use_external_format (:obj:`bool`):
             Allow exporting model >= than 2Gb.
     """
     from onnxruntime.quantization import quantize_dynamic, QuantType, onnx_model

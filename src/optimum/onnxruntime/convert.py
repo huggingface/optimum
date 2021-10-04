@@ -60,7 +60,7 @@ def parser_export(parser=None):
 def convert_to_onnx(
         model_name_or_path: str,
         output: Path,
-        feature: Optional[str] = "default",
+        feature: str = "default",
         opset: Optional[int] = None
 ):
     """
@@ -71,7 +71,7 @@ def convert_to_onnx(
             Repository name in the Hugging Face Hub or path to a local directory containing the model to export.
         output (:obj:`Path`):
             Path indicating where to store the generated ONNX model.
-        feature (:obj:`str`, `optional`):
+        feature (:obj:`str`):
             Export the model with some additional feature.
         opset (:obj:`int`, `optional`):
             Define the ONNX opset version used to export the model.
