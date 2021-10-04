@@ -18,6 +18,9 @@ from .convert import convert_to_onnx, parser_export
 from .optimize_model import optimize, quantize, parser_optimize, _get_optimization_options
 
 
+SUPPORTED_MODEL_TYPE = {"bert", "distilbert", "albert", "roberta", "bart", "gpt2"}
+
+
 def main():
     parser = ArgumentParser(conflict_handler='resolve', parents=[parser_export(), parser_optimize()])
     args = parser.parse_args()
@@ -29,13 +32,22 @@ def main():
     tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.feature, args.opset)
     validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, atol=args.atol)
 
+    if model.config.model_type not in SUPPORTED_MODEL_TYPE:
+        raise ValueError(f"{model.config.model_type} ({args.model}) is not supported for ONNX Runtime "
+                         f"optimization. Supported model types are " + ", ".join(SUPPORTED_MODEL_TYPE))
+
     optimization_options = _get_optimization_options(args)
+
+    model_type = getattr(model.config, "model_type")
+    model_type = "bert" if "bert" in model_type else model_type
+    num_heads = getattr(model.config, "num_attention_heads", 0)
+    hidden_size = getattr(model.config, "hidden_size", 0)
 
     args.optimized_output = optimize(
         args.output,
-        args.model_type,
-        num_heads=args.num_heads,
-        hidden_size=args.hidden_size,
+        model_type,
+        num_heads=num_heads,
+        hidden_size=hidden_size,
         opt_level=args.opt_level,
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
