@@ -20,7 +20,7 @@ try:
     from onnxruntime.transformers.optimizer import MODEL_TYPES
 except ImportError:
     from onnxruntime.transformers.optimizer import MODEL_CLASSES as MODEL_TYPES
-from onnxruntime.transformers.onnx_model_bert import BertOptimizationOptions
+from onnxruntime.transformers.fusion_options import FusionOptions
 from typing import Optional
 from .utils import generate_identified_filename
 
@@ -141,38 +141,13 @@ def parser_optimize(parser=None):
     return parser
 
 
-def _get_optimization_options(args):
-    optimization_options = BertOptimizationOptions(args.model_type)
-    if args.disable_gelu:
-        optimization_options.enable_gelu = False
-    if args.disable_layer_norm:
-        optimization_options.enable_layer_norm = False
-    if args.disable_attention:
-        optimization_options.enable_attention = False
-    if args.disable_skip_layer_norm:
-        optimization_options.enable_skip_layer_norm = False
-    if args.disable_embed_layer_norm:
-        optimization_options.enable_embed_layer_norm = False
-    if args.disable_bias_skip_layer_norm:
-        optimization_options.enable_bias_skip_layer_norm = False
-    if args.disable_bias_gelu:
-        optimization_options.enable_bias_gelu = False
-    if args.enable_gelu_approximation:
-        optimization_options.enable_gelu_approximation = True
-    if args.use_mask_index:
-        optimization_options.use_raw_attention_mask(False)
-    if args.no_attention_mask:
-        optimization_options.disable_attention_mask()
-    return optimization_options
-
-
 def optimize(
         onnx_model_path: Path,
         model_type: str,
         num_heads: int = 0,
         hidden_size: int = 0,
         opt_level: Optional[int] = None,
-        optimization_options: Optional[BertOptimizationOptions] = None,
+        optimization_options: Optional[FusionOptions] = None,
         use_gpu: bool = False,
         only_onnxruntime: bool = False,
         use_external_format: bool = False
@@ -196,7 +171,7 @@ def optimize(
             2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
             assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
             99 will enable all available optimizations including layout optimizations.
-        optimization_options (:obj:`BertOptimizationOptions`, `optional`):
+        optimization_options (:obj:`FusionOptions`, `optional`):
             Optimization options used to turn on or off the different fusion options.
         use_gpu (:obj:`bool`):
             Whether to optimize the model for GPU inference. The optimized graph might contain operators for GPU or CPU
@@ -273,10 +248,11 @@ def quantize(
 
 def main():
     args = parser_optimize().parse_args()
-    optimization_options = _get_optimization_options(args)
 
     if args.onnx_model_path is None or not args.onnx_model_path.is_file():
         raise Exception("Invalid ONNX model path.")
+
+    optimization_options = FusionOptions.parse(args)
 
     args.optimized_output = optimize(
         args.onnx_model_path,

@@ -13,9 +13,10 @@
 #  limitations under the License.
 
 from argparse import ArgumentParser
+from onnxruntime.transformers.fusion_options import FusionOptions
 from transformers.onnx import validate_model_outputs
 from .convert import convert_to_onnx, parser_export
-from .optimize_model import optimize, quantize, parser_optimize, _get_optimization_options
+from .optimize_model import optimize, quantize, parser_optimize
 
 
 SUPPORTED_MODEL_TYPE = {"bert", "distilbert", "albert", "roberta", "bart", "gpt2"}
@@ -41,7 +42,7 @@ def main():
         raise ValueError(f"{model.config.model_type} ({args.model_name_or_path}) is not supported for ONNX Runtime "
                          f"optimization. Supported model types are " + ", ".join(SUPPORTED_MODEL_TYPE))
 
-    optimization_options = _get_optimization_options(args)
+    optimization_options = FusionOptions.parse(args)
 
     model_type = getattr(model.config, "model_type")
     model_type = "bert" if "bert" in model_type else model_type
