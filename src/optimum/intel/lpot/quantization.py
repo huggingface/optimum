@@ -12,13 +12,29 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import copy
 import os
+from collections import OrderedDict
 from enum import Enum
-from optimum.intel.lpot.utils import LpotDataLoader
+from typing import Callable, ClassVar, Optional, Union
+
+from lpot.adaptor.adaptor import adaptor_registry
+from lpot.adaptor.pytorch import PyTorch_FXAdaptor
+from lpot.utils import logger
+from lpot.utils.utility import dump_elapsed_time
+
+import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
-from typing import Callable, ClassVar, Optional, Union
+
+from transformers.utils.fx import (
+    is_model_supported_for_symbolic_tracing,
+    prepare_for_retracing,
+    restore_after_retracing_,
+    retracing_ready,
+    symbolic_trace,
+)
 
 
 class LpotQuantizationMode(Enum):
@@ -26,6 +42,98 @@ class LpotQuantizationMode(Enum):
     DYNAMIC = "post_training_dynamic_quant"
     STATIC = "post_training_static_quant"
     AWARE_TRAINING = "quant_aware_training"
+
+
+@adaptor_registry
+class HFPyTorch_FXAdaptor(PyTorch_FXAdaptor):
+
+    @dump_elapsed_time("Pass query framework capability")
+    def query_fw_capability(self, model):
+        """This is a helper function to get all quantizable ops from model.
+
+        Args:
+            model (object): input model which is LPOT model
+
+        Returns:
+            q_capability (dictionary): tuning capability for each op from model.
+        """
+        self.pre_optimized_model = model
+        tmp_model = model.model
+        if isinstance(self, PyTorch_FXAdaptor):
+            _, dynamic_axes_are_supported = is_model_supported_for_symbolic_tracing(model.model)
+            if not dynamic_axes_are_supported:
+                # TODO: write proper exception message
+                raise ValueError("not supported blabla")
+
+            try:
+                tmp_model = copy.deepcopy(model.model)
+            except Exception as e:                              # pragma: no cover
+                logger.warning("Deepcopy failed: {}, inplace=True now!".format(repr(e)))
+
+            from torch.fx import GraphModule
+            from torch.quantization.quantize_fx import (
+                QuantizationTracer,
+                _fuse_fx,
+            )
+
+            if model.kwargs is not None and \
+                    model.kwargs.__contains__('prepare_custom_config_dict'):
+                prepare_custom_config_dict = model.kwargs['prepare_custom_config_dict']
+            else:
+                prepare_custom_config_dict = {}
+            skipped_module_names = prepare_custom_config_dict.get(\
+                                                "non_traceable_module_name", [])
+            skipped_module_classes = prepare_custom_config_dict.get(\
+                                                "non_traceable_module_class", [])
+            traced = symbolic_trace(
+                tmp_model,
+                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                batch_size=-1,
+                sequence_length=-1
+            )
+
+            traced, attributes = prepare_for_retracing(traced)
+            tracer = QuantizationTracer(skipped_module_names, skipped_module_classes)
+            graph_module = GraphModule(tmp_model, tracer.trace(traced))
+            restore_after_retracing_(graph_module, attributes)
+
+            tmp_model = _fuse_fx(graph_module, prepare_custom_config_dict)
+
+        quantizable_ops = []
+        self._get_quantizable_ops_recursively(tmp_model, '', quantizable_ops)
+        capability = self.query_handler.get_quantization_capability()['dynamic'] \
+            if self.approach == "post_training_dynamic_quant" else \
+            self.query_handler.get_quantization_capability()['int8']
+
+        q_capability = {}
+        q_capability['optypewise'] = OrderedDict()
+        q_capability['opwise'] = OrderedDict()
+
+        for q_op in quantizable_ops:
+            q_capability['opwise'][q_op] = copy.deepcopy(capability[q_op[1]]) \
+                if q_op[1] in capability.keys() else copy.deepcopy(capability['default'])
+            if q_op[1] not in q_capability['optypewise'].keys():
+                q_capability['optypewise'][q_op[1]] = copy.deepcopy(capability[q_op[1]]) \
+                    if q_op[1] in capability.keys() else copy.deepcopy(capability['default'])
+
+        return q_capability
+
+    @dump_elapsed_time("Pass quantize model")
+    def quantize(self, tune_cfg, model, dataloader, q_func=None):
+        from torch.quantization.quantize_fx import _prepare_fx
+        orig = _prepare_fx
+        torch.quantization.quantize_fx._prepare_fx = retracing_ready(_prepare_fx)
+        res = super().quantize(tune_cfg, model, dataloader, q_func=q_func)
+        torch.quantization.quantize_fx._prepare_fx = orig
+        return res
+
+    def _pre_hook_for_qat(self):
+        from torch.quantization.quantize_fx import _prepare_fx
+        orig = _prepare_fx
+        torch.quantization.quantize_fx._prepare_fx = retracing_ready(_prepare_fx)
+        res = super()._pre_hook_for_qat()
+        torch.quantization.quantize_fx._prepare_fx = orig
+        return res
 
 
 class LpotQuantizer:
@@ -105,7 +213,18 @@ class LpotQuantizer:
 
         from lpot.experimental import Quantization, common
 
+        # TODO: use this way once it is released (currently in master)
+        # from lpot.conf.config import Quantization_Conf
+        # conf = Quantization_Conf(self.config_path)
+        # if conf.framework == "pytorch_fx":
+        #     conf.framework = "hfpytorch_fx"
+        # quantizer = Quantization(conf)
+        # For now: modify config manually.
         quantizer = Quantization(self.config_path)
+        if quantizer.framework == "pytorch_fx":
+            quantizer.framework = "hfpytorch_fx"
+            quantizer.cfg.model.framework = "hfpytorch_fx"
+
         quantizer.model = common.Model(self.model)
 
         if self._eval_func is None:
@@ -113,6 +232,13 @@ class LpotQuantizer:
 
         quantizer.eval_func = self._eval_func
         return quantizer
+
+    @staticmethod
+    def adaptor_calib():
+        from lpot.adaptor.pytorch import PyTorchAdaptor
+
+        from .utils import model_calibration
+        PyTorchAdaptor.model_calibration = model_calibration
 
     def fit_dynamic(self):
         quantizer = self.init_quantizer()
@@ -171,6 +297,7 @@ class LpotQuantizer:
         """
 
         from transformers import AutoTokenizer
+
         from .config import LpotConfig
 
         q8_config = LpotConfig.from_pretrained(
@@ -265,8 +392,9 @@ def quantize_static(model, config, eval_func, calib_dataloader):
         model: Quantized model.
     """
 
-    from lpot.experimental import Quantization, common
     from lpot.adaptor.pytorch import PyTorchAdaptor
+    from lpot.experimental import Quantization, common
+
     from .utils import model_calibration
 
     PyTorchAdaptor.model_calibration = model_calibration
@@ -295,8 +423,9 @@ def quantize_aware_training(model, config, eval_func, train_func):
         model: Quantized model.
     """
 
-    from lpot.experimental import Quantization, common
     from lpot.adaptor.pytorch import PyTorchAdaptor
+    from lpot.experimental import Quantization, common
+
     from .utils import model_calibration
 
     PyTorchAdaptor.model_calibration = model_calibration
@@ -310,4 +439,3 @@ def quantize_aware_training(model, config, eval_func, train_func):
     model = quantizer()
 
     return model.model
-
