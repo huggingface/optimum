@@ -96,6 +96,13 @@ class LpotQuantizer:
         self._calib_dataloader = LpotDataLoader.from_pytorch_dataloader(dataloader)
 
     def init_quantizer(self):
+        if self.config.model.framework == "pytorch_fx":
+            import lpot
+            from optimum.intel.lpot.utils import _cfgs_to_fx_cfgs, _get_quantizable_ops_recursively
+            # TODO : Change this to apply quantization on other part of the model other that Linears
+            lpot.adaptor.pytorch._cfgs_to_fx_cfgs = _cfgs_to_fx_cfgs
+            lpot.adaptor.pytorch.PyTorch_FXAdaptor._get_quantizable_ops_recursively = _get_quantizable_ops_recursively
+
         from lpot.experimental import Quantization, common
 
         quantizer = Quantization(self.config_path)

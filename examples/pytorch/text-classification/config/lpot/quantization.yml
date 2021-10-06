@@ -17,7 +17,7 @@ version: 1.0
 
 model:                                               # mandatory. used to specify model specific information.
   name: bert
-  framework: pytorch                                 # mandatory. possible values are tensorflow, mxnet, pytorch, pytorch_ipex, onnxrt_integerops and onnxrt_qlinearops.
+  framework: pytorch                                 # mandatory. possible values are pytorch and pytorch_fx.
 
 device: cpu
 

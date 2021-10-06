@@ -33,3 +33,51 @@ class LpotDataLoader(DataLoader):
             label = input.get("labels") if isinstance(input, dict) else None
             yield input, label
 
+
+def _cfgs_to_fx_cfgs(op_cfgs, observer_type='post_training_static_quant'):
+    """LPOT function which convert a quantization config to a format that meets the requirements of torch.fx.
+        Args:
+            op_cfgs (dict): dictionary of quantization configure for each op
+            observer_type (str, optional): specify observer type, Default is 'ptq_static',
+                                           options: 'ptq_dynamic', 'qat'.
+        Returns:
+            fx_op_cfgs (dict): dictionary of quantization configure that meets the requirements of torch.fx
+    """
+    fx_op_cfgs = dict()
+    op_tuple_cfg_list = []
+    for key, value in op_cfgs.items():
+        if key == "default_qconfig":
+            fx_op_cfgs[""] = value
+            continue
+        op_tuple = (key, value)
+        op_tuple_cfg_list.append(op_tuple)
+    fx_op_cfgs["module_name"] = op_tuple_cfg_list
+    return fx_op_cfgs
+
+
+def _get_quantizable_ops_recursively(self, model, prefix, quantizable_ops):
+    """LPOT helper function for `query_fw_capability` which get all quantizable ops from model.
+    Args:
+        model (object): input model
+        prefix (string): prefix of op name
+        quantizable_ops (list): list of quantizable ops from model include op name and type.
+    Returns:
+        None
+    """
+    import torch
+    from lpot.adaptor.pytorch import unify_op_type_mapping
+
+    for name, child in model.named_children():
+        op_name = prefix + '.' + name if prefix != '' else name
+        if type(child) in self.white_list and type(child) != torch.nn.Sequential and \
+                type(child) != torch.quantization.stubs.DeQuantStub and not \
+                    isinstance(child, torch.nn.LayerNorm) and not \
+                    isinstance(child, torch.nn.Embedding):
+
+            quantizable_ops.append((
+                op_name, unify_op_type_mapping[str(child.__class__.__name__)]
+                if str(child.__class__.__name__) in unify_op_type_mapping else
+                str(child.__class__.__name__)))
+        else:
+            self._get_quantizable_ops_recursively(child, op_name, quantizable_ops)
+
