@@ -17,12 +17,13 @@ version: 1.0
 
 model:                                               # mandatory. used to specify model specific information.
   name: bert
-  framework: pytorch                                 # mandatory. possible values are pytorch and pytorch_fx.
+  framework: pytorch_fx                                 # mandatory. possible values are tensorflow, mxnet, pytorch, pytorch_ipex, onnxrt_integerops and onnxrt_qlinearops.
+>>>>>>> 2051c33 (changed quantization config for testing purposes)
 
 device: cpu
 
 quantization:                                        # optional. tuning constraints on model-wise for advance user to reduce tuning space.
-  approach: post_training_dynamic_quant
+  approach: post_training_static_quant
 
 tuning:
   accuracy_criterion:
