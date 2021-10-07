@@ -18,7 +18,6 @@ version: 1.0
 model:                                               # mandatory. used to specify model specific information.
   name: bert
   framework: pytorch_fx                                 # mandatory. possible values are tensorflow, mxnet, pytorch, pytorch_ipex, onnxrt_integerops and onnxrt_qlinearops.
->>>>>>> 2051c33 (changed quantization config for testing purposes)
 
 device: cpu
 

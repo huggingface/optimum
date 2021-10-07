@@ -18,7 +18,7 @@ from collections import OrderedDict
 from enum import Enum
 from typing import Callable, ClassVar, Optional, Union
 
-from lpot.adaptor.adaptor import adaptor_registry
+from lpot.adaptor.adaptor import adaptor_registry, FRAMEWORKS
 from lpot.adaptor.pytorch import PyTorch_FXAdaptor
 from lpot.utils import logger
 from lpot.utils.utility import dump_elapsed_time
@@ -34,6 +34,7 @@ from transformers.utils.fx import (
     restore_after_retracing_,
     retracing_ready,
     symbolic_trace,
+    _SUPPORTED_MODELS_FOR_DYNAMIC_AXES
 )
 
 
@@ -46,6 +47,23 @@ class LpotQuantizationMode(Enum):
 
 @adaptor_registry
 class HFPyTorch_FXAdaptor(PyTorch_FXAdaptor):
+
+    def trace(self, model):
+        _, dynamic_axes_are_supported = is_model_supported_for_symbolic_tracing(model)
+        if not dynamic_axes_are_supported:
+            supported_model_names = ", ".join(
+                (cls.__name__ for cls in _SUPPORTED_MODELS_FOR_DYNAMIC_AXES)
+            )
+            raise NotImplementedError(
+                f"Dynamic axes are not supported for {model.__class__.__name__} yet, supported models: {supported_model_names}"
+            )
+        # TODO: take care of the way to pass input_names, and num_choices if needed.
+        return symbolic_trace(
+            model,
+            input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+            batch_size=-1,
+            sequence_length=-1
+        )
 
     @dump_elapsed_time("Pass query framework capability")
     def query_fw_capability(self, model):
@@ -60,11 +78,6 @@ class HFPyTorch_FXAdaptor(PyTorch_FXAdaptor):
         self.pre_optimized_model = model
         tmp_model = model.model
         if isinstance(self, PyTorch_FXAdaptor):
-            _, dynamic_axes_are_supported = is_model_supported_for_symbolic_tracing(model.model)
-            if not dynamic_axes_are_supported:
-                # TODO: write proper exception message
-                raise ValueError("not supported blabla")
-
             try:
                 tmp_model = copy.deepcopy(model.model)
             except Exception as e:                              # pragma: no cover
@@ -85,16 +98,11 @@ class HFPyTorch_FXAdaptor(PyTorch_FXAdaptor):
                                                 "non_traceable_module_name", [])
             skipped_module_classes = prepare_custom_config_dict.get(\
                                                 "non_traceable_module_class", [])
-            traced = symbolic_trace(
-                tmp_model,
-                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
-                batch_size=-1,
-                sequence_length=-1
-            )
 
+            traced = self.trace(tmp_model)
             traced, attributes = prepare_for_retracing(traced)
             tracer = QuantizationTracer(skipped_module_names, skipped_module_classes)
-            graph_module = GraphModule(tmp_model, tracer.trace(traced))
+            graph_module = GraphModule(traced, tracer.trace(traced))
             restore_after_retracing_(graph_module, attributes)
 
             tmp_model = _fuse_fx(graph_module, prepare_custom_config_dict)
@@ -120,11 +128,22 @@ class HFPyTorch_FXAdaptor(PyTorch_FXAdaptor):
 
     @dump_elapsed_time("Pass quantize model")
     def quantize(self, tune_cfg, model, dataloader, q_func=None):
-        from torch.quantization.quantize_fx import _prepare_fx
-        orig = _prepare_fx
+        from torch.quantization.quantize_fx import QuantizationTracer, _prepare_fx
+        from transformers.utils.fx import HFTracer
+
+        orig__module_getattr = QuantizationTracer._module_getattr
+        QuantizationTracer._module_getattr = HFTracer._module_getattr
+
+        orig__prepare_fx = _prepare_fx
         torch.quantization.quantize_fx._prepare_fx = retracing_ready(_prepare_fx)
+
+        model.model = self.trace(model.model)
+        import pdb; pdb.set_trace()
         res = super().quantize(tune_cfg, model, dataloader, q_func=q_func)
-        torch.quantization.quantize_fx._prepare_fx = orig
+
+        QuantizationTracer._module_getattr = orig__module_getattr
+        torch.quantization.quantize_fx._prepare_fx = orig__prepare_fx
+
         return res
 
     def _pre_hook_for_qat(self):
@@ -213,17 +232,25 @@ class LpotQuantizer:
 
         from lpot.experimental import Quantization, common
 
-        # TODO: use this way once it is released (currently in master)
+        # TODO: make things cleaner regarding the adaptor.
+        # Currently patching the adaptor class in the FRAMEWORKS registry works fine but getting things to work without
+        # patching would be better as HFPytorch_FXAdaptor is also registered in FRAMEWORKS.
+
         # from lpot.conf.config import Quantization_Conf
         # conf = Quantization_Conf(self.config_path)
         # if conf.framework == "pytorch_fx":
         #     conf.framework = "hfpytorch_fx"
         # quantizer = Quantization(conf)
-        # For now: modify config manually.
+        # For now:
+        # quantizer = Quantization(self.config_path)
+        # if quantizer.framework == "pytorch_fx":
+        #     quantizer.framework = "hfpytorch_fx"
+        #     quantizer.cfg.model.framework = "hfpytorch_fx"
+
+        # pytorch_fx_adaptor = FRAMEWORKS["pytorch_fx"]
+        FRAMEWORKS["pytorch_fx"] = FRAMEWORKS["hfpytorch_fx"]
         quantizer = Quantization(self.config_path)
-        if quantizer.framework == "pytorch_fx":
-            quantizer.framework = "hfpytorch_fx"
-            quantizer.cfg.model.framework = "hfpytorch_fx"
+        # FRAMEWORKS["pytorch_fx"] = pytorch_fx_adaptor
 
         quantizer.model = common.Model(self.model)
 
