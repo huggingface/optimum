@@ -198,7 +198,7 @@ class ModelArguments:
             "help": "Quantization approach. Supported approach are static, dynamic and aware_training."
         },
     )
-    config_dir: str = field(
+    config_name_or_path: str = field(
         default=None,
         metadata={
             "help": "Path to the directory containing the YAML configuration file used to control the tuning behavior."
@@ -527,7 +527,7 @@ def main():
             raise ValueError("do_eval must be set to True for quantization.")
 
         q8_config = LpotConfig.from_pretrained(
-            model_args.config_dir if model_args.config_dir is not None else default_config,
+            model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
             "quantization.yml",
             cache_dir=model_args.cache_dir,
             save_path=os.path.join(training_args.output_dir, "quantization.yml"),
