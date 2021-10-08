@@ -45,7 +45,6 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
-import yaml
 
 AVAILABLE_PROVIDERS = {"lpot"}
 
@@ -205,13 +204,12 @@ class ModelArguments:
         default="eval_accuracy",
         metadata={"help": "Eval metric used for tuning strategy."}
     )
-    load_quantized_model: bool = field(
+    verify_loading: bool = field(
         default=False,
         metadata={
-            "help": "Whether or not load the model after LPOT quantization."
+            "help": "Whether or not to verify the loading of the quantized model."
         },
     )
-
 
 
 def main():
@@ -516,12 +514,13 @@ def main():
 
     if model_args.quantize and model_args.provider == "lpot":
 
+        from optimum.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotConfig
+        import yaml
+
         default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "lpot")
 
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
-
-        from optimum.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotConfig
 
         q8_config = LpotConfig.from_pretrained(
             model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
@@ -545,6 +544,7 @@ def main():
         if q8_config.config.get("quantization").get("approach") != LpotQuantizationMode.DYNAMIC.value:
             q8_config.set_config("model.framework", "pytorch_fx")
             from transformers.utils.fx import symbolic_trace
+            model.config.save_pretrained(training_args.output_dir)
             model = symbolic_trace(
                 model,
                 input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
@@ -570,12 +570,14 @@ def main():
         metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
 
         trainer.save_model(training_args.output_dir)
+        trainer.save_metrics("eval", metric_q_model)
+
         with open(os.path.join(training_args.output_dir, "lpot_config.yml"), 'w') as f:
             yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
-        print(f"Optimized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
+        logger.info(f"Quantized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
 
-        if model_args.load_quantized_model:
+        if model_args.verify_loading:
             # Load the model obtained after LPOT quantization
             from optimum.intel.lpot.quantization import LpotQuantizedModelForSequenceClassification
 
@@ -583,10 +585,16 @@ def main():
                 model_name_or_path=training_args.output_dir,
                 q_model_name="pytorch_model.bin",
                 config_name="lpot_config.yml",
+                batch_size=training_args.per_device_eval_batch_size,
+                sequence_length=data_args.max_seq_length,
             )
             loaded_model.eval()
             metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
-            print(f"model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
+
+            if metric_loaded_model != metric_q_model:
+                raise ValueError("The quantized model was not successfully loaded.")
+            else:
+                logger.info(f"The quantized model was successfully loaded.")
 
 
 def _mp_fn(index):
@@ -596,3 +604,4 @@ def _mp_fn(index):
 
 if __name__ == "__main__":
     main()
+

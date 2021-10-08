@@ -17,10 +17,9 @@ import torch
 import torch.quantization as tq
 from enum import Enum
 from optimum.intel.lpot.utils import LpotDataLoader
-from torch import nn
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
-from typing import Callable, ClassVar, Optional, Union
+from typing import Callable, ClassVar, Dict, Optional, Union
 
 
 class LpotQuantizationMode(Enum):
@@ -28,6 +27,9 @@ class LpotQuantizationMode(Enum):
     DYNAMIC = "post_training_dynamic_quant"
     STATIC = "post_training_static_quant"
     AWARE_TRAINING = "quant_aware_training"
+
+
+SUPPORTED_QUANT_MODE = set([approach.value for approach in LpotQuantizationMode])
 
 
 class LpotQuantizer:
@@ -201,13 +203,6 @@ class LpotQuantizerForSequenceClassification(LpotQuantizer):
     TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
 
 
-quant_mapping = {
-    LpotQuantizationMode.STATIC.value: tq.quantization_mappings.get_default_static_quant_module_mappings(),
-    LpotQuantizationMode.DYNAMIC.value: tq.quantization_mappings.get_default_dynamic_quant_module_mappings(),
-    LpotQuantizationMode.AWARE_TRAINING.value: tq.quantization_mappings.get_default_qat_module_mappings()
-}
-
-
 def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> torch.nn.Module:
     """
     Apply LPOT quantization steps on the given model.
@@ -222,39 +217,48 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
             Quantized model.
     """
     import copy
+    from torch.quantization import add_observer_, convert
     from lpot.adaptor.pytorch import _cfg_to_qconfig, _propagate_qconfig
 
     approach = q_config.get("approach")
-    if approach not in quant_mapping:
-        raise ValueError("Unknown quantization approach. Supported approach are " + ", ".join(quant_mapping.keys()))
+    framework = q_config.get("framework")
 
-    op_cfgs = _cfg_to_qconfig(q_config, approach)
-    q_model = copy.deepcopy(model)
+    if approach not in SUPPORTED_QUANT_MODE:
+        raise ValueError("Unknown quantization approach. Supported approach are " +
+                         ", ".join(SUPPORTED_QUANT_MODE.keys()))
 
     if approach == LpotQuantizationMode.DYNAMIC.value:
-        white_list = tq.quantization_mappings.get_default_dynamic_quant_module_mappings()
+        q_mapping = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
+        white_list = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
+        op_cfgs = _cfg_to_qconfig(q_config, approach)
     else:
-        white_list = tq.quantization_mappings.get_default_qconfig_propagation_list() - \
+        q_mapping = torch.quantization.quantization_mappings.get_default_static_quant_module_mappings()
+        white_list = torch.quantization.quantization_mappings.get_default_qconfig_propagation_list() - \
                      {torch.nn.LayerNorm, torch.nn.InstanceNorm3d, torch.nn.Embedding}
+        op_cfgs = _cfg_to_qconfig(q_config)
 
-    q_mapping = quant_mapping.get(approach)
-
+    q_model = copy.deepcopy(model)
     q_model.eval()
-    if approach != LpotQuantizationMode.AWARE_TRAINING.value:
-        _propagate_qconfig(q_model, op_cfgs, white_list=white_list, approach=approach)
 
-    if approach == LpotQuantizationMode.STATIC.value:
-        tq.add_observer_(q_model)
-    elif approach == LpotQuantizationMode.AWARE_TRAINING.value:
-        _propagate_qconfig(q_model, op_cfgs, is_qat_convert=True, white_list=white_list)
-        tq.convert(q_model, mapping=q_mapping, inplace=True, remove_qconfig=False)
-        _propagate_qconfig(q_model, op_cfgs, white_list=white_list)
-        tq.add_observer_(q_model, white_list, set(q_mapping.values()))
+    if framework == "pytorch_fx":
+        from optimum.intel.lpot.utils import _cfgs_to_fx_cfgs
+        from torch.quantization.quantize_fx import prepare_fx, convert_fx, prepare_qat_fx
 
-    if approach == LpotQuantizationMode.AWARE_TRAINING.value:
-        tq.convert(q_model, inplace=True)
-    else:
-        tq.convert(q_model, mapping=q_mapping, inplace=True)
+        fx_op_cfgs = _cfgs_to_fx_cfgs(op_cfgs, approach)
+
+        if approach == LpotQuantizationMode.AWARE_TRAINING.value:
+            q_model.train()
+            q_model = prepare_qat_fx(q_model, fx_op_cfgs)
+        else:
+            q_model = prepare_fx(q_model, fx_op_cfgs)
+        q_model = convert_fx(q_model)
+        return q_model
+
+    _propagate_qconfig(q_model, op_cfgs, white_list=white_list, approach=approach)
+
+    if approach != LpotQuantizationMode.DYNAMIC.value:
+        add_observer_(q_model)
+    q_model = convert(q_model, mapping=q_mapping, inplace=True)
 
     return q_model
 
@@ -276,11 +280,12 @@ class LpotQuantizedModel:
             config_name: str,
             q_model_name: Optional[str] = None,
             state_dict: Optional[Dict[str, torch.Tensor]] = None,
+            batch_size: Optional[int] = None,
+            sequence_length: Optional[int] = None,
             **kwargs
     ) -> torch.nn.Module:
         """
         Instantiate a quantized pytorch model from a given LPOT configuration file.
-
         Args:
             model_name_or_path (:obj:`str`):
                 Repository name in the Hub or path to a local directory hosting the model.
@@ -317,6 +322,19 @@ class LpotQuantizedModel:
             **model_kwargs
         )
 
+        if deploy_config.config.get("framework") == "pytorch_fx":
+            from transformers.utils.fx import symbolic_trace
+
+            if batch_size is None or sequence_length is None:
+                raise ValueError("Need batch_size and sequence_length for tracing the model with torch fx.")
+
+            model = symbolic_trace(
+                model,
+                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                batch_size=batch_size,
+                sequence_length=sequence_length
+            )
+
         q_model = apply_quantization_from_config(deploy_config.config, model)
 
         if state_dict is None:
@@ -341,7 +359,7 @@ class LpotQuantizedModel:
 
             state_dict = torch.load(state_dict_path)
 
-        q_model.load_state_dict(state_dict)
+        q_model.load_state_dict(state_dict, strict=False)
 
         return q_model
 
@@ -354,13 +372,6 @@ class LpotQuantizedModelForQuestionAnswering(LpotQuantizedModel):
 class LpotQuantizedModelForSequenceClassification(LpotQuantizedModel):
     from transformers import AutoModelForSequenceClassification
     TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
-
-
-SUPPORTED_QUANT_APPROACH = {
-    LpotQuantizationMode.STATIC.value,
-    LpotQuantizationMode.DYNAMIC.value,
-    LpotQuantizationMode.AWARE_TRAINING.value
-}
 
 
 def quantization_approach(config):
@@ -379,8 +390,8 @@ def quantization_approach(config):
     conf = Conf(config)
     approach = deep_get(conf.usr_cfg, "quantization.approach")
 
-    if approach not in SUPPORTED_QUANT_APPROACH:
-        raise ValueError("Unknown quantization approach. Supported approach are " + ", ".join(SUPPORTED_QUANT_APPROACH))
+    if approach not in SUPPORTED_QUANT_MODE:
+        raise ValueError("Unknown quantization approach. Supported approach are " + ", ".join(SUPPORTED_QUANT_MODE))
 
     return approach
 

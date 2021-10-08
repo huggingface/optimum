@@ -86,7 +86,12 @@ class TestLPOT(unittest.TestCase):
     def test_dynamic_quantization(self):
 
         from optimum.intel.lpot.config import LpotConfig
-        from optimum.intel.lpot.quantization import LpotQuantizer, LpotQuantizationMode
+        from optimum.intel.lpot.quantization import (
+            LpotQuantizer,
+            LpotQuantizedModelForSequenceClassification,
+            LpotQuantizationMode,
+        )
+        import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
         config_dir = os.path.dirname(os.path.abspath(__file__))
@@ -106,11 +111,31 @@ class TestLPOT(unittest.TestCase):
             # Verification accuracy loss is under 2%
             self.assertTrue(q_model_metric >= model_metric * 0.98)
 
+            trainer.save_model(tmp_dir)
+            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+                yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+                model_name_or_path=tmp_dir,
+                q_model_name="pytorch_model.bin",
+                config_name="lpot_config.yml",
+            )
+            loaded_model.eval()
+            loaded_model_metric = eval_func(loaded_model)
+
+            # Verification quantized model was correctly loaded
+            self.assertEqual(q_model_metric, loaded_model_metric)
+
     def test_static_quantization(self):
 
         from optimum.intel.lpot.config import LpotConfig
-        from optimum.intel.lpot.quantization import LpotQuantizer, LpotQuantizationMode
+        from optimum.intel.lpot.quantization import (
+            LpotQuantizer,
+            LpotQuantizedModelForSequenceClassification,
+            LpotQuantizationMode,
+        )
         from transformers.utils.fx import symbolic_trace
+        import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
         config_dir = os.path.dirname(os.path.abspath(__file__))
@@ -140,11 +165,31 @@ class TestLPOT(unittest.TestCase):
             # Verification accuracy loss is under 4%
             self.assertTrue(q_model_metric >= model_metric * 0.96)
 
+            trainer.save_model(tmp_dir)
+            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+                yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+                model_name_or_path=tmp_dir,
+                q_model_name="pytorch_model.bin",
+                config_name="lpot_config.yml",
+            )
+            loaded_model.eval()
+            loaded_model_metric = eval_func(loaded_model)
+
+            # Verification quantized model was correctly loaded
+            self.assertEqual(q_model_metric, loaded_model_metric)
+
     def test_aware_training_quantization(self):
 
         from optimum.intel.lpot.config import LpotConfig
-        from optimum.intel.lpot.quantization import LpotQuantizer, LpotQuantizationMode
+        from optimum.intel.lpot.quantization import (
+            LpotQuantizer,
+            LpotQuantizedModelForSequenceClassification,
+            LpotQuantizationMode,
+        )
         from transformers.utils.fx import symbolic_trace
+        import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
         config_dir = os.path.dirname(os.path.abspath(__file__))
@@ -180,9 +225,28 @@ class TestLPOT(unittest.TestCase):
             # Verification accuracy loss is under 3%
             self.assertTrue(q_model_metric >= model_metric * 0.97)
 
+            trainer.save_model(tmp_dir)
+            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+                yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+                model_name_or_path=tmp_dir,
+                q_model_name="pytorch_model.bin",
+                config_name="lpot_config.yml",
+            )
+            loaded_model.eval()
+            loaded_model_metric = eval_func(loaded_model)
+
+            # Verification quantized model was correctly loaded
+            self.assertEqual(q_model_metric, loaded_model_metric)
+
     def test_quantization_from_config(self):
 
-        from optimum.intel.lpot.quantization import LpotQuantizerForSequenceClassification
+        from optimum.intel.lpot.quantization import (
+            LpotQuantizerForSequenceClassification,
+            LpotQuantizedModelForSequenceClassification,
+        )
+        import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
         task = "sst2"
@@ -209,28 +273,46 @@ class TestLPOT(unittest.TestCase):
             result = metric.compute(predictions=preds, references=p.label_ids)
             return result
 
-        trainer = Trainer(
-            model=model,
-            train_dataset=None,
-            eval_dataset=eval_dataset,
-            compute_metrics=compute_metrics,
-            tokenizer=tokenizer,
-            data_collator=default_data_collator,
-        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
 
-        def eval_func(model):
-            trainer.model = model
-            metrics = trainer.evaluate()
-            return metrics.get("eval_accuracy")
+            trainer = Trainer(
+                model=model,
+                args=TrainingArguments(tmp_dir),
+                train_dataset=None,
+                eval_dataset=eval_dataset,
+                compute_metrics=compute_metrics,
+                tokenizer=tokenizer,
+                data_collator=default_data_collator,
+            )
 
-        model_metric = eval_func(model)
+            def eval_func(model):
+                trainer.model = model
+                metrics = trainer.evaluate()
+                return metrics.get("eval_accuracy")
 
-        quantizer.eval_func = eval_func
-        q_model = quantizer.fit_dynamic()
-        q_model_metric = eval_func(q_model.model)
+            model_metric = eval_func(model)
 
-        # Verification accuracy loss is under 2%
-        self.assertTrue(q_model_metric >= model_metric * 0.98)
+            quantizer.eval_func = eval_func
+            q_model = quantizer.fit_dynamic()
+            q_model_metric = eval_func(q_model.model)
+
+            # Verification accuracy loss is under 2%
+            self.assertTrue(q_model_metric >= model_metric * 0.98)
+
+            trainer.save_model(tmp_dir)
+            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+                yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+                model_name_or_path=tmp_dir,
+                q_model_name="pytorch_model.bin",
+                config_name="lpot_config.yml",
+            )
+            loaded_model.eval()
+            loaded_model_metric = eval_func(loaded_model)
+
+            # Verification quantized model was correctly loaded
+            self.assertEqual(q_model_metric, loaded_model_metric)
 
 
 if __name__ == "__main__":
