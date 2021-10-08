@@ -12,7 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import torch
 from torch.utils.data import DataLoader
+from typing import Dict, List, Tuple
 
 
 class LpotDataLoader(DataLoader):
@@ -34,14 +36,16 @@ class LpotDataLoader(DataLoader):
             yield input, label
 
 
-def _cfgs_to_fx_cfgs(op_cfgs, observer_type='post_training_static_quant'):
+def _cfgs_to_fx_cfgs(op_cfgs: Dict, observer_type: str = "post_training_static_quant") -> Dict:
     """LPOT function which convert a quantization config to a format that meets the requirements of torch.fx.
         Args:
-            op_cfgs (dict): dictionary of quantization configure for each op
-            observer_type (str, optional): specify observer type, Default is 'ptq_static',
-                                           options: 'ptq_dynamic', 'qat'.
+            op_cfgs (:obj:`dict`):
+                Dictionary of quantization configure for each op.
+            observer_type (:obj:`str`):
+                Specify observer type.
         Returns:
-            fx_op_cfgs (dict): dictionary of quantization configure that meets the requirements of torch.fx
+            fx_op_cfgs (:obj:`dict`):
+                Dictionary of quantization configure that meets the requirements of torch.fx.
     """
     fx_op_cfgs = dict()
     op_tuple_cfg_list = []
@@ -55,12 +59,20 @@ def _cfgs_to_fx_cfgs(op_cfgs, observer_type='post_training_static_quant'):
     return fx_op_cfgs
 
 
-def _get_quantizable_ops_recursively(self, model, prefix, quantizable_ops):
+def _get_quantizable_ops_recursively(
+        self,
+        model: torch.nn.Module,
+        prefix: str,
+        quantizable_ops: List[Tuple[str, str]]
+) -> None:
     """LPOT helper function for `query_fw_capability` which get all quantizable ops from model.
     Args:
-        model (object): input model
-        prefix (string): prefix of op name
-        quantizable_ops (list): list of quantizable ops from model include op name and type.
+        model (:obj:`torch.nn.Module`):
+            Input model.
+        prefix (:obj:`str`):
+            Prefix of op name.
+        quantizable_ops (:obj:`List[Tuple[str, str]]`):
+            List of quantizable ops from model include op name and type.
     Returns:
         None
     """

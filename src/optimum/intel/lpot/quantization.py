@@ -14,11 +14,11 @@
 
 import os
 from enum import Enum
-from typing import Any, Callable, ClassVar, Optional, Union
-from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from optimum.intel.lpot.utils import LpotDataLoader
 from torch import nn
 from torch.utils.data import DataLoader
-from optimum.intel.lpot.utils import LpotDataLoader
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from typing import Callable, ClassVar, Optional, Union
 
 
 class LpotQuantizationMode(Enum):
