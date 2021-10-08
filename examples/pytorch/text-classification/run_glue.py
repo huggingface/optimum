@@ -213,6 +213,7 @@ class ModelArguments:
     )
 
 
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
@@ -538,6 +539,18 @@ def main():
                 )
             quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
+
+        # torch FX used for post-training quantization and quantization aware training
+        # dynamic quantization will be added when torch FX is more mature
+        if q8_config.config.get("quantization").get("approach") != LpotQuantizationMode.DYNAMIC.value:
+            q8_config.set_config("model.framework", "pytorch_fx")
+            from transformers.utils.fx import symbolic_trace
+            model = symbolic_trace(
+                model,
+                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                batch_size=training_args.per_device_eval_batch_size,
+                sequence_length=data_args.max_seq_length
+            )
 
         quantizer = LpotQuantizer(q8_config.path, model, eval_func=eval_func)
 
