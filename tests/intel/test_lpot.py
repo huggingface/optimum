@@ -142,6 +142,7 @@ class TestLPOT(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir)
+            model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
             save_path = os.path.join(tmp_dir, "quantization.yml")
             q8_config = LpotConfig.from_pretrained(config_dir, "quantization.yml", save_path=save_path)
@@ -173,6 +174,8 @@ class TestLPOT(unittest.TestCase):
                 model_name_or_path=tmp_dir,
                 q_model_name="pytorch_model.bin",
                 config_name="lpot_config.yml",
+                batch_size=8,
+                sequence_length=128,
             )
             loaded_model.eval()
             loaded_model_metric = eval_func(loaded_model)
@@ -196,6 +199,7 @@ class TestLPOT(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir, do_train=True)
+            model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
             save_path = os.path.join(tmp_dir, "quantization.yml")
             q8_config = LpotConfig.from_pretrained(config_dir, "quantization.yml", save_path=save_path)
@@ -233,6 +237,8 @@ class TestLPOT(unittest.TestCase):
                 model_name_or_path=tmp_dir,
                 q_model_name="pytorch_model.bin",
                 config_name="lpot_config.yml",
+                batch_size=8,
+                sequence_length=128,
             )
             loaded_model.eval()
             loaded_model_metric = eval_func(loaded_model)
