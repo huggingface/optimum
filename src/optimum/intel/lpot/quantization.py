@@ -14,10 +14,11 @@
 
 import os
 from enum import Enum
-from typing import Any, Callable, ClassVar, Optional, Union
-from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from optimum.intel.lpot.utils import LpotDataLoader
 from torch import nn
 from torch.utils.data import DataLoader
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from typing import Callable, ClassVar, Optional, Union
 
 
 class LpotQuantizationMode(Enum):
@@ -66,6 +67,8 @@ class LpotQuantizer:
         self.tokenizer = tokenizer
         self._eval_func = eval_func
         self._train_func = train_func
+        if calib_dataloader is not None:
+            calib_dataloader = LpotDataLoader.from_pytorch_dataloader(calib_dataloader)
         self._calib_dataloader = calib_dataloader
 
     @property
@@ -90,9 +93,16 @@ class LpotQuantizer:
 
     @calib_dataloader.setter
     def calib_dataloader(self, dataloader: DataLoader):
-        self._calib_dataloader = dataloader
+        self._calib_dataloader = LpotDataLoader.from_pytorch_dataloader(dataloader)
 
     def init_quantizer(self):
+        if self.config.model.framework == "pytorch_fx":
+            import lpot
+            from optimum.intel.lpot.utils import _cfgs_to_fx_cfgs, _get_quantizable_ops_recursively
+            # TODO : Change this to apply quantization on other part of the model other that Linears
+            lpot.adaptor.pytorch._cfgs_to_fx_cfgs = _cfgs_to_fx_cfgs
+            lpot.adaptor.pytorch.PyTorch_FXAdaptor._get_quantizable_ops_recursively = _get_quantizable_ops_recursively
+
         from lpot.experimental import Quantization, common
 
         quantizer = Quantization(self.config_path)
@@ -104,19 +114,12 @@ class LpotQuantizer:
         quantizer.eval_func = self._eval_func
         return quantizer
 
-    @staticmethod
-    def adaptor_calib():
-        from lpot.adaptor.pytorch import PyTorchAdaptor
-        from .utils import model_calibration
-        PyTorchAdaptor.model_calibration = model_calibration
-
     def fit_dynamic(self):
         quantizer = self.init_quantizer()
         model = quantizer()
         return model
 
     def fit_static(self):
-        self.adaptor_calib()
         quantizer = self.init_quantizer()
 
         if self._calib_dataloader is None:
@@ -128,7 +131,6 @@ class LpotQuantizer:
         return model
 
     def fit_aware_training(self):
-        self.adaptor_calib()
         quantizer = self.init_quantizer()
 
         if self._train_func is None:
@@ -308,3 +310,4 @@ def quantize_aware_training(model, config, eval_func, train_func):
     model = quantizer()
 
     return model.model
+
