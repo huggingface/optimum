@@ -186,23 +186,27 @@ class ModelArguments:
     )
     provider: str = field(
         default=None,
-        metadata={"help": "Provider chosen for optimization."}
+        metadata={"help": "Provider chosen for optimization."},
     )
     quantize: bool = field(
         default=False,
-        metadata={"help": "Apply quantization."}
+        metadata={"help": "Whether or not to apply quantization."},
     )
     quantization_approach: str = field(
         default=None,
-        metadata={"help": "Quantization approach."}
+        metadata={
+            "help": "Quantization approach. Supported approach are static, dynamic and aware_training."
+        },
     )
-    config_name_or_path: str = field(
+    config_dir: str = field(
         default=None,
-        metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
+        metadata={
+            "help": "Path to the directory containing the YAML configuration file used to control the tuning behavior."
+        },
     )
     tune_metric: str = field(
         default="eval_accuracy",
-        metadata={"help": "Eval metric used for tuning strategy."}
+        metadata={"help": "Eval metric used for the tuning strategy."},
     )
     verify_loading: bool = field(
         default=False,
@@ -523,7 +527,7 @@ def main():
             raise ValueError("do_eval must be set to True for quantization.")
 
         q8_config = LpotConfig.from_pretrained(
-            model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
+            model_args.config_dir if model_args.config_dir is not None else default_config,
             "quantization.yml",
             cache_dir=model_args.cache_dir,
             save_path=os.path.join(training_args.output_dir, "quantization.yml"),
@@ -561,7 +565,7 @@ def main():
             q_model = quantizer.fit_static()
         elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
-                raise ValueError("do_train must be set to True for Quantization aware training approach.")
+                raise ValueError("do_train must be set to True for quantization aware training.")
             quantizer.train_func = train_func
             q_model = quantizer.fit_aware_training()
         else:
@@ -570,8 +574,6 @@ def main():
         metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
 
         trainer.save_model(training_args.output_dir)
-        trainer.save_metrics("eval", metric_q_model)
-
         with open(os.path.join(training_args.output_dir, "lpot_config.yml"), 'w') as f:
             yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
