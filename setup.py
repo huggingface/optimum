@@ -24,7 +24,8 @@ extras = {
         "lpot>=1.6",
         "huggingface_hub",
         "datasets>=1.2.1",
-    ]
+    ],
+    "graphcore": "optimum-graphcore",
 }
 
 setup(
