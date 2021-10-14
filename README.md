@@ -10,7 +10,7 @@ To install the latest release of this package:
 
 or from current main branch:
 
-`pip install https://github.com/huggingface/optimum.git`
+`pip install git+https://github.com/huggingface/optimum.git`
 
 or for development, clone the repo and install it from the local copy:
 
