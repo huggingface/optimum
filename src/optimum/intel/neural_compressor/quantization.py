@@ -14,27 +14,29 @@
 
 import os
 from enum import Enum
-from optimum.intel.lpot.utils import LpotDataLoader
+from optimum.intel.neural_compressor.utils import IncDataLoader
 from torch import nn
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 from typing import Callable, ClassVar, Optional, Union
 
+from optimum.intel.neural_compressor.config import IncConfig
 
-class LpotQuantizationMode(Enum):
+
+class IncQuantizationMode(Enum):
 
     DYNAMIC = "post_training_dynamic_quant"
     STATIC = "post_training_static_quant"
     AWARE_TRAINING = "quant_aware_training"
 
 
-class LpotQuantizer:
+class IncQuantizer:
 
     TRANSFORMERS_AUTO_CLASS: ClassVar
 
     def __init__(
             self,
-            config_path: str,
+            config_path_or_obj: Union[str, IncConfig],
             model: Union[PreTrainedModel, nn.Module],
             tokenizer: Optional[PreTrainedTokenizerBase] = None,
             eval_func: Optional[Callable] = None,
@@ -43,8 +45,9 @@ class LpotQuantizer:
     ):
         """
         Args:
-            config_path (:obj:`str`):
-                Path to the YAML configuration file used to control the tuning behavior.
+            config_path_or_obj (:obj:`Union[str, IncConfig]` ):
+                Path to the YAML configuration file used to control the tuning behavior or
+                a class of IncConfig.
             model (:obj:`Union[PreTrainedModel, nn.Module]`):
                 FP32 model specified for low precision tuning.
             tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
@@ -56,19 +59,20 @@ class LpotQuantizer:
             calib_dataloader (:obj:`Callable`, `optional`):
                 DataLoader for calibration.
         Returns:
-            quantizer: LpotQuantizer object.
+            quantizer: IncQuantizer object.
         """
-        from lpot.conf.config import Conf
+        from neural_compressor.conf.config import Quantization_Conf
 
-        self.config_path = config_path
-        self.config = Conf(config_path).usr_cfg
-        self.approach = self.config.quantization.approach
+        self.config = \
+            config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else \
+            Quantization_Conf(config_path_or_obj)
+        self.approach = self.config.usr_cfg.quantization.approach
         self.model = model
         self.tokenizer = tokenizer
         self._eval_func = eval_func
         self._train_func = train_func
         if calib_dataloader is not None:
-            calib_dataloader = LpotDataLoader.from_pytorch_dataloader(calib_dataloader)
+            calib_dataloader = IncDataLoader.from_pytorch_dataloader(calib_dataloader)
         self._calib_dataloader = calib_dataloader
 
     @property
@@ -93,19 +97,19 @@ class LpotQuantizer:
 
     @calib_dataloader.setter
     def calib_dataloader(self, dataloader: DataLoader):
-        self._calib_dataloader = LpotDataLoader.from_pytorch_dataloader(dataloader)
+        self._calib_dataloader = IncDataLoader.from_pytorch_dataloader(dataloader)
 
     def init_quantizer(self):
-        if self.config.model.framework == "pytorch_fx":
-            import lpot
-            from optimum.intel.lpot.utils import _cfgs_to_fx_cfgs, _get_quantizable_ops_recursively
+        if self.config.usr_cfg.model.framework == "pytorch_fx":
+            import neural_compressor
+            from optimum.intel.neural_compressor.utils import _cfgs_to_fx_cfgs, _get_quantizable_ops_recursively
             # TODO : Change this to apply quantization on other part of the model other that Linears
-            lpot.adaptor.pytorch._cfgs_to_fx_cfgs = _cfgs_to_fx_cfgs
-            lpot.adaptor.pytorch.PyTorch_FXAdaptor._get_quantizable_ops_recursively = _get_quantizable_ops_recursively
+            neural_compressor.adaptor.pytorch._cfgs_to_fx_cfgs = _cfgs_to_fx_cfgs
+            neural_compressor.adaptor.pytorch.PyTorch_FXAdaptor._get_quantizable_ops_recursively = _get_quantizable_ops_recursively
 
-        from lpot.experimental import Quantization, common
+        from neural_compressor.experimental import Quantization, common
 
-        quantizer = Quantization(self.config_path)
+        quantizer = Quantization(self.config)
         quantizer.model = common.Model(self.model)
 
         if self._eval_func is None:
@@ -151,7 +155,7 @@ class LpotQuantizer:
             **quantizer_kwargs
     ):
         """
-        Instantiate a LpotQuantizer object from a configuration file which can either be hosted on huggingface.co or
+        Instantiate a IncQuantizer object from a configuration file which can either be hosted on huggingface.co or
         from a local directory path.
 
         Args:
@@ -165,15 +169,15 @@ class LpotQuantizer:
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
             quantizer_kwargs (:obj:`Dict`, `optional`):
-                quantizer_kwargs will be passed to the LpotQuantizer object during initialization.
+                quantizer_kwargs will be passed to the IncQuantizer object during initialization.
         Returns:
-            quantizer: LpotQuantizer object.
+            quantizer: IncQuantizer object.
         """
 
         from transformers import AutoTokenizer
-        from .config import LpotConfig
+        from .config import IncConfig
 
-        q8_config = LpotConfig.from_pretrained(
+        q8_config = IncConfig.from_pretrained(
             config_name_or_path,
             config_name,
             cache_dir=cache_dir,
@@ -185,41 +189,40 @@ class LpotQuantizer:
             cache_dir=cache_dir,
         )
         quantizer_kwargs.update({'tokenizer': tokenizer})
-        quantizer = cls(q8_config.path, model, **quantizer_kwargs)
+        quantizer = cls(q8_config, model, **quantizer_kwargs)
         return quantizer
 
 
-class LpotQuantizerForQuestionAnswering(LpotQuantizer):
+class IncQuantizerForQuestionAnswering(IncQuantizer):
     from transformers import AutoModelForQuestionAnswering
     TRANSFORMERS_AUTO_CLASS = AutoModelForQuestionAnswering
 
 
-class LpotQuantizerForSequenceClassification(LpotQuantizer):
+class IncQuantizerForSequenceClassification(IncQuantizer):
     from transformers import AutoModelForSequenceClassification
     TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
 
 
 SUPPORTED_QUANT_APPROACH = {
-    LpotQuantizationMode.STATIC.value,
-    LpotQuantizationMode.DYNAMIC.value,
-    LpotQuantizationMode.AWARE_TRAINING.value
+    IncQuantizationMode.STATIC.value,
+    IncQuantizationMode.DYNAMIC.value,
+    IncQuantizationMode.AWARE_TRAINING.value
 }
 
 
 def quantization_approach(config):
     """
     Extract quantization approach from YAML configuration file.
-
     Args:
         config: YAML configuration file used to control the tuning behavior.
     Returns:
         approach: Name of the quantization approach.
     """
 
-    from lpot.conf.config import Conf
-    from lpot.conf.dotdict import deep_get
+    from neural_compressor.conf.config import Quantization_Conf
+    from neural_compressor.conf.dotdict import deep_get
 
-    conf = Conf(config)
+    conf = Quantization_Conf(config)
     approach = deep_get(conf.usr_cfg, "quantization.approach")
 
     if approach not in SUPPORTED_QUANT_APPROACH:
@@ -228,20 +231,23 @@ def quantization_approach(config):
     return approach
 
 
-def quantize_dynamic(model, config,  eval_func):
+def quantize_dynamic(model, config_path_or_obj,  eval_func):
     """
-    Apply LPOT dynamic quantization.
+    Apply neural_compressor dynamic quantization.
 
     Args:
         model: FP32 model specified for low precision tuning.
-        config: YAML configuration file used to control the tuning behavior.
+        config_path_or_obj: YAML configuration file used to control the tuning behavior or
+                            a class of IncConfig.
         eval_func: Evaluation function provided by user.
     Returns:
         model: Quantized model.
     """
 
-    from lpot.experimental import Quantization, common
+    from neural_compressor.experimental import Quantization, common
 
+    config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else \
+             config_path_or_obj
     quantizer = Quantization(config)
     quantizer.model = common.Model(model)
 
@@ -252,25 +258,23 @@ def quantize_dynamic(model, config,  eval_func):
     return model.model
 
 
-def quantize_static(model, config, eval_func, calib_dataloader):
+def quantize_static(model, config_path_or_obj, eval_func, calib_dataloader):
     """
-    Apply LPOT post-training quantization.
+    Apply neural_compressor post-training quantization.
 
     Args:
         model: FP32 model specified for low precision tuning.
-        config: YAML configuration file used to control the tuning behavior.
+        config_path_or_obj: YAML configuration file used to control the tuning behavior or
+                            a class of IncConfig.
         eval_func: Evaluation function provided by user.
-        calib_dataloader: DataLoader for calibration.
+        calib_dataloader: IncDataLoader for calibration.
     Returns:
         model: Quantized model.
     """
 
-    from lpot.experimental import Quantization, common
-    from lpot.adaptor.pytorch import PyTorchAdaptor
-    from .utils import model_calibration
+    from neural_compressor.experimental import Quantization, common
 
-    PyTorchAdaptor.model_calibration = model_calibration
-
+    config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
     quantizer = Quantization(config)
     quantizer.model = common.Model(model)
 
@@ -282,25 +286,23 @@ def quantize_static(model, config, eval_func, calib_dataloader):
     return model.model
 
 
-def quantize_aware_training(model, config, eval_func, train_func):
+def quantize_aware_training(model, config_path_or_obj, eval_func, train_func):
     """
-    Apply LPOT quantization aware training.
+    Apply neural_compressor quantization aware training.
 
     Args:
         model: FP32 model specified for low precision tuning.
-        config: YAML configuration file used to control the entire tuning behavior.
+        config_path_or_obj: YAML configuration file used to control the entire tuning behavior or
+                            a class of IncConfig.
         eval_func: Evaluation function provided by user.
         train_func: Training function provided by user.
     Returns:
         model: Quantized model.
     """
 
-    from lpot.experimental import Quantization, common
-    from lpot.adaptor.pytorch import PyTorchAdaptor
-    from .utils import model_calibration
+    from neural_compressor.experimental import Quantization, common
 
-    PyTorchAdaptor.model_calibration = model_calibration
-
+    config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
     quantizer = Quantization(config)
     quantizer.model = common.Model(model)
 

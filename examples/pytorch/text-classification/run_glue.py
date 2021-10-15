@@ -24,7 +24,6 @@ import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-import torch
 import datasets
 import numpy as np
 from datasets import load_dataset, load_metric
@@ -46,7 +45,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
-AVAILABLE_PROVIDERS = {"lpot"}
+AVAILABLE_PROVIDERS = {"inc"}
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.2")
@@ -478,6 +477,8 @@ def main():
     def take_eval_steps(model, trainer, metric_name):
         trainer.model = model
         metrics = trainer.evaluate()
+        print("{}: {}".format(metric_name, metrics.get(metric_name)))
+        print('Throughput: {} samples/sec'.format(metrics["eval_samples_per_second"]))
         return metrics.get(metric_name)
 
     def eval_func(model):
@@ -506,20 +507,19 @@ def main():
     if model_args.provider is not None and model_args.provider not in AVAILABLE_PROVIDERS:
         raise ValueError("Unknown provider, you should pick one in " + ", ".join(AVAILABLE_PROVIDERS))
 
-    if model_args.quantize and model_args.provider == "lpot":
+    if model_args.quantize and model_args.provider == "inc":
 
-        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "lpot")
+        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
 
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
-        from optimum.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotConfig
+        from optimum.intel.neural_compressor import IncQuantizer, IncQuantizationMode, IncConfig
 
-        q8_config = LpotConfig.from_pretrained(
+        q8_config = IncConfig.from_pretrained(
             model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
             "quantization.yml",
             cache_dir=model_args.cache_dir,
-            save_path=os.path.join(training_args.output_dir, "quantization.yml"),
         )
 
         # Set quantization approach if specified
@@ -529,12 +529,12 @@ def main():
                 raise ValueError(
                     "Unknown quantization approach. Supported approach are " + ", ".join(supported_approach)
                 )
-            quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper()).value
+            quant_approach = getattr(IncQuantizationMode, model_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
 
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        if q8_config.config.get("quantization").get("approach") != LpotQuantizationMode.DYNAMIC.value:
+        if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             q8_config.set_config("model.framework", "pytorch_fx")
             from transformers.utils.fx import symbolic_trace
             model = symbolic_trace(
@@ -544,14 +544,14 @@ def main():
                 sequence_length=data_args.max_seq_length
             )
 
-        quantizer = LpotQuantizer(q8_config.path, model, eval_func=eval_func)
+        quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
 
-        if quantizer.approach == LpotQuantizationMode.DYNAMIC.value:
+        if quantizer.approach == IncQuantizationMode.DYNAMIC.value:
             q_model = quantizer.fit_dynamic()
-        elif quantizer.approach == LpotQuantizationMode.STATIC.value:
+        elif quantizer.approach == IncQuantizationMode.STATIC.value:
             quantizer.calib_dataloader = trainer.get_eval_dataloader()
             q_model = quantizer.fit_static()
-        elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING.value:
+        elif quantizer.approach == IncQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for Quantization aware training approach.")
             quantizer.train_func = train_func
