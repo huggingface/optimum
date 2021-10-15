@@ -26,10 +26,11 @@ from transformers import (
 from datasets import load_dataset, load_metric
 import numpy as np
 
+
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
-class TestLPOT(unittest.TestCase):
+class TestINC(unittest.TestCase):
 
     def helper(self, model_name, output_dir, do_train=False, max_train_samples=512):
 
@@ -85,11 +86,11 @@ class TestLPOT(unittest.TestCase):
 
     def test_dynamic_quantization(self):
 
-        from optimum.intel.lpot.config import LpotConfig
-        from optimum.intel.lpot.quantization import (
-            LpotQuantizer,
-            LpotQuantizedModelForSequenceClassification,
-            LpotQuantizationMode,
+        from optimum.intel.neural_compressor.config import IncConfig
+        from optimum.intel.neural_compressor.quantization import (
+            IncQuantizationMode,
+            IncQuantizedModelForSequenceClassification,
+            IncQuantizer,
         )
         import yaml
 
@@ -99,11 +100,10 @@ class TestLPOT(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir)
             model_metric = eval_func(model)
-            save_path = os.path.join(tmp_dir, "quantization.yml")
-            q8_config = LpotConfig.from_pretrained(config_dir, "quantization.yml", save_path=save_path)
-            q8_config.set_config("quantization.approach", LpotQuantizationMode.DYNAMIC.value)
+            q8_config = IncConfig.from_pretrained(config_dir, "quantization.yml")
+            q8_config.set_config("quantization.approach", IncQuantizationMode.DYNAMIC.value)
 
-            quantizer = LpotQuantizer(q8_config.path, model, eval_func=eval_func)
+            quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
 
             q_model = quantizer.fit_dynamic()
             q_model_metric = eval_func(q_model.model)
@@ -112,13 +112,13 @@ class TestLPOT(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.98)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
-            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
                 model_name_or_path=tmp_dir,
                 q_model_name="pytorch_model.bin",
-                config_name="lpot_config.yml",
+                config_name="inc_config.yml",
             )
             loaded_model.eval()
             loaded_model_metric = eval_func(loaded_model)
@@ -128,11 +128,11 @@ class TestLPOT(unittest.TestCase):
 
     def test_static_quantization(self):
 
-        from optimum.intel.lpot.config import LpotConfig
-        from optimum.intel.lpot.quantization import (
-            LpotQuantizer,
-            LpotQuantizedModelForSequenceClassification,
-            LpotQuantizationMode,
+        from optimum.intel.neural_compressor.config import IncConfig
+        from optimum.intel.neural_compressor.quantization import (
+            IncQuantizationMode,
+            IncQuantizedModelForSequenceClassification,
+            IncQuantizer,
         )
         from transformers.utils.fx import symbolic_trace
         import yaml
@@ -144,9 +144,8 @@ class TestLPOT(unittest.TestCase):
             model, trainer, eval_func = self.helper(model_name, tmp_dir)
             model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
-            save_path = os.path.join(tmp_dir, "quantization.yml")
-            q8_config = LpotConfig.from_pretrained(config_dir, "quantization.yml", save_path=save_path)
-            q8_config.set_config("quantization.approach", LpotQuantizationMode.STATIC.value)
+            q8_config = IncConfig.from_pretrained(config_dir, "quantization.yml")
+            q8_config.set_config("quantization.approach", IncQuantizationMode.STATIC.value)
             q8_config.set_config("tuning.accuracy_criterion.relative", 0.04)
             q8_config.set_config("model.framework", "pytorch_fx")
 
@@ -157,7 +156,7 @@ class TestLPOT(unittest.TestCase):
                 sequence_length=128
             )
 
-            quantizer = LpotQuantizer(q8_config.path, model)
+            quantizer = IncQuantizer(q8_config, model)
             quantizer.eval_func = eval_func
             quantizer.calib_dataloader = trainer.get_eval_dataloader()
             q_model = quantizer.fit_static()
@@ -167,13 +166,13 @@ class TestLPOT(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.96)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
-            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
                 model_name_or_path=tmp_dir,
                 q_model_name="pytorch_model.bin",
-                config_name="lpot_config.yml",
+                config_name="inc_config.yml",
                 batch_size=8,
                 sequence_length=128,
             )
@@ -185,11 +184,11 @@ class TestLPOT(unittest.TestCase):
 
     def test_aware_training_quantization(self):
 
-        from optimum.intel.lpot.config import LpotConfig
-        from optimum.intel.lpot.quantization import (
-            LpotQuantizer,
-            LpotQuantizedModelForSequenceClassification,
-            LpotQuantizationMode,
+        from optimum.intel.neural_compressor.config import IncConfig
+        from optimum.intel.neural_compressor.quantization import (
+            IncQuantizationMode,
+            IncQuantizedModelForSequenceClassification,
+            IncQuantizer,
         )
         from transformers.utils.fx import symbolic_trace
         import yaml
@@ -201,9 +200,8 @@ class TestLPOT(unittest.TestCase):
             model, trainer, eval_func = self.helper(model_name, tmp_dir, do_train=True)
             model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
-            save_path = os.path.join(tmp_dir, "quantization.yml")
-            q8_config = LpotConfig.from_pretrained(config_dir, "quantization.yml", save_path=save_path)
-            q8_config.set_config("quantization.approach", LpotQuantizationMode.AWARE_TRAINING.value)
+            q8_config = IncConfig.from_pretrained(config_dir, "quantization.yml")
+            q8_config.set_config("quantization.approach", IncQuantizationMode.AWARE_TRAINING.value)
             q8_config.set_config("tuning.accuracy_criterion.relative", 0.03)
             q8_config.set_config("model.framework", "pytorch_fx")
 
@@ -219,7 +217,7 @@ class TestLPOT(unittest.TestCase):
                 trainer.model = model
                 _ = trainer.train()
 
-            quantizer = LpotQuantizer(q8_config.path, model)
+            quantizer = IncQuantizer(q8_config, model)
             quantizer.eval_func = eval_func
             quantizer.train_func = train_func
 
@@ -230,13 +228,13 @@ class TestLPOT(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.97)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
-            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
                 model_name_or_path=tmp_dir,
                 q_model_name="pytorch_model.bin",
-                config_name="lpot_config.yml",
+                config_name="inc_config.yml",
                 batch_size=8,
                 sequence_length=128,
             )
@@ -248,9 +246,9 @@ class TestLPOT(unittest.TestCase):
 
     def test_quantization_from_config(self):
 
-        from optimum.intel.lpot.quantization import (
-            LpotQuantizerForSequenceClassification,
-            LpotQuantizedModelForSequenceClassification,
+        from optimum.intel.neural_compressor.quantization import (
+            IncQuantizedModelForSequenceClassification,
+            IncQuantizerForSequenceClassification,
         )
         import yaml
 
@@ -258,7 +256,7 @@ class TestLPOT(unittest.TestCase):
         task = "sst2"
         config_dir = os.path.dirname(os.path.abspath(__file__))
 
-        quantizer = LpotQuantizerForSequenceClassification.from_config(
+        quantizer = IncQuantizerForSequenceClassification.from_config(
             config_dir,
             "quantization.yml",
             model_name_or_path=model_name,
@@ -306,13 +304,13 @@ class TestLPOT(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.98)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "lpot_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
-            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
                 model_name_or_path=tmp_dir,
                 q_model_name="pytorch_model.bin",
-                config_name="lpot_config.yml",
+                config_name="inc_config.yml",
             )
             loaded_model.eval()
             loaded_model_metric = eval_func(loaded_model)

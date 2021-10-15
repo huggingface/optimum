@@ -24,7 +24,6 @@ import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-import torch
 import datasets
 import numpy as np
 from datasets import load_dataset, load_metric
@@ -46,7 +45,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
-AVAILABLE_PROVIDERS = {"lpot"}
+AVAILABLE_PROVIDERS = {"inc"}
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.2")
@@ -488,6 +487,8 @@ def main():
     def take_eval_steps(model, trainer, metric_name):
         trainer.model = model
         metrics = trainer.evaluate()
+        logger.info("{}: {}".format(metric_name, metrics.get(metric_name)))
+        logger.info("Throughput: {} samples/sec".format(metrics.get("eval_samples_per_second")))
         return metrics.get(metric_name)
 
     def eval_func(model):
@@ -503,9 +504,7 @@ def main():
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-
         trainer.save_model()  # Saves the tokenizer too for easy upload
-
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
@@ -516,21 +515,20 @@ def main():
     if model_args.provider is not None and model_args.provider not in AVAILABLE_PROVIDERS:
         raise ValueError("Unknown provider, you should pick one in " + ", ".join(AVAILABLE_PROVIDERS))
 
-    if model_args.quantize and model_args.provider == "lpot":
+    if model_args.quantize and model_args.provider == "inc":
 
-        from optimum.intel.lpot import LpotQuantizer, LpotQuantizationMode, LpotConfig
+        from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
         import yaml
 
-        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "lpot")
+        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
 
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
-        q8_config = LpotConfig.from_pretrained(
+        q8_config = IncConfig.from_pretrained(
             model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
             "quantization.yml",
             cache_dir=model_args.cache_dir,
-            save_path=os.path.join(training_args.output_dir, "quantization.yml"),
         )
 
         # Set quantization approach if specified
@@ -540,12 +538,12 @@ def main():
                 raise ValueError(
                     "Unknown quantization approach. Supported approach are " + ", ".join(supported_approach)
                 )
-            quant_approach = getattr(LpotQuantizationMode, model_args.quantization_approach.upper()).value
+            quant_approach = getattr(IncQuantizationMode, model_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
 
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        if q8_config.config.get("quantization").get("approach") != LpotQuantizationMode.DYNAMIC.value:
+        if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             q8_config.set_config("model.framework", "pytorch_fx")
             from transformers.utils.fx import symbolic_trace
             model.config.save_pretrained(training_args.output_dir)
@@ -556,14 +554,14 @@ def main():
                 sequence_length=data_args.max_seq_length
             )
 
-        quantizer = LpotQuantizer(q8_config.path, model, eval_func=eval_func)
+        quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
 
-        if quantizer.approach == LpotQuantizationMode.DYNAMIC.value:
+        if quantizer.approach == IncQuantizationMode.DYNAMIC.value:
             q_model = quantizer.fit_dynamic()
-        elif quantizer.approach == LpotQuantizationMode.STATIC.value:
+        elif quantizer.approach == IncQuantizationMode.STATIC.value:
             quantizer.calib_dataloader = trainer.get_eval_dataloader()
             q_model = quantizer.fit_static()
-        elif quantizer.approach == LpotQuantizationMode.AWARE_TRAINING.value:
+        elif quantizer.approach == IncQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for quantization aware training.")
             quantizer.train_func = train_func
@@ -574,25 +572,24 @@ def main():
         metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
 
         trainer.save_model(training_args.output_dir)
-        with open(os.path.join(training_args.output_dir, "lpot_config.yml"), 'w') as f:
+        with open(os.path.join(training_args.output_dir, "inc_config.yml"), 'w') as f:
             yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
         logger.info(f"Quantized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
 
         if model_args.verify_loading:
-            # Load the model obtained after LPOT quantization
-            from optimum.intel.lpot.quantization import LpotQuantizedModelForSequenceClassification
+            from optimum.intel.neural_compressor.quantization import IncQuantizedModelForSequenceClassification
 
-            loaded_model = LpotQuantizedModelForSequenceClassification.from_pretrained(
+            # Load the model obtained after Intel Neural Compressor (INC) quantization
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
                 model_name_or_path=training_args.output_dir,
                 q_model_name="pytorch_model.bin",
-                config_name="lpot_config.yml",
+                config_name="inc_config.yml",
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=data_args.max_seq_length,
             )
             loaded_model.eval()
             metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
-
             if metric_loaded_model != metric_q_model:
                 raise ValueError("The quantized model was not successfully loaded.")
             else:
