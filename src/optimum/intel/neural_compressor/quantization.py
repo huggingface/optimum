@@ -376,7 +376,7 @@ class IncQuantizedModel:
 
         if state_dict is None:
             from transformers.file_utils import cached_path, hf_bucket_url
-            from optimum.intel.neural_compressor.file_utils import WEIGHTS_NAME
+            from optimum.intel.neural_compressor.utils import WEIGHTS_NAME
 
             q_model_name = q_model_name if q_model_name is not None else WEIGHTS_NAME
             revision = download_kwargs.pop("revision", None)

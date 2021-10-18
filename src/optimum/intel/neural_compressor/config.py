@@ -82,7 +82,7 @@ class IncConfig:
             config: IncConfig object.
         """
 
-        from optimum.intel.neural_compressor.file_utils import CONFIG_NAME
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
         from transformers.file_utils import cached_path, hf_bucket_url
 
         cache_dir = kwargs.get("cache_dir", None)
