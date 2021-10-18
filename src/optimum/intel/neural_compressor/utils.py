@@ -17,6 +17,10 @@ from torch.utils.data import DataLoader
 from typing import Dict, List, Tuple
 
 
+CONFIG_NAME = "best_configure.yaml"
+WEIGHTS_NAME = "pytorch_model.bin"
+
+
 class IncDataLoader(DataLoader):
 
     @classmethod
@@ -92,3 +96,4 @@ def _get_quantizable_ops_recursively(
                 str(child.__class__.__name__)))
         else:
             self._get_quantizable_ops_recursively(child, op_name, quantizable_ops)
+

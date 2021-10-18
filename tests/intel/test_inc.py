@@ -92,15 +92,16 @@ class TestINC(unittest.TestCase):
             IncQuantizedModelForSequenceClassification,
             IncQuantizer,
         )
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
         import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
-        config_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir)
             model_metric = eval_func(model)
-            q8_config = IncConfig.from_pretrained(config_dir, "quantization.yml")
+            q8_config = IncConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.DYNAMIC.value)
 
             quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -112,14 +113,10 @@ class TestINC(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.98)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
-            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
-                model_name_or_path=tmp_dir,
-                q_model_name="pytorch_model.bin",
-                config_name="inc_config.yml",
-            )
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(tmp_dir)
             loaded_model.eval()
             loaded_model_metric = eval_func(loaded_model)
 
@@ -134,26 +131,28 @@ class TestINC(unittest.TestCase):
             IncQuantizedModelForSequenceClassification,
             IncQuantizer,
         )
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
         from transformers.utils.fx import symbolic_trace
         import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
-        config_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir)
             model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
-            q8_config = IncConfig.from_pretrained(config_dir, "quantization.yml")
+            q8_config = IncConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.STATIC.value)
             q8_config.set_config("tuning.accuracy_criterion.relative", 0.04)
             q8_config.set_config("model.framework", "pytorch_fx")
+            input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
 
             model = symbolic_trace(
                 model,
-                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                input_names=input_names,
                 batch_size=8,
-                sequence_length=128
+                sequence_length=128,
             )
 
             quantizer = IncQuantizer(q8_config, model)
@@ -166,13 +165,12 @@ class TestINC(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.96)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
             loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
-                model_name_or_path=tmp_dir,
-                q_model_name="pytorch_model.bin",
-                config_name="inc_config.yml",
+                tmp_dir,
+                input_names=input_names,
                 batch_size=8,
                 sequence_length=128,
             )
@@ -190,26 +188,28 @@ class TestINC(unittest.TestCase):
             IncQuantizedModelForSequenceClassification,
             IncQuantizer,
         )
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
         from transformers.utils.fx import symbolic_trace
         import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
-        config_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir, do_train=True)
             model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
-            q8_config = IncConfig.from_pretrained(config_dir, "quantization.yml")
+            q8_config = IncConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.AWARE_TRAINING.value)
             q8_config.set_config("tuning.accuracy_criterion.relative", 0.03)
             q8_config.set_config("model.framework", "pytorch_fx")
+            input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
 
             model = symbolic_trace(
                 model,
-                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                input_names=input_names,
                 batch_size=8,
-                sequence_length=128
+                sequence_length=128,
             )
 
             def train_func(model):
@@ -228,13 +228,12 @@ class TestINC(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.97)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
             loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
-                model_name_or_path=tmp_dir,
-                q_model_name="pytorch_model.bin",
-                config_name="inc_config.yml",
+                tmp_dir,
+                input_names=input_names,
                 batch_size=8,
                 sequence_length=128,
             )
@@ -250,16 +249,16 @@ class TestINC(unittest.TestCase):
             IncQuantizedModelForSequenceClassification,
             IncQuantizerForSequenceClassification,
         )
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
         import yaml
 
         model_name = "textattack/bert-base-uncased-SST-2"
         task = "sst2"
-        config_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         quantizer = IncQuantizerForSequenceClassification.from_config(
-            config_dir,
-            "quantization.yml",
-            model_name_or_path=model_name,
+            model_name,
+            inc_config=config_path,
         )
         tokenizer = quantizer.tokenizer
         model = quantizer.model
@@ -304,14 +303,10 @@ class TestINC(unittest.TestCase):
             self.assertTrue(q_model_metric >= model_metric * 0.98)
 
             trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, "inc_config.yml"), 'w') as f:
+            with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
                 yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
-            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
-                model_name_or_path=tmp_dir,
-                q_model_name="pytorch_model.bin",
-                config_name="inc_config.yml",
-            )
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(tmp_dir)
             loaded_model.eval()
             loaded_model_metric = eval_func(loaded_model)
 

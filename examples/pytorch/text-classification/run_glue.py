@@ -518,6 +518,7 @@ def main():
     if model_args.quantize and model_args.provider == "inc":
 
         from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
         import yaml
 
         default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
@@ -527,7 +528,7 @@ def main():
 
         q8_config = IncConfig.from_pretrained(
             model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
-            "quantization.yml",
+            config_file_name="quantization.yml",
             cache_dir=model_args.cache_dir,
         )
 
@@ -543,15 +544,26 @@ def main():
 
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
+        input_names = None
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
-            q8_config.set_config("model.framework", "pytorch_fx")
             from transformers.utils.fx import symbolic_trace
+
+            # TODO : Remove when dynamic axes support
+            if not training_args.dataloader_drop_last and \
+                    eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0:
+                raise ValueError(
+                    "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
+                    "must be set to True."
+                )
+
+            q8_config.set_config("model.framework", "pytorch_fx")
             model.config.save_pretrained(training_args.output_dir)
+            input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
             model = symbolic_trace(
                 model,
-                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length
+                sequence_length=data_args.max_seq_length,
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -572,7 +584,7 @@ def main():
         metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
 
         trainer.save_model(training_args.output_dir)
-        with open(os.path.join(training_args.output_dir, "inc_config.yml"), 'w') as f:
+        with open(os.path.join(training_args.output_dir, CONFIG_NAME), "w") as f:
             yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
 
         logger.info(f"Quantized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
@@ -582,9 +594,8 @@ def main():
 
             # Load the model obtained after Intel Neural Compressor (INC) quantization
             loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
-                model_name_or_path=training_args.output_dir,
-                q_model_name="pytorch_model.bin",
-                config_name="inc_config.yml",
+                training_args.output_dir,
+                input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=data_args.max_seq_length,
             )

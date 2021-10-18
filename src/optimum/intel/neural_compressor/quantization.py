@@ -15,11 +15,11 @@
 import os
 import torch
 from enum import Enum
-from optimum.intel.neural_compressor.config import IncConfig
+from optimum.intel.neural_compressor.config import IncConfig, IncOptimizedConfig
 from optimum.intel.neural_compressor.utils import IncDataLoader
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
-from typing import Callable, ClassVar, Dict, Optional, Union
+from typing import Callable, ClassVar, Dict, List, Optional, Tuple, Union
 
 
 class IncQuantizationMode(Enum):
@@ -48,7 +48,8 @@ class IncQuantizer:
         """
         Args:
             config_path_or_obj (:obj:`Union[str, IncConfig]` ):
-                Path to the YAML configuration file or an IncConfig object, used to control the tuning behavior.
+                Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
+                tuning behavior.
             model (:obj:`Union[PreTrainedModel, torch.nn.Module]`):
                 FP32 model specified for low precision tuning.
             tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
@@ -149,48 +150,60 @@ class IncQuantizer:
     @classmethod
     def from_config(
             cls,
-            config_name_or_path: Union[str, os.PathLike],
-            config_name: str,
-            model_name_or_path: Optional[Union[str, os.PathLike]] = None,
-            cache_dir: Optional[Union[str, os.PathLike]] = None,
-            **quantizer_kwargs
+            model_name_or_path: str,
+            inc_config: Optional[Union[IncConfig, str]] = None,
+            config_name: str = None,
+            **kwargs
     ):
         """
         Instantiate a IncQuantizer object from a configuration file which can either be hosted on huggingface.co or
         from a local directory path.
 
         Args:
-            config_name_or_path (:obj:`Union[str, os.PathLike]`):
-                Repository name in the Hugging Face Hub or path to a local directory containing the configuration file.
-            config_name (:obj:`str`):
+            model_name_or_path (:obj:`str`):
+                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
+            inc_config (:obj:`Union[IncConfig, str]`, `optional`):
+                Configuration file containing all the information related to the model quantization.
+                Can be either:
+                    - an instance of the class :class:`IncConfig`,
+                    - a string valid as input to :func:`IncConfig.from_pretrained`.
+            config_name (:obj:`str`, `optional`):
                 Name of the configuration file.
-            model_name_or_path (:obj:Union[str, os.PathLike]`, `optional`):
-                Used to instantiate the model and tokenizer if specified, otherwise config_name_or_path is used.
-            cache_dir (:obj:`Union[str, os.PathLike]`, `optional`):
+            cache_dir (:obj:`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
-            quantizer_kwargs (:obj:`Dict`, `optional`):
-                quantizer_kwargs will be passed to the IncQuantizer object during initialization.
+            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to force to (re-)download the configuration files and override the cached versions if
+                they exist.
+            resume_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
+                exists.
+            revision(:obj:`str`, `optional`):
+                The specific model version to use. It can be a branch name, a tag name, or a commit id, since we use a
+                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
+                identifier allowed by git.
         Returns:
             quantizer: IncQuantizer object.
         """
 
         from transformers import AutoTokenizer
-        from .config import IncConfig
 
-        q8_config = IncConfig.from_pretrained(
-            config_name_or_path,
-            config_name,
-            cache_dir=cache_dir,
-        )
-        model_name_or_path = model_name_or_path if model_name_or_path is not None else config_name_or_path
+        config_kwargs = {}
+        config_kwargs.update({"cache_dir": kwargs.get("cache_dir", None)})
+        config_kwargs.update({"force_download": kwargs.get("force_download", False)})
+        config_kwargs.update({"resume_download": kwargs.get("resume_download", False)})
+        config_kwargs.update({"revision": kwargs.get("revision", None)})
+
+        if not isinstance(inc_config, IncConfig):
+            config_path = inc_config if inc_config is not None else model_name_or_path
+            inc_config = IncConfig.from_pretrained(
+                config_path,
+                config_file_name=config_name,
+                **config_kwargs,
+            )
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-        model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(
-            model_name_or_path,
-            cache_dir=cache_dir,
-        )
-        quantizer_kwargs.update({'tokenizer': tokenizer})
-        quantizer = cls(q8_config, model, **quantizer_kwargs)
+        model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
+        quantizer = cls(inc_config, model, tokenizer=tokenizer)
         return quantizer
 
 
@@ -278,23 +291,48 @@ class IncQuantizedModel:
     def from_pretrained(
             cls,
             model_name_or_path: str,
-            config_name: str,
+            inc_config: Union[IncOptimizedConfig, str] = None,
             q_model_name: Optional[str] = None,
-            state_dict: Optional[Dict[str, torch.Tensor]] = None,
+            input_names: Optional[List[str]] = None,
             batch_size: Optional[int] = None,
-            sequence_length: Optional[int] = None,
+            sequence_length: Optional[Union[int, List[int], Tuple[int]]] = None,
             **kwargs
     ) -> torch.nn.Module:
         """
         Instantiate a quantized pytorch model from a given Intel Neural Compressor (INC) configuration file.
         Args:
             model_name_or_path (:obj:`str`):
-                Repository name in the Hub or path to a local directory hosting the model.
-            config_name (:obj:`str`):
-                Name of the configuration file.
+                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
+            inc_config (:obj:`Union[IncOptimizedConfig, str]`, `optional`):
+                Configuration file containing all the information related to the model quantization.
+                Can be either:
+                    - an instance of the class :class:`IncOptimizedConfig`,
+                    - a string valid as input to :func:`IncOptimizedConfig.from_pretrained`.
             q_model_name (:obj:`str`, `optional`):
                 Name of the state dictionary located in model_name_or_path used to load the quantized model. If
                 state_dict is specified, the latter will not be used.
+            input_names (:obj:`List[str]`, `optional`):
+                List of names of the inputs used when tracing the model. If unset, model.dummy_inputs().keys() are used
+                instead.
+            batch_size (:obj:`int`, `optional`):
+                Batch size of the traced model inputs.
+            sequence_length (:obj:`Union[int, List[int], Tuple[int]]`, `optional`):
+                Sequence length of the traced model inputs. For sequence-to-sequence models with different sequence
+                lengths between the encoder and the decoder inputs, this must be :obj:`[encoder_sequence_length,
+                decoder_sequence_length]`.
+            cache_dir (:obj:`str`, `optional`):
+                Path to a directory in which a downloaded configuration should be cached if the standard cache should
+                not be used.
+            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to force to (re-)download the configuration files and override the cached versions if
+                they exist.
+            resume_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
+                exists.
+            revision(:obj:`str`, `optional`):
+                The specific model version to use. It can be a branch name, a tag name, or a commit id, since we use a
+                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
+                identifier allowed by git.
             state_dict (:obj:`Dict[str, torch.Tensor]`, `optional`):
                 State dictionary of the quantized model, if not specified q_model_name will be used to load the
                 state dictionary.
@@ -302,61 +340,68 @@ class IncQuantizedModel:
             q_model: Quantized model.
         """
 
-        if state_dict is None and q_model_name is None:
-            raise RuntimeError("`IncQuantizedModel` requires either a `state_dict` or `q_model_name` argument")
+        download_kwargs = {}
+        download_kwargs.update({"cache_dir": kwargs.get("cache_dir", None)})
+        download_kwargs.update({"force_download": kwargs.get("force_download", False)})
+        download_kwargs.update({"resume_download": kwargs.get("resume_download", False)})
+        download_kwargs.update({"revision": kwargs.get("revision", None)})
+        state_dict = kwargs.get("state_dict", None)
 
-        from .config import DeployIncConfig
+        if not isinstance(inc_config, IncOptimizedConfig):
+            config_path = inc_config if inc_config is not None else model_name_or_path
+            inc_config = IncOptimizedConfig.from_pretrained(
+                config_path,
+                **download_kwargs,
+            )
 
-        cache_dir = kwargs.get("cache_dir", None)
+        model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
 
-        deploy_config = DeployIncConfig.from_pretrained(
-            model_name_or_path,
-            config_name,
-            cache_dir=cache_dir,
-        )
-
-        model_kwargs = kwargs
-
-        model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(
-            model_name_or_path,
-            state_dict=state_dict,
-            **model_kwargs
-        )
-
-        if deploy_config.get_config("framework") == "pytorch_fx":
+        if inc_config.get_config("framework") == "pytorch_fx":
             from transformers.utils.fx import symbolic_trace
-
             if batch_size is None or sequence_length is None:
                 raise ValueError("Need batch_size and sequence_length for tracing the model with torch fx.")
 
             model = symbolic_trace(
                 model,
-                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                input_names=input_names,
                 batch_size=batch_size,
-                sequence_length=sequence_length
+                sequence_length=sequence_length,
             )
 
-        q_model = apply_quantization_from_config(deploy_config.config, model)
+        q_model = apply_quantization_from_config(inc_config.config, model)
 
         if state_dict is None:
-            revision = None
-            if len(model_name_or_path.split("@")) == 2:
-                model_name_or_path, revision = model_name_or_path.split("@")
+            from transformers.file_utils import cached_path, hf_bucket_url
+            from optimum.intel.neural_compressor.file_utils import WEIGHTS_NAME
 
-            if os.path.isdir(model_name_or_path) and q_model_name in os.listdir(model_name_or_path):
+            q_model_name = q_model_name if q_model_name is not None else WEIGHTS_NAME
+            revision = download_kwargs.pop("revision", None)
+            if os.path.isdir(model_name_or_path):
                 state_dict_path = os.path.join(model_name_or_path, q_model_name)
+            elif os.path.isfile(model_name_or_path):
+                state_dict_path = model_name_or_path
             else:
-                from huggingface_hub import hf_hub_download
-                import requests
-                try:
-                    state_dict_path = hf_hub_download(
-                        repo_id=model_name_or_path,
-                        filename=q_model_name,
-                        revision=revision,
-                        cache_dir=cache_dir,
-                    )
-                except requests.exceptions.RequestException:
-                    raise ValueError(f"{q_model_name} NOT FOUND in HuggingFace Hub")
+                state_dict_path = hf_bucket_url(model_name_or_path, filename=q_model_name, revision=revision)
+
+            try:
+                state_dict_path = cached_path(
+                    state_dict_path,
+                    **download_kwargs,
+                )
+            except EnvironmentError as err:
+                logger.error(err)
+                msg = (
+                    f"Can't load config for '{model_name_or_path}'. Make sure that:\n\n - '{model_name_or_path}' is a "
+                    f"correct model identifier listed on 'https://huggingface.co/models'\n\n - or "
+                    f"'{model_name_or_path}' is a correct path to a directory containing a {q_model_name} file\n\n"
+                )
+
+                if revision is not None:
+                    msg += f"- or '{revision}' is a valid git identifier (branch name, a tag name, or a commit id)  " \
+                           f"thatexists for this model name as listed on its model page on " \
+                           f"'https://huggingface.co/models'\n\n"
+
+                raise EnvironmentError(msg)
 
             state_dict = torch.load(state_dict_path)
 
@@ -404,7 +449,8 @@ def quantize_dynamic(model, config_path_or_obj,  eval_func):
         model:
             FP32 model specified for low precision tuning.
         config_path_or_obj:
-            Path to the YAML configuration file or an IncConfig object, used to control the tuning behavior.
+            Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
+            tuning behavior.
         eval_func:
             Evaluation function provided by user.
     Returns:
@@ -433,7 +479,8 @@ def quantize_static(model, config_path_or_obj, eval_func, calib_dataloader):
         model:
             FP32 model specified for low precision tuning.
         config_path_or_obj:
-            Path to the YAML configuration file or an IncConfig object, used to control the tuning behavior.
+            Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
+            tuning behavior.
         eval_func:
             Evaluation function provided by user.
         calib_dataloader:
@@ -465,7 +512,8 @@ def quantize_aware_training(model, config_path_or_obj, eval_func, train_func):
         model:
             FP32 model specified for low precision tuning.
         config_path_or_obj:
-            Path to the YAML configuration file or an IncConfig object, used to control the tuning behavior.
+            Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
+            tuning behavior.
         eval_func:
             Evaluation function provided by user.
         train_func:
