@@ -185,23 +185,33 @@ class ModelArguments:
     )
     provider: str = field(
         default=None,
-        metadata={"help": "Provider chosen for optimization."}
+        metadata={"help": "Provider chosen for optimization."},
     )
     quantize: bool = field(
         default=False,
-        metadata={"help": "Apply quantization."}
+        metadata={"help": "Whether or not to apply quantization."},
     )
     quantization_approach: str = field(
         default=None,
-        metadata={"help": "Quantization approach."}
+        metadata={
+            "help": "Quantization approach. Supported approach are static, dynamic and aware_training."
+        },
     )
     config_name_or_path: str = field(
         default=None,
-        metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
+        metadata={
+            "help": "Path to the directory containing the YAML configuration file used to control the tuning behavior."
+        },
     )
     tune_metric: str = field(
         default="eval_accuracy",
-        metadata={"help": "Eval metric used for tuning strategy."}
+        metadata={"help": "Eval metric used for the tuning strategy."},
+    )
+    verify_loading: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether or not to verify the loading of the quantized model."
+        },
     )
 
 
@@ -477,8 +487,8 @@ def main():
     def take_eval_steps(model, trainer, metric_name):
         trainer.model = model
         metrics = trainer.evaluate()
-        print("{}: {}".format(metric_name, metrics.get(metric_name)))
-        print('Throughput: {} samples/sec'.format(metrics["eval_samples_per_second"]))
+        logger.info("{}: {}".format(metric_name, metrics.get(metric_name)))
+        logger.info("Throughput: {} samples/sec".format(metrics.get("eval_samples_per_second")))
         return metrics.get(metric_name)
 
     def eval_func(model):
@@ -494,9 +504,7 @@ def main():
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-
         trainer.save_model()  # Saves the tokenizer too for easy upload
-
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
@@ -509,16 +517,18 @@ def main():
 
     if model_args.quantize and model_args.provider == "inc":
 
+        from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
+        import yaml
+
         default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
 
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
-        from optimum.intel.neural_compressor import IncQuantizer, IncQuantizationMode, IncConfig
-
         q8_config = IncConfig.from_pretrained(
             model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
-            "quantization.yml",
+            config_file_name="quantization.yml",
             cache_dir=model_args.cache_dir,
         )
 
@@ -534,14 +544,26 @@ def main():
 
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
+        input_names = None
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
-            q8_config.set_config("model.framework", "pytorch_fx")
             from transformers.utils.fx import symbolic_trace
+
+            # TODO : Remove when dynamic axes support
+            if not training_args.dataloader_drop_last and \
+                    eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0:
+                raise ValueError(
+                    "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
+                    "must be set to True."
+                )
+
+            q8_config.set_config("model.framework", "pytorch_fx")
+            model.config.save_pretrained(training_args.output_dir)
+            input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
             model = symbolic_trace(
                 model,
-                input_names=["input_ids", "attention_mask", "token_type_ids", "labels"],
+                input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length
+                sequence_length=data_args.max_seq_length,
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -553,15 +575,36 @@ def main():
             q_model = quantizer.fit_static()
         elif quantizer.approach == IncQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
-                raise ValueError("do_train must be set to True for Quantization aware training approach.")
+                raise ValueError("do_train must be set to True for quantization aware training.")
             quantizer.train_func = train_func
             q_model = quantizer.fit_aware_training()
         else:
             raise ValueError(f"Unknown quantization approach.")
 
-        metric = take_eval_steps(q_model.model, trainer, metric_name)
-        q_model.save(training_args.output_dir)
-        print(f"Optimized model with {metric_name} of {metric} saved to: {training_args.output_dir}")
+        metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
+
+        trainer.save_model(training_args.output_dir)
+        with open(os.path.join(training_args.output_dir, CONFIG_NAME), "w") as f:
+            yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+
+        logger.info(f"Quantized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
+
+        if model_args.verify_loading:
+            from optimum.intel.neural_compressor.quantization import IncQuantizedModelForSequenceClassification
+
+            # Load the model obtained after Intel Neural Compressor (INC) quantization
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
+                training_args.output_dir,
+                input_names=input_names,
+                batch_size=training_args.per_device_eval_batch_size,
+                sequence_length=data_args.max_seq_length,
+            )
+            loaded_model.eval()
+            metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
+            if metric_loaded_model != metric_q_model:
+                raise ValueError("The quantized model was not successfully loaded.")
+            else:
+                logger.info(f"The quantized model was successfully loaded.")
 
 
 def _mp_fn(index):
@@ -571,3 +614,4 @@ def _mp_fn(index):
 
 if __name__ == "__main__":
     main()
+
