@@ -21,8 +21,7 @@ extras = {
     "onnxruntime": ["onnx", "onnxruntime"],
     "intel": [
         "pycocotools",
-        "lpot>=1.6",
-        "huggingface_hub",
+        "neural_compressor>=1.7",
         "datasets>=1.2.1",
     ]
 }

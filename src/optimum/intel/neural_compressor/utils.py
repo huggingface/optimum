@@ -17,16 +17,20 @@ from torch.utils.data import DataLoader
 from typing import Dict, List, Tuple
 
 
-class LpotDataLoader(DataLoader):
+CONFIG_NAME = "best_configure.yaml"
+WEIGHTS_NAME = "pytorch_model.bin"
+
+
+class IncDataLoader(DataLoader):
 
     @classmethod
     def from_pytorch_dataloader(cls, dataloader: DataLoader):
         if not isinstance(dataloader, DataLoader):
             raise TypeError(f"Expected a PyTorch DataLoader, got: {type(dataloader)}.")
-        lpot_dataloader = cls(dataloader.dataset)
+        inc_dataloader = cls(dataloader.dataset)
         for key, value in dataloader.__dict__.items():
-            lpot_dataloader.__dict__[key] = value
-        return lpot_dataloader
+            inc_dataloader.__dict__[key] = value
+        return inc_dataloader
 
     def __iter__(self):
         for input in super().__iter__():
@@ -37,7 +41,7 @@ class LpotDataLoader(DataLoader):
 
 
 def _cfgs_to_fx_cfgs(op_cfgs: Dict, observer_type: str = "post_training_static_quant") -> Dict:
-    """LPOT function which convert a quantization config to a format that meets the requirements of torch.fx.
+    """Inc function which convert a quantization config to a format that meets the requirements of torch.fx.
         Args:
             op_cfgs (:obj:`dict`):
                 Dictionary of quantization configure for each op.
@@ -65,7 +69,7 @@ def _get_quantizable_ops_recursively(
         prefix: str,
         quantizable_ops: List[Tuple[str, str]]
 ) -> None:
-    """LPOT helper function for `query_fw_capability` which get all quantizable ops from model.
+    """Inc helper function for `query_fw_capability` which get all quantizable ops from model.
     Args:
         model (:obj:`torch.nn.Module`):
             Input model.
@@ -77,7 +81,7 @@ def _get_quantizable_ops_recursively(
         None
     """
     import torch
-    from lpot.adaptor.pytorch import unify_op_type_mapping
+    from neural_compressor.adaptor.pytorch import unify_op_type_mapping
 
     for name, child in model.named_children():
         op_name = prefix + '.' + name if prefix != '' else name
