@@ -189,14 +189,15 @@ class IncQuantizer:
         Returns:
             quantizer: IncQuantizer object.
         """
-
         from transformers import AutoTokenizer
 
-        config_kwargs = {}
-        config_kwargs.update({"cache_dir": kwargs.get("cache_dir", None)})
-        config_kwargs.update({"force_download": kwargs.get("force_download", False)})
-        config_kwargs.update({"resume_download": kwargs.get("resume_download", False)})
-        config_kwargs.update({"revision": kwargs.get("revision", None)})
+        config_kwargs_default = [
+            ("cache_dir", None),
+            ("force_download", False),
+            ("resume_download", False),
+            ("revision", None)
+        ]
+        config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
 
         if not isinstance(inc_config, IncConfig):
             config_path = inc_config if inc_config is not None else model_name_or_path
@@ -343,20 +344,18 @@ class IncQuantizedModel:
         Returns:
             q_model: Quantized model.
         """
-
-        download_kwargs = {}
-        download_kwargs.update({"cache_dir": kwargs.get("cache_dir", None)})
-        download_kwargs.update({"force_download": kwargs.get("force_download", False)})
-        download_kwargs.update({"resume_download": kwargs.get("resume_download", False)})
-        download_kwargs.update({"revision": kwargs.get("revision", None)})
+        download_kwarg_default = [
+            ("cache_dir", None),
+            ("force_download", False),
+            ("resume_download", False),
+            ("revision", None)
+        ]
+        download_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in download_kwarg_default}
         state_dict = kwargs.get("state_dict", None)
 
         if not isinstance(inc_config, IncOptimizedConfig):
             config_path = inc_config if inc_config is not None else model_name_or_path
-            inc_config = IncOptimizedConfig.from_pretrained(
-                config_path,
-                **download_kwargs,
-            )
+            inc_config = IncOptimizedConfig.from_pretrained(config_path, **download_kwargs)
 
         model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
 
@@ -432,7 +431,6 @@ def quantization_approach(config):
     Returns:
         approach: Name of the quantization approach.
     """
-
     from neural_compressor.conf.config import Quantization_Conf
     from neural_compressor.conf.dotdict import deep_get
 
@@ -461,7 +459,6 @@ def quantize_dynamic(model, config_path_or_obj,  eval_func):
         model:
             Quantized model.
     """
-
     from neural_compressor.experimental import Quantization, common
 
     config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
@@ -493,7 +490,6 @@ def quantize_static(model, config_path_or_obj, eval_func, calib_dataloader):
         model:
             Quantized model.
     """
-
     from neural_compressor.experimental import Quantization, common
 
     config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
@@ -526,7 +522,6 @@ def quantize_aware_training(model, config_path_or_obj, eval_func, train_func):
         model:
             Quantized model.
     """
-
     from neural_compressor.experimental import Quantization, common
 
     config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
