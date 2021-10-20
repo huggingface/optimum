@@ -245,6 +245,14 @@ class IncQuantizerForTokenClassification(IncQuantizer):
     from transformers import AutoModelForTokenClassification
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForTokenClassification
+class IncQuantizerForMultipleChoice(IncQuantizer):
+    from transformers import AutoModelForMultipleChoice
+    TRANSFORMERS_AUTO_CLASS = AutoModelForMultipleChoice
+
+
+class IncQuantizerForSeq2SeqLM(IncQuantizer):
+    from transformers import AutoModelForSeq2SeqLM
+    TRANSFORMERS_AUTO_CLASS = AutoModelForSeq2SeqLM
 
 
 def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> torch.nn.Module:
@@ -326,14 +334,15 @@ class IncQuantizedModel:
 
     @classmethod
     def from_pretrained(
-        cls,
-        model_name_or_path: str,
-        inc_config: Union[IncOptimizedConfig, str] = None,
-        q_model_name: Optional[str] = None,
-        input_names: Optional[List[str]] = None,
-        batch_size: Optional[int] = None,
-        sequence_length: Optional[Union[int, List[int], Tuple[int]]] = None,
-        **kwargs
+            cls,
+            model_name_or_path: str,
+            inc_config: Union[IncOptimizedConfig, str] = None,
+            q_model_name: Optional[str] = None,
+            input_names: Optional[List[str]] = None,
+            batch_size: Optional[int] = None,
+            sequence_length: Optional[Union[int, List[int], Tuple[int]]] = None,
+            num_choices: Optional[int] = -1,
+            **kwargs
     ) -> torch.nn.Module:
         """
         Instantiate a quantized pytorch model from a given Intel Neural Compressor (INC) configuration file.
@@ -402,6 +411,7 @@ class IncQuantizedModel:
                 input_names=input_names,
                 batch_size=batch_size,
                 sequence_length=sequence_length,
+                num_choices=num_choices,
             )
 
         q_model = apply_quantization_from_config(inc_config.config, model)
@@ -465,6 +475,14 @@ class IncQuantizedModelForTokenClassification(IncQuantizedModel):
     from transformers import AutoModelForTokenClassification
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForTokenClassification
+class IncQuantizedModelForMultipleChoice(IncQuantizedModel):
+    from transformers import AutoModelForMultipleChoice
+    TRANSFORMERS_AUTO_CLASS = AutoModelForMultipleChoice
+
+
+class IncQuantizedModelForSeq2SeqLM(IncQuantizedModel):
+    from transformers import AutoModelForSeq2SeqLM
+    TRANSFORMERS_AUTO_CLASS = AutoModelForSeq2SeqLM
 
 
 def quantization_approach(config):

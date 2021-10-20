@@ -39,8 +39,6 @@ class IncDataLoader(DataLoader):
 
     def __iter__(self):
         for input in super().__iter__():
-            if not isinstance(input, (dict, tuple, list)):
-                raise TypeError(f"Model calibration cannot use input of type {type(input)}.")
             label = input.get("labels") if isinstance(input, dict) else None
             yield input, label
 
