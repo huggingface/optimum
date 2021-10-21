@@ -59,9 +59,9 @@ class IncQuantizer:
             tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
                 Tokenizer used to preprocess the data.
             eval_func (:obj:`Callable`, `optional`):
-                Evaluation function provided by user to evaluate tuning objective.
+                Evaluation function to evaluate the tuning objective.
             train_func (:obj:`Callable`, `optional`):
-                Training function provided by user for quantization aware training approach.
+                Training function for quantization aware training approach.
             calib_dataloader (:obj:`DataLoader`, `optional`):
                 DataLoader for post-training quantization calibration.
 
@@ -190,9 +190,9 @@ class IncQuantizer:
             calib_dataloader (:obj:`DataLoader`, `optional`):
                 DataLoader for post-training quantization calibration.
             eval_func (:obj:`Callable`, `optional`):
-                Evaluation function provided by user to evaluate tuning objective.
+                Evaluation function to evaluate the tuning objective.
             train_func (:obj:`Callable`, `optional`):
-                Training function provided by user for quantization aware training approach.
+                Training function for quantization aware training approach.
         Returns:
             quantizer: IncQuantizer object.
         """
@@ -217,7 +217,7 @@ class IncQuantizer:
             )
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
-        quantizer_kwargs.update({"tokenizer": tokenizer})
+        quantizer_kwargs["tokenizer"] = tokenizer
         quantizer = cls(inc_config, model, **quantizer_kwargs)
         return quantizer
 
