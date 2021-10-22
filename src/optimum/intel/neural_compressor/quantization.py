@@ -59,11 +59,12 @@ class IncQuantizer:
             tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
                 Tokenizer used to preprocess the data.
             eval_func (:obj:`Callable`, `optional`):
-                Evaluation function provided by user.
+                Evaluation function to evaluate the tuning objective.
             train_func (:obj:`Callable`, `optional`):
-                Training function provided by user.
-            calib_dataloader (:obj:`Callable`, `optional`):
-                DataLoader for calibration.
+                Training function for quantization aware training approach.
+            calib_dataloader (:obj:`DataLoader`, `optional`):
+                DataLoader for post-training quantization calibration.
+
         Returns:
             quantizer: IncQuantizer object.
         """
@@ -186,6 +187,12 @@ class IncQuantizer:
                 The specific model version to use. It can be a branch name, a tag name, or a commit id, since we use a
                 git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
                 identifier allowed by git.
+            calib_dataloader (:obj:`DataLoader`, `optional`):
+                DataLoader for post-training quantization calibration.
+            eval_func (:obj:`Callable`, `optional`):
+                Evaluation function to evaluate the tuning objective.
+            train_func (:obj:`Callable`, `optional`):
+                Training function for quantization aware training approach.
         Returns:
             quantizer: IncQuantizer object.
         """
@@ -198,6 +205,8 @@ class IncQuantizer:
             ("revision", None)
         ]
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
+        quantizer_kwargs_names = ["eval_func", "train_func", "calib_dataloader"]
+        quantizer_kwargs = {name: kwargs.pop(name, None) for name in quantizer_kwargs_names}
 
         if not isinstance(inc_config, IncConfig):
             config_path = inc_config if inc_config is not None else model_name_or_path
@@ -208,7 +217,8 @@ class IncQuantizer:
             )
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
-        quantizer = cls(inc_config, model, tokenizer=tokenizer)
+        quantizer_kwargs["tokenizer"] = tokenizer
+        quantizer = cls(inc_config, model, **quantizer_kwargs)
         return quantizer
 
 
