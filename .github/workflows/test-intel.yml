@@ -28,6 +28,7 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install flake8 pytest
         pip install .[intel]
+        pip install torch==1.9.1
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
