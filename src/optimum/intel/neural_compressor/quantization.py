@@ -144,7 +144,6 @@ class IncQuantizer:
             raise ValueError("calib_dataloader must be provided for post-training quantization.")
 
         quantizer.calib_dataloader = self._calib_dataloader
-
         model = quantizer()
         return model
 
@@ -253,6 +252,21 @@ class IncQuantizerForMultipleChoice(IncQuantizer):
 class IncQuantizerForSeq2SeqLM(IncQuantizer):
     from transformers import AutoModelForSeq2SeqLM
     TRANSFORMERS_AUTO_CLASS = AutoModelForSeq2SeqLM
+
+
+class IncQuantizerModelForCausalLM(IncQuantizer):
+    from transformers import AutoModelForCausalLM
+    TRANSFORMERS_AUTO_CLASS = AutoModelForCausalLM
+
+
+class IncQuantizerModelForMaskedLM(IncQuantizer):
+    from transformers import AutoModelForMaskedLM
+    TRANSFORMERS_AUTO_CLASS = AutoModelForMaskedLM
+
+
+class IncQuantizerModelForXLNetLM(IncQuantizer):
+    from transformers import XLNetLMHeadModel
+    TRANSFORMERS_AUTO_CLASS = XLNetLMHeadModel
 
 
 def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> torch.nn.Module:
@@ -397,7 +411,6 @@ class IncQuantizedModel:
         if not isinstance(inc_config, IncOptimizedConfig):
             config_path = inc_config if inc_config is not None else model_name_or_path
             inc_config = IncOptimizedConfig.from_pretrained(config_path, **download_kwargs)
-
         model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
 
         if inc_config.get_config("framework") == "pytorch_fx":
@@ -453,7 +466,6 @@ class IncQuantizedModel:
                 raise EnvironmentError(msg)
 
             state_dict = torch.load(state_dict_path)
-
         q_model.load_state_dict(state_dict, strict=False)
 
         return q_model
@@ -483,6 +495,21 @@ class IncQuantizedModelForMultipleChoice(IncQuantizedModel):
 class IncQuantizedModelForSeq2SeqLM(IncQuantizedModel):
     from transformers import AutoModelForSeq2SeqLM
     TRANSFORMERS_AUTO_CLASS = AutoModelForSeq2SeqLM
+
+
+class IncQuantizedModelForCausalLM(IncQuantizedModel):
+    from transformers import AutoModelForCausalLM
+    TRANSFORMERS_AUTO_CLASS = AutoModelForCausalLM
+
+
+class IncQuantizedModelForMaskedLM(IncQuantizedModel):
+    from transformers import AutoModelForMaskedLM
+    TRANSFORMERS_AUTO_CLASS = AutoModelForMaskedLM
+
+
+class IncQuantizedModelForXLNetLM(IncQuantizedModel):
+    from transformers import XLNetLMHeadModel
+    TRANSFORMERS_AUTO_CLASS = XLNetLMHeadModel
 
 
 def quantization_approach(config):
