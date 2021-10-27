@@ -22,11 +22,6 @@ pip install -e .
 
 
 ## Usage
-Convert a hub model:
-`optimum_convert` 
-
-Optimize a hub model:
-`optimum_optimize` 
 
 Apply quantization from Intel Neural Compressor (INC):
 
@@ -41,3 +36,34 @@ python examples/pytorch/text-classification/run_glue.py \
     --do_eval \
     --output_dir /tmp/sst2_output/
 ```
+
+
+Export a model to an ONNX Intermediate Representation (IR):
+
+```bash
+optimum_export \
+    --model_name_or_path textattack/bert-base-uncased-SST-2 \
+    --output /tmp/onnx_models/model.onnx
+```
+
+Optimize a model and apply dynamic quantization using ONNX Runtime:
+
+```bash
+optimum_optimize \
+    --onnx_model_path /tmp/onnx_models/model.onnx \
+    --opt_level 1 \
+    --quantize 
+```
+
+The two steps mentioned above can be performed in one step using the following command line:
+
+```bash
+optimum_export_optimize \
+    --model_name_or_path textattack/bert-base-uncased-SST-2 \
+    --output /tmp/onnx_models/model.onnx
+    --opt_level 1 \
+    --quantize \
+    --atol 1.5 
+```
+
+
