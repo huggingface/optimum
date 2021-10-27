@@ -27,6 +27,7 @@ SRC_DIRS = [
     for dirname in [
         "text-classification",
         "question-answering",
+        "token-classification",
     ]
 ]
 sys.path.extend(SRC_DIRS)
@@ -34,6 +35,7 @@ sys.path.extend(SRC_DIRS)
 if SRC_DIRS is not None:
     import run_glue
     import run_qa
+    import run_ner
 
 
 def get_results(output_dir):
@@ -55,7 +57,7 @@ class TestExamples(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
-                run_glue.py 
+                run_glue.py
                 --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english
                 --task_name=sst2
                 --provider={provider}
@@ -65,21 +67,20 @@ class TestExamples(unittest.TestCase):
                 --per_device_eval_batch_size=8
                 --verify_loading
                 --output_dir={tmp_dir}
-                --overwrite_output_dir
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_glue.main()
-                result = get_results(tmp_dir)
-                self.assertGreaterEqual(result["eval_accuracy"], 0.85)
+                results = get_results(tmp_dir)
+                self.assertGreaterEqual(results["eval_accuracy"], 0.85)
 
-    def test_run_squad(self):
+    def test_run_qa(self):
         provider = "inc"
         quantization_approach = "dynamic"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
-                run_qa.py 
+                run_qa.py
                 --model_name_or_path distilbert-base-uncased-distilled-squad
                 --dataset_name=squad
                 --provider={provider}
@@ -89,14 +90,38 @@ class TestExamples(unittest.TestCase):
                 --per_device_eval_batch_size=8
                 --verify_loading
                 --output_dir={tmp_dir}
-                --overwrite_output_dir
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_qa.main()
-                result = get_results(tmp_dir)
-                self.assertGreaterEqual(result["eval_f1"], 80)
-                self.assertGreaterEqual(result["eval_exact_match"], 70)
+                results = get_results(tmp_dir)
+                self.assertGreaterEqual(results["eval_f1"], 80)
+                self.assertGreaterEqual(results["eval_exact_match"], 70)
+
+    def test_run_ner(self):
+        provider = "inc"
+        quantization_approach = "dynamic"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_args = f"""
+                run_ner.py 
+                --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english
+                --dataset_name=conll2003
+                --provider={provider}
+                --quantize
+                --quantization_approach={quantization_approach}
+                --do_eval
+                --verify_loading
+                --output_dir={tmp_dir}
+                """.split()
+
+            with patch.object(sys, "argv", test_args):
+                run_ner.main()
+                results = get_results(tmp_dir)
+                self.assertGreaterEqual(results["eval_accuracy"], 0.90)
+                self.assertGreaterEqual(results["eval_f1"], 0.90)
+                self.assertGreaterEqual(results["eval_precision"], 0.90)
+                self.assertGreaterEqual(results["eval_recall"], 0.90)
 
 
 if __name__ == "__main__":

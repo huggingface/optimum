@@ -232,6 +232,11 @@ class IncQuantizerForSequenceClassification(IncQuantizer):
     TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
 
 
+class IncQuantizerForTokenClassification(IncQuantizer):
+    from transformers import AutoModelForTokenClassification
+    TRANSFORMERS_AUTO_CLASS = AutoModelForTokenClassification
+
+
 def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> torch.nn.Module:
     """
     Apply Intel Neural Compressor (INC) quantization steps on the given model.
@@ -431,6 +436,11 @@ class IncQuantizedModelForQuestionAnswering(IncQuantizedModel):
 class IncQuantizedModelForSequenceClassification(IncQuantizedModel):
     from transformers import AutoModelForSequenceClassification
     TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
+
+
+class IncQuantizedModelForTokenClassification(IncQuantizedModel):
+    from transformers import AutoModelForTokenClassification
+    TRANSFORMERS_AUTO_CLASS = AutoModelForTokenClassification
 
 
 def quantization_approach(config):
