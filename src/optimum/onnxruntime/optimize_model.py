@@ -20,7 +20,8 @@ try:
     from onnxruntime.transformers.optimizer import MODEL_TYPES
 except ImportError:
     from onnxruntime.transformers.optimizer import MODEL_CLASSES as MODEL_TYPES
-from onnxruntime.transformers.onnx_model_bert import BertOptimizationOptions
+from onnxruntime.transformers.fusion_options import FusionOptions
+from typing import Optional
 from .utils import generate_identified_filename
 
 
@@ -34,6 +35,18 @@ def parser_optimize(parser=None):
         help="Input ONNX model path.",
     )
     parser.add_argument(
+        "--opt_level",
+        type=int,
+        choices=[0, 1, 2, 99],
+        default=0,
+        help="Optimization level performed by ONNX Runtime of the loaded graph."
+             "0 will disable all optimizations."
+             "1 will enable basic optimizations."
+             "2 will enable basic and extended optimizations, including complex node fusions applied to the nodes "
+             "assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent."
+             "99 will enable all available optimizations including layout optimizations.",
+    )
+    parser.add_argument(
         "--model_type",
         type=str,
         choices=list(MODEL_TYPES.keys()),
@@ -41,26 +54,39 @@ def parser_optimize(parser=None):
         help="Model type selected in the list: " + ", ".join(MODEL_TYPES.keys()),
     )
     parser.add_argument(
+        "--num_heads",
+        type=int,
+        default=0,
+        help="Number of attention heads. 12 for bert-base model and 16 for bert-large."
+             "For bert model_type, 0 allows to detect the parameter from graph automatically",
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=0,
+        help="Model hidden size. 768 for bert-base model and 1024 for bert-large."
+             "For bert model_type, 0 allows to detect the parameter from graph automatically",
+    )
+    parser.add_argument(
+        "--only_onnxruntime",
+        action="store_true",
+        help="Whether to only use ONNX Runtime to optimize model and no graph fusion in Python.",
+    )
+    parser.add_argument(
+        "--quantize_dynamic",
+        action="store_true",
+        help="Apply dynamic quantization.",
+    )
+    parser.add_argument(
         "--use_external_format",
         action="store_true",
         help="Allow exporting model >= than 2Gb.",
     )
     parser.add_argument(
-        "--opt_level",
-        type=int,
-        choices=[0, 1, 2, 99],
-        default=0,
-        help="ONNX Runtime optimization level.",
-    )
-    parser.add_argument(
         "--use_gpu",
         action="store_true",
-        help="Use GPU inference.",
-    )
-    parser.add_argument(
-        "--only_onnxruntime",
-        action="store_true",
-        help="Optimized by ONNX Runtime only.",
+        help="Whether to optimize the model for GPU inference."
+             "The optimized graph might contain operators for GPU or CPU only when opt_level > 1.",
     )
     parser.add_argument(
         "--disable_gelu",
@@ -112,54 +138,56 @@ def parser_optimize(parser=None):
         action="store_true",
         help="No attention mask. Only works for model_type=bert.",
     )
-    parser.add_argument(
-        "--quantize_dynamic",
-        action="store_true",
-        help="Apply dynamic quantization.",
-    )
     return parser
 
 
-def _get_optimization_options(args):
-    optimization_options = BertOptimizationOptions(args.model_type)
-    if args.disable_gelu:
-        optimization_options.enable_gelu = False
-    if args.disable_layer_norm:
-        optimization_options.enable_layer_norm = False
-    if args.disable_attention:
-        optimization_options.enable_attention = False
-    if args.disable_skip_layer_norm:
-        optimization_options.enable_skip_layer_norm = False
-    if args.disable_embed_layer_norm:
-        optimization_options.enable_embed_layer_norm = False
-    if args.disable_bias_skip_layer_norm:
-        optimization_options.enable_bias_skip_layer_norm = False
-    if args.disable_bias_gelu:
-        optimization_options.enable_bias_gelu = False
-    if args.enable_gelu_approximation:
-        optimization_options.enable_gelu_approximation = True
-    if args.use_mask_index:
-        optimization_options.use_raw_attention_mask(False)
-    if args.no_attention_mask:
-        optimization_options.disable_attention_mask()
-    return optimization_options
-
-
 def optimize(
-        onnx_model_path,
-        model_type,
-        opt_level,
-        optimization_options=None,
-        use_gpu=False,
-        only_onnxruntime=False,
-        use_external_format=False
+        onnx_model_path: Path,
+        model_type: str,
+        num_heads: int = 0,
+        hidden_size: int = 0,
+        opt_level: Optional[int] = None,
+        optimization_options: Optional[FusionOptions] = None,
+        use_gpu: bool = False,
+        only_onnxruntime: bool = False,
+        use_external_format: bool = False
 ):
+    """
+    Given an ONNX model, create an optimized ONNX model and save it.
 
+    Args:
+        onnx_model_path (:obj:`Path`):
+            Path indicating the ONNX model to optimize.
+        model_type (:obj:`str`):
+            Model type used to obtain the optimizer class, the default opt_level and export tools.
+        num_heads (:obj:`int`):
+            Number of attention heads. For model_type bert, 0 allows to detect the parameter from graph automatically.
+        hidden_size (:obj:`int`):
+            Model hidden size. For model_type bert, 0 allows to detect the parameter from graph automatically.
+        opt_level (:obj:`int`, `optional`):
+            Optimization level performed by ONNX Runtime of the loaded graph.
+            0 will disable all optimizations.
+            1 will enable basic optimizations.
+            2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
+            assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
+            99 will enable all available optimizations including layout optimizations.
+        optimization_options (:obj:`FusionOptions`, `optional`):
+            Optimization options used to turn on or off the different fusion options.
+        use_gpu (:obj:`bool`):
+            Whether to optimize the model for GPU inference. The optimized graph might contain operators for GPU or CPU
+            only when opt_level > 1.
+        only_onnxruntime (:obj:`bool`):
+            Whether to only use ONNX Runtime to optimize model and no graph fusion in Python.
+        use_external_format (:obj:`bool`):
+            Allow exporting model >= than 2Gb.
+    """
     from onnxruntime.transformers.optimizer import optimize_model
 
     optimizer = optimize_model(
         onnx_model_path.as_posix(),
         model_type,
+        num_heads,
+        hidden_size,
         opt_level=opt_level,
         optimization_options=optimization_options,
         use_gpu=use_gpu,
@@ -178,7 +206,22 @@ def optimize(
     return optimized_model_path
 
 
-def quantize(onnx_model_path, optimize_model=False, use_external_format=False):
+def quantize(
+        onnx_model_path: Path,
+        optimize_model: bool = False,
+        use_external_format: bool = False
+):
+    """
+    Given an ONNX model, create a quantized ONNX model and save it.
+
+    Args:
+        onnx_model_path (:obj:`Path`):
+            Path indicating the ONNX model to quantize.
+        optimize_model (:obj:`bool`):
+            Whether to optimize the model before quantization.
+        use_external_format (:obj:`bool`):
+            Allow exporting model >= than 2Gb.
+    """
     from onnxruntime.quantization import quantize_dynamic, QuantType, onnx_model
 
     model = onnx.load(onnx_model_path.as_posix())
@@ -202,17 +245,21 @@ def quantize(onnx_model_path, optimize_model=False, use_external_format=False):
 
     return quantized_model_path
 
+
 def main():
     args = parser_optimize().parse_args()
-    optimization_options = _get_optimization_options(args)
 
     if args.onnx_model_path is None or not args.onnx_model_path.is_file():
         raise Exception("Invalid ONNX model path.")
 
+    optimization_options = FusionOptions.parse(args)
+
     args.optimized_output = optimize(
         args.onnx_model_path,
         args.model_type,
-        args.opt_level,
+        num_heads=args.num_heads,
+        hidden_size=args.hidden_size,
+        opt_level=args.opt_level,
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
         only_onnxruntime=args.only_onnxruntime,

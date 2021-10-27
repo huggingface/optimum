@@ -13,9 +13,13 @@
 #  limitations under the License.
 
 from argparse import ArgumentParser
+from onnxruntime.transformers.fusion_options import FusionOptions
 from transformers.onnx import validate_model_outputs
 from .convert import convert_to_onnx, parser_export
-from .optimize_model import optimize, quantize, parser_optimize, _get_optimization_options
+from .optimize_model import optimize, quantize, parser_optimize
+
+
+SUPPORTED_MODEL_TYPE = {"bert", "distilbert", "albert", "roberta", "bart", "gpt2"}
 
 
 def main():
@@ -26,15 +30,31 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
-    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(args.model, args.output, args.features, args.opset)
+    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(
+        args.model_name_or_path,
+        args.output,
+        args.feature,
+        args.opset
+    )
     validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, atol=args.atol)
 
-    optimization_options = _get_optimization_options(args)
+    if model.config.model_type not in SUPPORTED_MODEL_TYPE:
+        raise ValueError(f"{model.config.model_type} ({args.model_name_or_path}) is not supported for ONNX Runtime "
+                         f"optimization. Supported model types are " + ", ".join(SUPPORTED_MODEL_TYPE))
+
+    optimization_options = FusionOptions.parse(args)
+
+    model_type = getattr(model.config, "model_type")
+    model_type = "bert" if "bert" in model_type else model_type
+    num_heads = getattr(model.config, "num_attention_heads", 0)
+    hidden_size = getattr(model.config, "hidden_size", 0)
 
     args.optimized_output = optimize(
         args.output,
-        args.model_type,
-        args.opt_level,
+        model_type,
+        num_heads=num_heads,
+        hidden_size=hidden_size,
+        opt_level=args.opt_level,
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
         only_onnxruntime=args.only_onnxruntime,
