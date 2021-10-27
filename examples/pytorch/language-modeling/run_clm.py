@@ -563,7 +563,7 @@ def main():
                 )
             quant_approach = getattr(IncQuantizationMode, model_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
-
+            q8_config.set_config("tuning.accuracy_criterion.higher_is_better", False)
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
         input_names = None
