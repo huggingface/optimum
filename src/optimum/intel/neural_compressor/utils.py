@@ -120,38 +120,29 @@ def remove_inputs_from_graph(gm_original: GraphModule, inputs_to_remove: List[st
 
     try:
         gm = deepcopy_graph(gm_original)
-        gm.eval()
     except Exception as e:
         gm = gm_original
         logger.warning(f"Deepcopy failed: {repr(e)}, model is modified inplace.")
 
     graph = gm.graph
-    output_node = None
-    for node in graph.nodes:
-        if node.name == "output":
-            output_node = node
-            break
+    output_node = list(graph.nodes)[-1]
+
+    def remove_users(node, output_node):
+        output_args = output_node.args[0] if output_node is not None else None
+        for user in list(node.users):
+            remove_users(user, output_node)
+        if output_args is not None and node in output_args.values():
+            new_output_args = dict()
+            for k, v in output_args.items():
+                if node is v:
+                    continue
+                new_output_args[k] = v
+            output_node.args = (new_output_args,)
+        if node is not output_node:
+            graph.erase_node(node)
 
     for node in graph.nodes:
         if node.op == "placeholder" and node.target in inputs_to_remove:
-
-            def remove_users(node, output_node):
-                output_args = output_node.args[0] if output_node is not None else None
-
-                for user in list(node.users):
-                    remove_users(user, output_node)
-
-                if output_args is not None and node in output_args.values():
-                    new_output_args = dict()
-                    for k, v in output_args.items():
-                        if node is v:
-                            continue
-                        new_output_args[k] = v
-                    output_node.args = (new_output_args,)
-
-                if node is not output_node:
-                    graph.erase_node(node)
-
             remove_users(node, output_node)
             graph.erase_node(node)
 
