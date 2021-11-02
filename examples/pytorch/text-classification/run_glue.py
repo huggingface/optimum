@@ -484,9 +484,11 @@ def main():
     resume_from_checkpoint = training_args.resume_from_checkpoint
     metric_name = model_args.tune_metric
 
-    def take_eval_steps(model, trainer, metric_name):
+    def take_eval_steps(model, trainer, metric_name, save_metrics=False):
         trainer.model = model
         metrics = trainer.evaluate()
+        if save_metrics:
+            trainer.save_metrics("eval", metrics)
         logger.info("{}: {}".format(metric_name, metrics.get(metric_name)))
         logger.info("Throughput: {} samples/sec".format(metrics.get("eval_samples_per_second")))
         return metrics.get(metric_name)
@@ -581,7 +583,7 @@ def main():
         else:
             raise ValueError(f"Unknown quantization approach.")
 
-        metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
+        metric_q_model = take_eval_steps(q_model.model, trainer, metric_name, save_metrics=True)
 
         trainer.save_model(training_args.output_dir)
         with open(os.path.join(training_args.output_dir, CONFIG_NAME), "w") as f:

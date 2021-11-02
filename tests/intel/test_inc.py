@@ -95,7 +95,7 @@ class TestINC(unittest.TestCase):
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
         import yaml
 
-        model_name = "textattack/bert-base-uncased-SST-2"
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -110,7 +110,7 @@ class TestINC(unittest.TestCase):
             q_model_metric = eval_func(q_model.model)
 
             # Verification accuracy loss is under 2%
-            self.assertTrue(q_model_metric >= model_metric * 0.98)
+            self.assertGreaterEqual(q_model_metric, model_metric * 0.98)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
@@ -135,7 +135,7 @@ class TestINC(unittest.TestCase):
         from transformers.utils.fx import symbolic_trace
         import yaml
 
-        model_name = "textattack/bert-base-uncased-SST-2"
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -161,8 +161,8 @@ class TestINC(unittest.TestCase):
             q_model = quantizer.fit_static()
             q_model_metric = eval_func(q_model.model)
 
-            # Verification accuracy loss is under 4%
-            self.assertTrue(q_model_metric >= model_metric * 0.96)
+            # Verification accuracy loss is under 3%
+            self.assertGreaterEqual(q_model_metric, model_metric * 0.97)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
@@ -192,7 +192,7 @@ class TestINC(unittest.TestCase):
         from transformers.utils.fx import symbolic_trace
         import yaml
 
-        model_name = "textattack/bert-base-uncased-SST-2"
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -225,7 +225,7 @@ class TestINC(unittest.TestCase):
             q_model_metric = eval_func(q_model.model)
 
             # Verification accuracy loss is under 3%
-            self.assertTrue(q_model_metric >= model_metric * 0.97)
+            self.assertGreaterEqual(q_model_metric, model_metric * 0.97)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
@@ -252,14 +252,11 @@ class TestINC(unittest.TestCase):
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
         import yaml
 
-        model_name = "textattack/bert-base-uncased-SST-2"
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         task = "sst2"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
-        quantizer = IncQuantizerForSequenceClassification.from_config(
-            model_name,
-            inc_config=config_path,
-        )
+        quantizer = IncQuantizerForSequenceClassification.from_config(model_name, inc_config=config_path)
         tokenizer = quantizer.tokenizer
         model = quantizer.model
 
@@ -300,7 +297,7 @@ class TestINC(unittest.TestCase):
             q_model_metric = eval_func(q_model.model)
 
             # Verification accuracy loss is under 2%
-            self.assertTrue(q_model_metric >= model_metric * 0.98)
+            self.assertGreaterEqual(q_model_metric, model_metric * 0.98)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
