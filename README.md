@@ -20,6 +20,13 @@ cd optimum
 pip install -e .
 ```
 
+To use Intel Neural Compressor (INC),
+
+`pip install optimum[intel]`
+
+To use ONNX Runtime,
+
+`pip install optimum[onnxruntime]`
 
 ## Usage
 
