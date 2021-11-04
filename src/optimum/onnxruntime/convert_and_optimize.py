@@ -13,13 +13,14 @@
 #  limitations under the License.
 
 from argparse import ArgumentParser
+
 from onnxruntime.transformers.fusion_options import FusionOptions
 from transformers.onnx import validate_model_outputs
+
 from .convert import convert_to_onnx, parser_export
-from .optimize_model import optimize, quantize, parser_optimize
+from .optimize_model import optimize, parser_optimize, quantize
 
-
-SUPPORTED_MODEL_TYPE = {"bert", "distilbert", "albert", "roberta", "bart", "gpt2"}
+SUPPORTED_MODEL_TYPE = {"bert", "distilbert", "albert", "roberta", "bart", "gpt2", "camembert"}
 
 
 def main():
