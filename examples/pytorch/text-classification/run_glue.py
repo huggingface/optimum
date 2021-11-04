@@ -48,7 +48,7 @@ from transformers.utils import check_min_version
 AVAILABLE_PROVIDERS = {"inc"}
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.9.2")
+check_min_version("4.12.0")
 
 
 task_to_keys = {
