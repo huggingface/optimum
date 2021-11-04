@@ -68,7 +68,7 @@ The two steps mentioned above can be performed in one step using the following c
 ```bash
 optimum_export_optimize \
     --model_name_or_path bert-base-uncased \
-    --output /tmp/onnx_models/model.onnx
+    --output /tmp/onnx_models/model.onnx \
     --opt_level 1 \
     --quantize \
     --atol 1.5 
