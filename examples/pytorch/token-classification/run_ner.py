@@ -49,7 +49,7 @@ from transformers.utils.versions import require_version
 AVAILABLE_PROVIDERS = {"inc"}
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.12.0.dev0")
+check_min_version("4.12.0")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
 
@@ -626,6 +626,12 @@ def main():
         elif quantizer.approach == IncQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for quantization aware training.")
+            # TODO : Remove when dynamic axes support
+            if training_args.per_device_eval_batch_size != training_args.per_device_train_batch_size:
+                raise ValueError(
+                    "For quantization aware training, the batch size corresponding to the training and evaluation mode "
+                    "should be equal."
+                )
             quantizer.train_func = train_func
             q_model = quantizer.fit_aware_training()
         else:

@@ -13,8 +13,8 @@ except Exception as error:
 install_requires = [
     "coloredlogs",
     "sympy",
-    "transformers @ git+https://github.com/huggingface/transformers.git",
-    "torch>=1.8"
+    "transformers>=4.12.0",
+    "torch>=1.8",
 ]
 
 extras = {

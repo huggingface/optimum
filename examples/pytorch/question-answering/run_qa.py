@@ -29,6 +29,7 @@ import datasets
 from datasets import load_dataset, load_metric
 
 import transformers
+from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
     AutoModelForQuestionAnswering,
@@ -44,15 +45,13 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-trainer_qa = importlib.import_module("transformers.examples.pytorch.question-answering.trainer_qa")
-utils_qa = importlib.import_module("transformers.examples.pytorch.question-answering.utils_qa")
+from utils_qa import postprocess_qa_predictions
 
 
 AVAILABLE_PROVIDERS = {"inc"}
 
-
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.12.0.dev0")
+check_min_version("4.12.0")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/question-answering/requirements.txt")
 
@@ -549,7 +548,7 @@ def main():
     # Post-processing:
     def post_processing_function(examples, features, predictions, stage="eval"):
         # Post-processing: we match the start logits and end logits to answers in the original context.
-        predictions = utils_qa.postprocess_qa_predictions(
+        predictions = postprocess_qa_predictions(
             examples=examples,
             features=features,
             predictions=predictions,
@@ -578,7 +577,7 @@ def main():
         return metric.compute(predictions=p.predictions, references=p.label_ids)
 
     # Initialize our Trainer
-    trainer = trainer_qa.QuestionAnsweringTrainer(
+    trainer = QuestionAnsweringTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
@@ -699,6 +698,12 @@ def main():
         elif quantizer.approach == IncQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for quantization aware training.")
+            # TODO : Remove when dynamic axes support
+            if training_args.per_device_eval_batch_size != training_args.per_device_train_batch_size:
+                raise ValueError(
+                    "For quantization aware training, the batch size corresponding to the training and evaluation mode "
+                    "should be equal."
+                )
             quantizer.train_func = train_func
             q_model = quantizer.fit_aware_training()
         else:
