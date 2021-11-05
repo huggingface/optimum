@@ -606,7 +606,6 @@ def main():
         if save_metrics:
             trainer.save_metrics("eval", metrics)
         logger.info("{}: {}".format(metric_name, metrics.get(metric_name)))
-        import pdb;pdb.set_trace()
         return metrics.get(metric_name)
 
     def eval_func(model):
