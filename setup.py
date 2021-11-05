@@ -1,9 +1,9 @@
 import re
-from setuptools import find_packages, setup
+from setuptools import setup, find_namespace_packages
 
 # Ensure we match the version set in optimum/version.py
 try:
-    filepath = 'src/optimum/version.py'
+    filepath = 'optimum/version.py'
     with open( filepath ) as version_file:
         __version__, = re.findall('__version__ = "(.*)"', version_file.read())
 except Exception as error:
@@ -13,8 +13,8 @@ except Exception as error:
 install_requires = [
     "coloredlogs",
     "sympy",
-    "transformers @ git+https://github.com/huggingface/transformers.git",
-    "torch>=1.8"
+    "transformers>=4.12.0",
+    "torch>=1.8",
 ]
 
 extras = {
@@ -23,7 +23,8 @@ extras = {
         "pycocotools",
         "neural_compressor>=1.7",
         "datasets>=1.2.1",
-    ]
+    ],
+    "graphcore": "optimum-graphcore"
 }
 
 setup(
@@ -50,8 +51,7 @@ setup(
     author="HuggingFace Inc. Special Ops Team",
     author_email="hardware@huggingface.co",
     license="Apache",
-    package_dir={"": "src"},
-    packages=find_packages("src"),
+    packages=find_namespace_packages(include=["optimum.*"]),
     install_requires=install_requires,
     extras_require=extras,
     entry_points={
