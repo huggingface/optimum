@@ -606,6 +606,7 @@ def main():
         if save_metrics:
             trainer.save_metrics("eval", metrics)
         logger.info("{}: {}".format(metric_name, metrics.get(metric_name)))
+        import pdb;pdb.set_trace()
         return metrics.get(metric_name)
 
     def eval_func(model):
@@ -698,6 +699,12 @@ def main():
         elif quantizer.approach == IncQuantizationMode.AWARE_TRAINING.value:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for quantization aware training.")
+            # TODO : Remove when dynamic axes support
+            if training_args.per_device_eval_batch_size != training_args.per_device_train_batch_size:
+                raise ValueError(
+                    "For quantization aware training, the batch size corresponding to the training and evaluation mode "
+                    "should be equal."
+                )
             quantizer.train_func = train_func
             q_model = quantizer.fit_aware_training()
         else:
