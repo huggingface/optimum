@@ -25,4 +25,4 @@ Optimum library for different provider.
 
 | Notebook     |      Description      |   |
 |:----------|:-------------|------:|
-| [How to quantize a model for text classification](https://github.com/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb) | Show how to apply [Intel Neural Compressor](https://github.com/intel/neural-compressor) quantization on a model for any GLUE task. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb)|
+| [How to quantize a model for text classification](https://github.com/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb) | Show how to apply [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) quantization on a model for any GLUE task. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb)|
