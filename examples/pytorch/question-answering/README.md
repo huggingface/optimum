@@ -43,6 +43,8 @@ python examples/pytorch/question-answering/run_qa.py \
 In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
 
+For post-training static quantization and aware-training quantization, we must [set_config("model.framework", "pytorch_fx")](run_qa.py#L677)
+
 The configuration file can be specified by `config_name_or_path` and contains all the information related 
 to the model quantization and tuning objective.  If no `config_name_or_path` is specified, the 
 [default config file](https://github.com/huggingface/optimum/blob/main/examples/pytorch/question-answering/config/inc/quantization.yml) 
