@@ -408,7 +408,9 @@ def main():
 
     # Data collator
     data_collator = (
-        DataCollatorForMultipleChoice(tokenizer=tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
+        default_data_collator
+        if data_args.pad_to_max_length
+        else DataCollatorForMultipleChoice(tokenizer=tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
     )
 
     # Metric
