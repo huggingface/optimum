@@ -33,7 +33,6 @@ from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
-    IntervalStrategy,
     DataCollatorForSeq2Seq,
     HfArgumentParser,
     M2M100Tokenizer,
@@ -52,7 +51,7 @@ from transformers.utils.versions import require_version
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.9.2")
+check_min_version("4.12.0.dev0")
 AVAILABLE_PROVIDERS = {"inc"}
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/translation/requirements.txt")
 
@@ -113,7 +112,7 @@ class ModelArguments:
         metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
     )
     tune_metric: str = field(
-        default="eval_accuracy",
+        default="eval_bleu",
         metadata={"help": "Eval metric used for tuning strategy."}
     )
     verify_loading: bool = field(
@@ -554,13 +553,14 @@ def main():
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
     )
 
-    print(eval_dataset)
     resume_from_checkpoint = training_args.resume_from_checkpoint
     metric_name = model_args.tune_metric
 
-    def take_eval_steps(model, trainer, metric_name):
+    def take_eval_steps(model, trainer, metric_name,save_metrics=False):
         trainer.model = model
         metrics = trainer.evaluate()
+        if save_metrics:
+            trainer.save_metrics("eval", metrics)
         logger.info("{}: {}".format(metric_name, metrics.get(metric_name)))
         logger.info("Throughput: {} samples/sec".format(metrics.get("eval_samples_per_second")))
         return metrics.get(metric_name)
@@ -584,16 +584,6 @@ def main():
         trainer.save_state()
 
     def train_func(model):
-        training_args.eval_steps = 100
-        trainer.args.metric_for_best_model = metric_name.split("_")[1]
-        trainer.args.greater_is_better = True
-        trainer.args.load_best_model_at_end = True
-        trainer.args.evaluation_strategy = IntervalStrategy.STEPS
-
-        early_stopping_patience = 2
-        early_stopping_threshold = 0.001 # optional
-        trainer.add_callback(transformers.EarlyStoppingCallback(early_stopping_patience, \
-                                                                early_stopping_threshold))
         return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)
 
     if model_args.provider is not None and model_args.provider not in AVAILABLE_PROVIDERS:
@@ -647,7 +637,7 @@ def main():
                 model,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.val_max_target_length,
+                sequence_length=[data_args.max_source_length,data_args.max_target_length],
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -665,7 +655,7 @@ def main():
         else:
             raise ValueError(f"Unknown quantization approach.")
 
-        metric_q_model = take_eval_steps(q_model.model, trainer, metric_name)
+        metric_q_model = take_eval_steps(q_model.model, trainer, metric_name, save_metrics=True)
 
         trainer.save_model(training_args.output_dir)
         with open(os.path.join(training_args.output_dir, CONFIG_NAME), "w") as f:
@@ -680,7 +670,7 @@ def main():
                 model_name_or_path=training_args.output_dir,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.val_max_target_length,
+                sequence_length=[data_args.max_source_length,data_args.max_target_length],
             )
 
             metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)

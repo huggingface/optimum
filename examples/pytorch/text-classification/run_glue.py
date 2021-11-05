@@ -32,7 +32,6 @@ from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
     AutoTokenizer,
-    IntervalStrategy,
     DataCollatorWithPadding,
     EvalPrediction,
     HfArgumentParser,
@@ -517,16 +516,6 @@ def main():
         trainer.save_state()
 
     def train_func(model):
-        training_args.eval_steps = 100
-        trainer.args.metric_for_best_model = metric_name.split("_")[1]
-        trainer.args.greater_is_better = True
-        trainer.args.load_best_model_at_end = True
-        trainer.args.evaluation_strategy = IntervalStrategy.STEPS
-
-        early_stopping_patience = 2
-        early_stopping_threshold = 0.001 # optional
-        trainer.add_callback(transformers.EarlyStoppingCallback(early_stopping_patience, \
-                                                                early_stopping_threshold))
         return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)
 
     if optim_args.provider is not None and optim_args.provider not in AVAILABLE_PROVIDERS:
@@ -549,8 +538,12 @@ def main():
             config_file_name="quantization.yml",
 =======
             model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
+<<<<<<< HEAD
             config_file_name="quantization_static.yml",
 >>>>>>> add multi-choice and summrization example
+=======
+            config_file_name="quantization.yml",
+>>>>>>> add test_example
             cache_dir=model_args.cache_dir,
         )
 
