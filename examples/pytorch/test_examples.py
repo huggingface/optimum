@@ -118,13 +118,11 @@ class TestExamples(unittest.TestCase):
                 --do_eval
                 --verify_loading
                 --output_dir={tmp_dir}
-                --max_eval_samples 30
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_ner.main()
                 results = get_results(tmp_dir)
-                print(tmp_dir)
                 self.assertGreaterEqual(results["eval_accuracy"], 0.90)
                 self.assertGreaterEqual(results["eval_f1"], 0.90)
                 self.assertGreaterEqual(results["eval_precision"], 0.90)

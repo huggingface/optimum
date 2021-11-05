@@ -514,7 +514,7 @@ def main():
                 model,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length,
+                sequence_length=max_seq_length,
                 num_choices = 4,
             )
 
@@ -549,7 +549,7 @@ def main():
                 training_args.output_dir,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length,
+                sequence_length=max_seq_length,
                 num_choices = 4,
             )
             loaded_model.eval()
