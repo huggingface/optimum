@@ -3,19 +3,15 @@
 
 # Optimum
 
+🤗  Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardwares.
+We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) dynamic quantization as well as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) dynamic, post-training and aware training quantization on a variety of NLP tasks.
+
 ## Install
-To install the latest release of this package:
+
+🤗 Optimum can be installed using pip as follows:
 
 `pip install optimum`
 
-or from current main branch:
+If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you must install the library from source:
 
 `pip install git+https://github.com/huggingface/optimum.git`
-
-or for development, clone the repo and install it from the local copy:
-
-```
-git clone https://github.com/huggingface/optimum.git
-cd optimum 
-pip install -e .
-```
