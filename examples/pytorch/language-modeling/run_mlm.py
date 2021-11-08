@@ -585,9 +585,9 @@ def main():
                 )
             quant_approach = getattr(IncQuantizationMode, model_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
-
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
+        q8_config.set_config("tuning.accuracy_criterion.higher_is_better", False)
         input_names = None
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             from transformers.utils.fx import symbolic_trace
