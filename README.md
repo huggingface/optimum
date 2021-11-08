@@ -12,6 +12,12 @@ We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) dy
 
 `pip install optimum`
 
+🤗 Optimum with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) or [ONNX runtime](https://github.com/microsoft/onnxruntime) dependencies can be installed respectively using pip as follows:
+
+`pip install optimum[intel]`
+
+`pip install optimum[onnxruntime]`
+
 If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you must install the library from source:
 
 `pip install git+https://github.com/huggingface/optimum.git`
