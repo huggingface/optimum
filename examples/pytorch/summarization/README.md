@@ -28,7 +28,7 @@ The following example applies dynamic quantization on a pegasus fine-tuned on th
 
 ```bash
 python examples/pytorch/summarization/run_summarization.py \
-    --model_name_or_path google/pegasus-cnn_dailymail \
+    --model_name_or_path t5-small \
     --dataset_name cnn_dailymail \
     --dataset_config "3.0.0" \
     --source_prefix "summarize: " \

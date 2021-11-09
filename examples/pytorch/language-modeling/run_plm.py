@@ -579,7 +579,7 @@ def main():
                 model,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length,
+                sequence_length=max_seq_length,
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -612,7 +612,7 @@ def main():
                 training_args.output_dir,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length,
+                sequence_length=max_seq_length,
 
             )
             loaded_model.eval()

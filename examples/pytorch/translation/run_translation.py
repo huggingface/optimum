@@ -385,7 +385,7 @@ def main():
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
 
     prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
-
+    
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
     if training_args.do_train:
@@ -553,12 +553,22 @@ def main():
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
     )
 
+    model_config = model.config
+    model_generate = model.generate
+
     resume_from_checkpoint = training_args.resume_from_checkpoint
     metric_name = model_args.tune_metric
 
+    max_length = (
+        training_args.generation_max_length
+        if training_args.generation_max_length is not None
+        else data_args.val_max_target_length
+    )
+    num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
+
     def take_eval_steps(model, trainer, metric_name,save_metrics=False):
         trainer.model = model
-        metrics = trainer.evaluate()
+        metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
         if save_metrics:
             trainer.save_metrics("eval", metrics)
         logger.info("{}: {}".format(metric_name, metrics.get(metric_name)))
@@ -566,6 +576,8 @@ def main():
         return metrics.get(metric_name)
 
     def eval_func(model):
+        model.config = model_config
+        model.generate = model_generate
         return take_eval_steps(model, trainer, metric_name)
 
     def take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint):

@@ -40,7 +40,30 @@ python examples/pytorch/language-modeling/run_clm.py \
     --verify_loading \
     --output_dir /tmp/rembert_output
 ```
-
+```bash
+python examples/pytorch/language-modeling/run_mlm.py \
+    --model_name_or_path google/electra-base-generator \
+    --dataset_name wikitext \
+    --dataset_config_name wikitext-2-raw-v1 \
+    --provider inc \
+    --quantize \
+    --quantization_approach dynamic \
+    --do_eval \
+    --verify_loading \
+    --output_dir /tmp/rembert_output
+```
+```bash
+python examples/pytorch/language-modeling/run_plm.py \
+    --model_name_or_path xlnet-base-cased \
+    --dataset_name wikitext \
+    --dataset_config_name wikitext-2-raw-v1 \
+    --provider inc \
+    --quantize \
+    --quantization_approach dynamic \
+    --do_eval \
+    --verify_loading \
+    --output_dir /tmp/rembert_output
+```
 In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
 
