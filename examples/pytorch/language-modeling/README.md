@@ -30,7 +30,7 @@ The following example applies dynamic quantization on a distilroberta fine-tuned
 
 ```bash
 python examples/pytorch/language-modeling/run_clm.py \
-    --model_name_or_path naram92/distilroberta-base-finetuned-wikitext2 \
+    --model_name_or_path bert-base-cased \
     --dataset_name wikitext \
     --dataset_config_name wikitext-2-raw-v1 \
     --provider inc \

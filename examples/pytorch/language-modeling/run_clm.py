@@ -570,7 +570,7 @@ def main():
 
             q8_config.set_config("model.framework", "pytorch_fx")
             model.config.save_pretrained(training_args.output_dir)
-            input_names = ["input_ids", "attention_mask","labels"]
+            input_names = ["input_ids", "attention_mask","labels","token_type_ids"]
             model = symbolic_trace(
                 model,
                 input_names=input_names,
