@@ -515,7 +515,7 @@ def main():
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=max_seq_length,
-                num_choices = 4,
+                num_choices = len(eval_dataset[0]["input_ids"]),
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -543,14 +543,13 @@ def main():
 
         if model_args.verify_loading:
             from optimum.intel.neural_compressor.quantization import IncQuantizedModelForMultipleChoice
-
             # Load the model obtained after Intel Neural Compressor (INC) quantization
             loaded_model = IncQuantizedModelForMultipleChoice.from_pretrained(
                 training_args.output_dir,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=max_seq_length,
-                num_choices = 4,
+                num_choices = len(eval_dataset[0]["input_ids"]),
             )
             loaded_model.eval()
             metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
