@@ -424,7 +424,6 @@ def main():
             )
 
     prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
-
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
     if training_args.do_train:

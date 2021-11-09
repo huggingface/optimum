@@ -38,7 +38,7 @@ python examples/pytorch/language-modeling/run_clm.py \
     --quantization_approach dynamic \
     --do_eval \
     --verify_loading \
-    --output_dir /tmp/rembert_output
+    --output_dir /tmp/clm_output
 ```
 ```bash
 python examples/pytorch/language-modeling/run_mlm.py \
@@ -50,7 +50,7 @@ python examples/pytorch/language-modeling/run_mlm.py \
     --quantization_approach dynamic \
     --do_eval \
     --verify_loading \
-    --output_dir /tmp/rembert_output
+    --output_dir /tmp/mlm_output
 ```
 ```bash
 python examples/pytorch/language-modeling/run_plm.py \
@@ -62,7 +62,7 @@ python examples/pytorch/language-modeling/run_plm.py \
     --quantization_approach dynamic \
     --do_eval \
     --verify_loading \
-    --output_dir /tmp/rembert_output
+    --output_dir /tmp/plm_output
 ```
 In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
