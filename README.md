@@ -33,7 +33,6 @@ We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) al
 | Post-training Static Quantization  |  Stay tuned! :star:   |    :heavy_check_mark:   |  
 | Quantization Aware Training (QAT)  |        :x:            |    :heavy_check_mark:   |
 | Pruning                            |        N/A            |    Stay tuned! :star:   |
-| Sparsification                     |        N/A            |    Stay tuned! :star:   |
 
 
 ## Install
