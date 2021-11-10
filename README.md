@@ -30,7 +30,7 @@ We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) al
 | Features                           | ONNX Runtime          | Intel Neural Compressor |
 |:----------------------------------:|:---------------------:|:-----------------------:|
 | Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |  
-| Post-training Static Quantization  |  Stay tuned! :star:   |    Stay tuned! :star:   |  
+| Post-training Static Quantization  |  Stay tuned! :star:   |    :heavy_check_mark:   |  
 | Quantization Aware Training (QAT)  |        :x:            |    :heavy_check_mark:   |
 | Pruning                            |        N/A            |    Stay tuned! :star:   |
 | Sparsification                     |        N/A            |    Stay tuned! :star:   |
