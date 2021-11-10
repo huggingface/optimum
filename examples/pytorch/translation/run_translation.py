@@ -554,7 +554,6 @@ def main():
 
     for batch in trainer.get_eval_dataloader():
         input_names = batch.keys()
-        print(input_names)
         break
 
     model_config = model.config
