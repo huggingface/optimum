@@ -3,7 +3,7 @@
 
 # Hugging Face - Optimum
 
-🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardwares.
+🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardware.
 
 The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
 As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
@@ -12,11 +12,9 @@ As such, Optimum enables users to efficiently use any of these platforms with th
 ## Integration with Hardware Partners  
 
 🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
-To achieve this, we are collaborating with following hardware manufacturers in order to provide the best transformers integration.
 
-Current supported platform include:
-
-- [GraphCore IPUs](https://github.com/huggingface/optimum-graphcore) - 
+To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
+- [GraphCore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu)
 - More to come soon! :star:
 
 ## Optimizing models towards inference
