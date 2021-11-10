@@ -1,10 +1,40 @@
 [![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml)
 [![neural_compressor](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml)
 
-# Optimum
+# Hugging Face - Optimum
 
-🤗  Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardwares.
-We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) dynamic quantization as well as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) dynamic, post-training and aware training quantization on a variety of NLP tasks.
+🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardwares.
+
+The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
+As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
+
+
+## Integration with Hardware Partners  
+
+🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
+To achieve this, we are collaborating with following hardware manufacturers in order to provide the best transformers integration.
+
+Current supported platform include:
+
+- [GraphCore IPUs](https://github.com/huggingface/optimum-graphcore) - 
+- More to come soon! :star:
+
+## Optimizing models towards inference
+
+Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
+platforms.
+
+
+We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) along with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor).
+
+| Features                           | ONNX Runtime          | Intel Neural Compressor |
+|:----------------------------------:|:---------------------:|:-----------------------:|
+| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |  
+| Post-training Static Quantization  |  Stay tuned! :star:   |    Stay tuned! :star:   |  
+| Quantization Aware Training (QAT)  |        :x:            |    :heavy_check_mark:   |
+| Pruning                            |        N/A            |    Stay tuned! :star:   |
+| Sparsification                     |        N/A            |    Stay tuned! :star:   |
+
 
 ## Install
 
