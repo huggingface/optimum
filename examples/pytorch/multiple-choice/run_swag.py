@@ -430,6 +430,9 @@ def main():
         compute_metrics=compute_metrics,
     )
 
+    for batch in trainer.get_eval_dataloader():
+        input_names = batch.keys()
+        break
     resume_from_checkpoint = training_args.resume_from_checkpoint
     metric_name = model_args.tune_metric
 
@@ -495,7 +498,6 @@ def main():
 
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        input_names = None
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             from transformers.utils.fx import symbolic_trace
 
@@ -506,10 +508,8 @@ def main():
                     "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
                     "must be set to True."
                 )
-
             q8_config.set_config("model.framework", "pytorch_fx")
             model.config.save_pretrained(training_args.output_dir)
-            input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
             model = symbolic_trace(
                 model,
                 input_names=input_names,

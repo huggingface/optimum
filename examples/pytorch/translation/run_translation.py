@@ -552,6 +552,11 @@ def main():
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
     )
 
+    for batch in trainer.get_eval_dataloader():
+        input_names = batch.keys()
+        print(input_names)
+        break
+
     model_config = model.config
     model_generate = model.generate
 
@@ -629,7 +634,6 @@ def main():
 
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        input_names = None
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             from transformers.utils.fx import symbolic_trace
 
@@ -643,7 +647,6 @@ def main():
 
             q8_config.set_config("model.framework", "pytorch_fx")
             model.config.save_pretrained(training_args.output_dir)
-            input_names = ["input_ids", "attention_mask","labels"]
             model = symbolic_trace(
                 model,
                 input_names=input_names,
