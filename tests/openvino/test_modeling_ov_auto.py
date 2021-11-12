@@ -63,7 +63,7 @@ class OVBertForQuestionAnsweringTest(unittest.TestCase):
 class GPT2ModelTest(unittest.TestCase):
     def test_model_from_pretrained(self):
         for model_name in GPT2_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
-            model = OVAutoModel.from_pretrained(model_name, from_pt=True)
+            model = OVAutoModel.from_pretrained(model_name, from_pt=True, use_cache=False)
             self.assertIsNotNone(model)
 
             input_ids = np.random.randint(0, 255, (1, 6))

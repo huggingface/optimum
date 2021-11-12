@@ -24,7 +24,11 @@ Along with supporting dedicated AI hardware for training, Optimum also provides 
 platforms.
 
 
-We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) along with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor).
+We currently support:
+
+* [ONNX runtime](https://github.com/microsoft/onnxruntime)
+* [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor)
+* [Intel OpenVINO](https://github.com/openvinotoolkit/openvino)
 
 | Features                           | ONNX Runtime          | Intel Neural Compressor |
 |:----------------------------------:|:---------------------:|:-----------------------:|
@@ -42,7 +46,7 @@ We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) al
 
 🤗 Optimum with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) or [ONNX runtime](https://github.com/microsoft/onnxruntime) dependencies can be installed respectively using pip as follows:
 
-`pip install optimum[intel]`
+`pip install optimum[intel]` (For INC or OpenVINO)
 
 `pip install optimum[onnxruntime]`
 
