@@ -14,7 +14,7 @@ install_requires = [
     "coloredlogs",
     "sympy",
     "transformers>=4.12.0",
-    "torch>=1.8",
+    "torch>=1.8,<1.10",
 ]
 
 extras = {
@@ -23,6 +23,7 @@ extras = {
         "pycocotools",
         "neural_compressor>=1.7",
         "datasets>=1.2.1",
+        "openvino==2021.4.1",
     ],
     "graphcore": "optimum-graphcore"
 }
