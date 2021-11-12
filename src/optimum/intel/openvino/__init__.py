@@ -5,3 +5,11 @@ from .modeling_ov_auto import (
     OVAutoModelForQuestionAnswering,
     OVAutoModelForSequenceClassification,
 )
+
+__all__ = [
+    "OVAutoModel",
+    "OVAutoModelForMaskedLM",
+    "OVAutoModelWithLMHead",
+    "OVAutoModelForQuestionAnswering",
+    "OVAutoModelForSequenceClassification",
+]

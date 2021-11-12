@@ -25,7 +25,7 @@ def load_ov_model_from_pytorch(model):
     dummy_mask = torch.randint(0, 255, (1, 11))
     if model.config.model_type == "gpt2":
         if model.config.use_cache:
-            logger.warn("GPT2 model with use_cache=True is not implemented for OpenVINO backend")
+            raise NotImplementedError("GPT2 model with use_cache=True is not implemented for OpenVINO backend")
 
         inputs = (dummy_input_ids, None, dummy_mask)
     else:
@@ -95,7 +95,7 @@ class OVPreTrainedModel(GenerationMixin):
         self.device = torch.device("cpu")
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+    def from_pretrained(cls, model_name_or_path, *model_args, **kwargs):
         cache_dir = kwargs.pop("cache_dir", None)
         from_pt = kwargs.pop("from_pt", False)
         from_tf = kwargs.pop("from_tf", False)
@@ -110,10 +110,10 @@ class OVPreTrainedModel(GenerationMixin):
         from_auto_class = kwargs.pop("_from_auto", False)
 
         if from_pt:
-            model = cls._pt_auto_model.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
+            model = cls._pt_auto_model.from_pretrained(model_name_or_path, *model_args, **kwargs)
             return load_ov_model_from_pytorch(model)
         elif from_tf:
-            model = cls._tf_auto_model.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
+            model = cls._tf_auto_model.from_pretrained(model_name_or_path, *model_args, **kwargs)
             return load_ov_model_from_tf(model)
 
         user_agent = {"file_type": "model", "framework": "openvino", "from_auto_class": from_auto_class}
@@ -122,29 +122,27 @@ class OVPreTrainedModel(GenerationMixin):
 
         # Load model
         OV_BIN_NAME = OV_WEIGHTS_NAME.replace(".xml", ".bin")
-        if pretrained_model_name_or_path is not None:
-            if os.path.isdir(pretrained_model_name_or_path):
+        if model_name_or_path is not None:
+            if os.path.isdir(model_name_or_path):
                 if (
                     from_ov
-                    and os.path.isfile(os.path.join(pretrained_model_name_or_path, OV_WEIGHTS_NAME))
-                    and os.path.isfile(os.path.join(pretrained_model_name_or_path, OV_BIN_NAME))
+                    and os.path.isfile(os.path.join(model_name_or_path, OV_WEIGHTS_NAME))
+                    and os.path.isfile(os.path.join(model_name_or_path, OV_BIN_NAME))
                 ):
                     # Load from an OpenVINO IR
-                    archive_files = [
-                        os.path.join(pretrained_model_name_or_path, name) for name in [OV_WEIGHTS_NAME, OV_BIN_NAME]
-                    ]
+                    archive_files = [os.path.join(model_name_or_path, name) for name in [OV_WEIGHTS_NAME, OV_BIN_NAME]]
                 else:
                     raise EnvironmentError(
                         f"Error no files named {[OV_WEIGHTS_NAME, OV_BIN_NAME]} found in directory "
-                        f"{pretrained_model_name_or_path} or `from_ov` set to False"
+                        f"{model_name_or_path} or `from_ov` set to False"
                     )
-            # elif os.path.isfile(pretrained_model_name_or_path) or is_remote_url(pretrained_model_name_or_path):
-            #     archive_file = pretrained_model_name_or_path
+            # elif os.path.isfile(model_name_or_path) or is_remote_url(model_name_or_path):
+            #     archive_file = model_name_or_path
             else:
                 names = [OV_WEIGHTS_NAME, OV_BIN_NAME]
                 archive_files = [
                     hf_bucket_url(
-                        pretrained_model_name_or_path,
+                        model_name_or_path,
                         filename=name,
                         revision=revision,
                     )
@@ -168,11 +166,12 @@ class OVPreTrainedModel(GenerationMixin):
                 ]
             except EnvironmentError as err:
                 logger.error(err)
+                name = model_name_or_path
                 msg = (
-                    f"Can't load weights for '{pretrained_model_name_or_path}'. Make sure that:\n\n"
-                    f"- '{pretrained_model_name_or_path}' is a correct model identifier listed on 'https://huggingface.co/models'\n"
-                    f"  (make sure '{pretrained_model_name_or_path}' is not a path to a local directory with something else, in that case)\n\n"
-                    f"- or '{pretrained_model_name_or_path}' is the correct path to a directory containing a file named {OV_WEIGHTS_NAME}.\n\n"
+                    f"Can't load weights for '{name}'. Make sure that:\n\n"
+                    f"- '{name}' is a correct model identifier listed on 'https://huggingface.co/models'\n"
+                    f"  (make sure '{name}' is not a path to a local directory with something else, in that case)\n\n"
+                    f"- or '{name}' is the correct path to a directory containing a file named {OV_WEIGHTS_NAME}.\n\n"
                 )
                 raise EnvironmentError(msg)
 

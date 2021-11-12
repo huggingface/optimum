@@ -60,10 +60,7 @@ class OVBertForQuestionAnsweringTest(unittest.TestCase):
         self.check_model(model, tok)
 
 
-
-
 class GPT2ModelTest(unittest.TestCase):
-
     def test_model_from_pretrained(self):
         for model_name in GPT2_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
             model = OVAutoModel.from_pretrained(model_name, from_pt=True)
@@ -75,8 +72,6 @@ class GPT2ModelTest(unittest.TestCase):
             expected_shape = (1, 6, 768)
             output = model(input_ids, attention_mask=attention_mask)[0]
             self.assertEqual(output.shape, expected_shape)
-
-
 
 
 class OVAlbertModelIntegrationTest(unittest.TestCase):
@@ -94,10 +89,7 @@ class OVAlbertModelIntegrationTest(unittest.TestCase):
         self.assertTrue(np.allclose(output[:, 1:4, 1:4], expected_slice, atol=1e-4))
 
 
-
-
 class OVOPENAIGPTModelLanguageGenerationTest(unittest.TestCase):
-
     def test_lm_generate_openai_gpt(self):
         model = OVAutoModelWithLMHead.from_pretrained("openai-gpt", from_pt=True)
         input_ids = np.array([[481, 4735, 544]], dtype=np.int64)  # the president is
@@ -128,10 +120,7 @@ class OVOPENAIGPTModelLanguageGenerationTest(unittest.TestCase):
         self.assertListEqual(output_ids[0].tolist(), expected_output_ids)
 
 
-
-
 class RobertaModelIntegrationTest(unittest.TestCase):
-
     def test_inference_masked_lm(self):
         model = OVAutoModelForMaskedLM.from_pretrained("roberta-base", from_pt=True)
 
@@ -149,7 +138,6 @@ class RobertaModelIntegrationTest(unittest.TestCase):
         # expected_slice = roberta.model.forward(input_ids)[0][:, :3, :3].detach()
         self.assertTrue(np.allclose(output[:, :3, :3], expected_slice, atol=1e-4))
 
-
     def test_inference_no_head(self):
         model = OVAutoModel.from_pretrained("roberta-base", from_pt=True)
 
@@ -165,10 +153,8 @@ class RobertaModelIntegrationTest(unittest.TestCase):
         self.assertTrue(np.allclose(output[:, :3, :3], expected_slice, atol=1e-4))
 
 
-
 @require_tf
 class TFRobertaModelIntegrationTest(unittest.TestCase):
-
     def test_inference_masked_lm(self):
         model = OVAutoModelForMaskedLM.from_pretrained("roberta-base", from_tf=True)
 
@@ -182,7 +168,6 @@ class TFRobertaModelIntegrationTest(unittest.TestCase):
         )
         self.assertTrue(np.allclose(output[:, :3, :3], expected_slice, atol=1e-4))
 
-
     def test_inference_no_head(self):
         model = OVAutoModel.from_pretrained("roberta-base", from_tf=True)
 
@@ -191,7 +176,6 @@ class TFRobertaModelIntegrationTest(unittest.TestCase):
         # compare the actual values for a slice.
         expected_slice = np.array([[[-0.0231, 0.0782, 0.0074], [-0.1854, 0.0540, -0.0175], [0.0548, 0.0799, 0.1687]]])
         self.assertTrue(np.allclose(output[:, :3, :3], expected_slice, atol=1e-4))
-
 
 
 @require_tf
@@ -214,8 +198,6 @@ class OVTFDistilBertModelIntegrationTest(unittest.TestCase):
             ]
         )
         self.assertTrue(np.allclose(output[:, :3, :3], expected_slice, atol=1e-4))
-
-
 
 
 class OVDistilBertModelIntegrationTest(unittest.TestCase):
