@@ -173,6 +173,7 @@ def remove_dequantize_after_getitem_on_size_(gm: GraphModule, lint_and_recompile
 
 
 pre_quantization_transformations = broadcast_add
+
 post_quantization_transformations = compose_transformations(
     change_attention_mask_value_, remove_dequantize_after_getitem_on_size_
 )
