@@ -13,17 +13,20 @@
 #  limitations under the License.
 
 from argparse import ArgumentParser
-from onnxruntime.transformers.fusion_options import FusionOptions
+
 from transformers.onnx import validate_model_outputs
+
+from onnxruntime.transformers.fusion_options import FusionOptions
+
 from .convert import convert_to_onnx, parser_export
-from .optimize_model import optimize, quantize, parser_optimize
+from .optimize_model import optimize, parser_optimize, quantize
 
 
 SUPPORTED_MODEL_TYPE = {"bert", "distilbert", "albert", "roberta", "bart", "gpt2"}
 
 
 def main():
-    parser = ArgumentParser(conflict_handler='resolve', parents=[parser_export(), parser_optimize()])
+    parser = ArgumentParser(conflict_handler="resolve", parents=[parser_export(), parser_optimize()])
     args = parser.parse_args()
 
     args.output = args.output if args.output.suffix else args.output.joinpath("model.onnx")
@@ -31,16 +34,15 @@ def main():
         args.output.parent.mkdir(parents=True)
 
     tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(
-        args.model_name_or_path,
-        args.output,
-        args.feature,
-        args.opset
+        args.model_name_or_path, args.output, args.feature, args.opset
     )
     validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, atol=args.atol)
 
     if model.config.model_type not in SUPPORTED_MODEL_TYPE:
-        raise ValueError(f"{model.config.model_type} ({args.model_name_or_path}) is not supported for ONNX Runtime "
-                         f"optimization. Supported model types are " + ", ".join(SUPPORTED_MODEL_TYPE))
+        raise ValueError(
+            f"{model.config.model_type} ({args.model_name_or_path}) is not supported for ONNX Runtime "
+            f"optimization. Supported model types are " + ", ".join(SUPPORTED_MODEL_TYPE)
+        )
 
     optimization_options = FusionOptions.parse(args)
 
@@ -58,7 +60,7 @@ def main():
         optimization_options=optimization_options,
         use_gpu=args.use_gpu,
         only_onnxruntime=args.only_onnxruntime,
-        use_external_format=args.use_external_format
+        use_external_format=args.use_external_format,
     )
     validate_model_outputs(onnx_config, tokenizer, model, args.optimized_output, onnx_outputs, atol=args.atol)
 
@@ -69,4 +71,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

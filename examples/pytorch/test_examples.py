@@ -34,8 +34,8 @@ sys.path.extend(SRC_DIRS)
 
 if SRC_DIRS is not None:
     import run_glue
-    import run_qa
     import run_ner
+    import run_qa
 
 
 def get_results(output_dir):
@@ -50,7 +50,6 @@ def get_results(output_dir):
 
 
 class TestExamples(unittest.TestCase):
-
     def test_run_glue(self):
         provider = "inc"
         quantization_approach = "dynamic"
@@ -126,4 +125,3 @@ class TestExamples(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

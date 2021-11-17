@@ -12,9 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import unittest
 import os
 import tempfile
+import unittest
+
+import numpy as np
+from datasets import load_dataset, load_metric
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -23,15 +26,12 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
 )
-from datasets import load_dataset, load_metric
-import numpy as np
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 class TestINC(unittest.TestCase):
-
     def helper(self, model_name, output_dir, do_train=False, max_train_samples=512):
 
         task = "sst2"
@@ -45,8 +45,7 @@ class TestINC(unittest.TestCase):
             dataset = load_dataset("glue", task, split="validation")
 
         dataset = dataset.map(
-            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128),
-            batched=True
+            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128), batched=True
         )
 
         if do_train:
@@ -62,10 +61,7 @@ class TestINC(unittest.TestCase):
             result = metric.compute(predictions=preds, references=p.label_ids)
             return result
 
-        training_args = TrainingArguments(
-            output_dir,
-            num_train_epochs=1.0 if do_train else 0.0
-        )
+        training_args = TrainingArguments(output_dir, num_train_epochs=1.0 if do_train else 0.0)
 
         trainer = Trainer(
             model=model,
@@ -86,6 +82,7 @@ class TestINC(unittest.TestCase):
 
     def test_dynamic_quantization(self):
 
+        import yaml
         from optimum.intel.neural_compressor.config import IncConfig
         from optimum.intel.neural_compressor.quantization import (
             IncQuantizationMode,
@@ -93,7 +90,6 @@ class TestINC(unittest.TestCase):
             IncQuantizer,
         )
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
-        import yaml
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
@@ -125,6 +121,9 @@ class TestINC(unittest.TestCase):
 
     def test_static_quantization(self):
 
+        from transformers.utils.fx import symbolic_trace
+
+        import yaml
         from optimum.intel.neural_compressor.config import IncConfig
         from optimum.intel.neural_compressor.quantization import (
             IncQuantizationMode,
@@ -132,8 +131,6 @@ class TestINC(unittest.TestCase):
             IncQuantizer,
         )
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
-        from transformers.utils.fx import symbolic_trace
-        import yaml
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
@@ -182,6 +179,9 @@ class TestINC(unittest.TestCase):
 
     def test_aware_training_quantization(self):
 
+        from transformers.utils.fx import symbolic_trace
+
+        import yaml
         from optimum.intel.neural_compressor.config import IncConfig
         from optimum.intel.neural_compressor.quantization import (
             IncQuantizationMode,
@@ -189,8 +189,6 @@ class TestINC(unittest.TestCase):
             IncQuantizer,
         )
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
-        from transformers.utils.fx import symbolic_trace
-        import yaml
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
@@ -245,12 +243,12 @@ class TestINC(unittest.TestCase):
 
     def test_quantization_from_config(self):
 
+        import yaml
         from optimum.intel.neural_compressor.quantization import (
             IncQuantizedModelForSequenceClassification,
             IncQuantizerForSequenceClassification,
         )
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
-        import yaml
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         task = "sst2"
@@ -263,8 +261,7 @@ class TestINC(unittest.TestCase):
         metric = load_metric("glue", task)
         eval_dataset = load_dataset("glue", task, split="validation")
         eval_dataset = eval_dataset.map(
-            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128),
-            batched=True
+            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128), batched=True
         )
 
         def compute_metrics(p: EvalPrediction):
@@ -313,4 +310,3 @@ class TestINC(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
