@@ -1,0 +1,50 @@
+name: check_code_quality
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "src/**.py"
+      - "tests/**.py"
+      - "examples/**.py"
+
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src/**.py"
+      - "tests/**.py"
+      - "examples/**.py"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.6]
+        os: [ubuntu-18.04]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Create and start a virtual environment
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+    - name: Install dependencies
+      run: |
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install isort
+        pip install black
+    - name: Check style with black
+      run: |
+        source venv/bin/activate
+        black --check .
+    - name: Check style with isort
+      run: |
+        source venv/bin/activate
+        isort --check .
