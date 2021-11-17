@@ -28,7 +28,8 @@ class TestOptimize(unittest.TestCase):
             "distilbert-base-uncased",
             "roberta-base",
             "gpt2",
-            "facebook/bart-base"
+            "facebook/bart-base",
+            "camembert"
         }
 
         for model_name in model_names:
