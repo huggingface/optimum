@@ -190,6 +190,7 @@ class OptimizationArguments:
     """
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
+
     provider: Optional[str] = field(
         default=None,
         metadata={"help": "Provider chosen for optimization."},
@@ -200,9 +201,7 @@ class OptimizationArguments:
     )
     quantization_approach: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "Quantization approach. Supported approach are static, dynamic and aware_training."
-        },
+        metadata={"help": "Quantization approach. Supported approach are static, dynamic and aware_training."},
     )
     config_name_or_path: Optional[str] = field(
         default=None,
@@ -216,9 +215,7 @@ class OptimizationArguments:
     )
     verify_loading: bool = field(
         default=False,
-        metadata={
-            "help": "Whether or not to verify the loading of the quantized model."
-        },
+        metadata={"help": "Whether or not to verify the loading of the quantized model."},
     )
 
 
@@ -231,7 +228,9 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, opti_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, opti_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     else:
         model_args, data_args, training_args, opti_args = parser.parse_args_into_dataclasses()
 
