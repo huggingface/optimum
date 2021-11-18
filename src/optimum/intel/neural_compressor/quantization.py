@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import copy
 import logging
 import os
 from enum import Enum
@@ -260,8 +261,6 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
         q_model (:obj:`torch.nn.Module`):
             Quantized model.
     """
-    import copy
-
     from torch.quantization import add_observer_, convert
 
     from neural_compressor.adaptor.pytorch import _cfg_to_qconfig, _propagate_qconfig
@@ -389,7 +388,31 @@ class IncQuantizedModel:
             config_path = inc_config if inc_config is not None else model_name_or_path
             inc_config = IncOptimizedConfig.from_pretrained(config_path, **download_kwargs)
 
+        from transformers import AutoConfig
+        from transformers.models.auto.auto_factory import _get_model_class
+
+        config = AutoConfig.from_pretrained(model_name_or_path)
+        model_class = _get_model_class(config, cls.TRANSFORMERS_AUTO_CLASS._model_mapping)
+        keys_to_ignore_on_load_unexpected = copy.deepcopy(
+            getattr(model_class, "_keys_to_ignore_on_load_unexpected", None)
+        )
+        keys_to_ignore_on_load_missing = copy.deepcopy(getattr(model_class, "_keys_to_ignore_on_load_missing", None))
+        # Avoid unnecessary warnings resulting from quantized model initialization
+        quantized_keys_to_ignore_on_load = [r"zero_point", r"scale", r"packed_params", r"constant"]
+        if keys_to_ignore_on_load_unexpected is None:
+            model_class._keys_to_ignore_on_load_unexpected = quantized_keys_to_ignore_on_load
+        else:
+            model_class._keys_to_ignore_on_load_unexpected.extend(quantized_keys_to_ignore_on_load)
+        missing_keys_to_ignore_on_load = [r"weight", r"bias"]
+        if keys_to_ignore_on_load_missing is None:
+            model_class._keys_to_ignore_on_load_missing = missing_keys_to_ignore_on_load
+        else:
+            model_class._keys_to_ignore_on_load_missing.extend(missing_keys_to_ignore_on_load)
+
         model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
+
+        model_class._keys_to_ignore_on_load_unexpected = keys_to_ignore_on_load_unexpected
+        model_class._keys_to_ignore_on_load_missing = keys_to_ignore_on_load_missing
 
         if inc_config.get_config("framework") == "pytorch_fx":
             from transformers.utils.fx import symbolic_trace
