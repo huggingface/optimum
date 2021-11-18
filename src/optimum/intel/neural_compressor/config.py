@@ -12,19 +12,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os
-import requests
 import logging
-import yaml
+import os
 from functools import reduce
 from typing import Any, Optional, Union
+
+import requests
+import yaml
 
 
 logger = logging.getLogger(__name__)
 
 
 class IncConfig:
-
     def __init__(self, config_path: str):
         """
         Args:
@@ -44,18 +44,13 @@ class IncConfig:
 
     def set_config(self, keys: str, value: Any):
         d = self.usr_cfg
-        keys = keys.split('.')
+        keys = keys.split(".")
         for key in keys[:-1]:
             d = d.setdefault(key, {})
         d[keys[-1]] = value
 
     @classmethod
-    def from_pretrained(
-            cls,
-            config_name_or_path: str,
-            config_file_name: Optional[str] = None,
-            **kwargs
-    ):
+    def from_pretrained(cls, config_name_or_path: str, config_file_name: Optional[str] = None, **kwargs):
         """
         Instantiate an IncConfig object from a configuration file which can either be hosted on
         huggingface.co or from a local directory path.
@@ -82,8 +77,9 @@ class IncConfig:
             config: IncConfig object.
         """
 
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
         from transformers.file_utils import cached_path, hf_bucket_url
+
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
         cache_dir = kwargs.get("cache_dir", None)
         force_download = kwargs.get("force_download", False)
@@ -114,8 +110,10 @@ class IncConfig:
             )
 
             if revision is not None:
-                msg += f"- or '{revision}' is a valid git identifier (branch name, a tag name, or a commit id) that " \
-                       f"exists for this model name as listed on its model page on 'https://huggingface.co/models'\n\n"
+                msg += (
+                    f"- or '{revision}' is a valid git identifier (branch name, a tag name, or a commit id) that "
+                    f"exists for this model name as listed on its model page on 'https://huggingface.co/models'\n\n"
+                )
 
             raise EnvironmentError(msg)
 
@@ -125,7 +123,6 @@ class IncConfig:
 
 
 class IncOptimizedConfig(IncConfig):
-
     def __init__(self, config_path: str):
         """
         Args:
@@ -147,4 +144,3 @@ class IncOptimizedConfig(IncConfig):
                 logger.error(err)
 
         return config
-

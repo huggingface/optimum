@@ -12,24 +12,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import tempfile
 import unittest
 from pathlib import Path
-import tempfile
+
 from transformers.onnx import validate_model_outputs
+
 from optimum.onnxruntime import convert_to_onnx, optimize, quantize
 
 
 class TestOptimize(unittest.TestCase):
-
     def test_optimize(self):
 
-        model_names = {
-            "bert-base-cased",
-            "distilbert-base-uncased",
-            "roberta-base",
-            "gpt2",
-            "facebook/bart-base"
-        }
+        model_names = {"bert-base-cased", "distilbert-base-uncased", "roberta-base", "gpt2", "facebook/bart-base"}
 
         for model_name in model_names:
             with self.subTest(model_name=model_name):
@@ -48,7 +43,7 @@ class TestOptimize(unittest.TestCase):
                         num_heads=num_heads,
                         hidden_size=hidden_size,
                         opt_level=1,
-                        only_onnxruntime=True
+                        only_onnxruntime=True,
                     )
                     validate_model_outputs(onnx_config, tokenizer, model, optimized_model, onnx_outputs, atol=1e-4)
 
@@ -59,4 +54,3 @@ class TestOptimize(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
