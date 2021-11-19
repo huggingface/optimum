@@ -18,7 +18,6 @@ Fine-tuning the library models for question answering.
 """
 # You can also adapt this script on your own question answering task. Pointers for this are left as comments.
 
-import importlib
 import logging
 import os
 import sys
@@ -87,32 +86,6 @@ class ModelArguments:
             "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
             "with private models)."
         },
-    )
-    provider: str = field(
-        default=None,
-        metadata={"help": "Provider chosen for optimization."},
-    )
-    quantize: bool = field(
-        default=False,
-        metadata={"help": "Whether or not to apply quantization."},
-    )
-    quantization_approach: str = field(
-        default=None,
-        metadata={"help": "Quantization approach. Supported approach are static, dynamic and aware_training."},
-    )
-    config_name_or_path: str = field(
-        default=None,
-        metadata={
-            "help": "Path to the directory containing the YAML configuration file used to control the tuning behavior."
-        },
-    )
-    tune_metric: str = field(
-        default="eval_f1",
-        metadata={"help": "Eval metric used for the tuning strategy."},
-    )
-    verify_loading: bool = field(
-        default=False,
-        metadata={"help": "Whether or not to verify the loading of the quantized model."},
     )
 
 
@@ -227,18 +200,54 @@ class DataTrainingArguments:
                 assert extension in ["csv", "json"], "`test_file` should be a csv or a json file."
 
 
+@dataclass
+class OptimizationArguments:
+    """
+    Arguments pertaining to what type of optimization we are going to apply on the model.
+    """
+
+    provider: Optional[str] = field(
+        default=None,
+        metadata={"help": "Provider chosen for optimization."},
+    )
+    quantize: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to apply quantization."},
+    )
+    quantization_approach: Optional[str] = field(
+        default=None,
+        metadata={"help": "Quantization approach. Supported approach are static, dynamic and aware_training."},
+    )
+    config_name_or_path: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Path to the directory containing the YAML configuration file used to control the tuning behavior."
+        },
+    )
+    tune_metric: str = field(
+        default="eval_f1",
+        metadata={"help": "Metric used for the tuning strategy."},
+    )
+    verify_loading: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to verify the loading of the quantized model."},
+    )
+
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, optim_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -586,7 +595,7 @@ def main():
     )
 
     resume_from_checkpoint = training_args.resume_from_checkpoint
-    metric_name = model_args.tune_metric
+    metric_name = optim_args.tune_metric
 
     def take_eval_steps(model, trainer, metric_name, save_metrics=False):
         from torch.fx import GraphModule
@@ -627,10 +636,10 @@ def main():
     def train_func(model):
         return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)
 
-    if model_args.provider is not None and model_args.provider not in AVAILABLE_PROVIDERS:
+    if optim_args.provider is not None and optim_args.provider not in AVAILABLE_PROVIDERS:
         raise ValueError("Unknown provider, you should pick one in " + ", ".join(AVAILABLE_PROVIDERS))
 
-    if model_args.quantize and model_args.provider == "inc":
+    if optim_args.quantize and optim_args.provider == "inc":
 
         import yaml
         from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
@@ -642,19 +651,19 @@ def main():
             raise ValueError("do_eval must be set to True for quantization.")
 
         q8_config = IncConfig.from_pretrained(
-            model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
+            optim_args.config_name_or_path if optim_args.config_name_or_path is not None else default_config,
             config_file_name="quantization.yml",
             cache_dir=model_args.cache_dir,
         )
 
         # Set quantization approach if specified
-        if model_args.quantization_approach is not None:
+        if optim_args.quantization_approach is not None:
             supported_approach = {"static", "dynamic", "aware_training"}
-            if model_args.quantization_approach not in supported_approach:
+            if optim_args.quantization_approach not in supported_approach:
                 raise ValueError(
                     "Unknown quantization approach. Supported approach are " + ", ".join(supported_approach)
                 )
-            quant_approach = getattr(IncQuantizationMode, model_args.quantization_approach.upper()).value
+            quant_approach = getattr(IncQuantizationMode, optim_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
 
         # torch FX used for post-training quantization and quantization aware training
@@ -684,7 +693,7 @@ def main():
                 model,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length,
+                sequence_length=max_seq_length,
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -716,7 +725,7 @@ def main():
 
         logger.info(f"Quantized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
 
-        if model_args.verify_loading:
+        if optim_args.verify_loading:
             from optimum.intel.neural_compressor.quantization import IncQuantizedModelForQuestionAnswering
 
             # Load the model obtained after Intel Neural Compressor (INC) quantization
@@ -724,7 +733,7 @@ def main():
                 training_args.output_dir,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=data_args.max_seq_length,
+                sequence_length=max_seq_length,
             )
             loaded_model.eval()
             metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
