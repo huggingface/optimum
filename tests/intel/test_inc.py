@@ -32,7 +32,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 class TestINC(unittest.TestCase):
-    def helper(self, model_name, output_dir, do_train=False, max_train_samples=512):
+    def helper(self, model_name, output_dir, do_train=False, max_train_samples=128, max_eval_samples=128):
 
         task = "sst2"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -50,10 +50,10 @@ class TestINC(unittest.TestCase):
 
         if do_train:
             train_dataset = dataset["train"].select(range(max_train_samples))
-            eval_dataset = dataset["validation"]
+            eval_dataset = dataset["validation"].select(range(max_eval_samples))
         else:
             train_dataset = None
-            eval_dataset = dataset
+            eval_dataset = dataset.select(range(max_eval_samples))
 
         def compute_metrics(p: EvalPrediction):
             preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
@@ -158,8 +158,8 @@ class TestINC(unittest.TestCase):
             q_model = quantizer.fit_static()
             q_model_metric = eval_func(q_model.model)
 
-            # Verification accuracy loss is under 3%
-            self.assertGreaterEqual(q_model_metric, model_metric * 0.97)
+            # Verification accuracy loss is under 4%
+            self.assertGreaterEqual(q_model_metric, model_metric * 0.96)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
@@ -199,7 +199,7 @@ class TestINC(unittest.TestCase):
             model_metric = eval_func(model)
             q8_config = IncConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.AWARE_TRAINING.value)
-            q8_config.set_config("tuning.accuracy_criterion.relative", 0.03)
+            q8_config.set_config("tuning.accuracy_criterion.relative", 0.04)
             q8_config.set_config("model.framework", "pytorch_fx")
             input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
 
@@ -222,8 +222,8 @@ class TestINC(unittest.TestCase):
             q_model = quantizer.fit_aware_training()
             q_model_metric = eval_func(q_model.model)
 
-            # Verification accuracy loss is under 3%
-            self.assertGreaterEqual(q_model_metric, model_metric * 0.97)
+            # Verification accuracy loss is under 4%
+            self.assertGreaterEqual(q_model_metric, model_metric * 0.96)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
@@ -252,6 +252,7 @@ class TestINC(unittest.TestCase):
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         task = "sst2"
+        max_eval_samples = 128
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
         quantizer = IncQuantizerForSequenceClassification.from_config(model_name, inc_config=config_path)
@@ -260,6 +261,7 @@ class TestINC(unittest.TestCase):
 
         metric = load_metric("glue", task)
         eval_dataset = load_dataset("glue", task, split="validation")
+        eval_dataset = eval_dataset.select(range(max_eval_samples))
         eval_dataset = eval_dataset.map(
             lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128), batched=True
         )
