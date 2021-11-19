@@ -1,5 +1,6 @@
 [![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml)
 [![neural_compressor](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml)
+[![openvino](https://github.com/huggingface/optimum/actions/workflows/test-openvino.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-openvino.yml)
 
 # Hugging Face - Optimum
 
@@ -9,7 +10,7 @@ The AI ecosystem evolves quickly and more and more specialized hardware along wi
 As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
 
 
-## Integration with Hardware Partners  
+## Integration with Hardware Partners
 
 🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
 
@@ -23,12 +24,16 @@ Along with supporting dedicated AI hardware for training, Optimum also provides 
 platforms.
 
 
-We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) along with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor).
+We currently support:
+
+* [ONNX runtime](https://github.com/microsoft/onnxruntime)
+* [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor)
+* [Intel OpenVINO](https://github.com/openvinotoolkit/openvino)
 
 | Features                           | ONNX Runtime          | Intel Neural Compressor |
 |:----------------------------------:|:---------------------:|:-----------------------:|
-| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |  
-| Post-training Static Quantization  |  Stay tuned! :star:   |    :heavy_check_mark:   |  
+| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |
+| Post-training Static Quantization  |  Stay tuned! :star:   |    :heavy_check_mark:   |
 | Quantization Aware Training (QAT)  |        :x:            |    :heavy_check_mark:   |
 | Pruning                            |        N/A            |    Stay tuned! :star:   |
 
@@ -41,7 +46,7 @@ We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) al
 
 🤗 Optimum with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) or [ONNX runtime](https://github.com/microsoft/onnxruntime) dependencies can be installed respectively using pip as follows:
 
-`pip install optimum[intel]`
+`pip install optimum[intel]` (For INC or OpenVINO)
 
 `pip install optimum[onnxruntime]`
 
