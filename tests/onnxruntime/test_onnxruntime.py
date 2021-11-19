@@ -29,7 +29,7 @@ class TestOptimize(unittest.TestCase):
             "roberta-base",
             "gpt2",
             "facebook/bart-base",
-            "camembert"
+            "camembert-base"
         }
 
         for model_name in model_names:
