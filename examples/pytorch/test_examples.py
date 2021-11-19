@@ -52,7 +52,7 @@ def get_results(output_dir):
 class TestExamples(unittest.TestCase):
     def test_run_glue(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
@@ -62,9 +62,12 @@ class TestExamples(unittest.TestCase):
                 --provider={provider}
                 --quantize
                 --quantization_approach={quantization_approach}
+                --metric_tolerance 0.03
                 --do_eval
                 --per_device_eval_batch_size=8
+                --max_eval_samples=256
                 --verify_loading
+                --dataloader_drop_last
                 --output_dir={tmp_dir}
                 """.split()
 
@@ -75,7 +78,7 @@ class TestExamples(unittest.TestCase):
 
     def test_run_qa(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
@@ -85,8 +88,10 @@ class TestExamples(unittest.TestCase):
                 --provider={provider}
                 --quantize
                 --quantization_approach={quantization_approach}
+                --metric_tolerance 0.03
                 --do_eval
                 --per_device_eval_batch_size=8
+                --max_eval_samples=256
                 --verify_loading
                 --output_dir={tmp_dir}
                 """.split()
@@ -99,7 +104,7 @@ class TestExamples(unittest.TestCase):
 
     def test_run_ner(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
@@ -109,7 +114,10 @@ class TestExamples(unittest.TestCase):
                 --provider={provider}
                 --quantize
                 --quantization_approach={quantization_approach}
+                --metric_tolerance 0.04
                 --do_eval
+                --per_device_eval_batch_size=8
+                --max_eval_samples=256
                 --verify_loading
                 --output_dir={tmp_dir}
                 """.split()
