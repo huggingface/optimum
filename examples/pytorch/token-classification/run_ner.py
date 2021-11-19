@@ -213,6 +213,10 @@ class OptimizationArguments:
         default="eval_f1",
         metadata={"help": "Metric used for the tuning strategy."},
     )
+    metric_tolerance: Optional[float] = field(
+        default=None,
+        metadata={"help": "Metric tolerance accepted during the tuning strategy."},
+    )
     verify_loading: bool = field(
         default=False,
         metadata={"help": "Whether or not to verify the loading of the quantized model."},
@@ -586,6 +590,12 @@ def main():
             config_file_name="quantization.yml",
             cache_dir=model_args.cache_dir,
         )
+
+        # Set metric tolerance if specified
+        if optim_args.metric_tolerance is not None:
+            if not -1 < optim_args.metric_tolerance < 1:
+                raise ValueError("metric_tolerance must not be <=-1 or >=1.")
+            q8_config.set_config("tuning.accuracy_criterion.relative", optim_args.metric_tolerance)
 
         # Set quantization approach if specified
         if optim_args.quantization_approach is not None:
