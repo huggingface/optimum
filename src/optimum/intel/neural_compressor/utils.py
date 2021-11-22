@@ -13,10 +13,11 @@
 #  limitations under the License.
 
 import logging
+from typing import Dict, List, Tuple
+
 import torch
 from torch.fx import GraphModule
 from torch.utils.data import DataLoader
-from typing import Dict, List, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,6 @@ WEIGHTS_NAME = "pytorch_model.bin"
 
 
 class IncDataLoader(DataLoader):
-
     @classmethod
     def from_pytorch_dataloader(cls, dataloader: DataLoader):
         if not isinstance(dataloader, DataLoader):
@@ -47,14 +47,14 @@ class IncDataLoader(DataLoader):
 
 def _cfgs_to_fx_cfgs(op_cfgs: Dict, observer_type: str = "post_training_static_quant") -> Dict:
     """Inc function which convert a quantization config to a format that meets the requirements of torch.fx.
-        Args:
-            op_cfgs (:obj:`dict`):
-                Dictionary of quantization configure for each op.
-            observer_type (:obj:`str`):
-                Specify observer type.
-        Returns:
-            fx_op_cfgs (:obj:`dict`):
-                Dictionary of quantization configure that meets the requirements of torch.fx.
+    Args:
+        op_cfgs (:obj:`dict`):
+            Dictionary of quantization configure for each op.
+        observer_type (:obj:`str`):
+            Specify observer type.
+    Returns:
+        fx_op_cfgs (:obj:`dict`):
+            Dictionary of quantization configure that meets the requirements of torch.fx.
     """
     fx_op_cfgs = dict()
     op_tuple_cfg_list = []
@@ -69,10 +69,7 @@ def _cfgs_to_fx_cfgs(op_cfgs: Dict, observer_type: str = "post_training_static_q
 
 
 def _get_quantizable_ops_recursively(
-        self,
-        model: torch.nn.Module,
-        prefix: str,
-        quantizable_ops: List[Tuple[str, str]]
+    self, model: torch.nn.Module, prefix: str, quantizable_ops: List[Tuple[str, str]]
 ) -> None:
     """Inc helper function for `query_fw_capability` which get all quantizable ops from model.
     Args:
@@ -86,19 +83,27 @@ def _get_quantizable_ops_recursively(
         None
     """
     import torch
+
     from neural_compressor.adaptor.pytorch import unify_op_type_mapping
 
     for name, child in model.named_children():
-        op_name = prefix + '.' + name if prefix != '' else name
-        if type(child) in self.white_list and type(child) != torch.nn.Sequential and \
-                type(child) != torch.quantization.stubs.DeQuantStub and not \
-                    isinstance(child, torch.nn.LayerNorm) and not \
-                    isinstance(child, torch.nn.Embedding):
+        op_name = prefix + "." + name if prefix != "" else name
+        if (
+            type(child) in self.white_list
+            and type(child) != torch.nn.Sequential
+            and type(child) != torch.quantization.stubs.DeQuantStub
+            and not isinstance(child, torch.nn.LayerNorm)
+            and not isinstance(child, torch.nn.Embedding)
+        ):
 
-            quantizable_ops.append((
-                op_name, unify_op_type_mapping[str(child.__class__.__name__)]
-                if str(child.__class__.__name__) in unify_op_type_mapping else
-                str(child.__class__.__name__)))
+            quantizable_ops.append(
+                (
+                    op_name,
+                    unify_op_type_mapping[str(child.__class__.__name__)]
+                    if str(child.__class__.__name__) in unify_op_type_mapping
+                    else str(child.__class__.__name__),
+                )
+            )
         else:
             self._get_quantizable_ops_recursively(child, op_name, quantizable_ops)
 
@@ -150,4 +155,3 @@ def remove_inputs_from_graph(gm_original: GraphModule, inputs_to_remove: List[st
     gm.recompile()
 
     return gm
-

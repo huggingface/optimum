@@ -14,10 +14,11 @@
 
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import Optional
+
 from transformers import AutoTokenizer
 from transformers.onnx import export, validate_model_outputs
 from transformers.onnx.features import FeaturesManager
-from typing import Optional
 
 
 def parser_export(parser=None):
@@ -57,12 +58,7 @@ def parser_export(parser=None):
     return parser
 
 
-def convert_to_onnx(
-        model_name_or_path: str,
-        output: Path,
-        feature: str = "default",
-        opset: Optional[int] = None
-):
+def convert_to_onnx(model_name_or_path: str, output: Path, feature: str = "default", opset: Optional[int] = None):
     """
     Load and export a model to an ONNX Intermediate Representation (IR).
 
@@ -93,10 +89,7 @@ def main():
         args.output.parent.mkdir(parents=True)
 
     tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(
-        args.model_name_or_path,
-        args.output,
-        args.feature,
-        args.opset
+        args.model_name_or_path, args.output, args.feature, args.opset
     )
 
     validate_model_outputs(onnx_config, tokenizer, model, args.output, onnx_outputs, args.atol)
@@ -104,4 +97,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

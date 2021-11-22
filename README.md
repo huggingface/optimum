@@ -1,70 +1,50 @@
 [![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml)
 [![neural_compressor](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml)
 
-# Optimum
+# Hugging Face - Optimum
+
+🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardware.
+
+The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
+As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
+
+
+## Integration with Hardware Partners  
+
+🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
+
+To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
+- [GraphCore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu)
+- More to come soon! :star:
+
+## Optimizing models towards inference
+
+Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
+platforms.
+
+
+We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) along with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor).
+
+| Features                           | ONNX Runtime          | Intel Neural Compressor |
+|:----------------------------------:|:---------------------:|:-----------------------:|
+| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |  
+| Post-training Static Quantization  |  Stay tuned! :star:   |    :heavy_check_mark:   |  
+| Quantization Aware Training (QAT)  |        :x:            |    :heavy_check_mark:   |
+| Pruning                            |        N/A            |    Stay tuned! :star:   |
+
 
 ## Install
-To install the latest release of this package:
+
+🤗 Optimum can be installed using pip as follows:
 
 `pip install optimum`
 
-or from current main branch:
+🤗 Optimum with [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) or [ONNX runtime](https://github.com/microsoft/onnxruntime) dependencies can be installed respectively using pip as follows:
+
+`pip install optimum[intel]`
+
+`pip install optimum[onnxruntime]`
+
+If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you must install the library from source:
 
 `pip install git+https://github.com/huggingface/optimum.git`
-
-or for development, clone the repo and install it from the local copy:
-
-```
-git clone https://github.com/huggingface/optimum.git
-cd optimum 
-pip install -e .
-```
-
-
-## Usage
-
-Apply quantization from Intel Neural Compressor (INC):
-
-```bash
-python examples/pytorch/text-classification/run_glue.py \
-    --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english\
-    --task_name sst2 \
-    --provider inc \
-    --quantize \
-    --quantization_approach dynamic \
-    --config_name_or_path echarlaix/bert-base-dynamic-quant-test \
-    --do_eval \
-    --verify_loading \
-    --output_dir /tmp/sst2_output/
-```
-
-
-Export a model to an ONNX Intermediate Representation (IR):
-
-```bash
-optimum_export \
-    --model_name_or_path bert-base-uncased \
-    --output /tmp/onnx_models/model.onnx
-```
-
-Optimize a model and apply dynamic quantization using ONNX Runtime:
-
-```bash
-optimum_optimize \
-    --onnx_model_path /tmp/onnx_models/model.onnx \
-    --opt_level 1 \
-    --quantize 
-```
-
-The two steps mentioned above can be performed in one step using the following command line:
-
-```bash
-optimum_export_optimize \
-    --model_name_or_path bert-base-uncased \
-    --output /tmp/onnx_models/model.onnx
-    --opt_level 1 \
-    --quantize \
-    --atol 1.5 
-```
-
-
