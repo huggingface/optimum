@@ -140,7 +140,7 @@ class OptimizationArguments:
         },
     )
     tune_metric: str = field(
-        default="eval_accuracy",
+        default="eval_loss",
         metadata={"help": "Metric used for the tuning strategy."},
     )
     verify_loading: bool = field(

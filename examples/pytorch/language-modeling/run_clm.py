@@ -143,7 +143,7 @@ class OptimizationArguments:
         },
     )
     tune_metric: str = field(
-        default="eval_accuracy",
+        default="eval_loss",
         metadata={"help": "Metric used for the tuning strategy."},
     )
     verify_loading: bool = field(
@@ -520,7 +520,6 @@ def main():
             perplexity = math.exp(metrics["eval_loss"])
         except OverflowError:
             perplexity = float("inf")
-        metrics["perplexity"] = perplexity
         metrics["perplexity"] = perplexity
         if save_metrics:
             trainer.save_metrics("eval", metrics)
