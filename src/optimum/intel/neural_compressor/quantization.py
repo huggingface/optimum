@@ -387,6 +387,8 @@ class IncQuantizedModel:
                 Sequence length of the traced model inputs. For sequence-to-sequence models with different sequence
                 lengths between the encoder and the decoder inputs, this must be :obj:`[encoder_sequence_length,
                 decoder_sequence_length]`.
+            num_choices (:obj:`int`, `optional`, defaults to -1):
+                The number of possible choices for a multiple choice task.
             cache_dir (:obj:`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
