@@ -248,26 +248,31 @@ class IncQuantizerForTokenClassification(IncQuantizer):
 
 class IncQuantizerForMultipleChoice(IncQuantizer):
     from transformers import AutoModelForMultipleChoice
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForMultipleChoice
 
 
 class IncQuantizerForSeq2SeqLM(IncQuantizer):
     from transformers import AutoModelForSeq2SeqLM
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForSeq2SeqLM
 
 
 class IncQuantizerForCausalLM(IncQuantizer):
     from transformers import AutoModelForCausalLM
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForCausalLM
 
 
 class IncQuantizerForMaskedLM(IncQuantizer):
     from transformers import AutoModelForMaskedLM
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForMaskedLM
 
 
 class IncQuantizerForXLNetLM(IncQuantizer):
     from transformers import XLNetLMHeadModel
+
     TRANSFORMERS_AUTO_CLASS = XLNetLMHeadModel
 
 
@@ -350,15 +355,15 @@ class IncQuantizedModel:
 
     @classmethod
     def from_pretrained(
-            cls,
-            model_name_or_path: str,
-            inc_config: Union[IncOptimizedConfig, str] = None,
-            q_model_name: Optional[str] = None,
-            input_names: Optional[List[str]] = None,
-            batch_size: Optional[int] = None,
-            sequence_length: Optional[Union[int, List[int], Tuple[int]]] = None,
-            num_choices: Optional[int] = -1,
-            **kwargs
+        cls,
+        model_name_or_path: str,
+        inc_config: Union[IncOptimizedConfig, str] = None,
+        q_model_name: Optional[str] = None,
+        input_names: Optional[List[str]] = None,
+        batch_size: Optional[int] = None,
+        sequence_length: Optional[Union[int, List[int], Tuple[int]]] = None,
+        num_choices: Optional[int] = -1,
+        **kwargs
     ) -> torch.nn.Module:
         """
         Instantiate a quantized pytorch model from a given Intel Neural Compressor (INC) configuration file.
@@ -493,26 +498,31 @@ class IncQuantizedModelForTokenClassification(IncQuantizedModel):
 
 class IncQuantizedModelForMultipleChoice(IncQuantizedModel):
     from transformers import AutoModelForMultipleChoice
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForMultipleChoice
 
 
 class IncQuantizedModelForSeq2SeqLM(IncQuantizedModel):
     from transformers import AutoModelForSeq2SeqLM
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForSeq2SeqLM
 
 
 class IncQuantizedModelForCausalLM(IncQuantizedModel):
     from transformers import AutoModelForCausalLM
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForCausalLM
 
 
 class IncQuantizedModelForMaskedLM(IncQuantizedModel):
     from transformers import AutoModelForMaskedLM
+
     TRANSFORMERS_AUTO_CLASS = AutoModelForMaskedLM
 
 
 class IncQuantizedModelForXLNetLM(IncQuantizedModel):
     from transformers import XLNetLMHeadModel
+
     TRANSFORMERS_AUTO_CLASS = XLNetLMHeadModel
 
 

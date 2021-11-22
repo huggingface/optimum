@@ -22,7 +22,6 @@ from typing import Dict, List, Tuple
 from collections import UserDict
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -40,7 +39,7 @@ class IncDataLoader(DataLoader):
             inc_dataloader.__dict__[key] = value
         return inc_dataloader
 
-    def __iter__(self): 
+    def __iter__(self):
         for input in super().__iter__():
             if not isinstance(input, (dict, tuple, list, UserDict)):
                 raise TypeError(f"Model calibration cannot use input of type {type(input)}.")

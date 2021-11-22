@@ -29,7 +29,7 @@ SRC_DIRS = [
         "question-answering",
         "token-classification",
         "multiple-choice",
-        "language-modeling"
+        "language-modeling",
     ]
 ]
 sys.path.extend(SRC_DIRS)
@@ -41,7 +41,6 @@ if SRC_DIRS is not None:
     import run_swag
     import run_clm
     import run_mlm
-
 
 
 def get_results(output_dir):
@@ -150,7 +149,6 @@ class TestExamples(unittest.TestCase):
                 results = get_results(tmp_dir)
                 self.assertGreaterEqual(results["eval_accuracy"], 0.50)
 
-
     def test_run_clm(self):
         provider = "inc"
         quantization_approach = "dynamic"
@@ -200,6 +198,7 @@ class TestExamples(unittest.TestCase):
                 run_mlm.main()
                 results = get_results(tmp_dir)
                 self.assertLessEqual(results["eval_loss"], 10)
+
 
 if __name__ == "__main__":
     unittest.main()

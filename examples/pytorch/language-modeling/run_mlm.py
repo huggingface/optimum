@@ -47,6 +47,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 import torch
+
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
 AVAILABLE_PROVIDERS = {"inc"}
@@ -106,32 +107,18 @@ class ModelArguments:
             "with private models)."
         },
     )
-    provider: str = field(
-        default=None,
-        metadata={"help": "Provider chosen for optimization."}
-    )
-    quantize: bool = field(
-        default=False,
-        metadata={"help": "Apply quantization."}
-    )
-    quantization_approach: str = field(
-        default=None,
-        metadata={"help": "Quantization approach."}
-    )
+    provider: str = field(default=None, metadata={"help": "Provider chosen for optimization."})
+    quantize: bool = field(default=False, metadata={"help": "Apply quantization."})
+    quantization_approach: str = field(default=None, metadata={"help": "Quantization approach."})
     config_name_or_path: str = field(
-        default=None,
-        metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
+        default=None, metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
     )
-    tune_metric: str = field(
-        default="perplexity",
-        metadata={"help": "Eval metric used for tuning strategy."}
-    )
+    tune_metric: str = field(default="perplexity", metadata={"help": "Eval metric used for tuning strategy."})
     verify_loading: bool = field(
         default=False,
-        metadata={
-            "help": "Whether or not to verify the loading of the quantized model."
-        },
+        metadata={"help": "Whether or not to verify the loading of the quantized model."},
     )
+
     def __post_init__(self):
         if self.config_overrides is not None and (self.config_name is not None or self.model_name_or_path is not None):
             raise ValueError(
@@ -502,7 +489,6 @@ def main():
         tokenizer=tokenizer,
         mlm_probability=data_args.mlm_probability,
         pad_to_multiple_of=8 if pad_to_multiple_of_8 else None,
-        
     )
 
     # Initialize our Trainer
@@ -522,8 +508,8 @@ def main():
     metric_name = model_args.tune_metric
 
     def take_eval_steps(model, trainer, metric_name, save_metrics=False):
-        #set seed to ensure the consistency of input data for fp32 model, quantized model
-        #and reload quantized model
+        # set seed to ensure the consistency of input data for fp32 model, quantized model
+        # and reload quantized model
         torch.manual_seed(training_args.seed)
         trainer.model = model
         metrics = trainer.evaluate()
@@ -595,8 +581,10 @@ def main():
             from transformers.utils.fx import symbolic_trace
 
             # TODO : Remove when dynamic axes support
-            if not training_args.dataloader_drop_last and \
-                    eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0:
+            if (
+                not training_args.dataloader_drop_last
+                and eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0
+            ):
                 raise ValueError(
                     "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
                     "must be set to True."
@@ -636,13 +624,13 @@ def main():
 
         if model_args.verify_loading:
             from optimum.intel.neural_compressor.quantization import IncQuantizedModelForMaskedLM
+
             # Load the model obtained after Intel Neural Compressor (INC) quantization
             loaded_model = IncQuantizedModelForMaskedLM.from_pretrained(
                 training_args.output_dir,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=max_seq_length,
-
             )
             loaded_model.eval()
 

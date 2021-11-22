@@ -97,9 +97,7 @@ class ModelArguments:
     )
     quantization_approach: str = field(
         default=None,
-        metadata={
-            "help": "Quantization approach. Supported approach are static, dynamic and aware_training."
-        },
+        metadata={"help": "Quantization approach. Supported approach are static, dynamic and aware_training."},
     )
     config_name_or_path: str = field(
         default=None,
@@ -113,9 +111,7 @@ class ModelArguments:
     )
     verify_loading: bool = field(
         default=False,
-        metadata={
-            "help": "Whether or not to verify the loading of the quantized model."
-        },
+        metadata={"help": "Whether or not to verify the loading of the quantized model."},
     )
 
 
@@ -502,8 +498,10 @@ def main():
             from transformers.utils.fx import symbolic_trace
 
             # TODO : Remove when dynamic axes support
-            if not training_args.dataloader_drop_last and \
-                    eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0:
+            if (
+                not training_args.dataloader_drop_last
+                and eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0
+            ):
                 raise ValueError(
                     "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
                     "must be set to True."
@@ -515,7 +513,7 @@ def main():
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=max_seq_length,
-                num_choices = len(eval_dataset[0]["input_ids"]),
+                num_choices=len(eval_dataset[0]["input_ids"]),
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -543,13 +541,14 @@ def main():
 
         if model_args.verify_loading:
             from optimum.intel.neural_compressor.quantization import IncQuantizedModelForMultipleChoice
+
             # Load the model obtained after Intel Neural Compressor (INC) quantization
             loaded_model = IncQuantizedModelForMultipleChoice.from_pretrained(
                 training_args.output_dir,
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=max_seq_length,
-                num_choices = len(eval_dataset[0]["input_ids"]),
+                num_choices=len(eval_dataset[0]["input_ids"]),
             )
             loaded_model.eval()
             metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)

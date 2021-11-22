@@ -111,32 +111,18 @@ class ModelArguments:
             "with private models)."
         },
     )
-    provider: str = field(
-        default=None,
-        metadata={"help": "Provider chosen for optimization."}
-    )
-    quantize: bool = field(
-        default=False,
-        metadata={"help": "Apply quantization."}
-    )
-    quantization_approach: str = field(
-        default=None,
-        metadata={"help": "Quantization approach."}
-    )
+    provider: str = field(default=None, metadata={"help": "Provider chosen for optimization."})
+    quantize: bool = field(default=False, metadata={"help": "Apply quantization."})
+    quantization_approach: str = field(default=None, metadata={"help": "Quantization approach."})
     config_name_or_path: str = field(
-        default=None,
-        metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
+        default=None, metadata={"help": "Path to the YAML configuration file used to control the tuning behavior."}
     )
-    tune_metric: str = field(
-        default="perplexity",
-        metadata={"help": "Eval metric used for tuning strategy."}
-    )
+    tune_metric: str = field(default="perplexity", metadata={"help": "Eval metric used for tuning strategy."})
     verify_loading: bool = field(
         default=False,
-        metadata={
-            "help": "Whether or not to verify the loading of the quantized model."
-        },
+        metadata={"help": "Whether or not to verify the loading of the quantized model."},
     )
+
     def __post_init__(self):
         if self.config_overrides is not None and (self.config_name is not None or self.model_name_or_path is not None):
             raise ValueError(
@@ -211,6 +197,7 @@ class DataTrainingArguments:
             if self.validation_file is not None:
                 extension = self.validation_file.split(".")[-1]
                 assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
+
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -563,8 +550,10 @@ def main():
             from transformers.utils.fx import symbolic_trace
 
             # TODO : Remove when dynamic axes support
-            if not training_args.dataloader_drop_last and \
-                    eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0:
+            if (
+                not training_args.dataloader_drop_last
+                and eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0
+            ):
                 raise ValueError(
                     "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
                     "must be set to True."
@@ -604,6 +593,7 @@ def main():
 
         if model_args.verify_loading:
             from optimum.intel.neural_compressor.quantization import IncQuantizedModelForCausalLM
+
             # Load the model obtained after Intel Neural Compressor (INC) quantization
             loaded_model = IncQuantizedModelForCausalLM.from_pretrained(
                 training_args.output_dir,
