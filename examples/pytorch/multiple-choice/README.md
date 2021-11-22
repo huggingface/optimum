@@ -17,7 +17,7 @@ limitations under the License.
 # Multiple choice 
 
 The script [`run_swag.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/multiple-choice/run_swag.py) 
-allows us to apply different quantization approach such as dynamic, post-training and quantization aware-training 
+allows us to apply different quantization approaches such as dynamic, static and aware-training quantization
 using different provider such as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) for 
 language modeling tasks.
 
@@ -25,20 +25,18 @@ The following example applies dynamic quantization on a bert fine-tuned on the S
 [`inc`](https://github.com/intel/neural-compressor) provider: 
 
 ```bash
-python examples/pytorch/multiple-choice/run_swag.py \
+python run_swag.py \
     --model_name_or_path ehdwns1516/bert-base-uncased_SWAG \
     --provider inc \
     --quantize \
     --quantization_approach dynamic \
     --do_eval \
     --verify_loading \
-    --output_dir /tmp/bert_base_output
+    --output_dir /tmp/swag_output
 ```
 
-In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
+In order to apply dynamic, static or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
-
-For post-training static quantization and aware-training quantization, we must [set_config("model.framework", "pytorch_fx")](run_swag.py#L510)
 
 The configuration file can be specified by `config_name_or_path` and contains all the information related 
 to the model quantization and tuning objective.  If no `config_name_or_path` is specified, the 

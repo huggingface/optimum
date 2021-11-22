@@ -18,7 +18,7 @@ limitations under the License.
 
 
 The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/question-answering/run_qa.py)
-allows us to apply different quantization approach such as dynamic, post-training and quantization aware-training 
+allows us to apply different quantization approaches such as dynamic, static and aware-training quantization
 using different provider such as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) for
 question answering tasks.
 
@@ -29,7 +29,7 @@ The following example applies dynamic quantization on a DistilBERT fine-tuned on
 [`inc`](https://github.com/intel/neural-compressor) provider: 
 
 ```bash
-python examples/pytorch/question-answering/run_qa.py \
+python run_qa.py \
     --model_name_or_path distilbert-base-uncased-distilled-squad \
     --dataset_name squad \
     --provider inc \
@@ -37,13 +37,11 @@ python examples/pytorch/question-answering/run_qa.py \
     --quantization_approach dynamic \
     --do_eval \
     --verify_loading \
-    --output_dir /tmp/squad_output/
+    --output_dir /tmp/squad_output
 ```
 
-In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
+In order to apply dynamic, static or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
-
-For post-training static quantization and aware-training quantization, we must [set_config("model.framework", "pytorch_fx")](run_qa.py#L677)
 
 The configuration file can be specified by `config_name_or_path` and contains all the information related 
 to the model quantization and tuning objective.  If no `config_name_or_path` is specified, the 

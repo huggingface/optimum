@@ -19,7 +19,7 @@ limitations under the License.
 ## GLUE tasks
 
 The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/text-classification/run_glue.py)
-allows us to apply different quantization approach such as dynamic, post-training and quantization aware-training 
+allows us to apply different quantization approaches such as dynamic, static and aware-training quantization
 using different provider such as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) for 
 sequence classification tasks such as the ones from the [GLUE benchmark](https://gluebenchmark.com/).
 
@@ -29,7 +29,7 @@ The following example applies dynamic quantization on a DistilBERT fine-tuned on
 
 
 ```bash
-python examples/pytorch/text-classification/run_glue.py \
+python run_glue.py \
     --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english \
     --task_name sst2 \
     --provider inc \
@@ -38,13 +38,11 @@ python examples/pytorch/text-classification/run_glue.py \
     --quantization_approach dynamic \
     --do_eval \
     --verify_loading \
-    --output_dir /tmp/sst2_output/
+    --output_dir /tmp/sst2_output
 ```
 
-In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
+In order to apply dynamic, static or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
-
-For post-training static quantization and aware-training quantization, we must [set_config("model.framework", "pytorch_fx")](run_glue.py#L561)
 
 The configuration file can be specified by `config_name_or_path` and contains all the information related 
 to the model quantization and tuning objective.  If no `config_name_or_path` is specified, the 
