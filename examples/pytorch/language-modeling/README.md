@@ -18,7 +18,7 @@ limitations under the License.
 
 ## language modeling
 
-The script [`run_clm.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/language-modeling/run_clm.py), [`run_mlm.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/language-modeling/run_mlm.py), and [`run_plm.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/language-modeling/run_plm.py)
+The script [`run_clm.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/language-modeling/run_clm.py), [`run_mlm.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/language-modeling/run_mlm.py).
 allows us to apply different quantization approach such as dynamic, post-training and quantization aware-training 
 using different provider such as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) for 
 language modeling tasks.
@@ -51,18 +51,6 @@ python examples/pytorch/language-modeling/run_mlm.py \
     --do_eval \
     --verify_loading \
     --output_dir /tmp/mlm_output
-```
-```bash
-python examples/pytorch/language-modeling/run_plm.py \
-    --model_name_or_path xlnet-base-cased \
-    --dataset_name wikitext \
-    --dataset_config_name wikitext-2-raw-v1 \
-    --provider inc \
-    --quantize \
-    --quantization_approach dynamic \
-    --do_eval \
-    --verify_loading \
-    --output_dir /tmp/plm_output
 ```
 In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.

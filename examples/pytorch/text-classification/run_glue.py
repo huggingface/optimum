@@ -536,17 +536,8 @@ def main():
             raise ValueError("do_eval must be set to True for quantization.")
 
         q8_config = IncConfig.from_pretrained(
-<<<<<<< HEAD
             optim_args.config_name_or_path if optim_args.config_name_or_path is not None else default_config,
             config_file_name="quantization.yml",
-=======
-            model_args.config_name_or_path if model_args.config_name_or_path is not None else default_config,
-<<<<<<< HEAD
-            config_file_name="quantization_static.yml",
->>>>>>> add multi-choice and summrization example
-=======
-            config_file_name="quantization.yml",
->>>>>>> add test_example
             cache_dir=model_args.cache_dir,
         )
 

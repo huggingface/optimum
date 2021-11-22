@@ -52,7 +52,7 @@ def get_results(output_dir):
             results = json.load(f)
     else:
         raise ValueError(f"Can't find {path}.")
-    return result
+    return results
 
 
 class TestExamples(unittest.TestCase):
