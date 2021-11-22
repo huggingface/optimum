@@ -13,13 +13,12 @@
 #  limitations under the License.
 
 import logging
+from collections import UserDict
 from typing import Dict, List, Tuple
 
 import torch
 from torch.fx import GraphModule
 from torch.utils.data import DataLoader
-from typing import Dict, List, Tuple
-from collections import UserDict
 
 
 logger = logging.getLogger(__name__)

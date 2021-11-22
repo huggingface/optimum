@@ -35,12 +35,12 @@ SRC_DIRS = [
 sys.path.extend(SRC_DIRS)
 
 if SRC_DIRS is not None:
+    import run_clm
     import run_glue
+    import run_mlm
     import run_ner
     import run_qa
     import run_swag
-    import run_clm
-    import run_mlm
 
 
 def get_results(output_dir):

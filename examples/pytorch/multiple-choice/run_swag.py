@@ -27,9 +27,8 @@ from typing import Optional, Union
 import datasets
 import numpy as np
 import torch
-from datasets import load_dataset
-
 import transformers
+from datasets import load_dataset
 from transformers import (
     AutoConfig,
     AutoModelForMultipleChoice,
@@ -44,6 +43,7 @@ from transformers.file_utils import PaddingStrategy
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
+
 
 AVAILABLE_PROVIDERS = {"inc"}
 
@@ -467,9 +467,9 @@ def main():
 
     if model_args.quantize and model_args.provider == "inc":
 
+        import yaml
         from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
-        import yaml
 
         default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
 

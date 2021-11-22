@@ -28,9 +28,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import datasets
-from datasets import load_dataset
-
+import torch
 import transformers
+from datasets import load_dataset
 from transformers import (
     CONFIG_MAPPING,
     MODEL_FOR_MASKED_LM_MAPPING,
@@ -46,7 +46,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-import torch
+
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
@@ -550,9 +550,9 @@ def main():
 
     if model_args.quantize and model_args.provider == "inc":
 
+        import yaml
         from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
-        import yaml
 
         default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
 

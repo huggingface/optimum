@@ -28,9 +28,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import datasets
-from datasets import load_dataset
-
 import transformers
+from datasets import load_dataset
 from transformers import (
     CONFIG_MAPPING,
     MODEL_FOR_CAUSAL_LM_MAPPING,
@@ -46,8 +45,8 @@ from transformers import (
 from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
-from transformers.utils.versions import require_version
 from transformers.utils.fx import symbolic_trace
+from transformers.utils.versions import require_version
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -519,9 +518,9 @@ def main():
 
     if model_args.quantize and model_args.provider == "inc":
 
+        import yaml
         from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
-        import yaml
 
         default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
 
