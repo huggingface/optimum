@@ -198,10 +198,12 @@ class DataTrainingArguments:
         else:
             if self.train_file is not None:
                 extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json", "txt"], "`train_file` should be a csv, a json or a txt file."
+                if extension not in ["csv", "json", "txt"]:
+                    raise ValueError("`train_file` should be a csv, a json or a txt file.")
             if self.validation_file is not None:
                 extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
+                if extension not in ["csv", "json", "txt"]:
+                    raise ValueError("`validation_file` should be a csv, a json or a txt file.")
 
 
 def main():
@@ -501,9 +503,17 @@ def main():
         data_collator=data_collator,
     )
 
-    for batch in trainer.get_eval_dataloader():
-        input_names = batch.keys()
-        break
+    eval_dataloader = trainer.get_eval_dataloader()
+    it = iter(eval_dataloader)
+    try:
+        input_names = next(it).keys()
+    except StopIteration:
+        input_names = None
+        logger.warning(
+            "Unable to determine the names of the inputs of the model to trace, input_names is set to None and "
+            "model.dummy_inputs().keys() will be used instead."
+        )
+
     resume_from_checkpoint = training_args.resume_from_checkpoint
     metric_name = model_args.tune_metric
 
@@ -586,8 +596,8 @@ def main():
                 and eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0
             ):
                 raise ValueError(
-                    "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
-                    "must be set to True."
+                    "The number of samples of the dataset is not a multiple of the batch size."
+                    "Use --dataloader_drop_last to overcome."
                 )
 
             q8_config.set_config("model.framework", "pytorch_fx")

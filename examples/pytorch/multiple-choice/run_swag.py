@@ -426,9 +426,17 @@ def main():
         compute_metrics=compute_metrics,
     )
 
-    for batch in trainer.get_eval_dataloader():
-        input_names = batch.keys()
-        break
+    eval_dataloader = trainer.get_eval_dataloader()
+    it = iter(eval_dataloader)
+    try:
+        input_names = next(it).keys()
+    except StopIteration:
+        input_names = None
+        logger.warning(
+            "Unable to determine the names of the inputs of the model to trace, input_names is set to None and "
+            "model.dummy_inputs().keys() will be used instead."
+        )
+
     resume_from_checkpoint = training_args.resume_from_checkpoint
     metric_name = model_args.tune_metric
 
@@ -482,6 +490,7 @@ def main():
             cache_dir=model_args.cache_dir,
         )
 
+        num_choices = len(eval_dataset[0]["input_ids"])
         # Set quantization approach if specified
         if model_args.quantization_approach is not None:
             supported_approach = {"static", "dynamic", "aware_training"}
@@ -503,8 +512,12 @@ def main():
                 and eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0
             ):
                 raise ValueError(
-                    "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
-                    "must be set to True."
+                    "The number of samples of the dataset is not a multiple of the batch size."
+                    "Use --dataloader_drop_last to overcome."
+                )
+            if not data_args.pad_to_max_length:
+                raise ValueError(
+                    "All the samples must have the same sequence length, use --pad_to_max_length to overcome."
                 )
             q8_config.set_config("model.framework", "pytorch_fx")
             model.config.save_pretrained(training_args.output_dir)
@@ -513,7 +526,7 @@ def main():
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=max_seq_length,
-                num_choices=len(eval_dataset[0]["input_ids"]),
+                num_choices=num_choices,
             )
 
         quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
@@ -548,7 +561,7 @@ def main():
                 input_names=input_names,
                 batch_size=training_args.per_device_eval_batch_size,
                 sequence_length=max_seq_length,
-                num_choices=len(eval_dataset[0]["input_ids"]),
+                num_choices=num_choices,
             )
             loaded_model.eval()
             metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
