@@ -30,7 +30,7 @@ between those objectives can be found in our [model summary](https://huggingface
 
 ### GPT-2/GPT and causal language modeling
 
-The following example fine-tunes GPT-2 on WikiText-2 while applying [`inc`](https://github.com/intel/neural-compressor) 
+The following example fine-tunes GPT-Neo on WikiText-2 while applying [`inc`](https://github.com/intel/neural-compressor)  
 quantization aware training. We're using the raw WikiText-2 (no tokens were replaced before the tokenization). The loss here is that of causal language modeling (CLM). 
 
 ```bash
@@ -40,7 +40,8 @@ python run_clm.py \
     --dataset_config_name wikitext-2-raw-v1 \
     --provider inc \
     --quantize \
-    --quantization_approach dynamic \
+    --quantization_approach aware_training \
+    --do_train \
     --do_eval \
     --verify_loading \
     --output_dir /tmp/clm_output
@@ -59,7 +60,8 @@ python run_mlm.py \
     --dataset_config_name wikitext-2-raw-v1 \
     --provider inc \
     --quantize \
-    --quantization_approach dynamic \
+    --quantization_approach aware_training \
+    --do_train \
     --do_eval \
     --verify_loading \
     --output_dir /tmp/mlm_output
