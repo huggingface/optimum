@@ -35,7 +35,7 @@ quantization aware training. We're using the raw WikiText-2 (no tokens were repl
 
 ```bash
 python run_clm.py \
-    --model_name_or_path gpt2 \
+    --model_name_or_path EleutherAI/gpt-neo-125M \
     --dataset_name wikitext \
     --dataset_config_name wikitext-2-raw-v1 \
     --provider inc \
