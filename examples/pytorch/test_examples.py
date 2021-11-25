@@ -28,14 +28,19 @@ SRC_DIRS = [
         "text-classification",
         "question-answering",
         "token-classification",
+        "multiple-choice",
+        "language-modeling",
     ]
 ]
 sys.path.extend(SRC_DIRS)
 
 if SRC_DIRS is not None:
+    import run_clm
     import run_glue
+    import run_mlm
     import run_ner
     import run_qa
+    import run_swag
 
 
 def get_results(output_dir):
@@ -121,6 +126,78 @@ class TestExamples(unittest.TestCase):
                 self.assertGreaterEqual(results["eval_f1"], 0.90)
                 self.assertGreaterEqual(results["eval_precision"], 0.90)
                 self.assertGreaterEqual(results["eval_recall"], 0.90)
+
+    def test_run_swag(self):
+        provider = "inc"
+        quantization_approach = "dynamic"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_args = f"""
+                run_swag.py 
+                --model_name_or_path bert-base-cased
+                --provider={provider}
+                --quantize
+                --quantization_approach={quantization_approach}
+                --do_eval
+                --verify_loading
+                --output_dir={tmp_dir}
+                --max_eval_samples=100
+                """.split()
+
+            with patch.object(sys, "argv", test_args):
+                run_swag.main()
+                results = get_results(tmp_dir)
+                self.assertGreaterEqual(results["eval_accuracy"], 0.50)
+
+    def test_run_clm(self):
+        provider = "inc"
+        quantization_approach = "dynamic"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_args = f"""
+                run_clm.py 
+                --model_name_or_path microsoft/DialoGPT-medium
+                --dataset_name wikitext
+                --dataset_config_name wikitext-2-raw-v1
+                --provider={provider}
+                --quantize
+                --quantization_approach={quantization_approach}
+                --do_eval
+                --verify_loading
+                --output_dir={tmp_dir}
+                --max_eval_samples=100
+                --tune_metric eval_loss
+                """.split()
+
+            with patch.object(sys, "argv", test_args):
+                run_clm.main()
+                results = get_results(tmp_dir)
+                self.assertLessEqual(results["eval_loss"], 10)
+
+    def test_run_mlm(self):
+        provider = "inc"
+        quantization_approach = "dynamic"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_args = f"""
+                run_mlm.py 
+                --model_name_or_path google/electra-small-discriminator
+                --dataset_name wikitext
+                --dataset_config_name wikitext-2-raw-v1
+                --provider={provider}
+                --quantize
+                --quantization_approach={quantization_approach}
+                --do_eval
+                --verify_loading
+                --output_dir={tmp_dir}
+                --max_eval_samples 100
+                --tune_metric eval_loss
+                """.split()
+
+            with patch.object(sys, "argv", test_args):
+                run_mlm.main()
+                results = get_results(tmp_dir)
+                self.assertLessEqual(results["eval_loss"], 10)
 
 
 if __name__ == "__main__":

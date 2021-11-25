@@ -485,6 +485,17 @@ def main():
         data_collator=data_collator,
     )
 
+    eval_dataloader = trainer.get_eval_dataloader()
+    it = iter(eval_dataloader)
+    try:
+        input_names = next(it).keys()
+    except StopIteration:
+        input_names = None
+        logger.warning(
+            "Unable to determine the names of the inputs of the model to trace, input_names is set to None and "
+            "model.dummy_inputs().keys() will be used instead."
+        )
+
     resume_from_checkpoint = training_args.resume_from_checkpoint
     metric_name = optim_args.tune_metric
 
@@ -550,7 +561,6 @@ def main():
 
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        input_names = None
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             from transformers.utils.fx import symbolic_trace
 
@@ -560,13 +570,12 @@ def main():
                 and eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0
             ):
                 raise ValueError(
-                    "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
-                    "must be set to True."
+                    "The number of samples of the dataset is not a multiple of the batch size."
+                    "Use --dataloader_drop_last to overcome."
                 )
 
             q8_config.set_config("model.framework", "pytorch_fx")
             model.config.save_pretrained(training_args.output_dir)
-            input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
             model = symbolic_trace(
                 model,
                 input_names=input_names,
