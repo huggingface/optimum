@@ -15,13 +15,13 @@
 
 version: 1.0
 
-model:                                               # mandatory. used to specify model specific information.
+model:                                               # mandatory.
   name: bert
   framework: pytorch                                 # mandatory. possible values are pytorch and pytorch_fx.
 
 device: cpu
 
-quantization:                                        # optional. tuning constraints on model-wise for advance user to reduce tuning space.
+quantization:                                        # optional.
   approach: post_training_dynamic_quant
 
 tuning:

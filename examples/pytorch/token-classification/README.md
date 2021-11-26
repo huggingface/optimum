@@ -18,7 +18,7 @@ limitations under the License.
 
 
 The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/token-classification/run_ner.py)
-allows us to apply different quantization approach such as dynamic, post-training and quantization aware-training 
+allows us to apply different quantization approaches such as dynamic, static and aware-training quantization
 using different provider such as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) for 
 token classification tasks.
 
@@ -28,7 +28,7 @@ The following example applies dynamic quantization on a DistilBERT fine-tuned on
 
 
 ```bash
-python examples/pytorch/token-classification/run_ner.py \
+python run_ner.py \
     --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english \
     --dataset_name conll2003 \
     --provider inc \
@@ -36,11 +36,11 @@ python examples/pytorch/token-classification/run_ner.py \
     --quantization_approach dynamic \
     --do_eval \
     --verify_loading \
-    --output_dir /tmp/conll03_output/
+    --output_dir /tmp/conll03_output
 ```
 
-In order to apply dynamic, post-training or aware-training quantization, `quantization_approach` must be set to 
-respectively `dynamic`, `static` or `aware_training`.
+In order to apply dynamic, static or aware-training quantization, `quantization_approach` must be set to respectively 
+`dynamic`, `static` or `aware_training`.
 
 The configuration file can be specified by `config_name_or_path` and contains all the information related 
 to the model quantization and tuning objective.  If no `config_name_or_path` is specified, the 

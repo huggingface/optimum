@@ -688,8 +688,8 @@ def main():
                 and eval_dataset.shape[0] % training_args.per_device_eval_batch_size != 0
             ):
                 raise ValueError(
-                    "The number of samples of the dataset is not a multiple of the batch size --dataloader_drop_last "
-                    "must be set to True."
+                    "The number of samples of the dataset is not a multiple of the batch size."
+                    "Use --dataloader_drop_last to overcome."
                 )
 
             q8_config.set_config("model.framework", "pytorch_fx")
