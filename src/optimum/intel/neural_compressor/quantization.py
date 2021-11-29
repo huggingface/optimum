@@ -419,7 +419,7 @@ class IncQuantizedModel:
         if not isinstance(inc_config, IncOptimizedConfig):
             config_path = inc_config if inc_config is not None else model_name_or_path
             inc_config = IncOptimizedConfig.from_pretrained(config_path, **download_kwargs)
-            
+
         from transformers import AutoConfig
         from transformers.models.auto.auto_factory import _get_model_class
 
