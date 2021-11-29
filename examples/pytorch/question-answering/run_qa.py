@@ -230,7 +230,7 @@ class OptimizationArguments:
     )
     perf_tol: Optional[float] = field(
         default=None,
-        metadata={"help": "Accepted relative perfomance tolerance percentage when optimizing the model."},
+        metadata={"help": "Performance tolerance when optimizing the model."},
     )
     verify_loading: bool = field(
         default=False,
@@ -662,9 +662,7 @@ def main():
 
         # Set metric tolerance if specified
         if optim_args.perf_tol is not None:
-            if not -1 < optim_args.perf_tol < 1:
-                raise ValueError("perf_tol must not be <=-1 or >=1.")
-            q8_config.set_config("tuning.accuracy_criterion.relative", optim_args.perf_tol)
+            q8_config.set_tolerance(optim_args.perf_tol)
 
         # Set quantization approach if specified
         if optim_args.quantization_approach is not None:
