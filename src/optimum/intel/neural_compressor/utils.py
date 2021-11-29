@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import logging
+from collections import UserDict
 from typing import Dict, List, Tuple
 
 import torch
@@ -39,7 +40,7 @@ class IncDataLoader(DataLoader):
 
     def __iter__(self):
         for input in super().__iter__():
-            if not isinstance(input, (dict, tuple, list)):
+            if not isinstance(input, (dict, tuple, list, UserDict)):
                 raise TypeError(f"Model calibration cannot use input of type {type(input)}.")
             label = input.get("labels") if isinstance(input, dict) else None
             yield input, label

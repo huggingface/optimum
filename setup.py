@@ -16,7 +16,7 @@ install_requires = [
     "coloredlogs",
     "sympy",
     "transformers>=4.12.0",
-    "torch>=1.8",
+    "torch>=1.9",
 ]
 
 extras = {
