@@ -558,7 +558,7 @@ def main():
     if optim_args.quantize and optim_args.provider == "inc":
 
         import yaml
-        from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
+        from optimum.intel.neural_compressor import IncQuantizationConfig, IncQuantizationMode, IncQuantizer
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
         default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
@@ -566,7 +566,7 @@ def main():
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
-        q8_config = IncConfig.from_pretrained(
+        q8_config = IncQuantizationConfig.from_pretrained(
             optim_args.config_name_or_path if optim_args.config_name_or_path is not None else default_config,
             config_file_name="quantization.yml",
             cache_dir=model_args.cache_dir,
@@ -613,7 +613,7 @@ def main():
                 sequence_length=block_size,
             )
 
-        quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
+        quantizer = IncQuantizer(model, q8_config, eval_func=eval_func)
 
         if quantizer.approach == IncQuantizationMode.DYNAMIC.value:
             q_model = quantizer.fit_dynamic()

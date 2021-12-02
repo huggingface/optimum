@@ -12,5 +12,5 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from .config import IncConfig
+from .config import IncConfig, IncQuantizationConfig
 from .quantization import IncQuantizationMode, IncQuantizer

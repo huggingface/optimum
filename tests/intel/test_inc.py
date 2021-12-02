@@ -31,7 +31,7 @@ from transformers import (
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
-class TestINC(unittest.TestCase):
+class TestINCQuantization(unittest.TestCase):
     def helper(self, model_name, output_dir, do_train=False, max_train_samples=128, max_eval_samples=128):
 
         task = "sst2"
@@ -83,7 +83,7 @@ class TestINC(unittest.TestCase):
     def test_dynamic_quantization(self):
 
         import yaml
-        from optimum.intel.neural_compressor.config import IncConfig
+        from optimum.intel.neural_compressor.config import IncQuantizationConfig
         from optimum.intel.neural_compressor.quantization import (
             IncQuantizationMode,
             IncQuantizedModelForSequenceClassification,
@@ -97,10 +97,10 @@ class TestINC(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir)
             model_metric = eval_func(model)
-            q8_config = IncConfig.from_pretrained(config_path)
+            q8_config = IncQuantizationConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.DYNAMIC.value)
 
-            quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
+            quantizer = IncQuantizer(model, q8_config, eval_func=eval_func)
 
             q_model = quantizer.fit_dynamic()
             q_model_metric = eval_func(q_model.model)
@@ -124,7 +124,7 @@ class TestINC(unittest.TestCase):
         from transformers.utils.fx import symbolic_trace
 
         import yaml
-        from optimum.intel.neural_compressor.config import IncConfig
+        from optimum.intel.neural_compressor.config import IncQuantizationConfig
         from optimum.intel.neural_compressor.quantization import (
             IncQuantizationMode,
             IncQuantizedModelForSequenceClassification,
@@ -139,7 +139,7 @@ class TestINC(unittest.TestCase):
             model, trainer, eval_func = self.helper(model_name, tmp_dir)
             model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
-            q8_config = IncConfig.from_pretrained(config_path)
+            q8_config = IncQuantizationConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.STATIC.value)
             q8_config.set_config("tuning.accuracy_criterion.relative", 0.04)
             q8_config.set_config("model.framework", "pytorch_fx")
@@ -152,7 +152,7 @@ class TestINC(unittest.TestCase):
                 sequence_length=128,
             )
 
-            quantizer = IncQuantizer(q8_config, model)
+            quantizer = IncQuantizer(model, q8_config)
             quantizer.eval_func = eval_func
             quantizer.calib_dataloader = trainer.get_eval_dataloader()
             q_model = quantizer.fit_static()
@@ -182,7 +182,7 @@ class TestINC(unittest.TestCase):
         from transformers.utils.fx import symbolic_trace
 
         import yaml
-        from optimum.intel.neural_compressor.config import IncConfig
+        from optimum.intel.neural_compressor.config import IncQuantizationConfig
         from optimum.intel.neural_compressor.quantization import (
             IncQuantizationMode,
             IncQuantizedModelForSequenceClassification,
@@ -193,13 +193,18 @@ class TestINC(unittest.TestCase):
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
+        def train_func(model):
+            trainer.model_wrapped = model
+            trainer.model = model
+            _ = trainer.train()
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir, do_train=True)
             model.config.save_pretrained(tmp_dir)
             model_metric = eval_func(model)
-            q8_config = IncConfig.from_pretrained(config_path)
+            q8_config = IncQuantizationConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.AWARE_TRAINING.value)
-            q8_config.set_config("tuning.accuracy_criterion.relative", 0.04)
+            q8_config.set_config("tuning.accuracy_criterion.relative", 0.05)
             q8_config.set_config("model.framework", "pytorch_fx")
             input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
 
@@ -210,20 +215,14 @@ class TestINC(unittest.TestCase):
                 sequence_length=128,
             )
 
-            def train_func(model):
-                trainer.model_wrapped = model
-                trainer.model = model
-                _ = trainer.train()
-
-            quantizer = IncQuantizer(q8_config, model)
+            quantizer = IncQuantizer(model, q8_config)
             quantizer.eval_func = eval_func
             quantizer.train_func = train_func
-
             q_model = quantizer.fit_aware_training()
             q_model_metric = eval_func(q_model.model)
 
-            # Verification accuracy loss is under 4%
-            self.assertGreaterEqual(q_model_metric, model_metric * 0.96)
+            # Verification accuracy loss is under 5%
+            self.assertGreaterEqual(q_model_metric, model_metric * 0.95)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
@@ -272,6 +271,11 @@ class TestINC(unittest.TestCase):
             result = metric.compute(predictions=preds, references=p.label_ids)
             return result
 
+        def eval_func(model):
+            trainer.model = model
+            metrics = trainer.evaluate()
+            return metrics.get("eval_accuracy")
+
         with tempfile.TemporaryDirectory() as tmp_dir:
 
             trainer = Trainer(
@@ -284,13 +288,7 @@ class TestINC(unittest.TestCase):
                 data_collator=default_data_collator,
             )
 
-            def eval_func(model):
-                trainer.model = model
-                metrics = trainer.evaluate()
-                return metrics.get("eval_accuracy")
-
             model_metric = eval_func(model)
-
             quantizer.eval_func = eval_func
             q_model = quantizer.fit_dynamic()
             q_model_metric = eval_func(q_model.model)
