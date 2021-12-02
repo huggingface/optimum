@@ -441,7 +441,7 @@ class IncQuantizedModel:
         else:
             model_class._keys_to_ignore_on_load_missing.extend(missing_keys_to_ignore_on_load)
 
-        model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
+        model = model_class.from_pretrained(model_name_or_path, **kwargs)
 
         model_class._keys_to_ignore_on_load_unexpected = keys_to_ignore_on_load_unexpected
         model_class._keys_to_ignore_on_load_missing = keys_to_ignore_on_load_missing
