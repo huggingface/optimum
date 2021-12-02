@@ -143,6 +143,10 @@ class OptimizationArguments:
         default="eval_loss",
         metadata={"help": "Metric used for the tuning strategy."},
     )
+    perf_tol: Optional[float] = field(
+        default=None,
+        metadata={"help": "Performance tolerance when optimizing the model."},
+    )
     verify_loading: bool = field(
         default=False,
         metadata={"help": "Whether or not to verify the loading of the quantized model."},
@@ -600,6 +604,10 @@ def main():
             cache_dir=model_args.cache_dir,
         )
 
+        # Set metric tolerance if specified
+        if optim_args.perf_tol is not None:
+            q8_config.set_tolerance(optim_args.perf_tol)
+
         # Set quantization approach if specified
         if optim_args.quantization_approach is not None:
             supported_approach = {"static", "dynamic", "aware_training"}
@@ -609,9 +617,12 @@ def main():
                 )
             quant_approach = getattr(IncQuantizationMode, optim_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
+
+        if "loss" in optim_args.tune_metric:
+            q8_config.set_config("tuning.accuracy_criterion.higher_is_better", False)
+
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        q8_config.set_config("tuning.accuracy_criterion.higher_is_better", False)
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             from transformers.utils.fx import symbolic_trace
 

@@ -57,147 +57,168 @@ def get_results(output_dir):
 class TestExamples(unittest.TestCase):
     def test_run_glue(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
                 run_glue.py
                 --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english
-                --task_name=sst2
-                --provider={provider}
+                --task_name sst2
+                --provider {provider}
                 --quantize
-                --quantization_approach={quantization_approach}
+                --quantization_approach {quantization_approach}
+                --tune_metric eval_accuracy
+                --perf_tol 0.1
                 --do_eval
-                --per_device_eval_batch_size=8
+                --per_device_eval_batch_size 1
+                --max_eval_samples 50
                 --verify_loading
-                --output_dir={tmp_dir}
+                --dataloader_drop_last
+                --output_dir {tmp_dir}
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_glue.main()
                 results = get_results(tmp_dir)
-                self.assertGreaterEqual(results["eval_accuracy"], 0.85)
+                self.assertGreaterEqual(results["eval_accuracy"], 0.70)
 
     def test_run_qa(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
                 run_qa.py
                 --model_name_or_path distilbert-base-uncased-distilled-squad
-                --dataset_name=squad
-                --provider={provider}
+                --dataset_name squad
+                --provider {provider}
                 --quantize
-                --quantization_approach={quantization_approach}
+                --quantization_approach {quantization_approach}
+                --tune_metric eval_f1
+                --perf_tol 0.1
                 --do_eval
-                --per_device_eval_batch_size=8
+                --per_device_eval_batch_size 1
+                --max_eval_samples 50
                 --verify_loading
-                --output_dir={tmp_dir}
+                --output_dir {tmp_dir}
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_qa.main()
                 results = get_results(tmp_dir)
-                self.assertGreaterEqual(results["eval_f1"], 80)
+                self.assertGreaterEqual(results["eval_f1"], 70)
                 self.assertGreaterEqual(results["eval_exact_match"], 70)
 
     def test_run_ner(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
-                run_ner.py 
+                run_ner.py
                 --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english
-                --dataset_name=conll2003
-                --provider={provider}
+                --dataset_name conll2003
+                --provider {provider}
                 --quantize
-                --quantization_approach={quantization_approach}
+                --quantization_approach {quantization_approach}
+                --tune_metric eval_f1
+                --perf_tol 0.1
                 --do_eval
+                --per_device_eval_batch_size 1
+                --max_eval_samples 50
+                --pad_to_max_length
                 --verify_loading
-                --output_dir={tmp_dir}
+                --output_dir {tmp_dir}
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_ner.main()
                 results = get_results(tmp_dir)
-                self.assertGreaterEqual(results["eval_accuracy"], 0.90)
-                self.assertGreaterEqual(results["eval_f1"], 0.90)
-                self.assertGreaterEqual(results["eval_precision"], 0.90)
-                self.assertGreaterEqual(results["eval_recall"], 0.90)
+                self.assertGreaterEqual(results["eval_accuracy"], 0.70)
+                self.assertGreaterEqual(results["eval_f1"], 0.70)
+                self.assertGreaterEqual(results["eval_precision"], 0.70)
+                self.assertGreaterEqual(results["eval_recall"], 0.70)
 
     def test_run_swag(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
-                run_swag.py 
-                --model_name_or_path bert-base-cased
-                --provider={provider}
+                run_swag.py
+                --model_name_or_path ehdwns1516/bert-base-uncased_SWAG
+                --provider {provider}
                 --quantize
-                --quantization_approach={quantization_approach}
+                --quantization_approach {quantization_approach}
+                --tune_metric eval_accuracy
+                --perf_tol 0.1
                 --do_eval
+                --per_device_eval_batch_size 1
+                --max_eval_samples 50
+                --pad_to_max_length
                 --verify_loading
-                --output_dir={tmp_dir}
-                --max_eval_samples=100
+                --output_dir {tmp_dir}
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_swag.main()
                 results = get_results(tmp_dir)
-                self.assertGreaterEqual(results["eval_accuracy"], 0.50)
+                self.assertGreaterEqual(results["eval_accuracy"], 0.60)
 
     def test_run_clm(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
-                run_clm.py 
-                --model_name_or_path microsoft/DialoGPT-medium
+                run_clm.py
+                --model_name_or_path EleutherAI/gpt-neo-125M
                 --dataset_name wikitext
                 --dataset_config_name wikitext-2-raw-v1
-                --provider={provider}
+                --provider {provider}
                 --quantize
-                --quantization_approach={quantization_approach}
-                --do_eval
-                --verify_loading
-                --output_dir={tmp_dir}
-                --max_eval_samples=100
+                --quantization_approach {quantization_approach}
                 --tune_metric eval_loss
+                --perf_tol 4
+                --do_eval
+                --per_device_eval_batch_size 1
+                --max_eval_samples 50
+                --verify_loading
+                --output_dir {tmp_dir}
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_clm.main()
                 results = get_results(tmp_dir)
-                self.assertLessEqual(results["eval_loss"], 10)
+                self.assertLessEqual(results["eval_loss"], 13)
 
     def test_run_mlm(self):
         provider = "inc"
-        quantization_approach = "dynamic"
+        quantization_approach = "static"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_args = f"""
-                run_mlm.py 
+                run_mlm.py
                 --model_name_or_path google/electra-small-discriminator
                 --dataset_name wikitext
                 --dataset_config_name wikitext-2-raw-v1
-                --provider={provider}
+                --provider {provider}
                 --quantize
-                --quantization_approach={quantization_approach}
+                --quantization_approach {quantization_approach}
                 --do_eval
-                --verify_loading
-                --output_dir={tmp_dir}
-                --max_eval_samples 100
                 --tune_metric eval_loss
+                --perf_tol 4
+                --do_eval
+                --per_device_eval_batch_size 1
+                --max_eval_samples 50
+                --verify_loading
+                --output_dir {tmp_dir}
                 """.split()
 
             with patch.object(sys, "argv", test_args):
                 run_mlm.main()
                 results = get_results(tmp_dir)
-                self.assertLessEqual(results["eval_loss"], 10)
+                self.assertLessEqual(results["eval_loss"], 13)
 
 
 if __name__ == "__main__":
