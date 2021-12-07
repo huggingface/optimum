@@ -60,8 +60,8 @@ respectively `dynamic`, `static` or `aware_training`.
 
 The configuration file containing all the information related to the model quantization and pruning objectives can be 
 specified using respectively `quantization_config` and `pruning_config`. If not specified, the default
-[quantization](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/inc/quantization.yml) 
-and [pruning](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/inc/prune.yml) 
+[quantization](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/quantization.yml) 
+and [pruning](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/prune.yml) 
 config files will be used.
 
 The flag `--verify_loading` can be passed along to verify that the resulting quantized model can be loaded correctly.
