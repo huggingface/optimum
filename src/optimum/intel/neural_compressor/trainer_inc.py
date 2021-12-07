@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
+import torch.distributed as dist
 
 # from packaging import version
 from torch import nn
@@ -22,12 +23,24 @@ from transformers.file_utils import CONFIG_NAME, WEIGHTS_NAME
 
 # Integrations must be imported before ML frameworks:
 from transformers.integrations import hp_params
+from transformers.trainer import TRAINER_STATE_NAME
 from transformers.trainer_callback import TrainerState
 from transformers.trainer_pt_utils import IterableDatasetShard
-from transformers.trainer_utils import ShardedDDPOption, TrainOutput, get_last_checkpoint, set_seed, speed_metrics
+from transformers.trainer_utils import (
+    HPSearchBackend,
+    ShardedDDPOption,
+    TrainOutput,
+    get_last_checkpoint,
+    set_seed,
+    speed_metrics,
+)
 from transformers.utils import logging
 
 from neural_compressor.experimental import Pruning, common
+
+
+if TYPE_CHECKING:
+    import optuna
 
 
 __version__ = "4.9.2"
