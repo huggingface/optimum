@@ -36,7 +36,6 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     PretrainedConfig,
-    Trainer,
     TrainingArguments,
     default_data_collator,
     set_seed,
@@ -44,8 +43,13 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
+import yaml
+from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
-AVAILABLE_PROVIDERS = {"inc"}
+
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
@@ -191,10 +195,6 @@ class OptimizationArguments:
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
-    provider: Optional[str] = field(
-        default=None,
-        metadata={"help": "Provider chosen for optimization."},
-    )
     quantize: bool = field(
         default=False,
         metadata={"help": "Whether or not to apply quantization."},
@@ -203,14 +203,29 @@ class OptimizationArguments:
         default=None,
         metadata={"help": "Quantization approach. Supported approach are static, dynamic and aware_training."},
     )
-    config_name_or_path: Optional[str] = field(
+    prune: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to apply pruning."},
+    )
+    target_sparsity: Optional[float] = field(
+        default=None,
+        metadata={"help": "Targeted sparsity when pruning the model."},
+    )
+    quantization_config: Optional[str] = field(
         default=None,
         metadata={
-            "help": "Path to the directory containing the YAML configuration file used to control the tuning behavior."
+            "help": "Path to the directory containing the YAML configuration file used to control the quantization and "
+            "tuning behavior."
         },
     )
-    tune_metric: str = field(
-        default="eval_accuracy",
+    pruning_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Path to the directory containing the YAML configuration file used to control the pruning behavior."
+        },
+    )
+    tune_metric: Optional[str] = field(
+        default=None,
         metadata={"help": "Metric used for the tuning strategy."},
     )
     perf_tol: Optional[float] = field(
@@ -479,7 +494,7 @@ def main():
         data_collator = None
 
     # Initialize our Trainer
-    trainer = Trainer(
+    trainer = IncTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
@@ -501,7 +516,18 @@ def main():
         )
 
     resume_from_checkpoint = training_args.resume_from_checkpoint
-    metric_name = optim_args.tune_metric
+    metric_name = (
+        optim_args.tune_metric
+        if optim_args.tune_metric is not None
+        else "eval_"
+        + (
+            "pearson"
+            if data_args.task_name == "stsb"
+            else "matthews_correlation"
+            if data_args.task_name == "cola"
+            else "accuracy"
+        )
+    )
 
     def take_eval_steps(model, trainer, metric_name, save_metrics=False):
         trainer.model = model
@@ -523,7 +549,7 @@ def main():
             checkpoint = resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        train_result = trainer.train(prune, resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
         trainer.save_model()  # Saves the tokenizer too for easy upload
         trainer.log_metrics("train", metrics)
@@ -533,22 +559,25 @@ def main():
     def train_func(model):
         return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)
 
-    if optim_args.provider is not None and optim_args.provider not in AVAILABLE_PROVIDERS:
-        raise ValueError("Unknown provider, you should pick one in " + ", ".join(AVAILABLE_PROVIDERS))
+    quantizer = None
+    prune = None
 
-    if optim_args.quantize and optim_args.provider == "inc":
+    if not optim_args.quantize and not optim_args.prune:
+        raise ValueError("quantize and prune are both set to False.")
 
-        import yaml
-        from optimum.intel.neural_compressor import IncConfig, IncQuantizationMode, IncQuantizer
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
+    result_baseline_model = take_eval_steps(model, trainer, metric_name)
 
-        default_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "inc")
+    default_config = os.path.join(os.path.abspath(os.path.join(__file__, os.path.pardir, os.path.pardir)), "config")
+
+    if optim_args.quantize:
+
+        from optimum.intel.neural_compressor import IncQuantizationConfig, IncQuantizationMode, IncQuantizer
 
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
-        q8_config = IncConfig.from_pretrained(
-            optim_args.config_name_or_path if optim_args.config_name_or_path is not None else default_config,
+        q8_config = IncQuantizationConfig.from_pretrained(
+            optim_args.quantization_config if optim_args.quantization_config is not None else default_config,
             config_file_name="quantization.yml",
             cache_dir=model_args.cache_dir,
         )
@@ -572,6 +601,9 @@ def main():
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
             from transformers.utils.fx import symbolic_trace
 
+            if not training_args.do_train:
+                raise ValueError("do_train must be set to True for static and aware training quantization.")
+
             # TODO : Remove when dynamic axes support
             if (
                 not training_args.dataloader_drop_last
@@ -591,51 +623,92 @@ def main():
                 sequence_length=max_seq_length,
             )
 
-        quantizer = IncQuantizer(q8_config, model, eval_func=eval_func)
+        calib_dataloader = trainer.get_train_dataloader()
+        inc_quantizer = IncQuantizer(
+            model, q8_config, eval_func=eval_func, train_func=train_func, calib_dataloader=calib_dataloader
+        )
+        quantizer = inc_quantizer.fit()
 
-        if quantizer.approach == IncQuantizationMode.DYNAMIC.value:
-            q_model = quantizer.fit_dynamic()
-        elif quantizer.approach == IncQuantizationMode.STATIC.value:
-            quantizer.calib_dataloader = trainer.get_eval_dataloader()
-            q_model = quantizer.fit_static()
-        elif quantizer.approach == IncQuantizationMode.AWARE_TRAINING.value:
-            if not training_args.do_train:
-                raise ValueError("do_train must be set to True for quantization aware training.")
-            # TODO : Remove when dynamic axes support
-            if training_args.per_device_eval_batch_size != training_args.per_device_train_batch_size:
-                raise ValueError(
-                    "For quantization aware training, the batch size corresponding to the training and evaluation mode "
-                    "should be equal."
-                )
-            quantizer.train_func = train_func
-            q_model = quantizer.fit_aware_training()
-        else:
-            raise ValueError(f"Unknown quantization approach.")
+    if optim_args.prune:
 
-        metric_q_model = take_eval_steps(q_model.model, trainer, metric_name, save_metrics=True)
+        from optimum.intel.neural_compressor import IncPruner, IncPruningConfig
 
-        trainer.save_model(training_args.output_dir)
-        with open(os.path.join(training_args.output_dir, CONFIG_NAME), "w") as f:
-            yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
+        if not training_args.do_train:
+            raise ValueError("do_train must be set to True for pruning.")
 
-        logger.info(f"Quantized model with {metric_name} of {metric_q_model} saved to: {training_args.output_dir}")
+        prune_config = IncPruningConfig.from_pretrained(
+            optim_args.pruning_config if optim_args.pruning_config is not None else default_config,
+            config_file_name="prune.yml",
+            cache_dir=model_args.cache_dir,
+        )
 
-        if optim_args.verify_loading:
-            from optimum.intel.neural_compressor.quantization import IncQuantizedModelForSequenceClassification
+        # Set targeted sparsity if specified
+        if optim_args.target_sparsity is not None:
+            prune_config.set_config("pruning.approach.weight_compression.target_sparsity", optim_args.target_sparsity)
 
-            # Load the model obtained after Intel Neural Compressor (INC) quantization
-            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
-                training_args.output_dir,
-                input_names=input_names,
-                batch_size=training_args.per_device_eval_batch_size,
-                sequence_length=max_seq_length,
+        pruning_start_epoch = prune_config.get_config("pruning.approach.weight_compression.start_epoch")
+        pruning_end_epoch = prune_config.get_config("pruning.approach.weight_compression.end_epoch")
+
+        if pruning_start_epoch > training_args.num_train_epochs - 1:
+            logger.warning(
+                f"Pruning end epoch {pruning_start_epoch} is higher than the total number of training epoch "
+                f"{training_args.num_train_epochs}. No pruning will be applied."
             )
-            loaded_model.eval()
-            metric_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
-            if metric_loaded_model != metric_q_model:
-                raise ValueError("The quantized model was not successfully loaded.")
-            else:
-                logger.info(f"The quantized model was successfully loaded.")
+
+        if pruning_end_epoch > training_args.num_train_epochs - 1:
+            logger.warning(
+                f"Pruning end epoch {pruning_end_epoch} is higher than the total number of training epoch "
+                f"{training_args.num_train_epochs}. The target sparsity will not be reached."
+            )
+
+        pruner = IncPruner(model, prune_config, eval_func=eval_func, train_func=train_func)
+
+        # Creation Pruning object used for IncTrainer training loop
+        prune = pruner.fit()
+
+    from neural_compressor.experimental import common
+    from neural_compressor.experimental.scheduler import Scheduler
+
+    scheduler = Scheduler()
+    scheduler.model = common.Model(model)
+
+    if prune is not None:
+        scheduler.append(prune)
+
+    if quantizer is not None:
+        scheduler.append(quantizer)
+
+    opt_model = scheduler()
+
+    _, sparsity = opt_model.report_sparsity()
+    result_opt_model = take_eval_steps(opt_model.model, trainer, metric_name, save_metrics=True)
+
+    trainer.save_model(training_args.output_dir)
+    with open(os.path.join(training_args.output_dir, CONFIG_NAME), "w") as f:
+        yaml.dump(opt_model.tune_cfg, f, default_flow_style=False)
+
+    logger.info(
+        f"Optimized model with final sparsity of {sparsity} and {metric_name} of {result_opt_model} saved to: "
+        f"{training_args.output_dir}. Original model had an {metric_name} of {result_baseline_model}"
+    )
+
+    if optim_args.quantize and optim_args.verify_loading:
+        from optimum.intel.neural_compressor.quantization import IncQuantizedModelForSequenceClassification
+
+        # Load the model obtained after Intel Neural Compressor (INC) quantization
+        loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(
+            training_args.output_dir,
+            input_names=input_names,
+            batch_size=training_args.per_device_eval_batch_size,
+            sequence_length=max_seq_length,
+        )
+        loaded_model.eval()
+        result_loaded_model = take_eval_steps(loaded_model, trainer, metric_name)
+
+        if result_loaded_model != result_opt_model:
+            raise ValueError("The quantized model was not successfully loaded.")
+        else:
+            logger.info(f"The quantized model was successfully loaded.")
 
 
 def _mp_fn(index):

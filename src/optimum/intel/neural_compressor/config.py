@@ -33,10 +33,10 @@ class IncConfig:
         Returns:
             config: IncConfig object.
         """
-        from neural_compressor.conf.config import Quantization_Conf
+        from neural_compressor.conf.config import Conf
 
         self.path = config_path
-        self.config = Quantization_Conf(config_path)
+        self.config = Conf(config_path)
         self.usr_cfg = self.config.usr_cfg
 
     def get_config(self, keys: str):
@@ -154,3 +154,35 @@ class IncOptimizedConfig(IncConfig):
                 logger.error(err)
 
         return config
+
+
+class IncQuantizationConfig(IncConfig):
+    def __init__(self, config_path: str):
+        """
+        Args:
+            config_path (:obj:`str`):
+                Path to the YAML configuration file used to control the tuning behavior.
+        Returns:
+            config: IncQuantizationConfig object.
+        """
+        from neural_compressor.conf.config import Quantization_Conf
+
+        self.path = config_path
+        self.config = Quantization_Conf(config_path)
+        self.usr_cfg = self.config.usr_cfg
+
+
+class IncPruningConfig(IncConfig):
+    def __init__(self, config_path: str):
+        """
+        Args:
+            config_path (:obj:`str`):
+                Path to the YAML configuration file used to control the tuning behavior.
+        Returns:
+            config: IncPruningConfig object.
+        """
+        from neural_compressor.conf.config import Pruning_Conf
+
+        self.path = config_path
+        self.config = Pruning_Conf(config_path)
+        self.usr_cfg = self.config.usr_cfg

@@ -22,7 +22,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
-from optimum.intel.neural_compressor.config import IncConfig, IncOptimizedConfig
+from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncQuantizationConfig
 from optimum.intel.neural_compressor.utils import IncDataLoader
 
 
@@ -45,8 +45,8 @@ class IncQuantizer:
 
     def __init__(
         self,
-        config_path_or_obj: Union[str, IncConfig],
         model: Union[PreTrainedModel, torch.nn.Module],
+        config_path_or_obj: Union[str, IncQuantizationConfig],
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         eval_func: Optional[Callable] = None,
         train_func: Optional[Callable] = None,
@@ -54,11 +54,11 @@ class IncQuantizer:
     ):
         """
         Args:
-            config_path_or_obj (:obj:`Union[str, IncConfig]` ):
-                Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
-                tuning behavior.
             model (:obj:`Union[PreTrainedModel, torch.nn.Module]`):
                 FP32 model specified for low precision tuning.
+            config_path_or_obj (:obj:`Union[str, IncQuantizationConfig]`):
+                Path to the YAML configuration file or an instance of the class :class:`IncQuantizationConfig`, used to
+                control the tuning behavior.
             tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
                 Tokenizer used to preprocess the data.
             eval_func (:obj:`Callable`, `optional`):
@@ -75,7 +75,7 @@ class IncQuantizer:
 
         self.config = (
             config_path_or_obj.config
-            if isinstance(config_path_or_obj, IncConfig)
+            if isinstance(config_path_or_obj, IncQuantizationConfig)
             else Quantization_Conf(config_path_or_obj)
         )
         self.approach = self.config.usr_cfg.quantization.approach
@@ -159,11 +159,26 @@ class IncQuantizer:
         model = quantizer()
         return model
 
+    def fit(self):
+        quantizer = self.init_quantizer()
+
+        if self.approach == IncQuantizationMode.STATIC.value:
+            if self._calib_dataloader is None:
+                raise ValueError("calib_dataloader must be provided for post-training quantization.")
+            quantizer.calib_dataloader = self._calib_dataloader
+
+        if self.approach == IncQuantizationMode.AWARE_TRAINING.value:
+            if self._train_func is None:
+                raise ValueError("train_func must be provided for quantization aware training.")
+            quantizer.q_func = self._train_func
+
+        return quantizer
+
     @classmethod
     def from_config(
         cls,
         model_name_or_path: str,
-        inc_config: Optional[Union[IncConfig, str]] = None,
+        inc_config: Optional[Union[IncQuantizationConfig, str]] = None,
         config_name: str = None,
         **kwargs
     ):
@@ -174,11 +189,11 @@ class IncQuantizer:
         Args:
             model_name_or_path (:obj:`str`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            inc_config (:obj:`Union[IncConfig, str]`, `optional`):
+            inc_config (:obj:`Union[IncQuantizationConfig, str]`, `optional`):
                 Configuration file containing all the information related to the model quantization.
                 Can be either:
-                    - an instance of the class :class:`IncConfig`,
-                    - a string valid as input to :func:`IncConfig.from_pretrained`.
+                    - an instance of the class :class:`IncQuantizationConfig`,
+                    - a string valid as input to :func:`IncQuantizationConfig.from_pretrained`.
             config_name (:obj:`str`, `optional`):
                 Name of the configuration file.
             cache_dir (:obj:`str`, `optional`):
@@ -215,9 +230,9 @@ class IncQuantizer:
         quantizer_kwargs_names = ["eval_func", "train_func", "calib_dataloader"]
         quantizer_kwargs = {name: kwargs.pop(name, None) for name in quantizer_kwargs_names}
 
-        if not isinstance(inc_config, IncConfig):
+        if not isinstance(inc_config, IncQuantizationConfig):
             config_path = inc_config if inc_config is not None else model_name_or_path
-            inc_config = IncConfig.from_pretrained(
+            inc_config = IncQuantizationConfig.from_pretrained(
                 config_path,
                 config_file_name=config_name,
                 **config_kwargs,
@@ -225,7 +240,7 @@ class IncQuantizer:
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
         quantizer_kwargs["tokenizer"] = tokenizer
-        quantizer = cls(inc_config, model, **quantizer_kwargs)
+        quantizer = cls(model, inc_config, **quantizer_kwargs)
         return quantizer
 
 
@@ -550,116 +565,3 @@ class IncQuantizedModelForXLNetLM(IncQuantizedModel):
     from transformers import XLNetLMHeadModel
 
     TRANSFORMERS_AUTO_CLASS = XLNetLMHeadModel
-
-
-def quantization_approach(config):
-    """
-    Extract quantization approach from YAML configuration file.
-    Args:
-        config: YAML configuration file used to control the tuning behavior.
-    Returns:
-        approach: Name of the quantization approach.
-    """
-    from neural_compressor.conf.config import Quantization_Conf
-    from neural_compressor.conf.dotdict import deep_get
-
-    conf = Quantization_Conf(config)
-    approach = deep_get(conf.usr_cfg, "quantization.approach")
-
-    if approach not in SUPPORTED_QUANT_MODE:
-        raise ValueError("Unknown quantization approach. Supported approach are " + ", ".join(SUPPORTED_QUANT_MODE))
-
-    return approach
-
-
-def quantize_dynamic(model, config_path_or_obj, eval_func):
-    """
-    Apply Intel Neural Compressor (INC) dynamic quantization.
-
-    Args:
-        model:
-            FP32 model specified for low precision tuning.
-        config_path_or_obj:
-            Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
-            tuning behavior.
-        eval_func:
-            Evaluation function provided by user.
-    Returns:
-        model:
-            Quantized model.
-    """
-    from neural_compressor.experimental import Quantization, common
-
-    config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
-    quantizer = Quantization(config)
-    quantizer.model = common.Model(model)
-
-    quantizer.eval_func = eval_func
-
-    model = quantizer()
-
-    return model.model
-
-
-def quantize_static(model, config_path_or_obj, eval_func, calib_dataloader):
-    """
-    Apply Intel Neural Compressor (INC) post-training quantization.
-
-    Args:
-        model:
-            FP32 model specified for low precision tuning.
-        config_path_or_obj:
-            Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
-            tuning behavior.
-        eval_func:
-            Evaluation function provided by user.
-        calib_dataloader:
-            IncDataLoader for calibration.
-    Returns:
-        model:
-            Quantized model.
-    """
-    from neural_compressor.experimental import Quantization, common
-
-    config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
-    quantizer = Quantization(config)
-    quantizer.model = common.Model(model)
-
-    quantizer.calib_dataloader = calib_dataloader
-    quantizer.eval_func = eval_func
-
-    model = quantizer()
-
-    return model.model
-
-
-def quantize_aware_training(model, config_path_or_obj, eval_func, train_func):
-    """
-    Apply Intel Neural Compressor (INC) quantization aware training.
-
-    Args:
-        model:
-            FP32 model specified for low precision tuning.
-        config_path_or_obj:
-            Path to the YAML configuration file or an instance of the class :class:`IncConfig`, used to control the
-            tuning behavior.
-        eval_func:
-            Evaluation function provided by user.
-        train_func:
-            Training function provided by user.
-    Returns:
-        model:
-            Quantized model.
-    """
-    from neural_compressor.experimental import Quantization, common
-
-    config = config_path_or_obj.config if isinstance(config_path_or_obj, IncConfig) else config_path_or_obj
-    quantizer = Quantization(config)
-    quantizer.model = common.Model(model)
-
-    quantizer.q_func = train_func
-    quantizer.eval_func = eval_func
-
-    model = quantizer()
-
-    return model.model
