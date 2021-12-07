@@ -15,15 +15,14 @@
 import copy
 import logging
 import os
-from enum import Enum
-from typing import Callable, ClassVar, Dict, List, Optional, Tuple, Union
-
 import torch
-from torch.utils.data import DataLoader
-from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
+from enum import Enum
 from optimum.intel.neural_compressor.config import IncQuantizationConfig, IncOptimizedConfig
 from optimum.intel.neural_compressor.utils import IncDataLoader
+from torch.utils.data import DataLoader
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from typing import Callable, ClassVar, Dict, List, Optional, Tuple, Union
 
 
 logger = logging.getLogger(__name__)
@@ -158,6 +157,21 @@ class IncQuantizer:
 
         model = quantizer()
         return model
+
+    def fit(self):
+        quantizer = self.init_quantizer()
+
+        if self.approach == IncQuantizationMode.STATIC.value:
+            if self._calib_dataloader is None:
+                raise ValueError("calib_dataloader must be provided for post-training quantization.")
+            quantizer.calib_dataloader = self._calib_dataloader
+
+        if self.approach == IncQuantizationMode.AWARE_TRAINING.value:
+            if self._train_func is None:
+                raise ValueError("train_func must be provided for quantization aware training.")
+            quantizer.q_func = self._train_func
+
+        return quantizer
 
     @classmethod
     def from_config(

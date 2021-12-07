@@ -18,23 +18,40 @@ limitations under the License.
 
 
 The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/question-answering/run_qa.py)
-allows us to apply different quantization approaches such as dynamic, static and aware-training quantization
-using different provider such as [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) for
+allows us to apply different quantization approaches (such as dynamic, static and aware-training quantization) as well as pruning 
+using the [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) library for
 question answering tasks.
 
 Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along 
 the flag `--version_2_with_negative`.
 
-The following example applies dynamic quantization on a DistilBERT fine-tuned on the SQuAD1.0 dataset, using the
-[`inc`](https://github.com/intel/neural-compressor) provider: 
+The following example applies post-training static quantization on a DistilBERT fine-tuned on the SQuAD1.0 dataset.
 
 ```bash
 python run_qa.py \
     --model_name_or_path distilbert-base-uncased-distilled-squad \
     --dataset_name squad \
-    --provider inc \
+    --quantize \
+    --quantization_approach static \
+    --do_train \
+    --do_eval \
+    --dataloader_drop_last \
+    --verify_loading \
+    --output_dir /tmp/squad_output
+```
+
+The following example fine-tunes DistilBERT on the SQuAD1.0 dataset while applying magnitude pruning and then applies 
+dynamic quantization as a second step.
+
+```bash
+python run_qa.py \
+    --model_name_or_path distilbert-base-uncased-distilled-squad \
+    --dataset_name squad \
     --quantize \
     --quantization_approach dynamic \
+    --prune \
+    --target_sparsity 0.1 \
+    --do_train \
     --do_eval \
     --verify_loading \
     --output_dir /tmp/squad_output
@@ -43,9 +60,10 @@ python run_qa.py \
 In order to apply dynamic, static or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
 
-The configuration file can be specified by `config_name_or_path` and contains all the information related 
-to the model quantization and tuning objective.  If no `config_name_or_path` is specified, the 
-[default config file](https://github.com/huggingface/optimum/blob/main/examples/pytorch/question-answering/config/inc/quantization.yml) 
-will be used.
+The configuration file containing all the information related to the model quantization and pruning objectives can be 
+specified using respectively `quantization_config` and `pruning_config`. If not specified, the default
+[quantization](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/inc/quantization.yml) 
+and [pruning](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/inc/prune.yml) 
+config files will be used.
 
 The flag `--verify_loading` can be passed along to verify that the resulting quantized model can be loaded correctly.

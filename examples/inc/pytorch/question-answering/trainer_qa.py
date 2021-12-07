@@ -13,19 +13,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-A subclass of `Trainer` specific to Question-Answering tasks
+A subclass of `IncTrainer` specific to Question-Answering tasks
 """
 
-from transformers import Trainer, is_torch_tpu_available
+from optimum.intel.neural_compressor.trainer_inc import IncTrainer
 from transformers.trainer_utils import PredictionOutput
 
 
-if is_torch_tpu_available():
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.metrics as met
-
-
-class QuestionAnsweringTrainer(Trainer):
+class QuestionAnsweringIncTrainer(IncTrainer):
     def __init__(self, *args, eval_examples=None, post_process_function=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.eval_examples = eval_examples
@@ -64,10 +59,6 @@ class QuestionAnsweringTrainer(Trainer):
             self.log(metrics)
         else:
             metrics = {}
-
-        if self.args.tpu_metrics_debug or self.args.debug:
-            # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
-            xm.master_print(met.metrics_report())
 
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, metrics)
         return metrics
