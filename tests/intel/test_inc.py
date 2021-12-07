@@ -22,7 +22,6 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
     EvalPrediction,
-    Trainer,
     TrainingArguments,
     default_data_collator,
 )
@@ -33,6 +32,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 class TestINCQuantization(unittest.TestCase):
     def helper(self, model_name, output_dir, do_train=False, max_train_samples=128, max_eval_samples=128):
+
+        from optimum.intel.neural_compressor.trainer_inc import IncTrainer
 
         task = "sst2"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -63,7 +64,7 @@ class TestINCQuantization(unittest.TestCase):
 
         training_args = TrainingArguments(output_dir, num_train_epochs=1.0 if do_train else 0.0)
 
-        trainer = Trainer(
+        trainer = IncTrainer(
             model=model,
             args=training_args,
             train_dataset=train_dataset,
@@ -247,6 +248,7 @@ class TestINCQuantization(unittest.TestCase):
             IncQuantizedModelForSequenceClassification,
             IncQuantizerForSequenceClassification,
         )
+        from optimum.intel.neural_compressor.trainer_inc import IncTrainer
         from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
@@ -278,7 +280,7 @@ class TestINCQuantization(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            trainer = Trainer(
+            trainer = IncTrainer(
                 model=model,
                 args=TrainingArguments(tmp_dir),
                 train_dataset=None,
@@ -349,7 +351,7 @@ class TestINCPruning(unittest.TestCase):
         def train_func(model):
             trainer.model_wrapped = model
             trainer.model = model
-            _ = trainer.train(prune=prune)
+            _ = trainer.train(prune)
 
         def eval_func(model):
             trainer.model = model
