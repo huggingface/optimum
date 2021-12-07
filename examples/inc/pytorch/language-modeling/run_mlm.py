@@ -20,19 +20,17 @@ https://huggingface.co/models?filter=masked-lm
 """
 # You can also adapt this script on your own masked language modeling task. Pointers for this are left as comments.
 
-import datasets
 import logging
 import math
 import os
 import sys
+from dataclasses import dataclass, field
+from typing import Optional
+
+import datasets
 import torch
 import transformers
-import yaml
-
-from dataclasses import dataclass, field
 from datasets import load_dataset
-from optimum.intel.neural_compressor.trainer_inc import IncTrainer
-from optimum.intel.neural_compressor.utils import CONFIG_NAME
 from transformers import (
     CONFIG_MAPPING,
     MODEL_FOR_MASKED_LM_MAPPING,
@@ -47,7 +45,11 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-from typing import Optional
+
+import yaml
+from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor.utils import CONFIG_NAME
+
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -673,7 +675,7 @@ def main():
 
     if optim_args.prune:
 
-        from optimum.intel.neural_compressor import IncPruningConfig, IncPruner
+        from optimum.intel.neural_compressor import IncPruner, IncPruningConfig
 
         if not training_args.do_train:
             raise ValueError("do_train must be set to True for pruning.")

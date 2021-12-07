@@ -15,14 +15,15 @@
 import copy
 import logging
 import os
-import torch
-
 from enum import Enum
-from optimum.intel.neural_compressor.config import IncQuantizationConfig, IncOptimizedConfig
-from optimum.intel.neural_compressor.utils import IncDataLoader
+from typing import Callable, ClassVar, Dict, List, Optional, Tuple, Union
+
+import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
-from typing import Callable, ClassVar, Dict, List, Optional, Tuple, Union
+
+from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncQuantizationConfig
+from optimum.intel.neural_compressor.utils import IncDataLoader
 
 
 logger = logging.getLogger(__name__)

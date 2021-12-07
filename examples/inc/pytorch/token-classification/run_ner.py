@@ -19,18 +19,16 @@ Fine-tuning the library models for token classification.
 # You can also adapt this script on your own token classification task and datasets. Pointers for this are left as
 # comments.
 
-import datasets
 import logging
-import numpy as np
 import os
 import sys
-import transformers
-import yaml
-
 from dataclasses import dataclass, field
+from typing import Optional
+
+import datasets
+import numpy as np
+import transformers
 from datasets import ClassLabel, load_dataset, load_metric
-from optimum.intel.neural_compressor.trainer_inc import IncTrainer
-from optimum.intel.neural_compressor.utils import CONFIG_NAME
 from transformers import (
     AutoConfig,
     AutoModelForTokenClassification,
@@ -44,7 +42,11 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-from typing import Optional
+
+import yaml
+from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor.utils import CONFIG_NAME
+
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -671,7 +673,7 @@ def main():
 
     if optim_args.prune:
 
-        from optimum.intel.neural_compressor import IncPruningConfig, IncPruner
+        from optimum.intel.neural_compressor import IncPruner, IncPruningConfig
 
         if not training_args.do_train:
             raise ValueError("do_train must be set to True for pruning.")
