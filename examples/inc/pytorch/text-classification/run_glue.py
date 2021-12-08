@@ -644,7 +644,9 @@ def main():
 
         # Set targeted sparsity if specified
         if optim_args.target_sparsity is not None:
-            pruning_config.set_config("pruning.approach.weight_compression.target_sparsity", optim_args.target_sparsity)
+            pruning_config.set_config(
+                "pruning.approach.weight_compression.target_sparsity", optim_args.target_sparsity
+            )
 
         pruning_start_epoch = pruning_config.get_config("pruning.approach.weight_compression.start_epoch")
         pruning_end_epoch = pruning_config.get_config("pruning.approach.weight_compression.end_epoch")
