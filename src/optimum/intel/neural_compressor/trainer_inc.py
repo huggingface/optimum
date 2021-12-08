@@ -51,7 +51,7 @@ logger = logging.get_logger(__name__)
 class IncTrainer(Trainer):
     def train(
         self,
-        pruning: Optional[Pruning] = None,
+        pruner: Optional[Pruning] = None,
         resume_from_checkpoint: Optional[Union[str, bool]] = None,
         trial: Union["optuna.Trial", Dict[str, Any]] = None,
         ignore_keys_for_eval: Optional[List[str]] = None,
@@ -61,7 +61,7 @@ class IncTrainer(Trainer):
         Main training entry point.
 
         Args:
-            pruning (:obj:`Pruning`, `optional`):
+            pruner (:obj:`Pruning`, `optional`):
                 Pruning object handling the pruning process.
             resume_from_checkpoint (:obj:`str` or :obj:`bool`, `optional`):
                 If a :obj:`str`, local path to a saved checkpoint as saved by a previous instance of
@@ -313,8 +313,8 @@ class IncTrainer(Trainer):
                 len(epoch_iterator) if train_dataset_is_sized else args.max_steps * args.gradient_accumulation_steps
             )
             self.control = self.callback_handler.on_epoch_begin(args, self.state, self.control)
-            if isinstance(pruning, Pruning):
-                pruning.on_epoch_begin(epoch)
+            if isinstance(pruner, Pruning):
+                pruner.on_epoch_begin(epoch)
 
             for step, inputs in enumerate(epoch_iterator):
 
@@ -332,8 +332,8 @@ class IncTrainer(Trainer):
 
                 if step % args.gradient_accumulation_steps == 0:
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
-                    if isinstance(pruning, Pruning):
-                        pruning.on_batch_begin(step)
+                    if isinstance(pruner, Pruning):
+                        pruner.on_batch_begin(step)
                 if (
                     ((step + 1) % args.gradient_accumulation_steps != 0)
                     and args.local_rank != -1
@@ -385,8 +385,8 @@ class IncTrainer(Trainer):
                     self.state.global_step += 1
                     self.state.epoch = epoch + (step + 1) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
-                    if isinstance(pruning, Pruning):
-                        pruning.on_batch_end()
+                    if isinstance(pruner, Pruning):
+                        pruner.on_batch_end()
                     self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
@@ -395,8 +395,8 @@ class IncTrainer(Trainer):
                     break
 
             self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
-            if isinstance(pruning, Pruning):
-                pruning.on_epoch_end()
+            if isinstance(pruner, Pruning):
+                pruner.on_epoch_end()
             self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
