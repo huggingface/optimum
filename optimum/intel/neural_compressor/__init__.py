@@ -13,5 +13,7 @@
 #  limitations under the License.
 
 from .config import IncConfig, IncPruningConfig, IncQuantizationConfig
+from .optimizer import IncOptimizer
 from .pruning import IncPruner, IncPruningMode
 from .quantization import IncQuantizationMode, IncQuantizer
+from .trainer_inc import IncTrainer

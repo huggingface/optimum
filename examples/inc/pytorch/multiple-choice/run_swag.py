@@ -44,7 +44,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
 import yaml
-from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor import IncOptimizer, IncTrainer
 from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
 
@@ -613,19 +613,8 @@ def main():
         # Creation Pruning object used for IncTrainer training loop
         pruner = inc_pruner.fit()
 
-    from neural_compressor.experimental import common
-    from neural_compressor.experimental.scheduler import Scheduler
-
-    scheduler = Scheduler()
-    scheduler.model = common.Model(model)
-
-    if pruner is not None:
-        scheduler.append(pruner)
-
-    if quantizer is not None:
-        scheduler.append(quantizer)
-
-    opt_model = scheduler()
+    inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
+    opt_model = inc_optimizer.fit()
 
     _, sparsity = opt_model.report_sparsity()
     result_opt_model = take_eval_steps(opt_model.model, trainer, metric_name, save_metrics=True)
