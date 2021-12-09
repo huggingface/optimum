@@ -44,15 +44,24 @@ from transformers import (
 from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
+from transformers.utils.fx import symbolic_trace
 from transformers.utils.versions import require_version
 
 import yaml
-from optimum.intel.neural_compressor import IncOptimizer, IncTrainer
+from optimum.intel.neural_compressor import (
+    IncOptimizer,
+    IncPruner,
+    IncPruningConfig,
+    IncQuantizationConfig,
+    IncQuantizationMode,
+    IncQuantizer,
+    IncTrainer,
+)
+from optimum.intel.neural_compressor.quantization import IncQuantizedModelForCausalLM
 from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
@@ -578,8 +587,6 @@ def main():
 
     if optim_args.quantize:
 
-        from optimum.intel.neural_compressor import IncQuantizationConfig, IncQuantizationMode, IncQuantizer
-
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
@@ -608,7 +615,6 @@ def main():
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
-            from transformers.utils.fx import symbolic_trace
 
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for static and aware training quantization.")
@@ -639,8 +645,6 @@ def main():
         quantizer = inc_quantizer.fit()
 
     if optim_args.prune:
-
-        from optimum.intel.neural_compressor import IncPruner, IncPruningConfig
 
         if not training_args.do_train:
             raise ValueError("do_train must be set to True for pruning.")
@@ -693,7 +697,6 @@ def main():
     )
 
     if optim_args.quantize and optim_args.verify_loading:
-        from optimum.intel.neural_compressor.quantization import IncQuantizedModelForCausalLM
 
         # Load the model obtained after Intel Neural Compressor (INC) quantization
         loaded_model = IncQuantizedModelForCausalLM.from_pretrained(

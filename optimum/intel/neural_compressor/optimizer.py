@@ -18,7 +18,8 @@ from typing import Optional, Union
 import torch
 from transformers import PreTrainedModel
 
-from neural_compressor.experimental import Pruning, Quantization
+from neural_compressor.experimental import Pruning, Quantization, common
+from neural_compressor.experimental.scheduler import Scheduler
 
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,6 @@ class IncOptimizer:
             pruner (:obj:`Pruning`, `optional`):
                 Pruning object which handles the pruning process.
         """
-        from neural_compressor.experimental import common
-        from neural_compressor.experimental.scheduler import Scheduler
 
         if quantizer is None and pruner is None:
             raise RuntimeError("`IncOptimizer` requires either a `quantizer` or `pruner` argument")

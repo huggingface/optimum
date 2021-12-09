@@ -19,11 +19,25 @@ from enum import Enum
 from typing import Callable, ClassVar, Dict, List, Optional, Tuple, Union
 
 import torch
+from torch.quantization import add_observer_, convert
+from torch.quantization.quantize_fx import convert_fx, prepare_fx, prepare_qat_fx
 from torch.utils.data import DataLoader
-from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from transformers import AutoConfig, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
+from transformers.file_utils import cached_path, hf_bucket_url
+from transformers.models.auto.auto_factory import _get_model_class
+from transformers.utils.fx import symbolic_trace
 
+import neural_compressor
+from neural_compressor.adaptor.pytorch import _cfg_to_qconfig, _propagate_qconfig
+from neural_compressor.conf.config import Quantization_Conf
+from neural_compressor.experimental import Quantization, common
 from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncQuantizationConfig
-from optimum.intel.neural_compressor.utils import IncDataLoader
+from optimum.intel.neural_compressor.utils import (
+    WEIGHTS_NAME,
+    IncDataLoader,
+    _cfgs_to_fx_cfgs,
+    _get_quantizable_ops_recursively,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +85,6 @@ class IncQuantizer:
         Returns:
             quantizer: IncQuantizer object.
         """
-        from neural_compressor.conf.config import Quantization_Conf
 
         self.config = (
             config_path_or_obj.config
@@ -113,16 +126,12 @@ class IncQuantizer:
 
     def init_quantizer(self):
         if self.config.usr_cfg.model.framework == "pytorch_fx":
-            import neural_compressor
-            from optimum.intel.neural_compressor.utils import _cfgs_to_fx_cfgs, _get_quantizable_ops_recursively
 
             # TODO : Change this to apply quantization on other part of the model other that Linears
             neural_compressor.adaptor.pytorch._cfgs_to_fx_cfgs = _cfgs_to_fx_cfgs
             neural_compressor.adaptor.pytorch.PyTorch_FXAdaptor._get_quantizable_ops_recursively = (
                 _get_quantizable_ops_recursively
             )
-
-        from neural_compressor.experimental import Quantization, common
 
         quantizer = Quantization(self.config)
         quantizer.model = common.Model(self.model)
@@ -218,7 +227,6 @@ class IncQuantizer:
         Returns:
             quantizer: IncQuantizer object.
         """
-        from transformers import AutoTokenizer
 
         config_kwargs_default = [
             ("cache_dir", None),
@@ -305,9 +313,6 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
         q_model (:obj:`torch.nn.Module`):
             Quantized model.
     """
-    from torch.quantization import add_observer_, convert
-
-    from neural_compressor.adaptor.pytorch import _cfg_to_qconfig, _propagate_qconfig
 
     approach = q_config.get("approach")
     framework = q_config.get("framework")
@@ -334,9 +339,6 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
     q_model.eval()
 
     if framework == "pytorch_fx":
-        from torch.quantization.quantize_fx import convert_fx, prepare_fx, prepare_qat_fx
-
-        from optimum.intel.neural_compressor.utils import _cfgs_to_fx_cfgs
 
         fx_op_cfgs = _cfgs_to_fx_cfgs(op_cfgs, approach)
 
@@ -435,9 +437,6 @@ class IncQuantizedModel:
             config_path = inc_config if inc_config is not None else model_name_or_path
             inc_config = IncOptimizedConfig.from_pretrained(config_path, **download_kwargs)
 
-        from transformers import AutoConfig
-        from transformers.models.auto.auto_factory import _get_model_class
-
         config = AutoConfig.from_pretrained(model_name_or_path)
         model_class = _get_model_class(config, cls.TRANSFORMERS_AUTO_CLASS._model_mapping)
         keys_to_ignore_on_load_unexpected = copy.deepcopy(
@@ -462,7 +461,6 @@ class IncQuantizedModel:
         model_class._keys_to_ignore_on_load_missing = keys_to_ignore_on_load_missing
 
         if inc_config.get_config("framework") == "pytorch_fx":
-            from transformers.utils.fx import symbolic_trace
 
             if batch_size is None or sequence_length is None:
                 raise ValueError("Need batch_size and sequence_length for tracing the model with torch fx.")
@@ -478,9 +476,6 @@ class IncQuantizedModel:
         q_model = apply_quantization_from_config(inc_config.config, model)
 
         if state_dict is None:
-            from transformers.file_utils import cached_path, hf_bucket_url
-
-            from optimum.intel.neural_compressor.utils import WEIGHTS_NAME
 
             q_model_name = q_model_name if q_model_name is not None else WEIGHTS_NAME
             revision = download_kwargs.pop("revision", None)
