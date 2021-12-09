@@ -48,7 +48,7 @@ class TestOptimize(unittest.TestCase):
                     validate_model_outputs(onnx_config, tokenizer, model, optimized_model, onnx_outputs, atol=1e-4)
 
                     quantized_model = quantize(optimized_model)
-                    q_atol = 1.5 if model_type == "bert" else 12
+                    q_atol = 5 if model_type == "bert" else 12
                     validate_model_outputs(onnx_config, tokenizer, model, quantized_model, onnx_outputs, atol=q_atol)
 
 

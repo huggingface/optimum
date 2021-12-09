@@ -1,11 +1,11 @@
 import re
 
-from setuptools import find_packages, setup
+from setuptools import find_namespace_packages, setup
 
 
 # Ensure we match the version set in src/optimum/version.py
 try:
-    filepath = "src/optimum/version.py"
+    filepath = "optimum/version.py"
     with open(filepath) as version_file:
         (__version__,) = re.findall('__version__ = "(.*)"', version_file.read())
 except Exception as error:
@@ -53,8 +53,7 @@ setup(
     author="HuggingFace Inc. Special Ops Team",
     author_email="hardware@huggingface.co",
     license="Apache",
-    package_dir={"": "src"},
-    packages=find_packages("src"),
+    packages=find_namespace_packages(include=["optimum.*"]),
     install_requires=install_requires,
     extras_require=extras,
     entry_points={

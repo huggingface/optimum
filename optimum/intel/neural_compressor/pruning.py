@@ -95,8 +95,8 @@ class IncPruner:
     def fit(self):
         from neural_compressor.experimental import Pruning, common
 
-        prune = Pruning(self.config)
-        prune.model = common.Model(self.model)
+        pruner = Pruning(self.config)
+        pruner.model = common.Model(self.model)
 
         if self._eval_func is None:
             raise ValueError("eval_func must be provided for pruning.")
@@ -104,10 +104,10 @@ class IncPruner:
         if self._train_func is None:
             raise ValueError("train_func must be provided for pruning.")
 
-        prune.pruning_func = self._train_func
-        prune.eval_func = self._eval_func
+        pruner.pruning_func = self._train_func
+        pruner.eval_func = self._eval_func
 
-        return prune
+        return pruner
 
     @classmethod
     def from_config(

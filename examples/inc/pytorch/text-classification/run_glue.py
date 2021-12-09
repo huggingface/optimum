@@ -664,7 +664,7 @@ def main():
         return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)
 
     quantizer = None
-    prune = None
+    pruner = None
 
     if not optim_args.quantize and not optim_args.prune:
         raise ValueError("quantize and prune are both set to False.")
@@ -740,7 +740,7 @@ def main():
         if not training_args.do_train:
             raise ValueError("do_train must be set to True for pruning.")
 
-        prune_config = IncPruningConfig.from_pretrained(
+        pruning_config = IncPruningConfig.from_pretrained(
             optim_args.pruning_config if optim_args.pruning_config is not None else default_config,
             config_file_name="prune.yml",
             cache_dir=model_args.cache_dir,
@@ -748,10 +748,12 @@ def main():
 
         # Set targeted sparsity if specified
         if optim_args.target_sparsity is not None:
-            prune_config.set_config("pruning.approach.weight_compression.target_sparsity", optim_args.target_sparsity)
+            pruning_config.set_config(
+                "pruning.approach.weight_compression.target_sparsity", optim_args.target_sparsity
+            )
 
-        pruning_start_epoch = prune_config.get_config("pruning.approach.weight_compression.start_epoch")
-        pruning_end_epoch = prune_config.get_config("pruning.approach.weight_compression.end_epoch")
+        pruning_start_epoch = pruning_config.get_config("pruning.approach.weight_compression.start_epoch")
+        pruning_end_epoch = pruning_config.get_config("pruning.approach.weight_compression.end_epoch")
 
         if pruning_start_epoch > training_args.num_train_epochs - 1:
             logger.warning(
@@ -765,10 +767,10 @@ def main():
                 f"{training_args.num_train_epochs}. The target sparsity will not be reached."
             )
 
-        pruner = IncPruner(model, prune_config, eval_func=eval_func, train_func=train_func)
+        inc_pruner = IncPruner(model, pruning_config, eval_func=eval_func, train_func=train_func)
 
         # Creation Pruning object used for IncTrainer training loop
-        prune = pruner.fit()
+        pruner = inc_pruner.fit()
 
     from neural_compressor.experimental import common
     from neural_compressor.experimental.scheduler import Scheduler
@@ -776,7 +778,7 @@ def main():
     scheduler = Scheduler()
     scheduler.model = common.Model(model)
 
-    agent = prune
+    agent = pruner
     if optim_args.one_shot_optimization:
         criterion = None
         if optim_args.distillation:
@@ -787,7 +789,7 @@ def main():
                                     loss_weights=optim_args.loss_weights)
             criterion.teacher_model = teacher_model
         if optim_args.quantize:
-            agent = scheduler.combine(*[prune, quantizer])
+            agent = scheduler.combine(*[pruner, quantizer])
             agent.train_func = train_func
             agent.eval_func = eval_func
             print(agent)
@@ -795,8 +797,8 @@ def main():
             agent.criterion = criterion
         scheduler.append(agent)
     else:
-        if prune is not None:
-            scheduler.append(prune)
+        if pruner is not None:
+            scheduler.append(pruner)
 
         if quantizer is not None:
             scheduler.append(quantizer)

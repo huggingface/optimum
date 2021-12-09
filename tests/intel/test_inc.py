@@ -323,16 +323,16 @@ class TestINCPruning(unittest.TestCase):
         target_sparsity = 0.02
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prune.yml")
 
-        prune_config = IncPruningConfig.from_pretrained(config_path)
+        pruning_config = IncPruningConfig.from_pretrained(config_path)
 
-        prune_config.set_config("pruning.approach.weight_compression.start_epoch", 0)
-        prune_config.set_config("pruning.approach.weight_compression.end_epoch", 1)
-        prune_config.set_config("pruning.approach.weight_compression.initial_sparsity", 0.0)
-        prune_config.set_config("pruning.approach.weight_compression.target_sparsity", target_sparsity)
+        pruning_config.set_config("pruning.approach.weight_compression.start_epoch", 0)
+        pruning_config.set_config("pruning.approach.weight_compression.end_epoch", 1)
+        pruning_config.set_config("pruning.approach.weight_compression.initial_sparsity", 0.0)
+        pruning_config.set_config("pruning.approach.weight_compression.target_sparsity", target_sparsity)
 
-        pruner = IncPrunerForSequenceClassification.from_config(model_name, inc_config=prune_config)
-        tokenizer = pruner.tokenizer
-        model = pruner.model
+        inc_pruner = IncPrunerForSequenceClassification.from_config(model_name, inc_config=pruning_config)
+        tokenizer = inc_pruner.tokenizer
+        model = inc_pruner.model
 
         metric = load_metric("glue", task)
         dataset = load_dataset("glue", task)
@@ -351,7 +351,7 @@ class TestINCPruning(unittest.TestCase):
         def train_func(model):
             trainer.model_wrapped = model
             trainer.model = model
-            _ = trainer.train(prune)
+            _ = trainer.train(pruner)
 
         def eval_func(model):
             trainer.model = model
@@ -372,10 +372,10 @@ class TestINCPruning(unittest.TestCase):
             )
 
             model_result = eval_func(model)
-            pruner.eval_func = eval_func
-            pruner.train_func = train_func
-            prune = pruner.fit()
-            pruned_model = prune()
+            inc_pruner.eval_func = eval_func
+            inc_pruner.train_func = train_func
+            pruner = inc_pruner.fit()
+            pruned_model = pruner()
             pruned_model_result = eval_func(pruned_model.model)
             _, sparsity = pruned_model.report_sparsity()
 
