@@ -22,7 +22,7 @@ import os
 import random
 import sys
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional
 
 import datasets
 import numpy as np
@@ -47,6 +47,10 @@ import yaml
 from optimum.intel.neural_compressor.trainer_inc import IncTrainer
 from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
+import functools
+import torch
+from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -70,6 +74,11 @@ task_to_keys = {
 logger = logging.getLogger(__name__)
 
 
+def dict_tensor_to_model_device(batch, model):
+    device = next(model.parameters()).device
+    for k in batch:
+        batch[k] = batch[k].to(device)
+        
 @dataclass
 class DataTrainingArguments:
     """
@@ -211,6 +220,29 @@ class OptimizationArguments:
         default=None,
         metadata={"help": "Targeted sparsity when pruning the model."},
     )
+    distillation: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to apply distillation."},
+    )
+    teacher_model_name_or_path: str = field(
+        default=False,
+        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
+    )
+    temperature: Optional[float] = field(
+        default=1,
+        metadata={"help": "Temperature parameter of distillation"}
+    )
+    loss_types: Optional[List[str]] = field(
+        default_factory=lambda: ['CE', 'KL'],
+        metadata={"help": "Loss types of distillation, should be a list of length 2, "
+                          "first for student targets loss, second for teacher student loss"}
+    )
+    loss_weights: Optional[List[float]] = field(
+        default_factory=lambda: [0.5, 0.5],
+        metadata={"help": "loss weights of distillation, should be a list of length 2, "
+                          "and sum to 1.0, first for student targets loss weight, "
+                          "second for teacher student loss weight."}
+    )
     quantization_config: Optional[str] = field(
         default=None,
         metadata={
@@ -224,6 +256,12 @@ class OptimizationArguments:
             "help": "Path to the directory containing the YAML configuration file used to control the pruning behavior."
         },
     )
+    distillation_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Path to the directory containing the YAML configuration file used to control the distillation behavior."
+        },
+    )
     tune_metric: Optional[str] = field(
         default=None,
         metadata={"help": "Metric used for the tuning strategy."},
@@ -231,6 +269,10 @@ class OptimizationArguments:
     perf_tol: Optional[float] = field(
         default=None,
         metadata={"help": "Performance tolerance when optimizing the model."},
+    )
+    one_shot_optimization: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to combine the quantization, pruning and distillation in one shot."},
     )
     verify_loading: bool = field(
         default=False,
@@ -429,7 +471,7 @@ def main():
         )
     max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
 
-    def preprocess_function(examples):
+    def preprocess_function(examples, tokenizer=tokenizer):
         # Tokenize the texts
         args = (
             (examples[sentence1_key],) if sentence2_key is None else (examples[sentence1_key], examples[sentence2_key])
@@ -442,20 +484,20 @@ def main():
         return result
 
     with training_args.main_process_first(desc="dataset map pre-processing"):
-        raw_datasets = raw_datasets.map(
+        processed_datasets = raw_datasets.map(
             preprocess_function, batched=True, load_from_cache_file=not data_args.overwrite_cache
         )
     if training_args.do_train:
-        if "train" not in raw_datasets:
+        if "train" not in processed_datasets:
             raise ValueError("--do_train requires a train dataset")
-        train_dataset = raw_datasets["train"]
+        train_dataset = processed_datasets["train"]
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
 
     if training_args.do_eval:
-        if "validation" not in raw_datasets and "validation_matched" not in raw_datasets:
+        if "validation" not in processed_datasets and "validation_matched" not in processed_datasets:
             raise ValueError("--do_eval requires a validation dataset")
-        eval_dataset = raw_datasets["validation_matched" if data_args.task_name == "mnli" else "validation"]
+        eval_dataset = processed_datasets["validation_matched" if data_args.task_name == "mnli" else "validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
@@ -492,6 +534,68 @@ def main():
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
     else:
         data_collator = None
+        
+    if optim_args.distillation:
+        teacher_config = AutoConfig.from_pretrained(optim_args.teacher_model_name_or_path, \
+                            num_labels=num_labels, finetuning_task=data_args.task_name)
+        teacher_tokenizer = AutoTokenizer.from_pretrained(optim_args.teacher_model_name_or_path, \
+                            use_fast=model_args.use_fast_tokenizer)
+        assert teacher_tokenizer.vocab == tokenizer.vocab, \
+                'teacher model and student model should have same tokenizer.'
+        teacher_model = AutoModelForSequenceClassification.from_pretrained(
+            optim_args.teacher_model_name_or_path,
+            from_tf=bool(".ckpt" in optim_args.teacher_model_name_or_path),
+            config=teacher_config,
+        )
+        teacher_model.to(training_args.device)
+        
+        # prepare datasets for teacher model
+        teacher_processed_datasets = raw_datasets.map(
+            functools.partial(preprocess_function, tokenizer=teacher_tokenizer), 
+            batched=True, remove_columns=raw_datasets["train"].column_names
+        )
+        teacher_train_dataset = teacher_processed_datasets["train"]
+        if data_args.max_train_samples is not None:
+            teacher_train_dataset = teacher_train_dataset.select(range(data_args.max_train_samples))
+        teacher_eval_dataset = teacher_processed_datasets["validation_matched" \
+                                    if data_args.task_name == "mnli" else "validation"]
+        if data_args.max_eval_samples is not None:
+            teacher_eval_dataset = teacher_eval_dataset.select(range(data_args.max_eval_samples))
+        assert train_dataset.num_rows == teacher_train_dataset.num_rows and \
+            eval_dataset.num_rows == teacher_eval_dataset.num_rows, \
+            "Length of train or evaluation dataset of teacher doesnot match that of student."
+            
+        # get logits of teacher model
+        if optim_args.loss_weights[1] > 0:
+            def get_logits(teacher_model, train_dataset, teacher_train_dataset):
+                logger.info("***** Getting logits of teacher model *****")
+                logger.info(f"  Num examples = {len(train_dataset) }")
+                teacher_model.eval()
+                npy_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                    '{}.{}.npy'.format(data_args.task_name, 
+                                       optim_args.teacher_model_name_or_path.replace('/', '.')))
+                if os.path.exists(npy_file):
+                    teacher_logits = [x for x in np.load(npy_file)]
+                else:
+                    train_dataloader = DataLoader(teacher_train_dataset, 
+                                                  collate_fn=data_collator, \
+                                                  batch_size=training_args.per_device_eval_batch_size)
+                    train_dataloader = tqdm(train_dataloader, desc="Evaluating")
+                    teacher_logits = []
+                    for step, batch in enumerate(train_dataloader):
+                        dict_tensor_to_model_device(batch, teacher_model)
+                        outputs = teacher_model(**batch)
+                        teacher_logits += [x for x in outputs['logits'].cpu().numpy()]
+                    np.save(npy_file, np.array(teacher_logits))
+                return train_dataset.add_column('teacher_logits', teacher_logits)
+            with torch.no_grad():
+                train_dataset = get_logits(teacher_model, train_dataset, teacher_train_dataset)
+                
+        para_counter = lambda model:sum(p.numel() for p in model.parameters())
+        logger.info("***** Number of teacher model parameters: {:.2f}M *****".format(\
+                    para_counter(teacher_model)/10**6))
+        logger.info("***** Number of student model parameters: {:.2f}M *****".format(\
+                    para_counter(model)/10**6))
 
     # Initialize our Trainer
     trainer = IncTrainer(
@@ -549,7 +653,7 @@ def main():
             checkpoint = resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
-        train_result = trainer.train(prune, resume_from_checkpoint=checkpoint)
+        train_result = trainer.train(agent, resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
         trainer.save_model()  # Saves the tokenizer too for easy upload
         trainer.log_metrics("train", metrics)
@@ -672,11 +776,30 @@ def main():
     scheduler = Scheduler()
     scheduler.model = common.Model(model)
 
-    if prune is not None:
-        scheduler.append(prune)
+    agent = prune
+    if optim_args.one_shot_optimization:
+        criterion = None
+        if optim_args.distillation:
+            from neural_compressor.experimental.common.criterion import PyTorchKnowledgeDistillationLoss
+            criterion = PyTorchKnowledgeDistillationLoss(
+                                    temperature=optim_args.temperature,
+                                    loss_types=optim_args.loss_types,
+                                    loss_weights=optim_args.loss_weights)
+            criterion.teacher_model = teacher_model
+        if optim_args.quantize:
+            agent = scheduler.combine(*[prune, quantizer])
+            agent.train_func = train_func
+            agent.eval_func = eval_func
+            print(agent)
+        if criterion:
+            agent.criterion = criterion
+        scheduler.append(agent)
+    else:
+        if prune is not None:
+            scheduler.append(prune)
 
-    if quantizer is not None:
-        scheduler.append(quantizer)
+        if quantizer is not None:
+            scheduler.append(quantizer)
 
     opt_model = scheduler()
 

@@ -21,29 +21,29 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
-from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncPruningConfig
+from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncDistillationConfig
 from optimum.intel.neural_compressor.utils import IncDataLoader
 
 
 logger = logging.getLogger(__name__)
 
 
-class IncPruningMode(Enum):
-    MAGNITUDE = "basic_magnitude"
-    PATTERNLOCK = "pattern_lock"
+class IncDistillationMode(Enum):
+    DISTILLATION = "distillation"
 
 
-SUPPORTED_PRUNING_MODE = set([approach.value for approach in IncPruningMode])
+SUPPORTED_DISTILLATION_MODE = set([approach.value for approach in IncDistillationMode])
 
 
-class IncPruner:
+class IncDistillation:
 
     TRANSFORMERS_AUTO_CLASS: ClassVar
 
     def __init__(
         self,
         model: Union[PreTrainedModel, torch.nn.Module],
-        config_path_or_obj: Union[str, IncPruningConfig],
+        teacher_model: Union[PreTrainedModel, torch.nn.Module],
+        config_path_or_obj: Union[str, IncDistillationConfig],
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         eval_func: Optional[Callable] = None,
         train_func: Optional[Callable] = None,
@@ -51,27 +51,30 @@ class IncPruner:
         """
         Args:
             model (:obj:`Union[PreTrainedModel, torch.nn.Module]`):
-                Model to prune.
-            config_path_or_obj (:obj:`Union[str, IncPruningConfig]` ):
-                Path to the YAML configuration file or an instance of the class :class:`IncPruningConfig`, used to
+                Student model.
+            teacher_model (:obj:`Union[PreTrainedModel, torch.nn.Module]`):
+                Teacher model.
+            config_path_or_obj (:obj:`Union[str, IncDistillationConfig]` ):
+                Path to the YAML configuration file or an instance of the class :class:`IncDistillationConfig`, used to
                 control the tuning behavior.
             tokenizer (:obj:`PreTrainedTokenizerBase`, `optional`):
                 Tokenizer used to preprocess the data.
             eval_func (:obj:`Callable`, `optional`):
                 Evaluation function to evaluate the tuning objective.
             train_func (:obj:`Callable`, `optional`):
-                Training function which will be combined with pruning.
+                Training function which will be combined with distillation.
         Returns:
-            pruner: IncPruner object.
+            distiller: IncDistillation object.
         """
-        from neural_compressor.conf.config import Pruning_Conf
+        from neural_compressor.conf.config import Distillation_Conf
 
         self.config = (
             config_path_or_obj.config
-            if isinstance(config_path_or_obj, IncPruningConfig)
-            else Pruning_Conf(config_path_or_obj)
+            if isinstance(config_path_or_obj, IncDistillationConfig)
+            else Distillation_Conf(config_path_or_obj)
         )
         self.model = model
+        self.teacher_model = teacher_model
         self.tokenizer = tokenizer
         self._eval_func = eval_func
         self._train_func = train_func
@@ -93,42 +96,43 @@ class IncPruner:
         self._train_func = func
 
     def fit(self):
-        from neural_compressor.experimental import Pruning, common
+        from neural_compressor.experimental import Distillation, common
 
-        prune = Pruning(self.config)
-        prune.model = common.Model(self.model)
+        distiller = Distillation(self.config)
+        distiller.model = common.Model(self.model)
+        distiller.teacher_model = common.Model(self.teacher_model)
 
         if self._eval_func is None:
-            raise ValueError("eval_func must be provided for pruning.")
+            raise ValueError("eval_func must be provided for distillation.")
 
         if self._train_func is None:
-            raise ValueError("train_func must be provided for pruning.")
+            raise ValueError("train_func must be provided for distillation.")
 
-        prune.pruning_func = self._train_func
-        prune.eval_func = self._eval_func
+        distiller.train_func = self._train_func
+        distiller.eval_func = self._eval_func
 
-        return prune
+        return distiller
 
     @classmethod
     def from_config(
         cls,
         model_name_or_path: str,
-        inc_config: Optional[Union[IncPruningConfig, str]] = None,
+        inc_config: Optional[Union[IncDistillationConfig, str]] = None,
         config_name: str = None,
         **kwargs
     ):
         """
-        Instantiate an IncPruner object from a configuration file which can either be hosted on huggingface.co or
+        Instantiate an IncDistillation object from a configuration file which can either be hosted on huggingface.co or
         from a local directory path.
 
         Args:
             model_name_or_path (:obj:`str`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            inc_config (:obj:`Union[IncPruningConfig, str]`, `optional`):
-                Configuration file containing all the information related to the pruning strategy.
+            inc_config (:obj:`Union[IncDistillationConfig, str]`, `optional`):
+                Configuration file containing all the information related to the distillation.
                 Can be either:
-                    - an instance of the class :class:`IncPruningConfig`,
-                    - a string valid as input to :func:`IncPruningConfig.from_pretrained`.
+                    - an instance of the class :class:`IncDistillationConfig`,
+                    - a string valid as input to :func:`IncDistillationConfig.from_pretrained`.
             config_name (:obj:`str`, `optional`):
                 Name of the configuration file.
             cache_dir (:obj:`str`, `optional`):
@@ -147,9 +151,9 @@ class IncPruner:
             eval_func (:obj:`Callable`, `optional`):
                 Evaluation function to evaluate the tuning objective.
             train_func (:obj:`Callable`, `optional`):
-                Training function which will be combined with pruning.
+                Training function which will be combined with distillation.
         Returns:
-            pruner: IncPruner object.
+            distiller: IncDistillation object.
         """
         from transformers import AutoTokenizer
 
@@ -160,66 +164,66 @@ class IncPruner:
             ("revision", None),
         ]
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
-        pruner_kwargs_names = ["eval_func", "train_func"]
-        pruner_kwargs = {name: kwargs.pop(name, None) for name in pruner_kwargs_names}
+        distiller_kwargs_names = ["eval_func", "train_func"]
+        distiller_kwargs = {name: kwargs.pop(name, None) for name in distiller_kwargs_names}
 
-        if not isinstance(inc_config, IncPruningConfig):
+        if not isinstance(inc_config, IncDistillationConfig):
             config_path = inc_config if inc_config is not None else model_name_or_path
-            inc_config = IncPruningConfig.from_pretrained(
+            inc_config = IncDistillationConfig.from_pretrained(
                 config_path,
                 config_file_name=config_name,
                 **config_kwargs,
             )
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         model = cls.TRANSFORMERS_AUTO_CLASS.from_pretrained(model_name_or_path, **kwargs)
-        pruner_kwargs["tokenizer"] = tokenizer
-        pruner = cls(model, inc_config, **pruner_kwargs)
-        return pruner
+        distiller_kwargs["tokenizer"] = tokenizer
+        distiller = cls(model, inc_config, **distiller_kwargs)
+        return distiller
 
 
-class IncPrunerForQuestionAnswering(IncPruner):
+class IncDistillationForQuestionAnswering(IncDistillation):
     from transformers import AutoModelForQuestionAnswering
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForQuestionAnswering
 
 
-class IncPrunerForSequenceClassification(IncPruner):
+class IncDistillationForSequenceClassification(IncDistillation):
     from transformers import AutoModelForSequenceClassification
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForSequenceClassification
 
 
-class IncPrunerForTokenClassification(IncPruner):
+class IncDistillationForTokenClassification(IncDistillation):
     from transformers import AutoModelForTokenClassification
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForTokenClassification
 
 
-class IncPrunerForMultipleChoice(IncPruner):
+class IncDistillationForMultipleChoice(IncDistillation):
     from transformers import AutoModelForMultipleChoice
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForMultipleChoice
 
 
-class IncPrunerForSeq2SeqLM(IncPruner):
+class IncDistillationForSeq2SeqLM(IncDistillation):
     from transformers import AutoModelForSeq2SeqLM
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForSeq2SeqLM
 
 
-class IncPrunerForCausalLM(IncPruner):
+class IncDistillationForCausalLM(IncDistillation):
     from transformers import AutoModelForCausalLM
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForCausalLM
 
 
-class IncPrunerForMaskedLM(IncPruner):
+class IncDistillationForMaskedLM(IncDistillation):
     from transformers import AutoModelForMaskedLM
 
     TRANSFORMERS_AUTO_CLASS = AutoModelForMaskedLM
 
 
-class IncPrunerForXLNetLM(IncPruner):
+class IncDistillationForXLNetLM(IncDistillation):
     from transformers import XLNetLMHeadModel
 
     TRANSFORMERS_AUTO_CLASS = XLNetLMHeadModel

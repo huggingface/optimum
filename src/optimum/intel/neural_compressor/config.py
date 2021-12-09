@@ -186,3 +186,19 @@ class IncPruningConfig(IncConfig):
         self.path = config_path
         self.config = Pruning_Conf(config_path)
         self.usr_cfg = self.config.usr_cfg
+
+
+class IncDistillationConfig(IncConfig):
+    def __init__(self, config_path: str):
+        """
+        Args:
+            config_path (:obj:`str`):
+                Path to the YAML configuration file used to control the tuning behavior.
+        Returns:
+            config: IncPruningConfig object.
+        """
+        from neural_compressor.conf.config import Distillation_Conf
+
+        self.path = config_path
+        self.config = Distillation_Conf(config_path)
+        self.usr_cfg = self.config.usr_cfg
