@@ -1,4 +1,5 @@
 import collections
+import inspect
 import math
 import os
 import sys
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
+from packaging import version
 import torch.distributed as dist
 
 # from packaging import version
@@ -34,10 +36,17 @@ from transformers.trainer_utils import (
     set_seed,
     speed_metrics,
 )
+from transformers.file_utils import (
+    CONFIG_NAME,
+    WEIGHTS_NAME,
+    is_datasets_available,
+)
 from transformers.utils import logging
 
 from neural_compressor.experimental import Component, common
 
+if is_datasets_available():
+    import datasets
 
 if TYPE_CHECKING:
     import optuna
@@ -390,7 +399,7 @@ class IncTrainer(Trainer):
                         self.lr_scheduler.step()
 
                     if isinstance(agent, Component):
-                        agent.on_post_grad(step)
+                        agent.on_post_grad()
                     model.zero_grad()
                     self.state.global_step += 1
                     self.state.epoch = epoch + (step + 1) / steps_in_epoch
@@ -495,3 +504,29 @@ class IncTrainer(Trainer):
                 loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
+    
+    def _remove_unused_columns(self, dataset: "datasets.Dataset", description: Optional[str] = None):
+        if not self.args.remove_unused_columns:
+            return dataset
+        if self._signature_columns is None:
+            # Inspect model forward signature to keep only the arguments it accepts.
+            signature = inspect.signature(self.model.forward)
+            self._signature_columns = list(signature.parameters.keys())
+            # Labels may be named label or label_ids, the default data collator handles that.
+            self._signature_columns += ["label", "label_ids", "teacher_logits"]
+        columns = [k for k in self._signature_columns if k in dataset.column_names]
+        ignored_columns = list(set(dataset.column_names) - set(self._signature_columns))
+        if len(ignored_columns) > 0:
+            dset_description = "" if description is None else f"in the {description} set "
+            logger.info(
+                f"The following columns {dset_description} don't have a corresponding argument in "
+                f"`{self.model.__class__.__name__}.forward` and have been ignored: {', '.join(ignored_columns)}."
+            )
+
+        if version.parse(datasets.__version__) < version.parse("1.4.0"):
+            dataset.set_format(
+                type=dataset.format["type"], columns=columns, format_kwargs=dataset.format["format_kwargs"]
+            )
+            return dataset
+        else:
+            return dataset.remove_columns(ignored_columns)
