@@ -23,7 +23,7 @@ extras = {
         "pycocotools",
         "neural_compressor>=1.7",
         "datasets>=1.2.1",
-        "openvino==2021.4.1",
+        "openvino-dev==2021.4.2",
     ],
     "graphcore": "optimum-graphcore"
 }
