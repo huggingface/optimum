@@ -184,6 +184,18 @@ class OVPreTrainedModel(GenerationMixin):
 
         return load_ov_model_from_ir(*resolved_archive_files)
 
+    def save_pretrained(
+        self,
+        save_directory,
+        **kwargs,
+    ):
+        """
+        Save model in OpenVINO IR format into a directory
+        """
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
+        self.net.serialize(os.path.join(save_directory, OV_WEIGHTS_NAME))
+
     def to(self, device):
         self.ov_device = device
 
