@@ -42,9 +42,19 @@ from transformers.file_utils import PaddingStrategy
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
+from transformers.utils.fx import symbolic_trace
 
 import yaml
-from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor import (
+    IncOptimizer,
+    IncPruner,
+    IncPruningConfig,
+    IncQuantizationConfig,
+    IncQuantizationMode,
+    IncQuantizer,
+    IncTrainer,
+)
+from optimum.intel.neural_compressor.quantization import IncQuantizedModelForMultipleChoice
 from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
 
@@ -511,8 +521,6 @@ def main():
 
     if optim_args.quantize:
 
-        from optimum.intel.neural_compressor import IncQuantizationConfig, IncQuantizationMode, IncQuantizer
-
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
@@ -539,7 +547,6 @@ def main():
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
-            from transformers.utils.fx import symbolic_trace
 
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for static and aware training quantization.")
@@ -576,8 +583,6 @@ def main():
 
     if optim_args.prune:
 
-        from optimum.intel.neural_compressor import IncPruner, IncPruningConfig
-
         if not training_args.do_train:
             raise ValueError("do_train must be set to True for pruning.")
 
@@ -613,19 +618,8 @@ def main():
         # Creation Pruning object used for IncTrainer training loop
         pruner = inc_pruner.fit()
 
-    from neural_compressor.experimental import common
-    from neural_compressor.experimental.scheduler import Scheduler
-
-    scheduler = Scheduler()
-    scheduler.model = common.Model(model)
-
-    if pruner is not None:
-        scheduler.append(pruner)
-
-    if quantizer is not None:
-        scheduler.append(quantizer)
-
-    opt_model = scheduler()
+    inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
+    opt_model = inc_optimizer.fit()
 
     _, sparsity = opt_model.report_sparsity()
     result_opt_model = take_eval_steps(opt_model.model, trainer, metric_name, save_metrics=True)
@@ -640,7 +634,6 @@ def main():
     )
 
     if optim_args.quantize and optim_args.verify_loading:
-        from optimum.intel.neural_compressor.quantization import IncQuantizedModelForMultipleChoice
 
         # Load the model obtained after Intel Neural Compressor (INC) quantization
         loaded_model = IncQuantizedModelForMultipleChoice.from_pretrained(

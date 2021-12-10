@@ -36,7 +36,7 @@ from transformers.trainer_utils import (
 )
 from transformers.utils import logging
 
-from neural_compressor.experimental import Pruning, common
+from neural_compressor.experimental import Pruning
 
 
 if TYPE_CHECKING:

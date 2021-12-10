@@ -19,8 +19,10 @@ from typing import Callable, ClassVar, Dict, List, Optional, Tuple, Union
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
+from neural_compressor.conf.config import Pruning_Conf
+from neural_compressor.experimental import Pruning, common
 from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncPruningConfig
 from optimum.intel.neural_compressor.utils import IncDataLoader
 
@@ -63,7 +65,6 @@ class IncPruner:
         Returns:
             pruner: IncPruner object.
         """
-        from neural_compressor.conf.config import Pruning_Conf
 
         self.config = (
             config_path_or_obj.config
@@ -92,7 +93,6 @@ class IncPruner:
         self._train_func = func
 
     def fit(self):
-        from neural_compressor.experimental import Pruning, common
 
         pruner = Pruning(self.config)
         pruner.model = common.Model(self.model)
@@ -150,7 +150,6 @@ class IncPruner:
         Returns:
             pruner: IncPruner object.
         """
-        from transformers import AutoTokenizer
 
         config_kwargs_default = [
             ("cache_dir", None),

@@ -17,8 +17,12 @@ import os
 from functools import reduce
 from typing import Any, Optional, Union
 
+from transformers.file_utils import cached_path, hf_bucket_url
+
 import requests
 import yaml
+from neural_compressor.conf.config import Conf, Pruning_Conf, Quantization_Conf
+from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +37,6 @@ class IncConfig:
         Returns:
             config: IncConfig object.
         """
-        from neural_compressor.conf.config import Conf
 
         self.path = config_path
         self.config = Conf(config_path)
@@ -86,10 +89,6 @@ class IncConfig:
         Returns:
             config: IncConfig object.
         """
-
-        from transformers.file_utils import cached_path, hf_bucket_url
-
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
         cache_dir = kwargs.get("cache_dir", None)
         force_download = kwargs.get("force_download", False)
@@ -165,7 +164,6 @@ class IncQuantizationConfig(IncConfig):
         Returns:
             config: IncQuantizationConfig object.
         """
-        from neural_compressor.conf.config import Quantization_Conf
 
         self.path = config_path
         self.config = Quantization_Conf(config_path)
@@ -181,7 +179,6 @@ class IncPruningConfig(IncConfig):
         Returns:
             config: IncPruningConfig object.
         """
-        from neural_compressor.conf.config import Pruning_Conf
 
         self.path = config_path
         self.config = Pruning_Conf(config_path)
