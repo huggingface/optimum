@@ -349,8 +349,8 @@ class IncTrainer(Trainer):
                         
                 if "teacher_logits" in inputs:
                     teacher_logits = inputs.pop("teacher_logits")
-                    if hasattr(self.agent, 'criterion'):
-                        self.agent.criterion.teacher_outputs = teacher_logits
+                    if hasattr(agent, 'criterion'):
+                        agent.criterion.teacher_outputs = teacher_logits
                 if (
                     ((step + 1) % args.gradient_accumulation_steps != 0)
                     and args.local_rank != -1
@@ -489,8 +489,16 @@ class IncTrainer(Trainer):
         
         if hasattr(self, "agent") and hasattr(self.agent, "criterion"):
             assert "labels" in inputs, "Labels of input data not provided, can't compute loss"
-            logits = outputs["logits"] if isinstance(outputs, dict) else outputs[1]
+            if isinstance(outputs, dict):
+                logits = outputs["logits"] 
+            elif isinstance(outputs, torch.Tensor):
+                logits = outputs
+            else:
+                logits = outputs[1]
+            if self.agent.criterion.teacher_outputs is None:
+                self.agent.criterion.teacher_model_forward(inputs)
             loss = self.agent.criterion(logits, labels if labels else inputs["labels"])
+            outputs = {"logits":logits, "loss":loss}
         else:
             # Save past state if it exists
             # TODO: this needs to be fixed and made cleaner later.
