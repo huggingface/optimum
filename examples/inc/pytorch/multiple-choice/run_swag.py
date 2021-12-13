@@ -579,7 +579,7 @@ def main():
         inc_quantizer = IncQuantizer(
             model, q8_config, eval_func=eval_func, train_func=train_func, calib_dataloader=calib_dataloader
         )
-        quantizer = inc_quantizer.fit()
+        quantizer = inc_quantizer.init()
 
     if optim_args.prune:
 
@@ -616,7 +616,7 @@ def main():
         inc_pruner = IncPruner(model, pruning_config, eval_func=eval_func, train_func=train_func)
 
         # Creation Pruning object used for IncTrainer training loop
-        pruner = inc_pruner.fit()
+        pruner = inc_pruner.init()
 
     inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
     opt_model = inc_optimizer.fit()

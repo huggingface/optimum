@@ -95,12 +95,13 @@ class IncDistillation:
     def train_func(self, func: Callable):
         self._train_func = func
 
-    def fit(self):
+    def init(self):
         from neural_compressor.experimental import Distillation, common
 
         distiller = Distillation(self.config)
         distiller.model = common.Model(self.model)
         distiller.teacher_model = common.Model(self.teacher_model)
+        distiller.pre_process()
 
         if self._eval_func is None:
             raise ValueError("eval_func must be provided for distillation.")
@@ -110,8 +111,13 @@ class IncDistillation:
 
         distiller.train_func = self._train_func
         distiller.eval_func = self._eval_func
+        self.distiller = distiller
 
         return distiller
+
+    def fit(self):
+        opt_model = self.distiller()
+        return opt_model
 
     @classmethod
     def from_config(

@@ -1,0 +1,57 @@
+#
+# Copyright (c) 2021 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+version: 1.0
+
+model:
+  name: bert_distillation
+  framework: pytorch_fx
+
+distillation:
+  train:
+    dataloader:
+      batch_size: 1
+      dataset:
+          dummy:
+              shape: [128, 3, 224, 224]
+              label: True
+    optimizer:
+      SGD:
+        learning_rate: 0.001
+        momentum: 0.1
+        nesterov: True
+        weight_decay: 0.001
+    criterion:
+      KnowledgeDistillationLoss:
+        temperature: 1.0
+        loss_types: ['CE', 'KL']
+        loss_weights: [0.5, 0.5]
+
+evaluation:                                          # optional. required if user doesn't provide eval_func in neural_compressor.Quantization.
+  accuracy:                                          # optional. required if user doesn't provide eval_func in neural_compressor.Quantization.
+    metric:
+      topk: 1 
+    dataloader:
+      batch_size: 1
+      dataset:
+          dummy:
+              shape: [128, 3, 224, 224]
+              label: True        
+  
+tuning:
+  accuracy_criterion:
+    relative: 0.01                             # the tuning target of accuracy loss percentage: 1%
+  exit_policy:
+    timeout: 0                                   # tuning timeout (seconds)
+  random_seed: 9527                            # random seed
