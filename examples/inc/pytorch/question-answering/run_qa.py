@@ -27,6 +27,7 @@ from typing import Optional
 import datasets
 import transformers
 from datasets import load_dataset, load_metric
+from torch.fx import GraphModule
 from transformers import (
     AutoConfig,
     AutoModelForQuestionAnswering,
@@ -41,10 +42,21 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
+from transformers.utils.fx import symbolic_trace
 from transformers.utils.versions import require_version
 
 import yaml
-from optimum.intel.neural_compressor.utils import CONFIG_NAME
+from optimum.intel.neural_compressor import (
+    IncOptimizer,
+    IncPruner,
+    IncPruningConfig,
+    IncQuantizationConfig,
+    IncQuantizationMode,
+    IncQuantizer,
+    IncTrainer,
+)
+from optimum.intel.neural_compressor.quantization import IncQuantizedModelForQuestionAnswering
+from optimum.intel.neural_compressor.utils import CONFIG_NAME, remove_inputs_from_graph
 from trainer_qa import QuestionAnsweringIncTrainer
 from utils_qa import postprocess_qa_predictions
 
@@ -615,11 +627,9 @@ def main():
     metric_name = optim_args.tune_metric
 
     def take_eval_steps(model, trainer, metric_name, save_metrics=False):
-        from torch.fx import GraphModule
 
         inputs_to_remove = ["start_positions", "end_positions"]
         if isinstance(model, GraphModule) and len([x for x in model.graph.nodes if x.target in inputs_to_remove]) > 0:
-            from optimum.intel.neural_compressor.utils import remove_inputs_from_graph
 
             model_eval = remove_inputs_from_graph(model, inputs_to_remove)
             trainer.model = model_eval
@@ -666,8 +676,6 @@ def main():
 
     if optim_args.quantize:
 
-        from optimum.intel.neural_compressor import IncQuantizationConfig, IncQuantizationMode, IncQuantizer
-
         if not training_args.do_eval:
             raise ValueError("do_eval must be set to True for quantization.")
 
@@ -694,7 +702,6 @@ def main():
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
         if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
-            from transformers.utils.fx import symbolic_trace
 
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for static and aware training quantization.")
@@ -727,8 +734,6 @@ def main():
         quantizer = inc_quantizer.fit()
 
     if optim_args.prune:
-
-        from optimum.intel.neural_compressor import IncPruner, IncPruningConfig
 
         if not training_args.do_train:
             raise ValueError("do_train must be set to True for pruning.")
@@ -765,19 +770,8 @@ def main():
         # Creation Pruning object used for IncTrainer training loop
         pruner = inc_pruner.fit()
 
-    from neural_compressor.experimental import common
-    from neural_compressor.experimental.scheduler import Scheduler
-
-    scheduler = Scheduler()
-    scheduler.model = common.Model(model)
-
-    if pruner is not None:
-        scheduler.append(pruner)
-
-    if quantizer is not None:
-        scheduler.append(quantizer)
-
-    opt_model = scheduler()
+    inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
+    opt_model = inc_optimizer.fit()
 
     _, sparsity = opt_model.report_sparsity()
     result_opt_model = take_eval_steps(opt_model.model, trainer, metric_name, save_metrics=True)
@@ -792,7 +786,6 @@ def main():
     )
 
     if optim_args.quantize and optim_args.verify_loading:
-        from optimum.intel.neural_compressor.quantization import IncQuantizedModelForQuestionAnswering
 
         # Load the model obtained after Intel Neural Compressor (INC) quantization
         loaded_model = IncQuantizedModelForQuestionAnswering.from_pretrained(

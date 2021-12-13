@@ -386,5 +386,104 @@ class TestINCPruning(unittest.TestCase):
             self.assertGreaterEqual(pruned_model_result, model_result * 0.95)
 
 
+class TestINCOptimizer(unittest.TestCase):
+    def test_optimizer(self):
+        import yaml
+        from optimum.intel.neural_compressor import IncOptimizer, IncPruner, IncQuantizer, IncTrainer
+        from optimum.intel.neural_compressor.config import IncPruningConfig, IncQuantizationConfig
+        from optimum.intel.neural_compressor.quantization import (
+            IncQuantizationMode,
+            IncQuantizedModelForSequenceClassification,
+        )
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
+
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
+        task = "sst2"
+        max_eval_samples = 64
+        max_train_samples = 64
+        target_sparsity = 0.02
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        metric = load_metric("glue", task)
+        dataset = load_dataset("glue", task)
+        dataset = dataset.map(
+            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128), batched=True
+        )
+        train_dataset = dataset["train"].select(range(max_train_samples))
+        eval_dataset = dataset["validation"].select(range(max_eval_samples))
+
+        def compute_metrics(p: EvalPrediction):
+            preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+            preds = np.argmax(preds, axis=1)
+            result = metric.compute(predictions=preds, references=p.label_ids)
+            return result
+
+        def train_func(model):
+            trainer.model_wrapped = model
+            trainer.model = model
+            _ = trainer.train(pruner)
+
+        def eval_func(model):
+            trainer.model = model
+            metrics = trainer.evaluate()
+            return metrics.get("eval_accuracy")
+
+        config_path = os.path.dirname(os.path.abspath(__file__))
+
+        q8_config = IncQuantizationConfig.from_pretrained(config_path, config_file_name="quantization.yml")
+        q8_config.set_config("quantization.approach", IncQuantizationMode.DYNAMIC.value)
+
+        pruning_config = IncPruningConfig.from_pretrained(config_path, config_file_name="prune.yml")
+        pruning_config.set_config("pruning.approach.weight_compression.start_epoch", 0)
+        pruning_config.set_config("pruning.approach.weight_compression.end_epoch", 1)
+        pruning_config.set_config("pruning.approach.weight_compression.initial_sparsity", 0.0)
+        pruning_config.set_config("pruning.approach.weight_compression.target_sparsity", target_sparsity)
+
+        inc_quantizer = IncQuantizer(model, q8_config, eval_func=eval_func)
+        quantizer = inc_quantizer.fit()
+
+        inc_pruner = IncPruner(model, pruning_config, eval_func=eval_func, train_func=train_func)
+        pruner = inc_pruner.fit()
+
+        inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            training_args = TrainingArguments(tmp_dir, num_train_epochs=2.0)
+
+            trainer = IncTrainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
+                compute_metrics=compute_metrics,
+                tokenizer=tokenizer,
+                data_collator=default_data_collator,
+            )
+
+            model_result = eval_func(model)
+            opt_model = inc_optimizer.fit()
+
+            opt_model_result = eval_func(opt_model.model)
+            _, sparsity = opt_model.report_sparsity()
+
+            trainer.save_model(tmp_dir)
+            with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
+                yaml.dump(opt_model.tune_cfg, f, default_flow_style=False)
+
+            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(tmp_dir)
+            loaded_model.eval()
+            loaded_model_result = eval_func(loaded_model)
+
+            # Verification final sparsity is equal to the targeted sparsity
+            self.assertEqual(round(sparsity), target_sparsity * 100)
+
+            # Verification accuracy loss is under 5%
+            self.assertGreaterEqual(opt_model_result, model_result * 0.95)
+
+            # Verification quantized model was correctly loaded
+            self.assertEqual(opt_model_result, loaded_model_result)
+
+
 if __name__ == "__main__":
     unittest.main()
