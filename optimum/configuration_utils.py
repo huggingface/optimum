@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 from packaging import version
 from transformers import PretrainedConfig
 
-from trasnformers.file_utils import cached_path, get_list_of_files, hf_bucket_url, is_offline_mode, is_remote_url
+from transformers.file_utils import cached_path, get_list_of_files, hf_bucket_url, is_offline_mode, is_remote_url
 
 from .utils import logging
 from .version import __version__
