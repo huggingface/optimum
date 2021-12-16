@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from packaging import version
 from transformers import PretrainedConfig
+
 from transformers.file_utils import cached_path, get_list_of_files, hf_bucket_url, is_offline_mode, is_remote_url
 
 from .utils import logging
@@ -232,44 +233,6 @@ class BaseConfig(PretrainedConfig):
             logger.info(f"loading configuration file {config_file} from cache at {resolved_config_file}")
 
         return config_dict, kwargs
-
-    @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "PretrainedConfig":
-        """
-        Instantiates a :class:`~transformers.PretrainedConfig` from a Python dictionary of parameters.
-
-        Args:
-            config_dict (:obj:`Dict[str, Any]`):
-                Dictionary that will be used to instantiate the configuration object. Such a dictionary can be
-                retrieved from a pretrained checkpoint by leveraging the
-                :func:`~transformers.PretrainedConfig.get_config_dict` method.
-            kwargs (:obj:`Dict[str, Any]`):
-                Additional parameters from which to initialize the configuration object.
-
-        Returns:
-            :class:`PretrainedConfig`: The configuration object instantiated from those parameters.
-        """
-        return_unused_kwargs = kwargs.pop("return_unused_kwargs", False)
-
-        config = cls(**config_dict)
-
-        if hasattr(config, "pruned_heads"):
-            config.pruned_heads = dict((int(key), value) for key, value in config.pruned_heads.items())
-
-        # Update config with kwargs if needed
-        to_remove = []
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
-                if key != "torch_dtype":
-                    to_remove.append(key)
-        for key in to_remove:
-            kwargs.pop(key, None)
-
-        if return_unused_kwargs:
-            return config, kwargs
-        else:
-            return config
 
     def to_dict(self) -> Dict[str, Any]:
         """
