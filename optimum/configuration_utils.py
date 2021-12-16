@@ -39,7 +39,10 @@ class BaseConfig(PretrainedConfig):
 
     CONFIG_NAME = "config.json"
     FULL_CONFIGURATION_FILE = "config.json"
-    _RE_CONFIGURATION_FILE = re.compile(rf"{FULL_CONFIGURATION_FILE}\.(.*)\.json")
+
+    @classmethod
+    def _re_configuration_file(cls):
+        return re.compile(rf"{cls.FULL_CONFIGURATION_FILE}\.(.*)\.json")
 
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
         """
@@ -113,8 +116,9 @@ class BaseConfig(PretrainedConfig):
             path_or_repo, revision=revision, use_auth_token=use_auth_token, local_files_only=local_files_only
         )
         configuration_files_map = {}
+        _re_configuration_file = cls._re_configuration_file()
         for file_name in all_files:
-            search = cls._RE_CONFIGURATION_FILE.search(file_name)
+            search = _re_configuration_file.search(file_name)
             if search is not None:
                 v = search.groups()[0]
                 configuration_files_map[v] = file_name
