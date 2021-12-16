@@ -22,6 +22,7 @@ from datasets import Dataset, load_dataset
 from torch.utils.data import DataLoader, RandomSampler
 from transformers import AutoTokenizer, default_data_collator
 from transformers.onnx import OnnxConfig, export, validate_model_outputs
+from transformers.onnx.features import FeaturesManager
 
 import onnx
 from onnxruntime.quantization import (
@@ -109,19 +110,19 @@ class ORTQuantizer:
         self.feature = "default"
         self.opset = None
 
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
+        self.model = FeaturesManager.get_model_from_feature(self.feature, self.model_name_or_path)
+
     def export(self):
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
         """
-        from transformers.onnx import export, validate_model_outputs
-        from transformers.onnx.features import FeaturesManager
-
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
-        model = FeaturesManager.get_model_from_feature(self.feature, self.model_name_or_path)
-        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
-        self.onnx_config = model_onnx_config(model.config)
+        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
+            self.model, feature=self.feature
+        )
+        self.onnx_config = model_onnx_config(self.model.config)
         self.opset = self.onnx_config.default_onnx_opset if self.opset is None else self.opset
-        onnx_inputs, onnx_outputs = export(tokenizer, model, self.onnx_config, self.opset, self.model_path)
+        onnx_inputs, onnx_outputs = export(self.tokenizer, self.model, self.onnx_config, self.opset, self.model_path)
 
     def fit(self):
 
@@ -209,4 +210,3 @@ class ORTQuantizer:
     @staticmethod
     def get_data_reader(calib_dataloader: DataLoader) -> ORTCalibrationDataReader:
         return ORTCalibrationDataReader(calib_dataloader)
-

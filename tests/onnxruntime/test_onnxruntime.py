@@ -18,38 +18,42 @@ from pathlib import Path
 
 from transformers.onnx import validate_model_outputs
 
-from optimum.onnxruntime import convert_to_onnx, optimize, quantize
+from optimum.onnxruntime.quantization import ORTQuantizer
 
 
-class TestOptimize(unittest.TestCase):
-    def test_optimize(self):
+class TestORTQuantizer(unittest.TestCase):
+    def test_static_quantization(self):
 
-        model_names = {"bert-base-cased", "distilbert-base-uncased", "roberta-base", "gpt2", "facebook/bart-base"}
+        model_names = {"bert-base-cased", "distilbert-base-uncased"}
+
+        def preprocess_function(examples):
+            return tokenizer(examples["sentence"], padding="max_length", max_length=128, truncation=True)
 
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
-                    onnx_model = Path(tmp_dir).joinpath(model_name.split("/")[-1] + ".onnx")
-                    tokenizer, model, onnx_config, onnx_outputs = convert_to_onnx(model_name, onnx_model)
-                    validate_model_outputs(onnx_config, tokenizer, model, onnx_model, onnx_outputs, atol=1e-4)
 
-                    model_type = getattr(model.config, "model_type")
-                    model_type = "bert" if "bert" in model_type else model_type
-                    num_heads = getattr(model.config, "num_attention_heads", 0)
-                    hidden_size = getattr(model.config, "hidden_size", 0)
-                    optimized_model = optimize(
-                        onnx_model,
-                        model_type,
-                        num_heads=num_heads,
-                        hidden_size=hidden_size,
-                        opt_level=1,
-                        only_onnxruntime=True,
+                    quantizer = ORTQuantizer(
+                        model_name,
+                        tmp_dir,
+                        quantization_approach="static",
+                        dataset_name="glue",
+                        dataset_config_name="sst2",
+                        split="validation",
+                        preprocess_function=preprocess_function,
                     )
-                    validate_model_outputs(onnx_config, tokenizer, model, optimized_model, onnx_outputs, atol=1e-4)
 
-                    quantized_model = quantize(optimized_model)
-                    q_atol = 5 if model_type == "bert" else 12
-                    validate_model_outputs(onnx_config, tokenizer, model, quantized_model, onnx_outputs, atol=q_atol)
+                    tokenizer = quantizer.tokenizer
+                    quantizer.fit()
+
+                    validate_model_outputs(
+                        quantizer.onnx_config,
+                        tokenizer,
+                        quantizer.model,
+                        quantizer.quant_model_path,
+                        list(quantizer.onnx_config.outputs.keys()),
+                        atol=12,
+                    )
 
 
 if __name__ == "__main__":
