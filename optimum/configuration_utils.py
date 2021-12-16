@@ -32,12 +32,12 @@ logger = logging.get_logger(__name__)
 
 class BaseConfig(PretrainedConfig):
     """
-    Base class for configuration classes that need to respect the same API than PretrainedConfig but with different a
+    Base class for configuration classes that need to respect the same API than PretrainedConfig but with a different
     configuration file name.
     """
 
-    CONFIG_NAME = ""
-    FULL_CONFIGURATION_FILE = ""
+    CONFIG_NAME = "config.json"
+    FULL_CONFIGURATION_FILE = "config.json"
     _RE_CONFIGURATION_FILE = re.compile(rf"{FULL_CONFIGURATION_FILE}\.(.*)\.json")
 
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
