@@ -207,7 +207,7 @@ class BaseConfig(PretrainedConfig):
                 f"Can't load config for '{pretrained_model_name_or_path}'. Make sure that:\n\n"
                 f"- '{pretrained_model_name_or_path}' is a correct model identifier listed on 'https://huggingface.co/models'\n"
                 f"  (make sure '{pretrained_model_name_or_path}' is not a path to a local directory with something else, in that case)\n\n"
-                f"- or '{pretrained_model_name_or_path}' is the correct path to a directory containing a {self.CONFIG_NAME} file\n\n"
+                f"- or '{pretrained_model_name_or_path}' is the correct path to a directory containing a {cls.CONFIG_NAME} file\n\n"
             )
 
             if revision is not None:
