@@ -22,6 +22,25 @@ from optimum.onnxruntime.quantization import ORTQuantizer
 
 
 class TestORTQuantizer(unittest.TestCase):
+
+    def test_dynamic_quantization(self):
+
+        model_names = {"bert-base-cased", "distilbert-base-uncased", "roberta-base", "gpt2", "facebook/bart-base"}
+
+        for model_name in model_names:
+            with self.subTest(model_name=model_name):
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    quantizer = ORTQuantizer(model_name, tmp_dir, quantization_approach="dynamic")
+                    quantizer.fit()
+                    validate_model_outputs(
+                        quantizer.onnx_config,
+                        quantizer.tokenizer,
+                        quantizer.model,
+                        quantizer.quant_model_path,
+                        list(quantizer.onnx_config.outputs.keys()),
+                        atol=12,
+                    )
+
     def test_static_quantization(self):
 
         model_names = {"bert-base-cased", "distilbert-base-uncased"}
@@ -32,7 +51,6 @@ class TestORTQuantizer(unittest.TestCase):
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
-
                     quantizer = ORTQuantizer(
                         model_name,
                         tmp_dir,
@@ -42,10 +60,8 @@ class TestORTQuantizer(unittest.TestCase):
                         split="validation",
                         preprocess_function=preprocess_function,
                     )
-
                     tokenizer = quantizer.tokenizer
                     quantizer.fit()
-
                     validate_model_outputs(
                         quantizer.onnx_config,
                         tokenizer,
