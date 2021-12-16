@@ -66,7 +66,7 @@ class IncOptimizer:
             print(agent)
             self.scheduler.append(agent)
         else:
-            self.scheduler.append(components)
+            self.scheduler.append(*components)
 
     def fit(self):
         opt_model = self.scheduler()

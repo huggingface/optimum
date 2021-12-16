@@ -688,8 +688,8 @@ def main():
     pruner = None
     distiller = None
 
-    if not optim_args.quantize and not optim_args.prune:
-        raise ValueError("quantize and prune are both set to False.")
+    if not optim_args.quantize and not optim_args.prune and not optim_args.distillation:
+        raise ValueError("quantize, prune and distillation are all set to False.")
 
     result_baseline_model = take_eval_steps(model, trainer, metric_name)
 
