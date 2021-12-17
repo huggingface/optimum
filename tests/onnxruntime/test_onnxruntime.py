@@ -14,11 +14,15 @@
 
 import tempfile
 import unittest
+from enum import Enum
 from pathlib import Path
 
 from transformers.onnx import validate_model_outputs
 
+from optimum.onnxruntime import convert_to_onnx
 from optimum.onnxruntime.quantization import ORTQuantizer
+
+from onnxruntime.transformers.optimizer import FusionOptions
 
 
 class TestORTQuantizer(unittest.TestCase):
@@ -33,6 +37,23 @@ class TestORTQuantizer(unittest.TestCase):
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
 
+                    class FusionConfig(Enum):
+                        model_type = "bert"
+                        disable_gelu = False
+                        disable_layer_norm = False
+                        disable_attention = False
+                        disable_skip_layer_norm = False
+                        disable_bias_skip_layer_norm = False
+                        disable_bias_gelu = False
+                        enable_gelu_approximation = False
+                        use_mask_index = False
+                        no_attention_mask = False
+                        disable_embed_layer_norm = True
+    
+
+                    model_type = "bert"
+                    optimization_options = FusionOptions.parse(FusionConfig)
+
                     quantizer = ORTQuantizer(
                         model_name,
                         tmp_dir,
@@ -41,6 +62,7 @@ class TestORTQuantizer(unittest.TestCase):
                         dataset_config_name="sst2",
                         split="validation",
                         preprocess_function=preprocess_function,
+                        optimization_options=optimization_options,
                     )
 
                     tokenizer = quantizer.tokenizer

@@ -25,6 +25,7 @@ from transformers.onnx import OnnxConfig, export, validate_model_outputs
 from transformers.onnx.features import FeaturesManager
 
 import onnx
+from onnxruntime.transformers.optimizer import FusionOptions
 from onnxruntime.quantization import (
     CalibrationDataReader,
     QuantFormat,
@@ -78,13 +79,23 @@ class ORTQuantizer:
         max_samples=80,
         cache_dir=None,
         config=None,
+        opt_level=None,
+        use_gpu=False,
+        only_onnxruntime=False,
+        optimization_options: Optional[FusionOptions] = None,
     ):
         self.model_name_or_path = model_name_or_path
         self.output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
         self.model_path = self.output_dir.joinpath("model.onnx")
+        self.optim_model_path = generate_identified_filename(self.model_path, "-optimized")
         self.quant_model_path = generate_identified_filename(self.model_path, "-quantized")
 
         self.config = config
+        self.opt_level = opt_level
+        self.use_gpu = use_gpu
+        self.only_onnxruntime=only_onnxruntime
+        self.optimization_options = optimization_options
+
         self.approach = quantization_approach
         self.per_channel = per_channel
         self.reduce_range = reduce_range
@@ -117,16 +128,55 @@ class ORTQuantizer:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
         """
-        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
+        self.model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
             self.model, feature=self.feature
         )
         self.onnx_config = model_onnx_config(self.model.config)
         self.opset = self.onnx_config.default_onnx_opset if self.opset is None else self.opset
         onnx_inputs, onnx_outputs = export(self.tokenizer, self.model, self.onnx_config, self.opset, self.model_path)
 
+    def optimize(self):
+        """
+        Load, optimize and export the ONNX IR
+        """
+        from onnx import load_model
+        from onnxruntime.transformers.optimizer import optimize_model, get_fusion_statistics
+
+        config = self.onnx_config._config
+        config_names = {"bert":["num_attention_heads", "hidden_size"], 
+                        "distilbert":["n_heads", "dim"]}
+        model_type = getattr(config, "model_type")
+        num_heads = getattr(config, config_names[model_type][0])
+        hidden_size = getattr(config, config_names[model_type][1])
+        model_type = "bert" if "bert" in self.onnx_config._config.model_type else self.onnx_config._config.model_type
+
+        optimizer = optimize_model(
+            self.model_path.as_posix(),
+            model_type,
+            num_heads,
+            hidden_size,
+            opt_level=self.opt_level,
+            optimization_options=self.optimization_options,
+            use_gpu=self.use_gpu,
+            only_onnxruntime=self.only_onnxruntime,
+        )
+
+        optimizer.save_model_to_file(self.optim_model_path.as_posix(), self.use_external_data_format)
+        print(f"Optimized model saved to: {self.optim_model_path}")
+
+        if optimizer.is_fully_optimized():
+            print("The model has been fully optimized.")
+        else:
+            print("The model has been optimized.")
+
+
     def fit(self):
 
         self.export()
+
+        if self.optimize_model:
+            self.optimize()
+            self.model_path=self.optim_model_path
 
         if self.approach == ORTQuantizationMode.DYNAMIC.value:
             quantize_dynamic(
