@@ -24,8 +24,44 @@ from optimum.onnxruntime.quantization import ORTQuantizer
 
 from onnxruntime.transformers.optimizer import FusionOptions
 
+class FusionConfig(Enum):
+    model_type = "bert"
+    disable_gelu = False
+    disable_layer_norm = False
+    disable_attention = False
+    disable_skip_layer_norm = False
+    disable_bias_skip_layer_norm = False
+    disable_bias_gelu = False
+    enable_gelu_approximation = False
+    use_mask_index = False
+    no_attention_mask = False
+    disable_embed_layer_norm = True
 
 class TestORTQuantizer(unittest.TestCase):
+
+    def test_dynamic_quantization(self):
+
+        model_names = {"gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"}
+
+        for model_name in model_names:
+            with self.subTest(model_name=model_name):
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    optimization_options = FusionOptions.parse(FusionConfig)
+                    quantizer = ORTQuantizer(
+                        model_name, 
+                        tmp_dir, 
+                        quantization_approach="dynamic",
+                        optimization_options=optimization_options,)
+                    quantizer.fit()
+                    validate_model_outputs(
+                        quantizer.onnx_config,
+                        quantizer.tokenizer,
+                        quantizer.model,
+                        quantizer.quant_model_path,
+                        list(quantizer.onnx_config.outputs.keys()),
+                        atol=12,
+                    )
+
     def test_static_quantization(self):
 
         model_names = {"bert-base-cased", "distilbert-base-uncased"}
@@ -37,23 +73,7 @@ class TestORTQuantizer(unittest.TestCase):
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
 
-                    class FusionConfig(Enum):
-                        model_type = "bert"
-                        disable_gelu = False
-                        disable_layer_norm = False
-                        disable_attention = False
-                        disable_skip_layer_norm = False
-                        disable_bias_skip_layer_norm = False
-                        disable_bias_gelu = False
-                        enable_gelu_approximation = False
-                        use_mask_index = False
-                        no_attention_mask = False
-                        disable_embed_layer_norm = True
-    
-
-                    model_type = "bert"
                     optimization_options = FusionOptions.parse(FusionConfig)
-
                     quantizer = ORTQuantizer(
                         model_name,
                         tmp_dir,
@@ -64,10 +84,8 @@ class TestORTQuantizer(unittest.TestCase):
                         preprocess_function=preprocess_function,
                         optimization_options=optimization_options,
                     )
-
                     tokenizer = quantizer.tokenizer
                     quantizer.fit()
-
                     validate_model_outputs(
                         quantizer.onnx_config,
                         tokenizer,

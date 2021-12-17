@@ -144,10 +144,15 @@ class ORTQuantizer:
 
         config = self.onnx_config._config
         config_names = {"bert":["num_attention_heads", "hidden_size"], 
-                        "distilbert":["n_heads", "dim"]}
+                        "distilbert":["n_heads", "dim"], 
+                        "roberta":["num_attention_heads", "hidden_size"], 
+                        "bart":["encoder_attention_heads", "d_model"], 
+                        "gpt2":["n_head", "n_embd"]}
+
         model_type = getattr(config, "model_type")
-        num_heads = getattr(config, config_names[model_type][0])
-        hidden_size = getattr(config, config_names[model_type][1])
+        has_attn = ("bert" in model_type) or ("bart" in model_type) or ("gpt" in model_type)
+        num_heads = getattr(config, config_names[model_type][0]) if has_attn else 0
+        hidden_size = getattr(config, config_names[model_type][1]) if has_attn else 0
         model_type = "bert" if "bert" in self.onnx_config._config.model_type else self.onnx_config._config.model_type
 
         optimizer = optimize_model(
