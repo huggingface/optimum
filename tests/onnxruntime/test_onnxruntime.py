@@ -12,46 +12,26 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 import tempfile
 import unittest
-from enum import Enum
-from pathlib import Path
 
 from transformers.onnx import validate_model_outputs
 
-from optimum.onnxruntime import convert_to_onnx
-from optimum.onnxruntime.quantization import ORTQuantizer
+from optimum.onnxruntime import ORTConfig, ORTQuantizer
 
-from onnxruntime.transformers.optimizer import FusionOptions
-
-class FusionConfig(Enum):
-    model_type = "bert"
-    disable_gelu = False
-    disable_layer_norm = False
-    disable_attention = False
-    disable_skip_layer_norm = False
-    disable_bias_skip_layer_norm = False
-    disable_bias_gelu = False
-    enable_gelu_approximation = False
-    use_mask_index = False
-    no_attention_mask = False
-    disable_embed_layer_norm = True
 
 class TestORTQuantizer(unittest.TestCase):
-
     def test_dynamic_quantization(self):
-
-        model_names = {"gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"}
+        model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
+        ort_config_dir = os.path.dirname(os.path.abspath(__file__))
+        ort_config = ORTConfig.from_pretrained(ort_config_dir)
+        ort_config.quantization_approach = "dynamic"
 
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
-                    optimization_options = FusionOptions.parse(FusionConfig)
-                    quantizer = ORTQuantizer(
-                        model_name, 
-                        tmp_dir, 
-                        quantization_approach="dynamic",
-                        optimization_options=optimization_options,)
+                    quantizer = ORTQuantizer(model_name, tmp_dir, ort_config)
                     quantizer.fit()
                     validate_model_outputs(
                         quantizer.onnx_config,
@@ -59,12 +39,14 @@ class TestORTQuantizer(unittest.TestCase):
                         quantizer.model,
                         quantizer.quant_model_path,
                         list(quantizer.onnx_config.outputs.keys()),
-                        atol=12,
+                        atol=10,
                     )
 
     def test_static_quantization(self):
-
         model_names = {"bert-base-cased", "distilbert-base-uncased"}
+        ort_config_dir = os.path.dirname(os.path.abspath(__file__))
+        ort_config = ORTConfig.from_pretrained(ort_config_dir)
+        ort_config.quantization_approach = "static"
 
         def preprocess_function(examples):
             return tokenizer(examples["sentence"], padding="max_length", max_length=128, truncation=True)
@@ -72,17 +54,13 @@ class TestORTQuantizer(unittest.TestCase):
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
-
-                    optimization_options = FusionOptions.parse(FusionConfig)
                     quantizer = ORTQuantizer(
                         model_name,
                         tmp_dir,
-                        quantization_approach="static",
+                        ort_config,
                         dataset_name="glue",
                         dataset_config_name="sst2",
-                        split="validation",
                         preprocess_function=preprocess_function,
-                        optimization_options=optimization_options,
                     )
                     tokenizer = quantizer.tokenizer
                     quantizer.fit()
