@@ -20,12 +20,6 @@ model:
 
 distillation:
   train:
-    dataloader:
-      batch_size: 1
-      dataset:
-          dummy:
-              shape: [128, 3, 224, 224]
-              label: True
     optimizer:
       SGD:
         learning_rate: 0.001
@@ -38,17 +32,6 @@ distillation:
         loss_types: ['CE', 'KL']
         loss_weights: [0.5, 0.5]
 
-evaluation:                                          # optional. required if user doesn't provide eval_func in neural_compressor.Quantization.
-  accuracy:                                          # optional. required if user doesn't provide eval_func in neural_compressor.Quantization.
-    metric:
-      topk: 1 
-    dataloader:
-      batch_size: 1
-      dataset:
-          dummy:
-              shape: [128, 3, 224, 224]
-              label: True        
-  
 tuning:
   accuracy_criterion:
     relative: 0.01                             # the tuning target of accuracy loss percentage: 1%

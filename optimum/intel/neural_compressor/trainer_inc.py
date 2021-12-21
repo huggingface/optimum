@@ -349,8 +349,8 @@ class IncTrainer(Trainer):
                         
                 if "teacher_logits" in inputs:
                     teacher_logits = inputs.pop("teacher_logits")
-                    if hasattr(agent, 'criterion'):
-                        agent.criterion.teacher_outputs = teacher_logits
+                    if hasattr(agent, 'on_post_forward'):
+                        self.agent.on_post_forward(inputs, teacher_output=teacher_logits)
                 if (
                     ((step + 1) % args.gradient_accumulation_steps != 0)
                     and args.local_rank != -1
@@ -495,8 +495,8 @@ class IncTrainer(Trainer):
                 logits = outputs
             else:
                 logits = outputs[1]
-            if self.agent.criterion.teacher_outputs is None:
-                self.agent.criterion.teacher_model_forward(inputs)
+            if hasattr(self.agent, "on_post_forward"):
+                self.agent.on_post_forward(inputs)
             loss = self.agent.criterion(logits, labels if labels else inputs["labels"])
             outputs = {"logits":logits, "loss":loss}
         else:
