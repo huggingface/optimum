@@ -34,8 +34,8 @@ from onnxruntime.quantization import (
     quantize_dynamic,
     quantize_static,
 )
-from optimum.onnxruntime.utils import generate_identified_filename
 from optimum.onnxruntime.configuration import ORTConfig
+from optimum.onnxruntime.utils import generate_identified_filename
 
 
 logger = logging.getLogger(__name__)
