@@ -14,7 +14,7 @@
 
 from typing import Any, Dict, Tuple, Union
 
-from optimum.configuration_utils import BaseConfig
+from ..configuration_utils import BaseConfig
 
 
 class ORTConfig(BaseConfig):
