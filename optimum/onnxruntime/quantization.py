@@ -129,8 +129,7 @@ class ORTQuantizer:
         self.model_path = self.output_dir.joinpath("model.onnx")
         self.quant_model_path = generate_identified_filename(self.model_path, "-quantized")
         if not isinstance(ort_config, ORTConfig):
-            config_path = ort_config if ort_config is not None else model_path
-            ort_config = ORTConfig.from_pretrained(config_path, **config_kwargs)
+            ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ort_config.quantization_approach
         self.activation_type = Q_TYPE.get(ort_config.activation_type, QuantType.QUInt8)
