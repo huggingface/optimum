@@ -16,11 +16,11 @@ import os
 import tempfile
 import unittest
 
-from huggingface_hub import Repository, delete_repo, login
-from requests.exceptions import HTTPError
-from transformers.testing_utils import is_staging_test
+from transformers.testing_utils import PASS, USER, is_staging_test
+
+from huggingface_hub import delete_repo, login
 from optimum.configuration_utils import BaseConfig
-from optimum.testing_utils import PASS, USER
+from requests.exceptions import HTTPError
 
 
 class FakeConfig(BaseConfig):
@@ -67,11 +67,11 @@ class ConfigPushToHubTester(unittest.TestCase):
             pass
 
     def test_push_to_hub(self):
-        config = FakeConfig(
-            attribute=15
-        )
+        config = FakeConfig(attribute=15)
         with tempfile.TemporaryDirectory() as tmp_dir:
-            config.save_pretrained(os.path.join(tmp_dir, "optimum-test-base-config"), push_to_hub=True, use_auth_token=self._token)
+            config.save_pretrained(
+                os.path.join(tmp_dir, "optimum-test-base-config"), push_to_hub=True, use_auth_token=self._token
+            )
 
             new_config = FakeConfig.from_pretrained(f"{USER}/optimum-test-base-config")
             for k, v in config.__dict__.items():
@@ -79,9 +79,7 @@ class ConfigPushToHubTester(unittest.TestCase):
                     self.assertEqual(v, getattr(new_config, k))
 
     def test_push_to_hub_in_organization(self):
-        config = FakeConfig(
-            attribute=15
-        )
+        config = FakeConfig(attribute=15)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             config.save_pretrained(
