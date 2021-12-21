@@ -15,14 +15,14 @@
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy
 import torch
 from datasets import Dataset, load_dataset
 from torch.utils.data import DataLoader, RandomSampler
 from transformers import AutoTokenizer, default_data_collator
-from transformers.onnx import OnnxConfig, export, validate_model_outputs
+from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
 import onnx
@@ -31,11 +31,11 @@ from onnxruntime.quantization import (
     CalibrationMethod,
     QuantFormat,
     QuantType,
-    onnx_model,
     quantize_dynamic,
     quantize_static,
 )
 from optimum.onnxruntime.utils import generate_identified_filename
+from optimum.onnxruntime.configuration import ORTConfig
 
 
 logger = logging.getLogger(__name__)
@@ -67,21 +67,70 @@ class ORTCalibrationDataReader(CalibrationDataReader):
 class ORTQuantizer:
     def __init__(
         self,
-        model_name_or_path,
-        output_dir,
-        ort_config,
-        feature="default",
-        calib_dataset=None,
-        dataset_name=None,
-        dataset_config_name=None,
-        data_files=None,
-        preprocess_function=None,
-        cache_dir=None,
+        model_name_or_path: str,
+        output_dir: Union[str, Path],
+        ort_config: Union[str, ORTConfig],
+        feature: str = "default",
+        calib_dataset: Optional[Dataset] = None,
+        dataset_name: Optional[str] = None,
+        dataset_config_name: Optional[str] = None,
+        data_files: Optional[str] = None,
+        preprocess_function: Optional[Callable] = None,
+        **kwargs
     ):
+        """
+        Args:
+            model_name_or_path (:obj:`str`):
+                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
+            output_dir (:obj:`Union[str, Path]`):
+                The output directory where the quantized model will be saved.
+            ort_config (:obj:`Union[ORTConfig, str]`):
+                Configuration file containing all the information related to the model quantization.
+                Can be either:
+                    - an instance of the class :class:`ORTConfig`,
+                    - a string valid as input to :func:`ORTConfig.from_pretrained`.
+            feature (:obj:`str`):
+                Feature used when exporting the model.
+            calib_dataset (:obj:`Dataset`, `optional`):
+                Dataset to use for the calibration step.
+            dataset_name (:obj:`str`, `optional`):
+                Dataset repository name on the Hugging Face Hub or path to a local directory containing data files to
+                load to use for the calibration step.
+            dataset_config_name (:obj:`str`, `optional`):
+                Name of the dataset configuration.
+            data_files (:obj:`str`, `optional`):
+                Path to source data files.
+            preprocess_function (:obj:`Callable`, `optional`):
+                Processing function to apply to each example after loading dataset.
+            cache_dir (:obj:`str`, `optional`):
+                Path to a directory in which a downloaded configuration should be cached if the standard cache should
+                not be used.
+            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to force to (re-)download the configuration files and override the cached versions if
+                they exist.
+            resume_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
+                exists.
+            revision(:obj:`str`, `optional`):
+                The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
+                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
+                identifier allowed by git.
+        """
+        config_kwargs_default = [
+            ("cache_dir", None),
+            ("force_download", False),
+            ("resume_download", False),
+            ("revision", None),
+        ]
+        config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
+        self.cache_dir = config_kwargs.get("cache_dir")
         self.model_name_or_path = model_name_or_path
         self.output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
         self.model_path = self.output_dir.joinpath("model.onnx")
         self.quant_model_path = generate_identified_filename(self.model_path, "-quantized")
+        if not isinstance(ort_config, ORTConfig):
+            config_path = ort_config if ort_config is not None else model_path
+            ort_config = ORTConfig.from_pretrained(config_path, **config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ort_config.quantization_approach
         self.activation_type = Q_TYPE.get(ort_config.activation_type, QuantType.QUInt8)
@@ -93,7 +142,6 @@ class ORTQuantizer:
         self.dataset_config_name = dataset_config_name
         self.data_files = data_files
         self.preprocess_function = preprocess_function
-        self.cache_dir = cache_dir
         self.onnx_config = None
         self.feature = feature
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
@@ -111,6 +159,10 @@ class ORTQuantizer:
         _ = export(self.tokenizer, self.model, self.onnx_config, opset, self.model_path)
 
     def fit(self) -> None:
+        """
+        Load and export a model to an ONNX Intermediate Representation (IR) after applying the specified quantization
+        approach.
+        """
         self.export()
         if self.quantization_approach == ORTQuantizationMode.DYNAMIC.value:
             quantize_dynamic(
@@ -147,13 +199,20 @@ class ORTQuantizer:
             )
 
     def get_calib_dataset(self) -> Dataset:
-
+        """
+        Returns the calibration :class:`~datasets.arrow_dataset.Dataset` to use for the post-training static
+        quantization calibration step.
+        """
         if self.dataset_name is None:
             raise ValueError(
-                "ORTQuantizer: static quantization calibration step requires a dataset_name if no calib_dataset is "
+                "ORTQuantizer: Static quantization calibration step requires a dataset_name if no calib_dataset is "
                 "provided."
             )
-
+        if self.preprocess_function is None:
+            raise ValueError(
+                "ORTQuantizer: Processing function to apply after loading the dataset used for static quantization "
+                "calibration step was not provided."
+            )
         calib_dataset = load_dataset(
             self.dataset_name,
             name=self.dataset_config_name,
@@ -162,11 +221,15 @@ class ORTQuantizer:
             cache_dir=self.cache_dir,
         )
         calib_dataset = calib_dataset.map(self.preprocess_function, batched=True)
-
         return calib_dataset
 
     def get_calib_dataloader(self, calib_dataset: Optional[Dataset] = None) -> DataLoader:
-
+        """
+        Returns the calibration :class:`~torch.utils.data.DataLoader`.
+        Args:
+            calib_dataset (:obj:`torch.utils.data.Dataset`, `optional`):
+                If provided, will override :obj:`self.calib_dataset`.
+        """
         if calib_dataset is None and self.calib_dataset is None:
             raise ValueError("ORTQuantizer: static quantization calibration step requires a calib_dataset.")
 
@@ -191,4 +254,10 @@ class ORTQuantizer:
 
     @staticmethod
     def get_data_reader(calib_dataloader: DataLoader) -> ORTCalibrationDataReader:
+        """
+        Returns the calibration :class:`~optimum.onnxruntime.quantization.ORTCalibrationDataReader`.
+        Args:
+            calib_dataloader (:obj:`torch.utils.data.DataLoader`):
+                Calibration dataloader to use for the post-training static quantization calibration step.
+        """
         return ORTCalibrationDataReader(calib_dataloader)
