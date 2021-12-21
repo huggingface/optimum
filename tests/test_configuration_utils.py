@@ -95,20 +95,3 @@ class ConfigPushToHubTester(unittest.TestCase):
             for k, v in config.__dict__.items():
                 if k != "optimum_version":
                     self.assertEqual(v, getattr(new_config, k))
-
-    # def test_push_to_hub_dynamic_config(self):
-    #     config = FakeConfig(attribute=42)
-    #     config.auto_map = {"AutoConfig": "configuration.FakeConfig"}
-
-    #     with tempfile.TemporaryDirectory() as tmp_dir:
-    #         repo = Repository(tmp_dir, clone_from=f"{USER}/test-dynamic-config", use_auth_token=self._token)
-    #         config.save_pretrained(tmp_dir)
-    #         with open(os.path.join(tmp_dir, "configuration.py"), "w") as f:
-    #             f.write(FAKE_CONFIG_CODE)
-
-    #         repo.push_to_hub()
-
-    #     new_config = AutoConfig.from_pretrained(f"{USER}/optimum-test-dynamic-base-config", trust_remote_code=True)
-    #     # Can't make an isinstance check because the new_config is from the FakeConfig class of a dynamic module
-    #     self.assertEqual(new_config.__class__.__name__, "FakeConfig")
-    #     self.assertEqual(new_config.attribute, 42)
