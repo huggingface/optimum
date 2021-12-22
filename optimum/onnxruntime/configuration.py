@@ -39,3 +39,4 @@ class ORTConfig(BaseConfig):
         self.max_samples = kwargs.pop("max_samples", 80)
         self.calib_batch_size = kwargs.pop("calib_batch_size", 8)
         self.use_external_data_format = kwargs.pop("use_external_data_format", False)
+        self.seed = kwargs.pop("seed", 42)

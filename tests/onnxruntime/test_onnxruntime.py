@@ -15,6 +15,7 @@
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from transformers.onnx import validate_model_outputs
 
@@ -31,13 +32,15 @@ class TestORTQuantizer(unittest.TestCase):
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
-                    quantizer = ORTQuantizer(model_name, tmp_dir, ort_config)
-                    quantizer.fit()
+                    output_dir = Path(tmp_dir)
+                    q8_model_path = output_dir.joinpath("model-quantized.onnx")
+                    quantizer = ORTQuantizer(model_name, ort_config)
+                    quantizer.fit(output_dir)
                     validate_model_outputs(
                         quantizer.onnx_config,
                         quantizer.tokenizer,
                         quantizer.model,
-                        quantizer.quant_model_path,
+                        q8_model_path,
                         list(quantizer.onnx_config.outputs.keys()),
                         atol=10,
                     )
@@ -54,21 +57,22 @@ class TestORTQuantizer(unittest.TestCase):
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
+                    output_dir = Path(tmp_dir)
+                    q8_model_path = output_dir.joinpath("model-quantized.onnx")
                     quantizer = ORTQuantizer(
                         model_name,
-                        tmp_dir,
                         ort_config,
                         dataset_name="glue",
                         dataset_config_name="sst2",
                         preprocess_function=preprocess_function,
                     )
                     tokenizer = quantizer.tokenizer
-                    quantizer.fit()
+                    quantizer.fit(output_dir)
                     validate_model_outputs(
                         quantizer.onnx_config,
                         tokenizer,
                         quantizer.model,
-                        quantizer.quant_model_path,
+                        q8_model_path,
                         list(quantizer.onnx_config.outputs.keys()),
                         atol=12,
                     )

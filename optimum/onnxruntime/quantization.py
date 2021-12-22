@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import logging
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Union
@@ -68,7 +69,6 @@ class ORTQuantizer:
     def __init__(
         self,
         model_name_or_path: str,
-        output_dir: Union[str, Path],
         ort_config: Union[str, ORTConfig],
         feature: str = "default",
         calib_dataset: Optional[Dataset] = None,
@@ -82,8 +82,6 @@ class ORTQuantizer:
         Args:
             model_name_or_path (:obj:`str`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            output_dir (:obj:`Union[str, Path]`):
-                The output directory where the quantized model will be saved.
             ort_config (:obj:`Union[ORTConfig, str]`):
                 Configuration file containing all the information related to the model quantization.
                 Can be either:
@@ -125,17 +123,15 @@ class ORTQuantizer:
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
         self.cache_dir = config_kwargs.get("cache_dir")
         self.model_name_or_path = model_name_or_path
-        self.output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
-        self.model_path = self.output_dir.joinpath("model.onnx")
-        self.quant_model_path = generate_identified_filename(self.model_path, "-quantized")
         if not isinstance(ort_config, ORTConfig):
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
-        self.quantization_approach = ort_config.quantization_approach
+        self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
         self.activation_type = Q_TYPE.get(ort_config.activation_type, QuantType.QUInt8)
         self.weight_type = Q_TYPE.get(ort_config.weight_type, QuantType.QUInt8)
         self.quant_format = Q_FORMAT.get(ort_config.quant_format, QuantFormat.QOperator)
         self.calibrate_method = CALIB_METHOD.get(ort_config.calibration_method, CalibrationMethod.MinMax)
+        self.seed = ort_config.seed
         self.calib_dataset = calib_dataset
         self.dataset_name = dataset_name
         self.dataset_config_name = dataset_config_name
@@ -146,27 +142,40 @@ class ORTQuantizer:
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
         self.model = FeaturesManager.get_model_from_feature(self.feature, self.model_name_or_path)
 
-    def export(self) -> None:
+    def export(self, model_path: os.PathLike) -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
+
+        Args:
+            model_path (:obj:`os.PathLike`):
+                The path used to save the model exported to an ONNX Intermediate Representation (IR).
         """
+
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
             self.model, feature=self.feature
         )
         self.onnx_config = model_onnx_config(self.model.config)
         opset = self.onnx_config.default_onnx_opset if self.ort_config.opset is None else self.ort_config.opset
-        _ = export(self.tokenizer, self.model, self.onnx_config, opset, self.model_path)
+        _ = export(self.tokenizer, self.model, self.onnx_config, opset, model_path)
 
-    def fit(self) -> None:
+    def fit(self, output_dir: Union[str, os.PathLike]) -> None:
         """
-        Load and export a model to an ONNX Intermediate Representation (IR) after applying the specified quantization
+        Load and export a model to an ONNX Intermediate Representation (IR) and apply the specified quantization
         approach.
+
+        Args:
+            output_dir (:obj:`Union[str, os.PathLike]`):
+                The output directory where the quantized model will be saved.
         """
-        self.export()
-        if self.quantization_approach == ORTQuantizationMode.DYNAMIC.value:
+        output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
+        model_path = output_dir.joinpath("model.onnx")
+        quant_model_path = generate_identified_filename(model_path, "-quantized")
+
+        self.export(model_path)
+        if self.quantization_approach == ORTQuantizationMode.DYNAMIC:
             quantize_dynamic(
-                self.model_path,
-                self.quant_model_path,
+                model_path,
+                quant_model_path,
                 per_channel=self.ort_config.per_channel,
                 reduce_range=self.ort_config.reduce_range,
                 activation_type=self.activation_type,
@@ -174,13 +183,13 @@ class ORTQuantizer:
                 optimize_model=self.ort_config.optimize_model,
                 use_external_data_format=self.ort_config.use_external_data_format,
             )
-        elif self.quantization_approach == ORTQuantizationMode.STATIC.value:
+        elif self.quantization_approach == ORTQuantizationMode.STATIC:
             calib_dataset = self.calib_dataset if self.calib_dataset is not None else self.get_calib_dataset()
             calib_dataloader = self.get_calib_dataloader(calib_dataset)
             calib_data_reader = self.get_data_reader(calib_dataloader)
             quantize_static(
-                self.model_path,
-                self.quant_model_path,
+                model_path,
+                quant_model_path,
                 calib_data_reader,
                 quant_format=self.quant_format,
                 per_channel=self.ort_config.per_channel,
@@ -241,7 +250,7 @@ class ORTQuantizer:
         calib_dataset = calib_dataset.remove_columns(ignored_columns)
 
         generator = torch.Generator()
-        generator.manual_seed(int(torch.empty((), dtype=torch.int64).random_().item()))
+        generator.manual_seed(self.seed)
         sampler = RandomSampler(calib_dataset, generator=generator)
 
         return DataLoader(
