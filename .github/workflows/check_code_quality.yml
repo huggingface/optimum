@@ -4,14 +4,14 @@ on:
   push:
     branches: [ main ]
     paths:
-      - "src/**.py"
+      - "optimum/**.py"
       - "tests/**.py"
       - "examples/**.py"
 
   pull_request:
     branches: [ main ]
     paths:
-      - "src/**.py"
+      - "optimum/**.py"
       - "tests/**.py"
       - "examples/**.py"
 
@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.6]
-        os: [ubuntu-18.04]
+        python-version: [3.8]
+        os: [ubuntu-20.04]
 
     runs-on: ${{ matrix.os }}
     steps:
