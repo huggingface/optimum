@@ -20,7 +20,7 @@ install_requires = [
 ]
 
 extras = {
-    "onnxruntime": ["onnx", "onnxruntime"],
+    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
     "intel": [
         "pycocotools",
         "neural_compressor>=1.7",
