@@ -86,11 +86,6 @@ task_to_keys = {
 logger = logging.getLogger(__name__)
 
 
-def dict_tensor_to_model_device(batch, model):
-    device = next(model.parameters()).device
-    for k in batch:
-        batch[k] = batch[k].to(device)
-        
 @dataclass
 class DataTrainingArguments:
     """
@@ -588,6 +583,11 @@ def main():
             
         # get logits of teacher model
         if optim_args.loss_weights[1] > 0:
+            def dict_tensor_to_model_device(batch, model):
+                device = next(model.parameters()).device
+                for k in batch:
+                    batch[k] = batch[k].to(device)
+
             def get_logits(teacher_model, train_dataset, teacher_train_dataset):
                 logger.info("***** Getting logits of teacher model *****")
                 logger.info(f"  Num examples = {len(train_dataset) }")
@@ -666,7 +666,7 @@ def main():
     def eval_func(model):
         return take_eval_steps(model, trainer, metric_name)
 
-    def take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint):
+    def take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint, agent=None):
         trainer.model_wrapped = model
         trainer.model = model
         checkpoint = None
@@ -680,13 +680,18 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
+        return trainer.model
 
     def train_func(model):
-        return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)
+        return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint, agent=agent)
+
+    def train_func_agent(model, agent):
+        return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint, agent=agent)
 
     quantizer = None
     pruner = None
     distiller = None
+    agent = None
 
     if not optim_args.quantize and not optim_args.prune and not optim_args.distillation:
         raise ValueError("quantize, prune and distillation are all set to False.")
@@ -751,6 +756,8 @@ def main():
             model, q8_config, eval_func=eval_func, train_func=train_func, calib_dataloader=calib_dataloader
         )
         quantizer = inc_quantizer.init()
+        if q8_config.get_config("quantization.approach") == IncQuantizationMode.AWARE_TRAINING.value:
+            quantizer.q_func = functools.partial(train_func_agent, agent=quantizer)
 
     if optim_args.prune:
 
@@ -788,6 +795,7 @@ def main():
 
         # Creation Pruning object used for IncTrainer training loop
         pruner = inc_pruner.init()
+        pruner.pruning_func = functools.partial(train_func_agent, agent=pruner)
     
     if optim_args.distillation:
 
@@ -805,17 +813,17 @@ def main():
 
         # Creation Distillation object used for IncTrainer training loop
         distiller = inc_distiller.init()
+        distiller.train_func = functools.partial(train_func_agent, agent=distiller)
 
     components = []
-    for component in [quantizer, pruner, distiller]:
+    for component in [pruner, distiller, quantizer]:
         if component is not None:
             components.append(component)
     inc_optimizer = IncOptimizer(model, components, eval_func=eval_func, train_func=train_func, 
                                  one_shot_optimization=optim_args.one_shot_optimization)
-    agent = pruner
     if optim_args.one_shot_optimization:
         agent = inc_optimizer.scheduler.components[0]
-        
+
     opt_model = inc_optimizer.fit()
 
     _, sparsity = opt_model.report_sparsity()

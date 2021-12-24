@@ -429,6 +429,8 @@ class IncTrainer(Trainer):
 
         if isinstance(agent, Component):
             agent.post_epoch_end()
+            if agent.combination is not None and "Quantization" in agent.combination:
+                self.model = agent.model.model
             
         if args.past_index and hasattr(self, "_past"):
             # Clean the state at the end of training
