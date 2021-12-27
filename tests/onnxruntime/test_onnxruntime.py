@@ -19,7 +19,30 @@ from pathlib import Path
 
 from transformers.onnx import validate_model_outputs
 
-from optimum.onnxruntime import ORTConfig, ORTQuantizer
+from optimum.onnxruntime import ORTConfig, ORTQuantizer, ORTOptimizer
+
+
+class TestORTOptimizer(unittest.TestCase):
+    def test_optimize(self):
+        model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
+        ort_config_dir = os.path.dirname(os.path.abspath(__file__))
+        ort_config = ORTConfig.from_pretrained(ort_config_dir)
+
+        for model_name in model_names:
+            with self.subTest(model_name=model_name):
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    output_dir = Path(tmp_dir)
+                    optim_model_path = output_dir.joinpath("model-optimized.onnx")
+                    optimizer = ORTOptimizer(model_name, ort_config)
+                    optimizer.fit(output_dir)
+                    validate_model_outputs(
+                        optimizer.onnx_config,
+                        optimizer.tokenizer,
+                        optimizer.model,
+                        optim_model_path,
+                        list(optimizer.onnx_config.outputs.keys()),
+                        atol=10,
+                    )
 
 
 class TestORTQuantizer(unittest.TestCase):
@@ -77,6 +100,25 @@ class TestORTQuantizer(unittest.TestCase):
                         atol=12,
                     )
 
+def run(test_optim:bool=True, test_quant:bool=True):
+
+    tests_to_run = []
+    if test_optim:
+        tests_to_run.append(TestORTOptimizer)
+    if test_quant:
+        tests_to_run.append(TestORTQuantizer)
+
+    loader = unittest.TestLoader()
+    suites_list = []
+    for test in tests_to_run:
+        suite = loader.loadTestsFromTestCase(test)
+        suites_list.append(suite) 
+    all_suite = unittest.TestSuite(suites_list)
+
+    runner = unittest.TextTestRunner()
+    runner.run(all_suite)
+
 
 if __name__ == "__main__":
-    unittest.main()
+    run(True, False)
+    # unittest.main()

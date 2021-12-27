@@ -1,4 +1,6 @@
 {
+  "use_gpu": false,
+  "only_onnxruntime": false,
   "quantization_approach": "static",
   "per_channel": false,
   "reduce_range": false,

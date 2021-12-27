@@ -14,3 +14,4 @@
 
 from .configuration import ORTConfig
 from .quantization import ORTQuantizer
+from .optimization import ORTOptimizer

@@ -23,11 +23,15 @@ class ORTConfig(BaseConfig):
     FULL_CONFIGURATION_FILE = "ort_config.json"
 
     def __init__(self, **kwargs):
+        # General
         self.opset = kwargs.pop("opset", None)
-        self.optimize_model = kwargs.pop("optimize_model", True)
+        self.use_external_data_format = kwargs.pop("use_external_data_format", False)
+        # Optimization
+        self.use_gpu = kwargs.pop("use_gpu", False)
         self.opt_level = kwargs.pop("opt_level", None)
         self.only_onnxruntime = kwargs.pop("only_onnxruntime", False)
-        self.use_gpu = kwargs.pop("use_gpu", False)
+        # Quantization      
+        self.optimize_model = kwargs.pop("optimize_model", True)
         self.quantization_approach = kwargs.pop("quantization_approach", None)
         self.per_channel = kwargs.pop("per_channel", False)
         self.reduce_range = kwargs.pop("reduce_range", False)
@@ -38,5 +42,4 @@ class ORTConfig(BaseConfig):
         self.split = kwargs.pop("split", "train")
         self.max_samples = kwargs.pop("max_samples", 80)
         self.calib_batch_size = kwargs.pop("calib_batch_size", 8)
-        self.use_external_data_format = kwargs.pop("use_external_data_format", False)
         self.seed = kwargs.pop("seed", 42)
