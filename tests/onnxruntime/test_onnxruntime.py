@@ -35,6 +35,7 @@ class TestORTOptimizer(unittest.TestCase):
                     optim_model_path = output_dir.joinpath("model-optimized.onnx")
                     optimizer = ORTOptimizer(model_name, ort_config)
                     optimizer.fit(output_dir)
+                    optimizer.get_optimize_details()
                     validate_model_outputs(
                         optimizer.onnx_config,
                         optimizer.tokenizer,

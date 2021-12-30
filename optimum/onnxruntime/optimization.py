@@ -14,20 +14,18 @@
 
 import logging
 import os
-from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Union
+from collections import OrderedDict
 
-import numpy
-import torch
-from datasets import Dataset, load_dataset
-from torch.utils.data import DataLoader, RandomSampler
-from transformers import AutoTokenizer, default_data_collator
+from transformers import AutoTokenizer
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
 import onnx
+from onnx import load_model
 from onnxruntime.transformers.optimizer import optimize_model, get_fusion_statistics, FusionOptions
+from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from optimum.onnxruntime.configuration import ORTConfig
 from optimum.onnxruntime.utils import generate_identified_filename
 
@@ -41,6 +39,13 @@ class AttrDict(dict):
 
 
 class OnnxConfigManager:
+    """A class that notes down the attribute names(for `number of heads` and `hidden size`) of models in `transformers/models`. 
+    It is optional for BERT model, but for other model types, you need specify the name of these parameters. It is possible to add
+    customized model information with `update_model()` method.
+        Args:
+            __conf (:obj:`dict`):
+                Dictionary register the attribute names of models.
+        """
     __conf = {
         "bert": {"num_heads":"num_attention_heads", "hidden_size":"hidden_size"},
         "distilbert": {"num_heads":"n_heads", "hidden_size":"hidden_size"},
@@ -133,12 +138,14 @@ class ORTOptimizer:
         self.feature = feature
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
         self.model = FeaturesManager.get_model_from_feature(self.feature, self.model_name_or_path)
+        self.onnx_model_path = None
+        self.optim_model_path = None
 
     def export(self, model_path: os.PathLike) -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
 
-        Args:
+        Param:
             model_path (:obj:`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
         """
@@ -154,15 +161,15 @@ class ORTOptimizer:
         """
         Load and export a model to an ONNX Intermediate Representation (IR) and apply the graph optimization.
 
-        Args:
+        Param:
             output_dir (:obj:`Union[str, os.PathLike]`):
                 The output directory where the optimized model will be saved.
         """
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
-        model_path = output_dir.joinpath("model.onnx")
-        optim_model_path = generate_identified_filename(model_path, "-optimized")
+        self.onnx_model_path = output_dir.joinpath("model.onnx")
+        self.optim_model_path = generate_identified_filename(self.onnx_model_path, "-optimized")
 
-        self.export(model_path)
+        self.export(self.onnx_model_path)
         config = self.onnx_config._config
         model_type = getattr(config, "model_type")
         onnx_config_defined = OnnxConfigManager.check_supported_model(model_type)
@@ -188,7 +195,7 @@ class ORTOptimizer:
 
         print()
         optimizer = optimize_model(
-            model_path.as_posix(),
+            self.onnx_model_path.as_posix(),
             model_type,
             num_heads,
             hidden_size,
@@ -198,20 +205,70 @@ class ORTOptimizer:
             only_onnxruntime=self.ort_config.only_onnxruntime,
         )
 
-        optimizer.save_model_to_file(optim_model_path.as_posix(), self.ort_config.use_external_data_format)
-        print(f"Optimized model saved to: {optim_model_path}")
-
+        optimizer.save_model_to_file(self.optim_model_path.as_posix(), self.ort_config.use_external_data_format)
+        print(f"Optimized model saved to: {self.optim_model_path}")
+        
         if optimizer.is_fully_optimized():
             print("The model has been fully optimized.")
         else:
             print("The model has been optimized.")
 
-    @staticmethod
-    def get_optimize_report() -> dict:
+    def get_optimize_details(
+        self, onnx_model_path: Optional[str] = None, optimized_model_path: Optional[str] = None, 
+        summary:bool=True, nodes_details:bool=True) -> dict:
         """
-        Returns the calibration :class:`~optimum.onnxruntime.quantization.ORTCalibrationDataReader`.
-        Args:
-            calib_dataloader (:obj:`torch.utils.data.DataLoader`):
-                Calibration dataloader to use for the post-training static quantization calibration step.
+        Returns a dictionary reporting the optimization.
+        Param:
+            onnx_model_path (:obj:`str`, `optional`):
+                Path of a stored onnx model.
+            optimized_model_path (:obj:`str`, `optional`):
+                Path of the corresponding optimized onnx model.
+            summary (:obj:`bool`):
+                Whether report the optimization details: reduction of nodes, and complex node fusions.
+            nodes_details (:obj:`bool`):
+                Whether report the top 5 reduced op_types, and return the detailed node change list.
+        Return:
+            sorted_nodes_change (:obj:`dict`):
+                Returns a sorted list with op types and its change after the optimization.
         """
-        pass
+        if self.onnx_model_path is None and onnx_model_path is None:
+            raise AttributeError(
+                "No `self.onnx_model_path` attribute, please input the value of `onnx_model_path` argument."
+            )
+        if self.optim_model_path is None and optimized_model_path is None:
+            raise AttributeError(
+                "No `self.optimized_model_path` attribute, please input the value of `optimized_model_path` argument."
+            )
+        onnx_model_path = onnx_model_path if onnx_model_path else self.onnx_model_path
+        optimized_model_path = optimized_model_path if optimized_model_path else self.optim_model_path
+        onnx_model = load_model(onnx_model_path, format=None, load_external_data=True)
+        optim_model = load_model(optimized_model_path, format=None, load_external_data=True)
+        onnx_model = BertOnnxModel(onnx_model)
+        optimizer = BertOnnxModel(optim_model)
+        
+        def get_node_change(op_type):
+            return len(onnx_model.get_nodes_by_op_type(op_type)) - len(optimizer.get_nodes_by_op_type(op_type))
+
+        if summary:
+            # Nodes reduction information
+            count_nodes_onnx = len(onnx_model.nodes())
+            count_nodes_optim = len(optimizer.nodes())
+            print(f"There are {count_nodes_onnx} nodes before the optimization," 
+                f"and {count_nodes_optim} nodes after the optimization."
+                f" {count_nodes_onnx-count_nodes_optim} nodes are reduced.")
+            # Extended fusion statistics
+            extended_fusion_statistic = optimizer.get_fused_operator_statistics()
+            print(f"Complex node fusions(if extended mode enabled, opt_level>1):\n{extended_fusion_statistic}")
+        
+        # Top 5 reduced operations & node details onnx model v.s. optimized model
+        if nodes_details:
+            op_types = []
+            for model in [onnx_model, optimizer]:
+                for node in model.nodes():
+                    if node.op_type not in op_types: op_types.append(node.op_type)
+                        
+            nodes_change = dict(map(lambda op_type: (op_type, get_node_change(op_type)), op_types))
+            sorted_nodes_change = sorted(nodes_change.items(), key=lambda op: abs(op[1]))
+            sorted_nodes_change.reverse()
+            print("Top 5 optimized ops are:\n", [op[0] for op in sorted_nodes_change[:5]])
+            return sorted_nodes_change
