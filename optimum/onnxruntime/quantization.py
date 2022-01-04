@@ -18,6 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Union
 
+import copy
 import numpy
 import torch
 from datasets import Dataset, load_dataset
@@ -121,6 +122,7 @@ class ORTQuantizer:
             ("revision", None),
         ]
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
+        model_kwargs = copy.deepcopy(config_kwargs)
         self.cache_dir = config_kwargs.get("cache_dir")
         self.model_name_or_path = model_name_or_path
         if not isinstance(ort_config, ORTConfig):
@@ -140,7 +142,8 @@ class ORTQuantizer:
         self.onnx_config = None
         self.feature = feature
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
-        self.model = FeaturesManager.get_model_from_feature(self.feature, self.model_name_or_path)
+        model_class = FeaturesManager.get_model_class_for_feature(self.feature)
+        self.model = model_class.from_pretrained(self.model_name_or_path, **model_kwargs)
 
     def export(self, model_path: os.PathLike) -> None:
         """

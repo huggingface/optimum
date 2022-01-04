@@ -58,7 +58,7 @@ class TestORTQuantizer(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
-                    quantizer = ORTQuantizer(model_name, ort_config)
+                    quantizer = ORTQuantizer(model_name, ort_config, cache_dir=tmp_dir)
                     quantizer.fit(output_dir)
                     validate_model_outputs(
                         quantizer.onnx_config,
@@ -89,6 +89,7 @@ class TestORTQuantizer(unittest.TestCase):
                         dataset_name="glue",
                         dataset_config_name="sst2",
                         preprocess_function=preprocess_function,
+                        cache_dir=tmp_dir,
                     )
                     tokenizer = quantizer.tokenizer
                     quantizer.fit(output_dir)
@@ -121,5 +122,5 @@ def run(test_optim:bool=True, test_quant:bool=True):
 
 
 if __name__ == "__main__":
-    run(True, False)
+    run(False, True)
     # unittest.main()
