@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import copy
 import os
 from pathlib import Path
 from typing import Callable, Optional, Union
@@ -136,6 +137,7 @@ class ORTOptimizer:
             ("revision", None),
         ]
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
+        model_kwargs = copy.deepcopy(config_kwargs)
         self.model_name_or_path = model_name_or_path
         if not isinstance(ort_config, ORTConfig):
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
@@ -143,7 +145,8 @@ class ORTOptimizer:
         self.onnx_config = None
         self.feature = feature
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
-        self.model = FeaturesManager.get_model_from_feature(self.feature, self.model_name_or_path)
+        model_class = FeaturesManager.get_model_class_for_feature(self.feature)
+        self.model = model_class.from_pretrained(self.model_name_or_path, **model_kwargs)
         self.onnx_model_path = None
         self.optim_model_path = None
 

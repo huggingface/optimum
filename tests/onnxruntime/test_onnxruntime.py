@@ -33,7 +33,7 @@ class TestORTOptimizer(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
                     optim_model_path = output_dir.joinpath("model-optimized.onnx")
-                    optimizer = ORTOptimizer(model_name, ort_config)
+                    optimizer = ORTOptimizer(model_name, ort_config, cache_dir=tmp_dir)
                     optimizer.fit(output_dir)
                     optimizer.get_optimize_details()
                     validate_model_outputs(
@@ -102,25 +102,6 @@ class TestORTQuantizer(unittest.TestCase):
                         atol=12,
                     )
 
-def run(test_optim:bool=True, test_quant:bool=True):
-
-    tests_to_run = []
-    if test_optim:
-        tests_to_run.append(TestORTOptimizer)
-    if test_quant:
-        tests_to_run.append(TestORTQuantizer)
-
-    loader = unittest.TestLoader()
-    suites_list = []
-    for test in tests_to_run:
-        suite = loader.loadTestsFromTestCase(test)
-        suites_list.append(suite) 
-    all_suite = unittest.TestSuite(suites_list)
-
-    runner = unittest.TextTestRunner()
-    runner.run(all_suite)
-
 
 if __name__ == "__main__":
-    run(False, True)
-    # unittest.main()
+    unittest.main()
