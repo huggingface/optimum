@@ -13,5 +13,5 @@
 #  limitations under the License.
 
 from .configuration import ORTConfig
-from .quantization import ORTQuantizer
 from .optimization import ORTOptimizer
+from .quantization import ORTQuantizer

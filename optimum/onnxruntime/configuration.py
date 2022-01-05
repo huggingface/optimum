@@ -30,7 +30,7 @@ class ORTConfig(BaseConfig):
         self.use_gpu = kwargs.pop("use_gpu", False)
         self.opt_level = kwargs.pop("opt_level", None)
         self.only_onnxruntime = kwargs.pop("only_onnxruntime", False)
-        # Quantization      
+        # Quantization
         self.optimize_model = kwargs.pop("optimize_model", True)
         self.quantization_approach = kwargs.pop("quantization_approach", None)
         self.per_channel = kwargs.pop("per_channel", False)

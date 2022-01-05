@@ -19,7 +19,7 @@ from pathlib import Path
 
 from transformers.onnx import validate_model_outputs
 
-from optimum.onnxruntime import ORTConfig, ORTQuantizer, ORTOptimizer
+from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer
 
 
 class TestORTOptimizer(unittest.TestCase):
