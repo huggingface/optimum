@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import os
 from pathlib import Path
 from typing import Callable, Optional, Union
@@ -21,6 +20,7 @@ from collections import OrderedDict
 from transformers import AutoTokenizer
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
+from transformers.utils import logging
 
 import onnx
 from onnx import load_model
@@ -30,22 +30,26 @@ from optimum.onnxruntime.configuration import ORTConfig
 from optimum.onnxruntime.utils import generate_identified_filename
 
 
-logger = logging.getLogger(__name__)
+logger = logging.get_logger(__name__)
 
 class AttrDict(dict):
+
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
 
 class OnnxConfigManager:
-    """A class that notes down the attribute names(for `number of heads` and `hidden size`) of models in `transformers/models`. 
-    It is optional for BERT model, but for other model types, you need specify the name of these parameters. It is possible to add
-    customized model information with `update_model()` method.
-        Args:
-            __conf (:obj:`dict`):
-                Dictionary register the attribute names of models.
-        """
+    """A class that notes down the attribute names of models in `huggingface/transformers/models`. 
+    
+    The required attribute names are for `number of heads` and `hidden size`. It is optional for 
+    BERT model, but for other model types, you need to specify the name of these parameters. It 
+    is possible to add customized model information with `update_model()` method.
+    
+    Attributes:
+        __conf (:obj:`dict`):
+            Dictionary registers the attribute names of models(number of heads and hidden size).
+    """
     __conf = {
         "bert": {"num_heads":"num_attention_heads", "hidden_size":"hidden_size"},
         "distilbert": {"num_heads":"n_heads", "hidden_size":"hidden_size"},
@@ -55,39 +59,44 @@ class OnnxConfigManager:
         }
 
     @staticmethod
-    def get_num_heads(model_type:str) -> str:
+    def get_num_heads(model_type: str) -> str:
         try:
             return OnnxConfigManager.__conf[model_type]["num_heads"]
         except KeyError:
-            print(f"{model_type} undefined in the configuration, please define it with `add_model` or it will be set to default value.")
+            print(f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set to default value.")
             return "num_heads"
     
     @staticmethod
-    def get_hidden_size(model_type:str) -> str:
+    def get_hidden_size(model_type: str) -> str:
         try:
             return OnnxConfigManager.__conf[model_type]["hidden_size"]
         except KeyError:
-            print(f"{model_type} undefined in the configuration, please define it with `add_model` or it will be set to default value.")
+            print(f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set to default value.")
             return "hidden_size"
     
     @staticmethod
-    def update_model(model_type:str, num_heads:str, hidden_size:str):
-        OnnxConfigManager.__conf[model_type] = {"num_heads":num_heads, "hidden_size":hidden_size}
+    def update_model(model_type: str, num_heads: str, hidden_size: str):
+        OnnxConfigManager.__conf[model_type] = {"num_heads": num_heads, "hidden_size": hidden_size}
 
     @staticmethod
-    def remove_model(model_type:str):
+    def remove_model(model_type: str):
         try:
             OnnxConfigManager.__conf.pop(model_type)
         except KeyError:
             print(f"{model_type} undefined in the configuration")
     
     @staticmethod
-    def check_supported_model(model_type:str) -> bool:
-        has_model = model_type in OnnxConfigManager.__conf.keys()
-        return has_model
+    def check_supported_model(model_type: str) -> bool:
+        return model_type in OnnxConfigManager.__conf
 
 
 class ORTOptimizer:
+    """ORTOptimizer is a class for onnxruntime optimization of models in `huggingface/transformers/models`.
+
+    ORTOptimzer allows exportation of onnx model(`export()`), the graph-level optimization with onnxruntime 
+    (`fit()`) and report of the optimization(`get_optimize_details()`).
+    """
+
     def __init__(
         self,
         model_name_or_path: str,
@@ -106,8 +115,6 @@ class ORTOptimizer:
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
             feature (:obj:`str`):
                 Feature used when exporting the model.
-            data_files (:obj:`str`, `optional`):
-                Path to source data files.
             cache_dir (:obj:`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
@@ -121,7 +128,7 @@ class ORTOptimizer:
                 The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
                 git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
                 identifier allowed by git.
-        """
+        """   
         config_kwargs_default = [
             ("cache_dir", None),
             ("force_download", False),
@@ -129,7 +136,6 @@ class ORTOptimizer:
             ("revision", None),
         ]
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
-        self.cache_dir = config_kwargs.get("cache_dir")
         self.model_name_or_path = model_name_or_path
         if not isinstance(ort_config, ORTConfig):
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
@@ -142,14 +148,12 @@ class ORTOptimizer:
         self.optim_model_path = None
 
     def export(self, model_path: os.PathLike) -> None:
-        """
-        Load and export a model to an ONNX Intermediate Representation (IR).
+        """Exports a model to an ONNX Intermediate Representation (IR).
 
-        Param:
+        Args:
             model_path (:obj:`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
         """
-
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
             self.model, feature=self.feature
         )
@@ -158,19 +162,42 @@ class ORTOptimizer:
         _ = export(self.tokenizer, self.model, self.onnx_config, opset, model_path)
 
     def fit(self, output_dir: Union[str, os.PathLike], **kwargs) -> None:
-        """
-        Load and export a model to an ONNX Intermediate Representation (IR) and apply the graph optimization.
+        """Exports a model to an ONNX Intermediate Representation (IR) and apply the graph-level 
+        optimization by onnxruntime.
 
-        Param:
+        Args:
             output_dir (:obj:`Union[str, os.PathLike]`):
                 The output directory where the optimized model will be saved.
+            disable_gelu (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to disable Gelu fusion.
+            disable_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to disable LayerNormalization fusion.
+            disable_attention (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to disable Attention fusion.
+            disable_skip_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to disable SkipLayerNormalization fusion.
+            disable_bias_skip_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to disable Add Bias and SkipLayerNormalization fusion.
+            disable_bias_gelu (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to disable Add Bias and Gelu/FastGelu fusion.
+            enable_gelu_approximation (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to enable Gelu/BiasGelu to FastGelu conversion. The default value 
+                is set to `False` since the approximation might slightly impact the accuracy of 
+                models.
+            use_mask_index (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to use mask index instead of raw attention mask in attention operator.
+            no_attention_mask (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                No attention mask. Only works for `model_type=bert`.
+            disable_embed_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`True`):
+                Whether or not to disable EmbedLayerNormalization fusion. The default value is set to
+                `True` since the fusion is incompatible with onnxruntime quantization.
         """
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
         self.onnx_model_path = output_dir.joinpath("model.onnx")
         self.optim_model_path = generate_identified_filename(self.onnx_model_path, "-optimized")
 
         self.export(self.onnx_model_path)
-        config = self.onnx_config._config
+        config = self.model.config
         model_type = getattr(config, "model_type")
         onnx_config_defined = OnnxConfigManager.check_supported_model(model_type)
         num_heads = getattr(config, OnnxConfigManager.get_num_heads(model_type)) if onnx_config_defined else 0
@@ -193,7 +220,6 @@ class ORTOptimizer:
         fusion_config_kwargs = AttrDict({name: kwargs.get(name, default_value) for (name, default_value) in fusion_config_kwargs_default})
         optimization_options = FusionOptions.parse(fusion_config_kwargs)
 
-        print()
         optimizer = optimize_model(
             self.onnx_model_path.as_posix(),
             model_type,
@@ -206,7 +232,7 @@ class ORTOptimizer:
         )
 
         optimizer.save_model_to_file(self.optim_model_path.as_posix(), self.ort_config.use_external_data_format)
-        print(f"Optimized model saved to: {self.optim_model_path}")
+        logger.info(f"Optimized model saved to: {self.optim_model_path}")
         
         if optimizer.is_fully_optimized():
             print("The model has been fully optimized.")
@@ -216,9 +242,9 @@ class ORTOptimizer:
     def get_optimize_details(
         self, onnx_model_path: Optional[str] = None, optimized_model_path: Optional[str] = None, 
         summary:bool=True, nodes_details:bool=True) -> dict:
-        """
-        Returns a dictionary reporting the optimization.
-        Param:
+        """Returns a dictionary reporting the optimization.
+        
+        Args:
             onnx_model_path (:obj:`str`, `optional`):
                 Path of a stored onnx model.
             optimized_model_path (:obj:`str`, `optional`):
@@ -227,8 +253,9 @@ class ORTOptimizer:
                 Whether report the optimization details: reduction of nodes, and complex node fusions.
             nodes_details (:obj:`bool`):
                 Whether report the top 5 reduced op_types, and return the detailed node change list.
-        Return:
-            sorted_nodes_change (:obj:`dict`):
+        
+        Returns:
+            sorted_nodes_change (:obj: `dict`):
                 Returns a sorted list with op types and its change after the optimization.
         """
         if self.onnx_model_path is None and onnx_model_path is None:
@@ -268,7 +295,6 @@ class ORTOptimizer:
                     if node.op_type not in op_types: op_types.append(node.op_type)
                         
             nodes_change = dict(map(lambda op_type: (op_type, get_node_change(op_type)), op_types))
-            sorted_nodes_change = sorted(nodes_change.items(), key=lambda op: abs(op[1]))
-            sorted_nodes_change.reverse()
+            sorted_nodes_change = sorted(nodes_change.items(), key=lambda op: -abs(op[1]))
             print("Top 5 optimized ops are:\n", [op[0] for op in sorted_nodes_change[:5]])
             return sorted_nodes_change
