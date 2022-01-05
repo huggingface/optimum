@@ -22,7 +22,7 @@ import os
 import random
 import sys
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional
 
 import datasets
 import numpy as np
@@ -234,21 +234,6 @@ class OptimizationArguments:
     teacher_model_name_or_path: str = field(
         default=False,
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
-    )
-    temperature: Optional[float] = field(
-        default=1,
-        metadata={"help": "Temperature parameter of distillation"}
-    )
-    loss_types: Optional[List[str]] = field(
-        default_factory=lambda: ['CE', 'KL'],
-        metadata={"help": "Loss types of distillation, should be a list of length 2, "
-                          "first for student targets loss, second for teacher student loss"}
-    )
-    loss_weights: Optional[List[float]] = field(
-        default_factory=lambda: [0.5, 0.5],
-        metadata={"help": "loss weights of distillation, should be a list of length 2, "
-                          "and sum to 1.0, first for student targets loss weight, "
-                          "second for teacher student loss weight."}
     )
     quantization_config: Optional[str] = field(
         default=None,
@@ -582,35 +567,34 @@ def main():
             "Length of train or evaluation dataset of teacher doesnot match that of student."
             
         # get logits of teacher model
-        if optim_args.loss_weights[1] > 0:
-            def dict_tensor_to_model_device(batch, model):
-                device = next(model.parameters()).device
-                for k in batch:
-                    batch[k] = batch[k].to(device)
+        def dict_tensor_to_model_device(batch, model):
+            device = next(model.parameters()).device
+            for k in batch:
+                batch[k] = batch[k].to(device)
 
-            def get_logits(teacher_model, train_dataset, teacher_train_dataset):
-                logger.info("***** Getting logits of teacher model *****")
-                logger.info(f"  Num examples = {len(train_dataset) }")
-                teacher_model.eval()
-                npy_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                    '{}.{}.npy'.format(data_args.task_name, 
-                                       optim_args.teacher_model_name_or_path.replace('/', '.')))
-                if os.path.exists(npy_file):
-                    teacher_logits = [x for x in np.load(npy_file)]
-                else:
-                    train_dataloader = DataLoader(teacher_train_dataset, 
-                                                  collate_fn=data_collator, \
-                                                  batch_size=training_args.per_device_eval_batch_size)
-                    train_dataloader = tqdm(train_dataloader, desc="Evaluating")
-                    teacher_logits = []
-                    for step, batch in enumerate(train_dataloader):
-                        dict_tensor_to_model_device(batch, teacher_model)
-                        outputs = teacher_model(**batch)
-                        teacher_logits += [x for x in outputs.cpu().numpy()]
-                    np.save(npy_file, np.array(teacher_logits))
-                return train_dataset.add_column('teacher_logits', teacher_logits)
-            with torch.no_grad():
-                train_dataset = get_logits(teacher_model, train_dataset, teacher_train_dataset)
+        def get_logits(teacher_model, train_dataset, teacher_train_dataset):
+            logger.info("***** Getting logits of teacher model *****")
+            logger.info(f"  Num examples = {len(train_dataset) }")
+            teacher_model.eval()
+            npy_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                '{}.{}.npy'.format(data_args.task_name, 
+                                    optim_args.teacher_model_name_or_path.replace('/', '.')))
+            if os.path.exists(npy_file):
+                teacher_logits = [x for x in np.load(npy_file)]
+            else:
+                train_dataloader = DataLoader(teacher_train_dataset, 
+                                                collate_fn=data_collator, \
+                                                batch_size=training_args.per_device_eval_batch_size)
+                train_dataloader = tqdm(train_dataloader, desc="Evaluating")
+                teacher_logits = []
+                for step, batch in enumerate(train_dataloader):
+                    dict_tensor_to_model_device(batch, teacher_model)
+                    outputs = teacher_model(**batch)
+                    teacher_logits += [x for x in outputs.cpu().numpy()]
+                np.save(npy_file, np.array(teacher_logits))
+            return train_dataset.add_column('teacher_logits', teacher_logits)
+        with torch.no_grad():
+            train_dataset = get_logits(teacher_model, train_dataset, teacher_train_dataset)
                 
         para_counter = lambda model:sum(p.numel() for p in model.parameters())
         logger.info("***** Number of teacher model parameters: {:.2f}M *****".format(\
