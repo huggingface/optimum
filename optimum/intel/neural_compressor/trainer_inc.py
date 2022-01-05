@@ -309,6 +309,8 @@ class IncTrainer(Trainer):
                     break
         if isinstance(agent, Component):
             agent.pre_epoch_begin()
+            if agent.combination is not None and "Quantization" in agent.combination:
+                model = agent.model.model
         for epoch in range(epochs_trained, num_train_epochs):
             if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
                 train_dataloader.sampler.set_epoch(epoch)
