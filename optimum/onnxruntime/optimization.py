@@ -63,23 +63,27 @@ class OnnxConfigManager:
 
     @staticmethod
     def get_num_heads(model_type: str) -> str:
+        default = "num_heads"
         try:
             return OnnxConfigManager.__conf[model_type]["num_heads"]
         except KeyError:
-            print(
-                f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set to default value."
+            logger.warning(
+                f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set "
+                f"to the default value {default}."
             )
-            return "num_heads"
+            return default
 
     @staticmethod
     def get_hidden_size(model_type: str) -> str:
+        default = "hidden_size"
         try:
             return OnnxConfigManager.__conf[model_type]["hidden_size"]
         except KeyError:
-            print(
-                f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set to default value."
+            logger.warning(
+                f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set "
+                f"to the default value {default}."
             )
-            return "hidden_size"
+            return default
 
     @staticmethod
     def update_model(model_type: str, num_heads: str, hidden_size: str):
@@ -90,7 +94,7 @@ class OnnxConfigManager:
         try:
             OnnxConfigManager.__conf.pop(model_type)
         except KeyError:
-            print(f"{model_type} undefined in the configuration")
+            logger.warning(f"{model_type} undefined in the configuration.")
 
     @staticmethod
     def check_supported_model(model_type: str) -> bool:
@@ -240,12 +244,13 @@ class ORTOptimizer:
         )
 
         optimizer.save_model_to_file(self.optim_model_path.as_posix(), self.ort_config.use_external_data_format)
-        logger.info(f"Optimized model saved to: {self.optim_model_path}")
 
         if optimizer.is_fully_optimized():
-            print("The model has been fully optimized.")
+            msg = "The model has been fully optimized"
         else:
-            print("The model has been optimized.")
+            msg = "The model has been optimized"
+
+        logger.info(msg + f" and saved at {self.optim_model_path}")
 
     def get_optimize_details(
         self,
@@ -296,13 +301,13 @@ class ORTOptimizer:
             # Nodes reduction information
             count_nodes_onnx = len(onnx_model.nodes())
             count_nodes_optim = len(optimizer.nodes())
-            print(
+            logger.info(
                 f"There are {count_nodes_onnx} nodes before optimization and {count_nodes_optim} nodes after. "
                 f"The number of nodes removed is {count_nodes_onnx - count_nodes_optim}."
             )
             # Extended fusion statistics
             extended_fusion_statistic = optimizer.get_fused_operator_statistics()
-            print(f"Complex node fusions(if extended mode enabled, opt_level>1):\n{extended_fusion_statistic}")
+            logger.info(f"Complex node fusions(if extended mode enabled, opt_level>1):\n{extended_fusion_statistic}")
 
         # Top 5 reduced operations & node details onnx model v.s. optimized model
         if nodes_details:
@@ -314,5 +319,5 @@ class ORTOptimizer:
 
             nodes_change = dict(map(lambda op_type: (op_type, get_node_change(op_type)), op_types))
             sorted_nodes_change = sorted(nodes_change.items(), key=lambda op: -abs(op[1]))
-            print("Top 5 optimized ops are:\n", [op[0] for op in sorted_nodes_change[:5]])
+            logger.info("Top 5 optimized ops are:\n", [op[0] for op in sorted_nodes_change[:5]])
             return sorted_nodes_change
