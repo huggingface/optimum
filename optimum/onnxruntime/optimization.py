@@ -143,13 +143,14 @@ class ORTOptimizer:
         ]
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
         model_kwargs = copy.deepcopy(config_kwargs)
+        tokenizer_kwargs = copy.deepcopy(config_kwargs)
         self.model_name_or_path = model_name_or_path
         if not isinstance(ort_config, ORTConfig):
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
         self.onnx_config = None
         self.feature = feature
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, **tokenizer_kwargs)
         model_class = FeaturesManager.get_model_class_for_feature(self.feature)
         self.model = model_class.from_pretrained(self.model_name_or_path, **model_kwargs)
         self.onnx_model_path = None

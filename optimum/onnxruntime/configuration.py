@@ -26,6 +26,7 @@ class ORTConfig(BaseConfig):
         # General
         self.opset = kwargs.pop("opset", None)
         self.use_external_data_format = kwargs.pop("use_external_data_format", False)
+        self.seed = kwargs.pop("seed", 42)
         # Optimization
         self.use_gpu = kwargs.pop("use_gpu", False)
         self.opt_level = kwargs.pop("opt_level", None)
@@ -42,4 +43,3 @@ class ORTConfig(BaseConfig):
         self.split = kwargs.pop("split", "train")
         self.max_samples = kwargs.pop("max_samples", 80)
         self.calib_batch_size = kwargs.pop("calib_batch_size", 8)
-        self.seed = kwargs.pop("seed", 42)

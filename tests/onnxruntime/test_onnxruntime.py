@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import gc
 import os
 import tempfile
 import unittest
@@ -27,7 +28,6 @@ class TestORTOptimizer(unittest.TestCase):
         model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
         ort_config_dir = os.path.dirname(os.path.abspath(__file__))
         ort_config = ORTConfig.from_pretrained(ort_config_dir)
-
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
@@ -44,6 +44,7 @@ class TestORTOptimizer(unittest.TestCase):
                         list(optimizer.onnx_config.outputs.keys()),
                         atol=10,
                     )
+                    gc.collect()
 
 
 class TestORTQuantizer(unittest.TestCase):
@@ -52,7 +53,6 @@ class TestORTQuantizer(unittest.TestCase):
         ort_config_dir = os.path.dirname(os.path.abspath(__file__))
         ort_config = ORTConfig.from_pretrained(ort_config_dir)
         ort_config.quantization_approach = "dynamic"
-
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
@@ -68,9 +68,10 @@ class TestORTQuantizer(unittest.TestCase):
                         list(quantizer.onnx_config.outputs.keys()),
                         atol=10,
                     )
+                    gc.collect()
 
     def test_static_quantization(self):
-        model_names = {"bert-base-cased", "distilbert-base-uncased"}
+        model_names = {"distilbert-base-uncased"}
         ort_config_dir = os.path.dirname(os.path.abspath(__file__))
         ort_config = ORTConfig.from_pretrained(ort_config_dir)
         ort_config.quantization_approach = "static"
@@ -89,7 +90,6 @@ class TestORTQuantizer(unittest.TestCase):
                         dataset_name="glue",
                         dataset_config_name="sst2",
                         preprocess_function=preprocess_function,
-                        cache_dir=tmp_dir,
                     )
                     tokenizer = quantizer.tokenizer
                     quantizer.fit(output_dir)
@@ -101,6 +101,7 @@ class TestORTQuantizer(unittest.TestCase):
                         list(quantizer.onnx_config.outputs.keys()),
                         atol=12,
                     )
+                    gc.collect()
 
 
 if __name__ == "__main__":

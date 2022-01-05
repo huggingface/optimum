@@ -11,5 +11,5 @@
   "optimize_model": true,
   "split": "train",
   "calib_batch_size": 8,
-  "max_samples": 80
+  "max_samples": 8
 }
