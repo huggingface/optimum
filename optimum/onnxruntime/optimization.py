@@ -307,7 +307,7 @@ class ORTOptimizer:
             )
             # Extended fusion statistics
             extended_fusion_statistic = optimizer.get_fused_operator_statistics()
-            logger.info(f"Complex node fusions(if extended mode enabled, opt_level>1):\n{extended_fusion_statistic}")
+            logger.info("Complex node fusions(if extended mode enabled, opt_level>1):\n", extended_fusion_statistic)
 
         # Top 5 reduced operations & node details onnx model v.s. optimized model
         if nodes_details:
