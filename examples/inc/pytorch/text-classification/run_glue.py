@@ -547,7 +547,6 @@ def main():
             from_tf=bool(".ckpt" in optim_args.teacher_model_name_or_path),
             config=teacher_config,
         )
-        teacher_model = BertModelforLogitsOutputOnly(teacher_model)
         teacher_model.to(training_args.device)
         
         # prepare datasets for teacher model
@@ -594,7 +593,7 @@ def main():
                 np.save(npy_file, np.array(teacher_logits))
             return train_dataset.add_column('teacher_logits', teacher_logits)
         with torch.no_grad():
-            train_dataset = get_logits(teacher_model, train_dataset, teacher_train_dataset)
+            train_dataset = get_logits(BertModelforLogitsOutputOnly(teacher_model), train_dataset, teacher_train_dataset)
                 
         para_counter = lambda model:sum(p.numel() for p in model.parameters())
         logger.info("***** Number of teacher model parameters: {:.2f}M *****".format(\
@@ -812,6 +811,33 @@ def main():
 
     _, sparsity = opt_model.report_sparsity()
     result_opt_model = take_eval_steps(opt_model.model, trainer, metric_name, save_metrics=True)
+    # Evaluation
+    if training_args.do_eval:
+        logger.info("*** Evaluate ***")
+
+        # Loop to handle MNLI double evaluation (matched, mis-matched)
+        tasks = [data_args.task_name]
+        eval_datasets = [eval_dataset]
+        if data_args.task_name == "mnli":
+            tasks.append("mnli-mm")
+            eval_datasets.append(processed_datasets["validation_mismatched"])
+
+        for eval_dataset, task in zip(eval_datasets, tasks):
+            metrics = trainer.evaluate(eval_dataset=eval_dataset)
+
+            max_eval_samples = (
+                data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+            )
+            metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+
+            if task == 'mnli':
+                name = "eval_matched"
+            elif task == 'mnli-mm':
+                name = "eval_mismatched"
+            else:
+                name = "eval"
+            trainer.log_metrics("eval", metrics)
+            trainer.save_metrics(name, metrics)
 
     trainer.save_model(training_args.output_dir)
     with open(os.path.join(training_args.output_dir, CONFIG_NAME), "w") as f:

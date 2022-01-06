@@ -49,8 +49,10 @@ import yaml
 from optimum.intel.neural_compressor import (
     IncOptimizer,
     IncPruner,
+    IncDistillation,
     IncPruningConfig,
     IncQuantizationConfig,
+    IncDistillationConfig,
     IncQuantizationMode,
     IncQuantizer,
     IncTrainer,
@@ -60,6 +62,11 @@ from optimum.intel.neural_compressor.utils import CONFIG_NAME, remove_inputs_fro
 from trainer_qa import QuestionAnsweringIncTrainer
 from utils_qa import postprocess_qa_predictions
 
+import functools
+import torch
+import numpy as np
+from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -236,6 +243,14 @@ class OptimizationArguments:
         default=None,
         metadata={"help": "Targeted sparsity when pruning the model."},
     )
+    distillation: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to apply distillation."},
+    )
+    teacher_model_name_or_path: str = field(
+        default=False,
+        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
+    )
     quantization_config: Optional[str] = field(
         default=None,
         metadata={
@@ -249,9 +264,23 @@ class OptimizationArguments:
             "help": "Path to the directory containing the YAML configuration file used to control the pruning behavior."
         },
     )
+    distillation_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Path to the directory containing the YAML configuration file used to control the distillation behavior."
+        },
+    )
     tune_metric: str = field(
         default="eval_f1",
         metadata={"help": "Metric used for the tuning strategy."},
+    )
+    one_shot_optimization: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to combine the quantization, pruning and distillation in one shot."},
+    )
+    run_teacher_logits: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to obtain teacher model's logits on train dataset before training."},
     )
     perf_tol: Optional[float] = field(
         default=None,
@@ -404,7 +433,7 @@ def main():
     max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
 
     # Training preprocessing
-    def prepare_train_features(examples):
+    def prepare_train_features(examples, tokenizer=tokenizer):
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
         # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
         # left whitespace
@@ -484,13 +513,13 @@ def main():
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
-        train_dataset = raw_datasets["train"]
+        train_examples = raw_datasets["train"]
         if data_args.max_train_samples is not None:
             # We will select sample from whole data if argument is specified
-            train_dataset = train_dataset.select(range(data_args.max_train_samples))
+            train_examples = train_examples.select(range(data_args.max_train_samples))
         # Create train feature from dataset
         with training_args.main_process_first(desc="train dataset map pre-processing"):
-            train_dataset = train_dataset.map(
+            train_dataset = train_examples.map(
                 prepare_train_features,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
@@ -503,7 +532,7 @@ def main():
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
 
     # Validation preprocessing
-    def prepare_validation_features(examples):
+    def prepare_validation_features(examples, tokenizer=tokenizer):
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
         # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
         # left whitespace
@@ -556,6 +585,11 @@ def main():
         if data_args.max_eval_samples is not None:
             # We will select sample from whole data
             eval_examples = eval_examples.select(range(data_args.max_eval_samples))
+        if training_args.dataloader_drop_last:
+            # Align the quantities of the data examples and that of the model predictions
+            quantity = len(eval_examples) // training_args.per_device_eval_batch_size * \
+                                training_args.per_device_eval_batch_size
+            eval_examples = eval_examples.select(range(quantity))
         # Validation Feature Creation
         with training_args.main_process_first(desc="validation dataset map pre-processing"):
             eval_dataset = eval_examples.map(
@@ -569,6 +603,11 @@ def main():
         if data_args.max_eval_samples is not None:
             # During Feature creation dataset samples might increase, we will select required samples again
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+        if training_args.dataloader_drop_last:
+            # Align the quantities of the data examples and that of the model predictions
+            quantity = len(eval_dataset) // training_args.per_device_eval_batch_size * \
+                                training_args.per_device_eval_batch_size
+            eval_dataset = eval_dataset.select(range(quantity))
 
     # Data collator
     # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data
@@ -610,6 +649,112 @@ def main():
     def compute_metrics(p: EvalPrediction):
         return metric.compute(predictions=p.predictions, references=p.label_ids)
 
+    if optim_args.distillation:
+        class QAModel_output_reshaped(torch.nn.Module):
+            def __init__(self, model):
+                super(QAModel_output_reshaped, self).__init__()
+                self.model = model
+
+            def forward(self, *args, **kwargs):
+                outputs = self.model(*args, **kwargs)
+                outputs_reshaped = torch.vstack([torch.vstack([sx, ex]) \
+                        for sx, ex in zip(outputs['start_logits'], outputs['end_logits'])])
+                return outputs_reshaped
+
+        teacher_config = AutoConfig.from_pretrained(
+            optim_args.teacher_model_name_or_path,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        teacher_tokenizer = AutoTokenizer.from_pretrained(
+            optim_args.teacher_model_name_or_path,
+            use_fast=True,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        assert teacher_tokenizer.vocab == tokenizer.vocab, \
+                'teacher model and student model should have same tokenizer.'
+        teacher_model = AutoModelForQuestionAnswering.from_pretrained(
+            optim_args.teacher_model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=teacher_config,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        teacher_model.to(training_args.device)
+        
+        # Prepare datasets for teacher model
+        # Create train feature from dataset
+        with training_args.main_process_first(desc="train dataset map pre-processing"):
+            teacher_train_dataset = train_examples.map(
+                functools.partial(prepare_train_features, tokenizer=teacher_tokenizer),
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                remove_columns=column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on train dataset",
+            )
+        if data_args.max_train_samples is not None:
+            # Number of samples might increase during Feature Creation, We select only specified max samples
+            teacher_train_dataset = teacher_train_dataset.select(range(data_args.max_train_samples))
+
+        # Validation Feature Creation
+        with training_args.main_process_first(desc="validation dataset map pre-processing"):
+            teacher_eval_dataset = eval_examples.map(
+                functools.partial(prepare_validation_features, tokenizer=teacher_tokenizer),
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                remove_columns=column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on validation dataset",
+            )
+        if data_args.max_eval_samples is not None:
+            # During Feature creation dataset samples might increase, we will select required samples again
+            teacher_eval_dataset = teacher_eval_dataset.select(range(data_args.max_eval_samples))
+        if training_args.dataloader_drop_last:
+            # Align the quantities of the data examples and that of the model predictions
+            quantity = len(teacher_eval_dataset) // training_args.per_device_eval_batch_size * \
+                                training_args.per_device_eval_batch_size
+            teacher_eval_dataset = teacher_eval_dataset.select(range(quantity))
+        assert train_dataset.num_rows == teacher_train_dataset.num_rows and \
+            eval_dataset.num_rows == teacher_eval_dataset.num_rows, \
+            "Length of train or evaluation dataset of teacher doesnot match that of student."
+            
+        # get logits of teacher model
+        if optim_args.run_teacher_logits:
+            def dict_tensor_to_model_device(batch, model):
+                device = next(model.parameters()).device
+                for k in batch:
+                    batch[k] = batch[k].to(device)
+
+            assert data_args.pad_to_max_length, 'to run teacher logits must open pad_to_max_length due to padding issue'
+            def get_logits(teacher_model, train_dataset, teacher_train_dataset):
+                logger.info("***** Getting logits of teacher model *****")
+                logger.info(f"  Num examples = {len(train_dataset) }")
+                teacher_model.eval()
+                npy_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                    '{}.{}.npy'.format(data_args.dataset_name, 
+                                    optim_args.teacher_model_name_or_path.replace('/', '.')))
+                if os.path.exists(npy_file):
+                    teacher_logits = [list(x) for x in np.load(npy_file, allow_pickle=True)]
+                else:
+                    train_dataloader = DataLoader(teacher_train_dataset, 
+                                                collate_fn=data_collator, 
+                                                batch_size=training_args.per_device_eval_batch_size)
+                    train_dataloader = tqdm(train_dataloader, desc="Evaluating")
+                    teacher_logits = []
+                    for step, batch in enumerate(train_dataloader):
+                        dict_tensor_to_model_device(batch, teacher_model)
+                        outputs = teacher_model(**batch).cpu().numpy()
+                        teacher_logits += [[s,e] for s,e in zip(outputs[0::2], outputs[1::2])]
+                    np.save(npy_file, teacher_logits, allow_pickle=True)
+                return train_dataset.add_column('teacher_logits', teacher_logits[:data_args.max_train_samples])
+            with torch.no_grad():
+                train_dataset = get_logits(QAModel_output_reshaped(teacher_model), train_dataset, teacher_train_dataset)
+                
+        para_counter = lambda model:sum(p.numel() for p in model.parameters())
+        logger.info("***** Number of teacher model parameters: {:.2f}M *****".format(\
+                    para_counter(teacher_model)/10**6))
+        logger.info("***** Number of student model parameters: {:.2f}M *****".format(\
+                    para_counter(model)/10**6))
+
     # Initialize our Trainer
     trainer = QuestionAnsweringIncTrainer(
         model=model,
@@ -644,7 +789,7 @@ def main():
     def eval_func(model):
         return take_eval_steps(model, trainer, metric_name)
 
-    def take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint):
+    def take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint, agent=None):
         trainer.model_wrapped = model
         trainer.model = model
         trainer._signature_columns = None
@@ -653,22 +798,28 @@ def main():
             checkpoint = resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
-        train_result = trainer.train(pruner, resume_from_checkpoint=checkpoint)
+        train_result = trainer.train(agent, resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
         trainer.save_model()  # Saves the tokenizer too for easy upload
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
+        return trainer.model
 
     def train_func(model):
-        return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)
+        return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint, agent=agent)
+
+    def train_func_agent(model, agent):
+        return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint, agent=agent)
 
     quantizer = None
     pruner = None
+    distiller = None
+    agent = None
     input_names = None
 
-    if not optim_args.quantize and not optim_args.prune:
-        raise ValueError("quantize and prune are both set to False.")
+    if not optim_args.quantize and not optim_args.prune and not optim_args.distillation:
+        raise ValueError("quantize, prune and distillation are all set to False.")
 
     result_baseline_model = take_eval_steps(model, trainer, metric_name)
 
@@ -732,6 +883,8 @@ def main():
             model, q8_config, eval_func=eval_func, train_func=train_func, calib_dataloader=calib_dataloader
         )
         quantizer = inc_quantizer.init()
+        if q8_config.get_config("quantization.approach") == IncQuantizationMode.AWARE_TRAINING.value:
+            quantizer.q_func = functools.partial(train_func_agent, agent=quantizer)
 
     if optim_args.prune:
 
@@ -769,8 +922,35 @@ def main():
 
         # Creation Pruning object used for IncTrainer training loop
         pruner = inc_pruner.init()
+        pruner.pruning_func = functools.partial(train_func_agent, agent=pruner)
 
-    inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
+    if optim_args.distillation:
+
+        if not training_args.do_train:
+            raise ValueError("do_train must be set to True for distillation.")
+
+        distillation_config = IncDistillationConfig.from_pretrained(
+            optim_args.distillation_config if optim_args.distillation_config is not None else default_config,
+            config_file_name="distillation.yml",
+            cache_dir=model_args.cache_dir,
+        )
+
+        inc_distiller = IncDistillation(model, teacher_model, distillation_config, 
+                                        eval_func=eval_func, train_func=train_func)
+
+        # Creation Distillation object used for IncTrainer training loop
+        distiller = inc_distiller.init()
+        distiller.train_func = functools.partial(train_func_agent, agent=distiller)
+
+    components = []
+    for component in [pruner, distiller, quantizer]:
+        if component is not None:
+            components.append(component)
+    inc_optimizer = IncOptimizer(model, components, eval_func=eval_func, train_func=train_func, 
+                                 one_shot_optimization=optim_args.one_shot_optimization)
+    if optim_args.one_shot_optimization:
+        agent = inc_optimizer.scheduler.components[0]
+
     opt_model = inc_optimizer.fit()
 
     _, sparsity = opt_model.report_sparsity()

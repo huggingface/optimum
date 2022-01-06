@@ -2,6 +2,7 @@ import collections
 import inspect
 import math
 import os
+import copy
 import sys
 import time
 import warnings
@@ -58,6 +59,10 @@ logger = logging.get_logger(__name__)
 
 
 class IncTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.in_training = False
+
     def train(
         self,
         agent: Optional[Component] = None,
@@ -330,6 +335,7 @@ class IncTrainer(Trainer):
             if isinstance(agent, Component):
                 agent.on_epoch_begin(epoch)
 
+            self.in_training = True
             for step, inputs in enumerate(epoch_iterator):
 
                 # Skip past any already trained steps if resuming training
@@ -348,11 +354,7 @@ class IncTrainer(Trainer):
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
                     if isinstance(agent, Component):
                         agent.on_batch_begin(step)
-                        
-                if "teacher_logits" in inputs:
-                    teacher_logits = inputs.pop("teacher_logits")
-                    if hasattr(agent, 'on_post_forward'):
-                        self.agent.on_post_forward(inputs, teacher_output=teacher_logits)
+
                 if (
                     ((step + 1) % args.gradient_accumulation_steps != 0)
                     and args.local_rank != -1
@@ -415,9 +417,18 @@ class IncTrainer(Trainer):
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break
 
+            self.in_training = False
             self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
             if isinstance(agent, Component):
+                # When Distillation is involved, model will be evaluated in "on_epoch_end" hook, while in SQuAD 
+                # evaluation, "start_positions" and "end_positions" will be removed from inputs of the fx model,
+                # this will damage the training afterward, so use the copied model for evaluation, 
+                # and then restore the model.
+                agent.model.model = copy.deepcopy(model)
                 agent.on_epoch_end()
+                agent.model.model = model
+                if 'Distillation' in agent.__repr__():
+                    model.train()
             self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
@@ -489,20 +500,51 @@ class IncTrainer(Trainer):
             labels = inputs.pop("labels")
         else:
             labels = None
+        if "teacher_logits" in inputs:
+            teacher_logits = inputs.pop("teacher_logits")
+            if "start_positions" in inputs and "end_positions" in inputs: # for SQuAD
+                teacher_logits = torch.vstack(list(teacher_logits))
+        else:
+            teacher_logits = None
+            
         outputs = model(**inputs)
-        
-        if hasattr(self, "agent") and hasattr(self.agent, "criterion"):
-            assert "labels" in inputs, "Labels of input data not provided, can't compute loss"
-            if isinstance(outputs, dict):
-                logits = outputs["logits"] 
-            elif isinstance(outputs, torch.Tensor):
-                logits = outputs
-            else:
-                logits = outputs[1]
+        if self.in_training and hasattr(self, "agent") and \
+           hasattr(self.agent, "criterion"):
+            qa_output_merger = lambda outputs : torch.vstack([torch.vstack([sl, el]) for sl, el in \
+                                                zip(outputs["start_logits"], outputs["end_logits"])])
+            qa_output_spliter = lambda outputs : (outputs[0::2], outputs[1::2])
+            def get_logits(outputs):
+                if isinstance(outputs, dict):
+                    if "logits" in outputs:
+                        logits = outputs["logits"]
+                    elif "start_logits" in outputs and "end_logits" in outputs:
+                        logits = qa_output_merger(outputs)
+                    else:
+                        raise AssertionError("Logits of outputs not included, can't compute loss")
+                elif isinstance(outputs, torch.Tensor):
+                    logits = outputs
+                else:
+                    logits = outputs[1]
+                return logits
+            
+            if labels is None:
+                if "labels" in inputs: # for GLUE
+                    labels = inputs["labels"]
+                elif "start_positions" in inputs and "end_positions" in inputs: # for SQuAD
+                    labels = torch.hstack([torch.tensor([sp, ep]) for sp, ep in \
+                            zip(inputs["start_positions"], inputs["end_positions"])])
+                else:
+                    raise AssertionError("Labels of input data not provided, can't compute loss")
+            logits = get_logits(outputs)
             if hasattr(self.agent, "on_post_forward"):
-                self.agent.on_post_forward(inputs)
-            loss = self.agent.criterion(logits, labels if labels else inputs["labels"])
-            outputs = {"logits":logits, "loss":loss}
+                self.agent.on_post_forward(inputs, teacher_output=teacher_logits)
+                self.agent.criterion.teacher_outputs = get_logits(self.agent.criterion.teacher_outputs)
+            loss = self.agent.criterion(logits, labels)
+            if "start_positions" in inputs and "end_positions" in inputs:
+                start_logits, end_logits = qa_output_spliter(logits)
+                outputs = {"start_logits":start_logits, "end_logits":end_logits, "loss":loss}
+            else:
+                outputs = {"logits":logits, "loss":loss}
         else:
             # Save past state if it exists
             # TODO: this needs to be fixed and made cleaner later.
