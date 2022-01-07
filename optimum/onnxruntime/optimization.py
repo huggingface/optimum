@@ -88,13 +88,7 @@ class OnnxConfigManager:
     @staticmethod
     def update_model(model_type: str, num_heads: str, hidden_size: str):
         OnnxConfigManager.__conf[model_type] = {"num_heads": num_heads, "hidden_size": hidden_size}
-
-    @staticmethod
-    def remove_model(model_type: str):
-        try:
-            OnnxConfigManager.__conf.pop(model_type)
-        except KeyError:
-            logger.warning(f"{model_type} undefined in the configuration.")
+        logger.info(f"{model_type} is now defined in the configuration.")
 
     @staticmethod
     def check_supported_model(model_type: str) -> bool:
@@ -306,9 +300,10 @@ class ORTOptimizer:
                 f"There are {count_nodes_onnx} nodes before optimization and {count_nodes_optim} nodes after. "
                 f"The number of nodes removed is {count_nodes_onnx - count_nodes_optim}."
             )
-            # Extended fusion statistics
-            extended_fusion_statistic = optimizer.get_fused_operator_statistics()
-            logger.info("Complex node fusions(if extended mode enabled, opt_level>1):\n", extended_fusion_statistic)
+            if self.ort_config.opt_level and self.ort_config.opt_level > 1:
+                # Extended fusion statistics
+                extended_fusion_statistic = optimizer.get_fused_operator_statistics()
+                logger.info("Complex node fusions:\n", extended_fusion_statistic)
 
         # Top 5 reduced operations & node details onnx model v.s. optimized model
         if nodes_details:
