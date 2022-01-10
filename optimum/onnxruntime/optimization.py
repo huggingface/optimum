@@ -44,13 +44,13 @@ class OnnxConfigManager:
     """
     A class that notes down the attribute names of models in `huggingface/transformers/models`.
 
-    The required attribute names are for `number of heads` and `hidden size`. It is optional for
-    BERT model, but for other model types, you need to specify the name of these parameters. It
-    is possible to add customized model information with `update_model()` method.
+    The required attribute names are for the number of attention heads `num_heads` and hidden size `hidden_size`.
+    It is possible to add customized model information with the `update_model` method.
 
     Attributes:
         __conf (:obj:`dict`):
-            Dictionary registers the attribute names of models(number of heads and hidden size).
+            The dictionary mapping each model type to a dictionary containing the model attribute names corresponding to
+            the number of attention heads and hidden size.
     """
 
     __conf = {
@@ -63,7 +63,7 @@ class OnnxConfigManager:
 
     @staticmethod
     def get_num_heads(model_type: str) -> str:
-        default = "num_heads"
+        default = "num_attention_heads"
         try:
             return OnnxConfigManager.__conf[model_type]["num_heads"]
         except KeyError:
@@ -97,10 +97,7 @@ class OnnxConfigManager:
 
 class ORTOptimizer:
     """
-    ORTOptimizer is a class for onnxruntime optimization of models in `huggingface/transformers/models`.
-
-    ORTOptimzer allows exportation of onnx model(`export()`), the graph-level optimization with onnxruntime
-    (`fit()`) and report of the optimization(`get_optimize_details()`).
+    ORTOptimizer is a class for ONNX Runtime optimization of models in `huggingface/transformers/models`.
     """
 
     def __init__(self, model_name_or_path: str, ort_config: Union[str, ORTConfig], feature: str = "default", **kwargs):
@@ -168,7 +165,7 @@ class ORTOptimizer:
     def fit(self, output_dir: Union[str, os.PathLike], **kwargs) -> None:
         """
         Exports a model to an ONNX Intermediate Representation (IR) and apply the graph-level optimization by
-        onnxruntime.
+        ONNX Runtime.
 
         Args:
             output_dir (:obj:`Union[str, os.PathLike]`):
@@ -195,7 +192,7 @@ class ORTOptimizer:
                 No attention mask. Only works for `model_type=bert`.
             disable_embed_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`True`):
                 Whether or not to disable EmbedLayerNormalization fusion. The default value is set to
-                `True` since the fusion is incompatible with onnxruntime quantization.
+                `True` since the fusion is incompatible with ONNX Runtime quantization.
         """
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
         self.onnx_model_path = output_dir.joinpath("model.onnx")
