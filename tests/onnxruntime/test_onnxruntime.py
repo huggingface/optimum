@@ -42,7 +42,7 @@ class TestORTOptimizer(unittest.TestCase):
                         optimizer.model,
                         optim_model_path,
                         list(optimizer.onnx_config.outputs.keys()),
-                        atol=10,
+                        atol=1e-4,
                     )
                     gc.collect()
 
@@ -58,7 +58,12 @@ class TestORTQuantizer(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
-                    quantizer = ORTQuantizer(model_name, ort_config, cache_dir=tmp_dir)
+                    quantizer = ORTQuantizer(
+                        model_name,
+                        ort_config,
+                        feature="sequence-classification",
+                        cache_dir=tmp_dir
+                    )
                     quantizer.fit(output_dir)
                     validate_model_outputs(
                         quantizer.onnx_config,
@@ -66,7 +71,7 @@ class TestORTQuantizer(unittest.TestCase):
                         quantizer.model,
                         q8_model_path,
                         list(quantizer.onnx_config.outputs.keys()),
-                        atol=10,
+                        atol=5e-1,
                     )
                     gc.collect()
 
@@ -90,6 +95,7 @@ class TestORTQuantizer(unittest.TestCase):
                         dataset_name="glue",
                         dataset_config_name="sst2",
                         preprocess_function=preprocess_function,
+                        feature="sequence-classification",
                     )
                     tokenizer = quantizer.tokenizer
                     quantizer.fit(output_dir)
@@ -99,7 +105,7 @@ class TestORTQuantizer(unittest.TestCase):
                         quantizer.model,
                         q8_model_path,
                         list(quantizer.onnx_config.outputs.keys()),
-                        atol=12,
+                        atol=1e-1,
                     )
                     gc.collect()
 
