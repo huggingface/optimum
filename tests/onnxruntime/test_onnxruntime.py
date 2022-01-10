@@ -68,7 +68,7 @@ class TestORTQuantizer(unittest.TestCase):
                         quantizer.model,
                         q8_model_path,
                         list(quantizer.onnx_config.outputs.keys()),
-                        atol=5e-1,
+                        atol=8e-1,
                     )
                     gc.collect()
 
