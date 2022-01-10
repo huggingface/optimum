@@ -1,0 +1,15 @@
+{
+  "use_gpu": false,
+  "only_onnxruntime": false,
+  "quantization_approach": "static",
+  "per_channel": false,
+  "reduce_range": false,
+  "activation_type": "uint8",
+  "weight_type": "uint8",
+  "quant_format": "operator",
+  "calibration_method": "minmax",
+  "optimize_model": true,
+  "split": "train",
+  "calib_batch_size": 8,
+  "max_samples": 8
+}

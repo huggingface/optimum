@@ -15,17 +15,13 @@ except Exception as error:
 install_requires = [
     "coloredlogs",
     "sympy",
-    "transformers>=4.12.0",
+    "transformers>=4.15.0",
     "torch>=1.9",
 ]
 
 extras = {
-    "onnxruntime": ["onnx", "onnxruntime"],
-    "intel": [
-        "pycocotools",
-        "neural_compressor>=1.7",
-        "datasets>=1.2.1",
-    ],
+    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
+    "intel": ["pycocotools", "neural_compressor>=1.7", "datasets>=1.2.1"],
     "graphcore": "optimum-graphcore",
 }
 
