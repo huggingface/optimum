@@ -59,10 +59,7 @@ class TestORTQuantizer(unittest.TestCase):
                     output_dir = Path(tmp_dir)
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
                     quantizer = ORTQuantizer(
-                        model_name,
-                        ort_config,
-                        feature="sequence-classification",
-                        cache_dir=tmp_dir
+                        model_name, ort_config, feature="sequence-classification", cache_dir=tmp_dir
                     )
                     quantizer.fit(output_dir)
                     validate_model_outputs(
