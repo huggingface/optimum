@@ -11,105 +11,33 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-import collections
-import contextlib
-import json
+
 import logging
 import os
-import random
-import re
-import shutil
-import sys
-import tempfile
-import time
 import warnings
-from collections.abc import Mapping
-from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, IterableDataset, RandomSampler, SequentialSampler
-from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
-from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
-from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, deepspeed_reinit, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
-from transformers.file_utils import (
-    CONFIG_NAME,
-    WEIGHTS_NAME,
-    get_full_repo_name,
-    is_apex_available,
-    is_datasets_available,
-    is_in_notebook,
-    is_sagemaker_dp_enabled,
-    is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
-)
-from transformers.modelcard import TrainingSummary
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.models.auto.modeling_auto import MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES
 
 # from onnxruntime.training import _utils, amp, checkpoint, optim, orttrainer, TrainStepInfo
 from transformers.onnx import export, validate_model_outputs
 from transformers.onnx.features import FeaturesManager
-from transformers.optimization import Adafactor, AdamW, get_scheduler
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import EvalPrediction, PredictionOutput, Trainer, TrainOutput, set_seed
-from transformers.trainer_callback import (
-    CallbackHandler,
-    DefaultFlowCallback,
-    PrinterCallback,
-    ProgressCallback,
-    TrainerCallback,
-    TrainerControl,
-    TrainerState,
-)
-from transformers.trainer_pt_utils import (
-    DistributedLengthGroupedSampler,
-    DistributedSamplerWithLoop,
-    DistributedTensorGatherer,
-    IterableDatasetShard,
-    LabelSmoother,
-    LengthGroupedSampler,
-    SequentialDistributedSampler,
-    ShardSampler,
-    distributed_broadcast_scalars,
-    distributed_concat,
-    find_batch_size,
-    get_parameter_names,
-    nested_concat,
-    nested_detach,
-    nested_numpify,
-    nested_truncate,
-    nested_xla_mesh_reduce,
-    reissue_pt_warnings,
-)
+from transformers.trainer_callback import TrainerCallback
 from transformers.trainer_utils import (
-    PREFIX_CHECKPOINT_DIR,
-    BestRun,
-    EvalLoopOutput,
     EvalPrediction,
-    HPSearchBackend,
-    HubStrategy,
-    IntervalStrategy,
     PredictionOutput,
-    ShardedDDPOption,
-    TrainerMemoryTracker,
-    TrainOutput,
-    default_compute_objective,
-    default_hp_space,
-    denumpify_detensorize,
-    get_last_checkpoint,
-    number_of_arguments,
-    set_seed,
-    speed_metrics,
 )
-from transformers.training_args import ParallelMode, TrainingArguments
+from transformers.training_args import TrainingArguments
 from transformers.utils import logging
 
 # For ORTTrainer
