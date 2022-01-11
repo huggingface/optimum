@@ -1,5 +1,5 @@
-[![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-onnxruntime.yml)
-[![neural_compressor](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test-intel.yml)
+[![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml)
+[![neural_compressor](https://github.com/huggingface/optimum/actions/workflows/test_intel.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test_intel.yml)
 
 # Hugging Face - Optimum
 
@@ -9,7 +9,7 @@ The AI ecosystem evolves quickly and more and more specialized hardware along wi
 As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
 
 
-## Integration with Hardware Partners  
+## Integration with Hardware Partners
 
 🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
 
@@ -27,8 +27,8 @@ We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) al
 
 | Features                           | ONNX Runtime          | Intel Neural Compressor |
 |:----------------------------------:|:---------------------:|:-----------------------:|
-| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |  
-| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |  
+| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |
+| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |
 | Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |
 | Pruning                            |        N/A            |    :heavy_check_mark:   |
 

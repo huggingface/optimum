@@ -24,6 +24,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
+      run: |
         pip install .[intel]
         pip install torch==1.9.1
     - name: Test with unittest
