@@ -118,7 +118,7 @@ class ORTTrainer(Trainer):
         self.infer_sess = onnxruntime.InferenceSession(onnx_model_path.as_posix())
         # if self.args.no_cuda:
         #     self.infer_sess = onnxruntime.InferenceSession(onnx_model_path,
-        #                                             # sess_options,
+        #                                             sess_options,
         #                                             providers=['CPUExecutionProvider'],
         #                                             **kwargs)
         # else:

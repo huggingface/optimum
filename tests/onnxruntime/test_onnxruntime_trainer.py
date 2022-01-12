@@ -76,11 +76,13 @@ class TestORTTrainer(unittest.TestCase):
                             output_dir=tmp_dir,  # './results'
                             num_train_epochs=1,
                             per_device_train_batch_size=16,
-                            per_device_eval_batch_size=16,
+                            per_device_eval_batch_size=16,  # As for onnxruntime, the training and the evlaution shall set the same barch size
                             warmup_steps=500,
                             weight_decay=0.01,
                             logging_dir=tmp_dir,  # './logs'
                         )
+                        
+                        print(model.config.opset)
 
                         trainer = ORTTrainer(
                             model=model,
