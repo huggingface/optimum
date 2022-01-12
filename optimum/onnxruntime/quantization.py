@@ -81,36 +81,36 @@ class ORTQuantizer:
     ):
         """
         Args:
-            model_name_or_path (:obj:`str`):
+            model_name_or_path (`str`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            ort_config (:obj:`Union[ORTConfig, str]`):
+            ort_config (`Union[ORTConfig, str]`):
                 Configuration file containing all the information related to the model quantization.
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
-            feature (:obj:`str`):
+            feature (`str`):
                 Feature used when exporting the model.
-            calib_dataset (:obj:`Dataset`, `optional`):
+            calib_dataset (`Dataset`, `optional`):
                 Dataset to use for the calibration step.
-            dataset_name (:obj:`str`, `optional`):
+            dataset_name (`str`, `optional`):
                 Dataset repository name on the Hugging Face Hub or path to a local directory containing data files to
                 load to use for the calibration step.
-            dataset_config_name (:obj:`str`, `optional`):
+            dataset_config_name (`str`, `optional`):
                 Name of the dataset configuration.
-            data_files (:obj:`str`, `optional`):
+            data_files (`str`, `optional`):
                 Path to source data files.
-            preprocess_function (:obj:`Callable`, `optional`):
+            preprocess_function (`Callable`, `optional`):
                 Processing function to apply to each example after loading dataset.
-            cache_dir (:obj:`str`, `optional`):
+            cache_dir (`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
-            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            force_download (`bool`, `optional`, defaults to `False`):
                 Whether or not to force to (re-)download the configuration files and override the cached versions if
                 they exist.
-            resume_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            resume_download (`bool`, `optional`, defaults to `False`):
                 Whether or not to delete incompletely received file. Attempts to resume the download if such a file
                 exists.
-            revision(:obj:`str`, `optional`):
+            revision(`str`, `optional`):
                 The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
                 git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
                 identifier allowed by git.
@@ -151,7 +151,7 @@ class ORTQuantizer:
         Load and export a model to an ONNX Intermediate Representation (IR).
 
         Args:
-            model_path (:obj:`os.PathLike`):
+            model_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
         """
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
@@ -167,7 +167,7 @@ class ORTQuantizer:
         approach.
 
         Args:
-            output_dir (:obj:`Union[str, os.PathLike]`):
+            output_dir (`Union[str, os.PathLike]`):
                 The output directory where the quantized model will be saved.
         """
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
@@ -238,8 +238,8 @@ class ORTQuantizer:
         """
         Returns the calibration :class:`~torch.utils.data.DataLoader`.
         Args:
-            calib_dataset (:obj:`torch.utils.data.Dataset`, `optional`):
-                If provided, will override :obj:`self.calib_dataset`.
+            calib_dataset (`torch.utils.data.Dataset`, `optional`):
+                If provided, will override `self.calib_dataset`.
         """
         if calib_dataset is None and self.calib_dataset is None:
             raise ValueError("ORTQuantizer: static quantization calibration step requires a calib_dataset.")
@@ -268,7 +268,7 @@ class ORTQuantizer:
         """
         Returns the calibration :class:`~optimum.onnxruntime.quantization.ORTCalibrationDataReader`.
         Args:
-            calib_dataloader (:obj:`torch.utils.data.DataLoader`):
+            calib_dataloader (`torch.utils.data.DataLoader`):
                 Calibration dataloader to use for the post-training static quantization calibration step.
         """
         return ORTCalibrationDataReader(calib_dataloader)
