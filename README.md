@@ -15,6 +15,7 @@ As such, Optimum enables users to efficiently use any of these platforms with th
 
 To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
 - [GraphCore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu)
+- [Intel OpenVINO](https://github.com/dkurt/optimum-openvino) - OpenVINO runtime for models inference and Neural Network Compression Framework for optimization.
 - More to come soon! :star:
 
 ## Optimizing models towards inference

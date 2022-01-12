@@ -23,6 +23,7 @@ extras = {
     "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
     "intel": ["pycocotools", "neural_compressor>=1.7,<1.9", "datasets>=1.2.1"],
     "graphcore": "optimum-graphcore",
+    "openvino": "optimum-openvino",
 }
 
 setup(
