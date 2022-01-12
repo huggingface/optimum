@@ -26,8 +26,7 @@ from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer
 class TestORTOptimizer(unittest.TestCase):
     def test_optimize(self):
         model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
-        ort_config_dir = os.path.dirname(os.path.abspath(__file__))
-        ort_config = ORTConfig.from_pretrained(ort_config_dir)
+        ort_config = ORTConfig(opt_level=1, only_onnxruntime=False)
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
@@ -50,9 +49,13 @@ class TestORTOptimizer(unittest.TestCase):
 class TestORTQuantizer(unittest.TestCase):
     def test_dynamic_quantization(self):
         model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
-        ort_config_dir = os.path.dirname(os.path.abspath(__file__))
-        ort_config = ORTConfig.from_pretrained(ort_config_dir)
-        ort_config.quantization_approach = "dynamic"
+        ort_config = ORTConfig(
+            quantization_approach="dynamic",
+            per_channel=False,
+            reduce_range=False,
+            weight_type="uint8",
+            activation_type="uint8",
+        )
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
@@ -74,9 +77,19 @@ class TestORTQuantizer(unittest.TestCase):
 
     def test_static_quantization(self):
         model_names = {"distilbert-base-uncased"}
-        ort_config_dir = os.path.dirname(os.path.abspath(__file__))
-        ort_config = ORTConfig.from_pretrained(ort_config_dir)
-        ort_config.quantization_approach = "static"
+        ort_config = ORTConfig(
+            quantization_approach="static",
+            per_channel=False,
+            reduce_range=False,
+            weight_type="uint8",
+            activation_type="uint8",
+            quant_format="operator",
+            calibration_method="minmax",
+            optimize_model=True,
+            split="train",
+            max_samples=80,
+            calib_batch_size=8,
+        )
 
         def preprocess_function(examples):
             return tokenizer(examples["sentence"], padding="max_length", max_length=128, truncation=True)
