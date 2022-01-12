@@ -94,4 +94,5 @@ def train_func(model):
     # trainer.save_model() 
     # trainer.save_metrics("train", metrics)
     # trainer.save_state()
+
 train_func(model)
