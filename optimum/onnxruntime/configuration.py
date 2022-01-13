@@ -83,21 +83,40 @@ class ORTConfig(BaseConfig):
     CONFIG_NAME = "ort_config.json"
     FULL_CONFIGURATION_FILE = "ort_config.json"
 
-    def __init__(self, **kwargs):
-        self.opset = kwargs.pop("opset", None)
-        self.use_external_data_format = kwargs.pop("use_external_data_format", False)
-        self.seed = kwargs.pop("seed", 42)
-        self.opt_level = kwargs.pop("opt_level", None)
-        self.use_gpu = kwargs.pop("use_gpu", False)
-        self.only_onnxruntime = kwargs.pop("only_onnxruntime", False)
-        self.quantization_approach = kwargs.pop("quantization_approach", None)
-        self.optimize_model = kwargs.pop("optimize_model", True)
-        self.per_channel = kwargs.pop("per_channel", False)
-        self.reduce_range = kwargs.pop("reduce_range", False)
-        self.activation_type = kwargs.pop("activation_type", "uint8")
-        self.weight_type = kwargs.pop("weight_type", "uint8")
-        self.quant_format = kwargs.pop("quant_format", "operator")
-        self.calibration_method = kwargs.pop("calibration_method", "minmax")
-        self.split = kwargs.pop("split", "train")
-        self.max_samples = kwargs.pop("max_samples", 80)
-        self.calib_batch_size = kwargs.pop("calib_batch_size", 8)
+    def __init__(
+            self,
+            opset: Optional[int] = None,
+            opt_level: Optional[int] = None,
+            use_gpu: Optional[bool] = False,
+            only_onnxruntime: Optional[bool] = False,
+            quantization_approach: Optional[str] = None,
+            optimize_model: Optional[bool] = True,
+            per_channel: Optional[bool] = False,
+            reduce_range: Optional[bool] = False,
+            activation_type: Optional[str] = "uint8",
+            weight_type: Optional[str] = "uint8",
+            quant_format: Optional[str] = "operator",
+            calibration_method: Optional[str] = "minmax",
+            split: Optional[str] = "train",
+            max_samples: Optional[int] = 80,
+            calib_batch_size: Optional[int] = 8,
+            seed: Optional[int] = 42,
+            use_external_data_format: Optional[bool] = False,
+    ):
+        self.opset = opset
+        self.opt_level = opt_level
+        self.use_gpu = use_gpu
+        self.only_onnxruntime = only_onnxruntime
+        self.quantization_approach = quantization_approach
+        self.optimize_model = optimize_model
+        self.per_channel = per_channel
+        self.reduce_range = reduce_range
+        self.activation_type = activation_type
+        self.weight_type = weight_type
+        self.quant_format = quant_format
+        self.calibration_method = calibration_method
+        self.split = split
+        self.max_samples = max_samples
+        self.calib_batch_size = calib_batch_size
+        self.seed = seed
+        self.use_external_data_format = use_external_data_format
