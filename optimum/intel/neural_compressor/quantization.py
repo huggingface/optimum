@@ -316,20 +316,12 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
             "Unknown quantization approach. Supported approach are " + ", ".join(SUPPORTED_QUANT_MODE.keys())
         )
 
-    if approach == IncQuantizationMode.DYNAMIC.value:
-        q_mapping = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
-        op_cfgs = _cfg_to_qconfig(q_config, approach)
-    else:
-        q_mapping = torch.quantization.quantization_mappings.get_default_static_quant_module_mappings()
-        op_cfgs = _cfg_to_qconfig(q_config)
-
     q_model = copy.deepcopy(model)
     q_model.eval()
 
     if framework == "pytorch_fx":
-
+        op_cfgs = _cfg_to_qconfig(q_config, approach)
         fx_op_cfgs = _cfgs_to_fx_cfgs(op_cfgs, approach)
-
         if approach == IncQuantizationMode.AWARE_TRAINING.value:
             q_model.train()
             q_model = prepare_qat_fx(q_model, fx_op_cfgs)
@@ -337,6 +329,13 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
             q_model = prepare_fx(q_model, fx_op_cfgs)
         q_model = convert_fx(q_model)
         return q_model
+
+    if approach == IncQuantizationMode.DYNAMIC.value:
+        q_mapping = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
+        op_cfgs = _cfg_to_qconfig(q_config, approach)
+    else:
+        q_mapping = torch.quantization.quantization_mappings.get_default_static_quant_module_mappings()
+        op_cfgs = _cfg_to_qconfig(q_config)
 
     _propagate_qconfig(q_model, op_cfgs, approach=approach)
 
