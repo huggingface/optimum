@@ -198,6 +198,7 @@ class TestINCQuantization(unittest.TestCase):
             trainer.model_wrapped = model
             trainer.model = model
             _ = trainer.train()
+            return trainer.model
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             model, trainer, eval_func = self.helper(model_name, tmp_dir, do_train=True)
@@ -205,7 +206,7 @@ class TestINCQuantization(unittest.TestCase):
             model_result = eval_func(model)
             q8_config = IncQuantizationConfig.from_pretrained(config_path)
             q8_config.set_config("quantization.approach", IncQuantizationMode.AWARE_TRAINING.value)
-            q8_config.set_config("tuning.accuracy_criterion.relative", 0.05)
+            q8_config.set_config("tuning.accuracy_criterion.relative", 0.06)
             q8_config.set_config("model.framework", "pytorch_fx")
             input_names = ["input_ids", "attention_mask", "token_type_ids", "labels"]
 
@@ -222,8 +223,8 @@ class TestINCQuantization(unittest.TestCase):
             q_model = quantizer.fit_aware_training()
             q_model_result = eval_func(q_model.model)
 
-            # Verification accuracy loss is under 5%
-            self.assertGreaterEqual(q_model_result, model_result * 0.95)
+            # Verification accuracy loss is under 6%
+            self.assertGreaterEqual(q_model_result, model_result * 0.94)
 
             trainer.save_model(tmp_dir)
             with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
@@ -352,6 +353,7 @@ class TestINCPruning(unittest.TestCase):
             trainer.model_wrapped = model
             trainer.model = model
             _ = trainer.train(pruner)
+            return trainer.model
 
         def eval_func(model):
             trainer.model = model
@@ -423,6 +425,7 @@ class TestINCOptimizer(unittest.TestCase):
             trainer.model_wrapped = model
             trainer.model = model
             _ = trainer.train(pruner)
+            return trainer.model
 
         def eval_func(model):
             trainer.model = model
