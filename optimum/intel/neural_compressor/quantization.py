@@ -26,21 +26,18 @@ from transformers import AutoConfig, AutoTokenizer, PreTrainedModel, PreTrainedT
 from transformers.file_utils import cached_path, hf_bucket_url
 from transformers.models.auto.auto_factory import _get_model_class
 from transformers.utils.fx import symbolic_trace
+from transformers.utils.versions import require_version
 
 import neural_compressor
 from neural_compressor.adaptor.pytorch import _cfg_to_qconfig, _propagate_qconfig
 from neural_compressor.conf.config import Quantization_Conf
 from neural_compressor.experimental import Quantization, common
 from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncQuantizationConfig
-from optimum.intel.neural_compressor.utils import (
-    WEIGHTS_NAME,
-    IncDataLoader,
-    _cfgs_to_fx_cfgs,
-    _get_quantizable_ops_recursively,
-)
+from optimum.intel.neural_compressor.utils import WEIGHTS_NAME, IncDataLoader, _cfgs_to_fx_cfgs
 
 
 logger = logging.getLogger(__name__)
+require_version("neural_compressor>=1.9.0", "To fix: pip install neural_compressor")
 
 
 class IncQuantizationMode(Enum):
@@ -129,9 +126,6 @@ class IncQuantizer:
 
             # TODO : Change this to apply quantization on other part of the model other that Linears
             neural_compressor.adaptor.pytorch._cfgs_to_fx_cfgs = _cfgs_to_fx_cfgs
-            neural_compressor.adaptor.pytorch.PyTorch_FXAdaptor._get_quantizable_ops_recursively = (
-                _get_quantizable_ops_recursively
-            )
 
         quantizer = Quantization(self.config)
         quantizer.model = common.Model(self.model)
@@ -322,26 +316,12 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
             "Unknown quantization approach. Supported approach are " + ", ".join(SUPPORTED_QUANT_MODE.keys())
         )
 
-    if approach == IncQuantizationMode.DYNAMIC.value:
-        q_mapping = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
-        white_list = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
-        op_cfgs = _cfg_to_qconfig(q_config, approach)
-    else:
-        q_mapping = torch.quantization.quantization_mappings.get_default_static_quant_module_mappings()
-        white_list = torch.quantization.quantization_mappings.get_default_qconfig_propagation_list() - {
-            torch.nn.LayerNorm,
-            torch.nn.InstanceNorm3d,
-            torch.nn.Embedding,
-        }
-        op_cfgs = _cfg_to_qconfig(q_config)
-
     q_model = copy.deepcopy(model)
     q_model.eval()
 
     if framework == "pytorch_fx":
-
+        op_cfgs = _cfg_to_qconfig(q_config, approach)
         fx_op_cfgs = _cfgs_to_fx_cfgs(op_cfgs, approach)
-
         if approach == IncQuantizationMode.AWARE_TRAINING.value:
             q_model.train()
             q_model = prepare_qat_fx(q_model, fx_op_cfgs)
@@ -350,7 +330,14 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
         q_model = convert_fx(q_model)
         return q_model
 
-    _propagate_qconfig(q_model, op_cfgs, white_list=white_list, approach=approach)
+    if approach == IncQuantizationMode.DYNAMIC.value:
+        q_mapping = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
+        op_cfgs = _cfg_to_qconfig(q_config, approach)
+    else:
+        q_mapping = torch.quantization.quantization_mappings.get_default_static_quant_module_mappings()
+        op_cfgs = _cfg_to_qconfig(q_config)
+
+    _propagate_qconfig(q_model, op_cfgs, approach=approach)
 
     if approach != IncQuantizationMode.DYNAMIC.value:
         add_observer_(q_model)

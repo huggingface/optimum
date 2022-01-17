@@ -72,43 +72,6 @@ def _cfgs_to_fx_cfgs(op_cfgs: Dict, observer_type: str = "post_training_static_q
     return fx_op_cfgs
 
 
-def _get_quantizable_ops_recursively(
-    self, model: torch.nn.Module, prefix: str, quantizable_ops: List[Tuple[str, str]]
-) -> None:
-    """Inc helper function for `query_fw_capability` which get all quantizable ops from model.
-    Args:
-        model (:obj:`torch.nn.Module`):
-            Input model.
-        prefix (:obj:`str`):
-            Prefix of op name.
-        quantizable_ops (:obj:`List[Tuple[str, str]]`):
-            List of quantizable ops from model include op name and type.
-    Returns:
-        None
-    """
-
-    for name, child in model.named_children():
-        op_name = prefix + "." + name if prefix != "" else name
-        if (
-            type(child) in self.white_list
-            and type(child) != torch.nn.Sequential
-            and type(child) != torch.quantization.stubs.DeQuantStub
-            and not isinstance(child, torch.nn.LayerNorm)
-            and not isinstance(child, torch.nn.Embedding)
-        ):
-
-            quantizable_ops.append(
-                (
-                    op_name,
-                    unify_op_type_mapping[str(child.__class__.__name__)]
-                    if str(child.__class__.__name__) in unify_op_type_mapping
-                    else str(child.__class__.__name__),
-                )
-            )
-        else:
-            self._get_quantizable_ops_recursively(child, op_name, quantizable_ops)
-
-
 def remove_inputs_from_graph(gm_original: GraphModule, inputs_to_remove: List[str]) -> GraphModule:
     """
     Remove specified inputs from a GraphModule.
