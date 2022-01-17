@@ -204,7 +204,7 @@ class ORTQuantizer:
                 calibrate_method=self.calibrate_method,
                 nodes_to_quantize=self.ort_config.nodes_to_quantize or [],
                 nodes_to_exclude=self.ort_config.nodes_to_exclude or [],
-                extra_options=self.ort_config.extra_options or {}
+                extra_options=self.ort_config.extra_options or {},
             )
         else:
             raise ValueError(
