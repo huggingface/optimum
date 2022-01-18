@@ -57,9 +57,9 @@ class TestORTTrainer(unittest.TestCase):
                             return tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
 
                         encoded_dataset = dataset.map(preprocess_function, batched=True)
-                        max_train_samples = 1000
+                        max_train_samples = 10
                         max_valid_samples = 100
-                        max_test_samples = 100
+                        max_test_samples = 10
                         train_dataset = encoded_dataset["train"].select(range(max_train_samples))
                         valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
                         test_dataset = encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
@@ -73,16 +73,15 @@ class TestORTTrainer(unittest.TestCase):
                             return metric.compute(predictions=predictions, references=labels)
 
                         training_args = TrainingArguments(
-                            output_dir=tmp_dir,  # './results'
+                            output_dir='./results',  # './results'
                             num_train_epochs=1,
                             per_device_train_batch_size=16,
                             per_device_eval_batch_size=16,  # As for onnxruntime, the training and the evlaution shall set the same barch size
                             warmup_steps=500,
                             weight_decay=0.01,
                             logging_dir=tmp_dir,  # './logs'
+                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule 
                         )
-                        
-                        print(model.config.opset)
 
                         trainer = ORTTrainer(
                             model=model,
@@ -94,10 +93,14 @@ class TestORTTrainer(unittest.TestCase):
                             data_collator=default_data_collator,
                         )
 
-                        # trainer.evaluate_ort()
+                        
+                        # train_result = trainer.train()
+                        # train_metrics = train_result.metrics
+                        eval_metrics = trainer.evaluate_ort()
+                        # print(train_metrics)
+                        print(eval_metrics)
                         # trainer.evaluate()
-                        trainer.predict(test_dataset)
-                        # trainer.train()
+                        # trainer.predict(test_dataset)
 
 
 if __name__ == "__main__":

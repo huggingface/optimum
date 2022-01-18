@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import os
 import warnings
 from pathlib import Path
@@ -43,11 +42,9 @@ from transformers.utils import logging
 # For ORTTrainer
 import onnx
 import onnxruntime
-# from onnxruntime.training import checkpoint
-
+from torch_ort import ORTModule, DebugOptions, LogLevel, set_seed
 
 logger = logging.get_logger(__name__)
-
 
 class ORTTrainer(Trainer):
     def __init__(
@@ -77,20 +74,37 @@ class ORTTrainer(Trainer):
         )
 
         onnxruntime.set_seed(self.args.seed)
-        self.ort_model = None
+        self.ort_model_path = None
+        self.session_options = None
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
+        
+    def train(
+        self,
+        resume_from_checkpoint: Optional[Union[str, bool]] = None,
+        trial: Union["optuna.Trial", Dict[str, Any]] = None,
+        ignore_keys_for_eval: Optional[List[str]] = None,
+        **kwargs,
+    ):
+        # Wrap the model with `torch_ort.ORTModule`
+        debugOptions = DebugOptions(
+            save_onnx=True, 
+            onnx_prefix=self.model.config.name_or_path.split("/")[-1]
+        )
+        debugOptions.save_onnx_models._path = self.args.output_dir
+        self.model_wrapped = ORTModule(self.model_wrapped, debugOptions)
+        self.model = ORTModule(self.model, debugOptions)
+        
+        # Training
+        train_output = super().train(resume_from_checkpoint, trial, ignore_keys_for_eval, **kwargs)
+        
+        train_manager = self.model._torch_module._execution_manager._training_manager
+        # train_manager._export_model()
+        self.session_options, providers, provider_options = train_manager._get_session_config()
+        self.ort_model_path = self.session_options.optimized_model_filepath
+        self.ort_model_path = "./results/bert-base-cased_torch_exported_training.onnx"
 
-    def update_torch_model(self, checkpoint=None):
-        """
-        What object is `checkpoint` can't find its definition in ort #TODO Check its origin and `torch_ort.ORTModule`
-        """
-        if self.ort_model:
-            logger.info("Updating weights of torch model from ORT model.")
-            ort_state_dict = checkpoint.experimental_state_dict(self.ort_model)
-            self.model.load_state_dict(ort_state_dict, strict=False)
-        else:
-            logger.warning("No ORT model found to update weights from, assuming torch model is up to date.")
+        return train_output
 
     def evaluate_ort(
         self,
@@ -105,25 +119,21 @@ class ORTTrainer(Trainer):
             os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
         )
 
-        if self.ort_model:
-            # `train()` function has been called, `self.ort_model` is an instance of `orttrainer.ORTTrainer`.
-            self.ort_model.save_as_onnx(onnx_model_path)
-            # delete the training model to free up GPU memory
-            del self.ort_model
-            self.ort_model = None
+        if self.ort_model_path:
+            # `train()` function has been called, the onnx graph is exported
+            pass
         else:
             # Convert the `PreTrainedModel` to an onnx model and export the onnx graph
+            
             self._export(onnx_model_path)
+            self.ort_model_path = onnx_model_path.as_posix()
 
-        self.infer_sess = onnxruntime.InferenceSession(onnx_model_path.as_posix())
-        # if self.args.no_cuda:
-        #     self.infer_sess = onnxruntime.InferenceSession(onnx_model_path,
-        #                                             sess_options,
-        #                                             providers=['CPUExecutionProvider'],
-        #                                             **kwargs)
-        # else:
-        #     self.infer_sess = onnxruntime.InferenceSession(onnx_model_path.as_posix(), **kwargs)  # sess_options
-        #     assert 'CUDAExecutionProvider' in self.infer_sess.get_providers()  # Make sure there is GPU
+        # Can't infer the exported onnx models due to impatible opset
+        self.infer_sess = onnxruntime.InferenceSession(
+            self.ort_model_path, 
+            self.session_options,
+            providers=['CPUExecutionProvider'] #['CUDAExecutionProvider']
+        )
 
         output_names = [output.name for output in self.infer_sess._outputs_meta]
         input_names = [ort_input.name for ort_input in self.infer_sess._inputs_meta]
@@ -144,11 +154,14 @@ class ORTTrainer(Trainer):
                 pad_len = self.args.per_device_eval_batch_size - inputs["input_ids"].size()[0]
                 # pad input feeds
                 for input_name in input_names:
+                    print("pad len", pad_len)
+                    print("input dim", inputs["input_ids"].dim())
                     inputs[input_name] = torch.nn.functional.pad(inputs[input_name], (0, 0, 0, pad_len))
 
             input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].numpy()), input_names))
             step_eval_loss = self.infer_sess.run(output_names, input_feed)
             eval_losses += [step_eval_loss[0]]
+            break
 
         # TODO: Other evaluation metrics: accuracy, f1 score, precision, recall...
         metrics = {}
@@ -157,52 +170,20 @@ class ORTTrainer(Trainer):
             metrics["loss"] = np.mean(eval_losses)
 
         return metrics
-
-    def evaluate(
-        self,
-        eval_dataset: Optional[Dataset] = None,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "eval",
-    ) -> Dict[str, float]:
-        """
-        Overrides the `Trainer.evaluate()` by updating the torch model weights as well as delete the 
-        ort training model to free up memory.
-        """
-        # update the torch model weights and delete the ort training model to free up GPU memory
-        self.update_torch_model()
-        del self.ort_model
-        self.ort_model = None
-
-        eval_dataset = eval_dataset if eval_dataset else self.eval_dataset
-        output_metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
-
-        return output_metrics
-
-    def predict(
-        self,
-        test_dataset: Dataset,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "test",
-    ) -> PredictionOutput:
-        """
-        Overrides the `Trainer.predict()` by updating the torch model weights as well as delete the 
-        ort training model to free up memory.
-        """
-        # update the torch model weights and delete the ort training model to free up GPU memory
-        self.update_torch_model()
-        del self.ort_model
-        self.ort_model = None
-
-        output_metrics = super().predict(test_dataset, ignore_keys, metric_key_prefix)
-
-        return output_metrics
-
-    def _save(self, output_dir: Optional[str] = None, state_dict=None):
-        # Update the torch model weights
-        self.update_torch_model()
-
-        super()._save(output_dir, state_dict)
-
+    
+    def _save_model(self, model: onnx.ModelProto, file_path: str):
+        onnx.save(model, file_path)
+    
+    def save_model(self, model):
+        # save the ortmodule exported model
+        path = Path(
+            os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
+        )
+        self._save_model(
+            model,
+            path,
+        )
+    
     def _export(self, model_path: os.PathLike, feature: str = "default", opset: Optional[int] = None) -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
@@ -214,4 +195,5 @@ class ORTTrainer(Trainer):
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         onnx_config = model_onnx_config(self.model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
+        self.model.to('cpu')
         _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)
