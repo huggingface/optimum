@@ -44,18 +44,17 @@ logger = logging.getLogger(__name__)
 
 
 class ORTQuantizationMode(Enum):
-
     DYNAMIC = "dynamic"
     STATIC = "static"
 
 
 SUPPORTED_QUANT_MODE = set([approach.value for approach in ORTQuantizationMode])
 
-CALIB_METHOD = {"minmax": CalibrationMethod.MinMax, "entropy": CalibrationMethod.Entropy}
+CALIB_METHOD = {"minmax": "MinMax", "entropy": "Entropy"}
 
-Q_FORMAT = {"operator": QuantFormat.QOperator, "qdq": QuantFormat.QDQ}
+Q_FORMAT = {"operator": "QOperator", "qdq": "QDQ"}
 
-Q_TYPE = {"int8": QuantType.QInt8, "uint8": QuantType.QUInt8}
+Q_TYPE = {"int8": "QInt8", "uint8": "QUInt8"}
 
 
 class ORTCalibrationDataReader(CalibrationDataReader):
@@ -130,10 +129,10 @@ class ORTQuantizer:
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
-        self.activation_type = Q_TYPE.get(ort_config.activation_type, QuantType.QUInt8)
-        self.weight_type = Q_TYPE.get(ort_config.weight_type, QuantType.QUInt8)
-        self.quant_format = Q_FORMAT.get(ort_config.quant_format, QuantFormat.QOperator)
-        self.calibrate_method = CALIB_METHOD.get(ort_config.calibration_method, CalibrationMethod.MinMax)
+        self.activation_type = QuantType[Q_TYPE.get(ort_config.activation_type)]
+        self.weight_type = QuantType[Q_TYPE.get(ort_config.weight_type)]
+        self.quant_format = QuantFormat[Q_FORMAT.get(ort_config.quant_format)]
+        self.calibrate_method = CalibrationMethod[CALIB_METHOD.get(ort_config.calibration_method)]
         self.seed = ort_config.seed
         self.calib_dataset = calib_dataset
         self.dataset_name = dataset_name
@@ -171,6 +170,7 @@ class ORTQuantizer:
                 The output directory where the quantized model will be saved.
         """
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
         model_path = output_dir.joinpath("model.onnx")
         quant_model_path = generate_identified_filename(model_path, "-quantized")
 
