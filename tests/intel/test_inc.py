@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import os
+import functools
 import tempfile
 import unittest
 
@@ -25,7 +26,6 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
 )
-
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -103,7 +103,8 @@ class TestINCQuantization(unittest.TestCase):
 
             quantizer = IncQuantizer(model, q8_config, eval_func=eval_func)
 
-            q_model = quantizer.fit_dynamic()
+            quantizer.init()
+            q_model = quantizer.fit()
             q_model_result = eval_func(q_model.model)
 
             # Verification accuracy loss is under 2%
@@ -156,7 +157,8 @@ class TestINCQuantization(unittest.TestCase):
             quantizer = IncQuantizer(model, q8_config)
             quantizer.eval_func = eval_func
             quantizer.calib_dataloader = trainer.get_eval_dataloader()
-            q_model = quantizer.fit_static()
+            quantizer.init()
+            q_model = quantizer.fit()
             q_model_result = eval_func(q_model.model)
 
             # Verification accuracy loss is under 4%
@@ -220,7 +222,8 @@ class TestINCQuantization(unittest.TestCase):
             quantizer = IncQuantizer(model, q8_config)
             quantizer.eval_func = eval_func
             quantizer.train_func = train_func
-            q_model = quantizer.fit_aware_training()
+            quantizer.init()
+            q_model = quantizer.fit()
             q_model_result = eval_func(q_model.model)
 
             # Verification accuracy loss is under 6%
@@ -293,7 +296,8 @@ class TestINCQuantization(unittest.TestCase):
 
             model_result = eval_func(model)
             quantizer.eval_func = eval_func
-            q_model = quantizer.fit_dynamic()
+            quantizer.init()
+            q_model = quantizer.fit()
             q_model_result = eval_func(q_model.model)
 
             # Verification accuracy loss is under 2%
@@ -376,7 +380,7 @@ class TestINCPruning(unittest.TestCase):
             model_result = eval_func(model)
             inc_pruner.eval_func = eval_func
             inc_pruner.train_func = train_func
-            pruner = inc_pruner.fit()
+            pruner = inc_pruner.init()
             pruned_model = pruner()
             pruned_model_result = eval_func(pruned_model.model)
             _, sparsity = pruned_model.report_sparsity()
@@ -388,25 +392,20 @@ class TestINCPruning(unittest.TestCase):
             self.assertGreaterEqual(pruned_model_result, model_result * 0.95)
 
 
-class TestINCOptimizer(unittest.TestCase):
-    def test_optimizer(self):
-        import yaml
-        from optimum.intel.neural_compressor import IncOptimizer, IncPruner, IncQuantizer, IncTrainer
-        from optimum.intel.neural_compressor.config import IncPruningConfig, IncQuantizationConfig
-        from optimum.intel.neural_compressor.quantization import (
-            IncQuantizationMode,
-            IncQuantizedModelForSequenceClassification,
-        )
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
+class TestINCDistillation(unittest.TestCase):
+    def test_distillation(self):
+        from optimum.intel.neural_compressor.config import IncDistillationConfig
+        from optimum.intel.neural_compressor.distillation import IncDistillation
+        from optimum.intel.neural_compressor.trainer_inc import IncTrainer
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         task = "sst2"
         max_eval_samples = 64
         max_train_samples = 64
-        target_sparsity = 0.02
 
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        teacher_model = AutoModelForSequenceClassification.from_pretrained(model_name)
         metric = load_metric("glue", task)
         dataset = load_dataset("glue", task)
         dataset = dataset.map(
@@ -424,8 +423,90 @@ class TestINCOptimizer(unittest.TestCase):
         def train_func(model):
             trainer.model_wrapped = model
             trainer.model = model
-            _ = trainer.train(pruner)
+            _ = trainer.train(distiller)
             return trainer.model
+
+        def eval_func(model):
+            trainer.model = model
+            metrics = trainer.evaluate()
+            return metrics.get("eval_accuracy")
+
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "distillation.yml")
+
+        distillation_config = IncDistillationConfig.from_pretrained(config_path)
+
+        inc_distiller = IncDistillation(model, teacher_model, distillation_config, 
+                                        eval_func=eval_func, train_func=train_func)
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            training_args = TrainingArguments(tmp_dir, num_train_epochs=2.0)
+
+            trainer = IncTrainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
+                compute_metrics=compute_metrics,
+                tokenizer=tokenizer,
+                data_collator=default_data_collator,
+            )
+
+            model_result = eval_func(model)
+            inc_distiller.eval_func = eval_func
+            inc_distiller.train_func = train_func
+            distiller = inc_distiller.init()
+            distilled_model = distiller()
+            distilled_model_result = eval_func(distilled_model.model)
+
+            # Verification accuracy loss is under 5%
+            self.assertGreaterEqual(distilled_model_result, model_result * 0.95)
+
+
+class TestINCOptimizer(unittest.TestCase):
+    def test_optimizer(self):
+        import yaml
+        from optimum.intel.neural_compressor import IncOptimizer, IncPruner, IncQuantizer, IncDistillation, IncTrainer
+        from optimum.intel.neural_compressor.config import IncPruningConfig, IncQuantizationConfig, IncDistillationConfig
+        from optimum.intel.neural_compressor.quantization import (
+            IncQuantizationMode,
+            IncQuantizedModelForSequenceClassification,
+        )
+        from optimum.intel.neural_compressor.utils import CONFIG_NAME
+
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
+        task = "sst2"
+        max_eval_samples = 64
+        max_train_samples = 64
+        target_sparsity = 0.02
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        teacher_model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        metric = load_metric("glue", task)
+        dataset = load_dataset("glue", task)
+        dataset = dataset.map(
+            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128), batched=True
+        )
+        train_dataset = dataset["train"].select(range(max_train_samples))
+        eval_dataset = dataset["validation"].select(range(max_eval_samples))
+
+        def compute_metrics(p: EvalPrediction):
+            preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+            preds = np.argmax(preds, axis=1)
+            result = metric.compute(predictions=preds, references=p.label_ids)
+            return result
+
+        def train_func_(model, agent=None):
+            trainer.model_wrapped = model
+            trainer.model = model
+            _ = trainer.train(agent)
+            return trainer.model
+
+        def train_func(model):
+            return train_func_(model)
+
+        def train_func_agent(model, agent):
+            return train_func_(model, agent)
 
         def eval_func(model):
             trainer.model = model
@@ -443,13 +524,22 @@ class TestINCOptimizer(unittest.TestCase):
         pruning_config.set_config("pruning.approach.weight_compression.initial_sparsity", 0.0)
         pruning_config.set_config("pruning.approach.weight_compression.target_sparsity", target_sparsity)
 
+        distillation_config = IncDistillationConfig.from_pretrained(config_path, config_file_name="distillation.yml")
+
         inc_quantizer = IncQuantizer(model, q8_config, eval_func=eval_func)
-        quantizer = inc_quantizer.fit()
+        quantizer = inc_quantizer.init()
 
         inc_pruner = IncPruner(model, pruning_config, eval_func=eval_func, train_func=train_func)
-        pruner = inc_pruner.fit()
+        pruner = inc_pruner.init()
+        pruner.pruning_func = functools.partial(train_func_agent, agent=pruner)
 
-        inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
+        inc_distiller = IncDistillation(model, teacher_model, distillation_config, 
+                                        eval_func=eval_func, train_func=train_func)
+        distiller = inc_distiller.init()
+        distiller.train_func = functools.partial(train_func_agent, agent=distiller)
+
+        components = [distiller, pruner, quantizer]
+        inc_optimizer = IncOptimizer(model, components, eval_func=eval_func, train_func=train_func)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             training_args = TrainingArguments(tmp_dir, num_train_epochs=2.0)
