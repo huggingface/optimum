@@ -12,5 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from .convert import convert_to_onnx
-from .optimize_model import optimize, quantize
+from .configuration import ORTConfig
+from .optimization import ORTOptimizer
+from .quantization import ORTQuantizer
