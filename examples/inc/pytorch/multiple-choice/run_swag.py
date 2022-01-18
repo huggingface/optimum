@@ -504,6 +504,7 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
+        return trainer.model
 
     def train_func(model):
         return take_train_steps(model, trainer, resume_from_checkpoint, last_checkpoint)

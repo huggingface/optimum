@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union, List, Set
 
 from ..configuration_utils import BaseConfig
 
@@ -102,6 +102,9 @@ class ORTConfig(BaseConfig):
         calib_batch_size: Optional[int] = 8,
         seed: Optional[int] = 42,
         use_external_data_format: Optional[bool] = False,
+        nodes_to_quantize: Optional[List] = None,
+        nodes_to_exclude: Optional[List] = None,
+        extra_options: Optional[Set] = None,
     ):
         self.opset = opset
         self.opt_level = opt_level
@@ -120,3 +123,8 @@ class ORTConfig(BaseConfig):
         self.calib_batch_size = calib_batch_size
         self.seed = seed
         self.use_external_data_format = use_external_data_format
+        self.nodes_to_quantize = nodes_to_quantize
+        self.nodes_to_exclude = nodes_to_exclude
+        self.extra_options = extra_options
+
+

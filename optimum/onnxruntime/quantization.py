@@ -202,6 +202,9 @@ class ORTQuantizer:
                 optimize_model=self.ort_config.optimize_model,
                 use_external_data_format=self.ort_config.use_external_data_format,
                 calibrate_method=self.calibrate_method,
+                nodes_to_quantize=self.ort_config.nodes_to_quantize,
+                nodes_to_exclude=self.ort_config.nodes_to_exclude,
+                extra_options=self.ort_config.extra_options,
             )
         else:
             raise ValueError(
