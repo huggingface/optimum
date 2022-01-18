@@ -47,6 +47,6 @@ class ORTConfig(BaseConfig):
         self.split = kwargs.pop("split", "train")
         self.max_samples = kwargs.pop("max_samples", 80)
         self.calib_batch_size = kwargs.pop("calib_batch_size", 8)
-        self.nodes_to_quantize = (kwargs.pop("nodes_to_quantize", []),)
-        self.nodes_to_exclude = (kwargs.pop("nodes_to_exclude", []),)
+        self.nodes_to_quantize = kwargs.pop("nodes_to_quantize", [])
+        self.nodes_to_exclude = kwargs.pop("nodes_to_exclude", [])
         self.extra_options = kwargs.pop("extra_options", {})
