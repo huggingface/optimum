@@ -48,7 +48,7 @@ class OnnxConfigManager:
     It is possible to add customized model information with the `update_model` method.
 
     Attributes:
-        __conf (:obj:`dict`):
+        __conf (`dict`):
             The dictionary mapping each model type to a dictionary containing the model attribute names corresponding to
             the number of attention heads and hidden size.
     """
@@ -103,25 +103,25 @@ class ORTOptimizer:
     def __init__(self, model_name_or_path: str, ort_config: Union[str, ORTConfig], feature: str = "default", **kwargs):
         """
         Args:
-            model_name_or_path (:obj:`str`):
+            model_name_or_path (`str`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            ort_config (:obj:`Union[ORTConfig, str]`):
+            ort_config (`Union[ORTConfig, str]`):
                 Configuration file containing all the information related to the model optimization and quantization.
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
-            feature (:obj:`str`):
+            feature (`str`):
                 Feature used when exporting the model.
-            cache_dir (:obj:`str`, `optional`):
+            cache_dir (`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
-            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            force_download (`bool`, `optional`, defaults to `False`):
                 Whether or not to force to (re-)download the configuration files and override the cached versions if
                 they exist.
-            resume_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            resume_download (`bool`, `optional`, defaults to `False`):
                 Whether or not to delete incompletely received file. Attempts to resume the download if such a file
                 exists.
-            revision(:obj:`str`, `optional`):
+            revision(`str`, `optional`):
                 The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
                 git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
                 identifier allowed by git.
@@ -152,7 +152,7 @@ class ORTOptimizer:
         Exports a model to an ONNX Intermediate Representation (IR).
 
         Args:
-            model_path (:obj:`os.PathLike`):
+            model_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
         """
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
@@ -168,29 +168,29 @@ class ORTOptimizer:
         ONNX Runtime.
 
         Args:
-            output_dir (:obj:`Union[str, os.PathLike]`):
+            output_dir (`Union[str, os.PathLike]`):
                 The output directory where the optimized model will be saved.
-            disable_gelu (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            disable_gelu (`bool`, `optional`, defaults to `False`):
                 Whether or not to disable Gelu fusion.
-            disable_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            disable_layer_norm (`bool`, `optional`, defaults to `False`):
                 Whether or not to disable LayerNormalization fusion.
-            disable_attention (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            disable_attention (`bool`, `optional`, defaults to `False`):
                 Whether or not to disable Attention fusion.
-            disable_skip_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            disable_skip_layer_norm (`bool`, `optional`, defaults to `False`):
                 Whether or not to disable SkipLayerNormalization fusion.
-            disable_bias_skip_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            disable_bias_skip_layer_norm (`bool`, `optional`, defaults to `False`):
                 Whether or not to disable Add Bias and SkipLayerNormalization fusion.
-            disable_bias_gelu (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            disable_bias_gelu (`bool`, `optional`, defaults to `False`):
                 Whether or not to disable Add Bias and Gelu/FastGelu fusion.
-            enable_gelu_approximation (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            enable_gelu_approximation (`bool`, `optional`, defaults to `False`):
                 Whether or not to enable Gelu/BiasGelu to FastGelu conversion. The default value
                 is set to `False` since the approximation might slightly impact the accuracy of
                 models.
-            use_mask_index (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            use_mask_index (`bool`, `optional`, defaults to `False`):
                 Whether or not to use mask index instead of raw attention mask in attention operator.
-            no_attention_mask (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            no_attention_mask (`bool`, `optional`, defaults to `False`):
                 No attention mask. Only works for `model_type=bert`.
-            disable_embed_layer_norm (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            disable_embed_layer_norm (`bool`, `optional`, defaults to `True`):
                 Whether or not to disable EmbedLayerNormalization fusion. The default value is set to
                 `True` since the fusion is incompatible with ONNX Runtime quantization.
         """
@@ -256,17 +256,17 @@ class ORTOptimizer:
         Returns a dictionary reporting the optimization.
 
         Args:
-            onnx_model_path (:obj:`str`, `optional`):
+            onnx_model_path (`str`, `optional`):
                 Path of a stored onnx model.
-            optimized_model_path (:obj:`str`, `optional`):
+            optimized_model_path (`str`, `optional`):
                 Path of the corresponding optimized onnx model.
-            summary (:obj:`bool`):
+            summary (`bool`):
                 Whether report the optimization details: reduction of nodes, and complex node fusions.
-            nodes_details (:obj:`bool`):
+            nodes_details (`bool`):
                 Whether report the top 5 reduced op_types, and return the detailed node change list.
 
         Returns:
-            sorted_nodes_change (:obj: `dict`):
+            sorted_nodes_change (`dict`):
                 Returns a sorted list with op types and its change after the optimization.
         """
         if self.onnx_model_path is None and onnx_model_path is None:
