@@ -159,4 +159,3 @@ class ORTConfig(BaseConfig):
         self.nodes_to_quantize = nodes_to_quantize
         self.nodes_to_exclude = nodes_to_exclude
         self.extra_options = extra_options
-
