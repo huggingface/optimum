@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import Any, Dict, Optional, Tuple, Union, List, Set
+from typing import Any, Dict, List, Optional
 
 from ..configuration_utils import BaseConfig
 
@@ -78,6 +78,39 @@ class ORTConfig(BaseConfig):
             Maximum number of examples to use for the calibration step resulting from static quantization.
         calib_batch_size (`int`, `optional`, defaults to 8):
             The batch size to use for the calibration step resulting from static quantization.
+        nodes_to_quantize (`List`, `optional`):
+            List of nodes names to quantize.
+        nodes_to_exclude (`List`, `optional`):
+            List of nodes names to exclude when applying quantization.
+        extra_options (`Dict[str, Any]`, `optional`):
+            The dictionary mapping each extra options to the desired value, such as :
+                ActivationSymmetric (`bool`, `optional`, defaults to `False`):
+                    Symmetrize calibration data for activations.
+                WeightSymmetric (`bool`, `optional`, defaults to `True`):
+                    Symmetrize calibration data for weights.
+                EnableSubgraph (`bool`, `optional`, defaults to `False`):
+                    If enabled, subgraph will be quantized.
+                DisableShapeInference (`bool`, `optional`, defaults to `False`):
+                    In dynamic quantization mode, shape inference is not mandatory and can be disabled in case it causes
+                    issues.
+                ForceQuantizeNoInputCheck (`bool`, `optional`, defaults to `False`):
+                    By default, the outputs of some latent operators such as maxpool or transpose are not quantized if
+                    the corresponding input is not already quantized. When set to True, this option will force such
+                    operator to always quantize their input, resulting in quantized output.
+                MatMulConstBOnly (`bool`, `optional`, defaults to `False`):
+                    If enabled, only MatMul with const B will be quantized.
+                AddQDQPairToWeight (`bool`, `optional`, defaults to `False`):
+                    By default, floating-point weights are quantized and feed to solely inserted DeQuantizeLinear node.
+                    If set to True, the floating-point weights will remain and both QuantizeLinear/DeQuantizeLinear
+                    nodes will be inserted.
+                OpTypesToExcludeOutputQuantization (`List`, `optional`, defaults to `[]`):
+                    If any op type is specified, the output of ops with this specific op types will not be quantized.
+                DedicatedQDQPair (`bool`, `optional`, defaults to `False`):
+                    When inserting QDQ pair, multiple nodes can share a single QDQ pair as their inputs. If True, it
+                    will create an identical and dedicated QDQ pair for each node.
+                QDQOpTypePerChannelSupportToAxis (`Dict`, `optional`, defaults to `{}`):
+                    Set the channel axis for a specific op type. Effective only when per channel quantization is
+                    supported and per_channel is set to True.
     """
 
     CONFIG_NAME = "ort_config.json"
@@ -104,7 +137,7 @@ class ORTConfig(BaseConfig):
         use_external_data_format: Optional[bool] = False,
         nodes_to_quantize: Optional[List] = None,
         nodes_to_exclude: Optional[List] = None,
-        extra_options: Optional[Set] = None,
+        extra_options: Optional[Dict[str, Any]] = None,
     ):
         self.opset = opset
         self.opt_level = opt_level
@@ -126,5 +159,4 @@ class ORTConfig(BaseConfig):
         self.nodes_to_quantize = nodes_to_quantize
         self.nodes_to_exclude = nodes_to_exclude
         self.extra_options = extra_options
-
 
