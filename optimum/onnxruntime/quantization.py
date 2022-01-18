@@ -180,6 +180,8 @@ class ORTQuantizer:
                 The output directory where the quantized model will be saved.
         """
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True)
         model_path = output_dir.joinpath("model.onnx")
         quant_model_path = generate_identified_filename(model_path, "-quantized")
 
