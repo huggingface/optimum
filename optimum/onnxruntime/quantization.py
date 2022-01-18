@@ -44,18 +44,27 @@ logger = logging.getLogger(__name__)
 
 
 class ORTQuantizationMode(Enum):
-
     DYNAMIC = "dynamic"
     STATIC = "static"
 
 
+class ORTCalibrationMethod(Enum):
+    minmax = CalibrationMethod.MinMax
+    entropy = CalibrationMethod.Entropy
+    percentile = CalibrationMethod.Percentile
+
+
+class ORTQuantType(Enum):
+    int8 = QuantType.QInt8
+    uint8 = QuantType.QUInt8
+
+
+class ORTQuantFormat(Enum):
+    operator = QuantFormat.QOperator
+    qdq = QuantFormat.QDQ
+
+
 SUPPORTED_QUANT_MODE = set([approach.value for approach in ORTQuantizationMode])
-
-CALIB_METHOD = {"minmax": CalibrationMethod.MinMax, "entropy": CalibrationMethod.Entropy}
-
-Q_FORMAT = {"operator": QuantFormat.QOperator, "qdq": QuantFormat.QDQ}
-
-Q_TYPE = {"int8": QuantType.QInt8, "uint8": QuantType.QUInt8}
 
 
 class ORTCalibrationDataReader(CalibrationDataReader):
@@ -130,10 +139,10 @@ class ORTQuantizer:
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
-        self.activation_type = Q_TYPE.get(ort_config.activation_type, QuantType.QUInt8)
-        self.weight_type = Q_TYPE.get(ort_config.weight_type, QuantType.QUInt8)
-        self.quant_format = Q_FORMAT.get(ort_config.quant_format, QuantFormat.QOperator)
-        self.calibrate_method = CALIB_METHOD.get(ort_config.calibration_method, CalibrationMethod.MinMax)
+        self.activation_type = ORTQuantType[ort_config.activation_type].value
+        self.weight_type = ORTQuantType[ort_config.weight_type].value
+        self.quant_format = ORTQuantFormat[ort_config.quant_format].value
+        self.calibrate_method = ORTCalibrationMethod[ort_config.calibration_method].value
         self.seed = ort_config.seed
         self.calib_dataset = calib_dataset
         self.dataset_name = dataset_name
