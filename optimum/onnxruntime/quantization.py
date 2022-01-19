@@ -44,18 +44,17 @@ logger = logging.getLogger(__name__)
 
 
 class ORTQuantizationMode(Enum):
-
     DYNAMIC = "dynamic"
     STATIC = "static"
 
 
 SUPPORTED_QUANT_MODE = set([approach.value for approach in ORTQuantizationMode])
 
-CALIB_METHOD = {"minmax": CalibrationMethod.MinMax, "entropy": CalibrationMethod.Entropy}
+CALIB_METHOD = {"minmax": "MinMax", "entropy": "Entropy"}
 
-Q_FORMAT = {"operator": QuantFormat.QOperator, "qdq": QuantFormat.QDQ}
+Q_FORMAT = {"operator": "QOperator", "qdq": "QDQ"}
 
-Q_TYPE = {"int8": QuantType.QInt8, "uint8": QuantType.QUInt8}
+Q_TYPE = {"int8": "QInt8", "uint8": "QUInt8"}
 
 
 class ORTCalibrationDataReader(CalibrationDataReader):
@@ -81,36 +80,36 @@ class ORTQuantizer:
     ):
         """
         Args:
-            model_name_or_path (:obj:`str`):
+            model_name_or_path (`str`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            ort_config (:obj:`Union[ORTConfig, str]`):
+            ort_config (`Union[ORTConfig, str]`):
                 Configuration file containing all the information related to the model quantization.
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
-            feature (:obj:`str`):
+            feature (`str`):
                 Feature used when exporting the model.
-            calib_dataset (:obj:`Dataset`, `optional`):
+            calib_dataset (`Dataset`, `optional`):
                 Dataset to use for the calibration step.
-            dataset_name (:obj:`str`, `optional`):
+            dataset_name (`str`, `optional`):
                 Dataset repository name on the Hugging Face Hub or path to a local directory containing data files to
                 load to use for the calibration step.
-            dataset_config_name (:obj:`str`, `optional`):
+            dataset_config_name (`str`, `optional`):
                 Name of the dataset configuration.
-            data_files (:obj:`str`, `optional`):
+            data_files (`str`, `optional`):
                 Path to source data files.
-            preprocess_function (:obj:`Callable`, `optional`):
+            preprocess_function (`Callable`, `optional`):
                 Processing function to apply to each example after loading dataset.
-            cache_dir (:obj:`str`, `optional`):
+            cache_dir (`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
-            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            force_download (`bool`, `optional`, defaults to `False`):
                 Whether or not to force to (re-)download the configuration files and override the cached versions if
                 they exist.
-            resume_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            resume_download (`bool`, `optional`, defaults to `False`):
                 Whether or not to delete incompletely received file. Attempts to resume the download if such a file
                 exists.
-            revision(:obj:`str`, `optional`):
+            revision(`str`, `optional`):
                 The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
                 git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
                 identifier allowed by git.
@@ -130,10 +129,10 @@ class ORTQuantizer:
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
-        self.activation_type = Q_TYPE.get(ort_config.activation_type, QuantType.QUInt8)
-        self.weight_type = Q_TYPE.get(ort_config.weight_type, QuantType.QUInt8)
-        self.quant_format = Q_FORMAT.get(ort_config.quant_format, QuantFormat.QOperator)
-        self.calibrate_method = CALIB_METHOD.get(ort_config.calibration_method, CalibrationMethod.MinMax)
+        self.activation_type = QuantType[Q_TYPE.get(ort_config.activation_type)]
+        self.weight_type = QuantType[Q_TYPE.get(ort_config.weight_type)]
+        self.quant_format = QuantFormat[Q_FORMAT.get(ort_config.quant_format)]
+        self.calibrate_method = CalibrationMethod[CALIB_METHOD.get(ort_config.calibration_method)]
         self.seed = ort_config.seed
         self.calib_dataset = calib_dataset
         self.dataset_name = dataset_name
@@ -151,7 +150,7 @@ class ORTQuantizer:
         Load and export a model to an ONNX Intermediate Representation (IR).
 
         Args:
-            model_path (:obj:`os.PathLike`):
+            model_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
         """
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
@@ -167,10 +166,11 @@ class ORTQuantizer:
         approach.
 
         Args:
-            output_dir (:obj:`Union[str, os.PathLike]`):
+            output_dir (`Union[str, os.PathLike]`):
                 The output directory where the quantized model will be saved.
         """
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
         model_path = output_dir.joinpath("model.onnx")
         quant_model_path = generate_identified_filename(model_path, "-quantized")
 
@@ -202,6 +202,9 @@ class ORTQuantizer:
                 optimize_model=self.ort_config.optimize_model,
                 use_external_data_format=self.ort_config.use_external_data_format,
                 calibrate_method=self.calibrate_method,
+                nodes_to_quantize=self.ort_config.nodes_to_quantize,
+                nodes_to_exclude=self.ort_config.nodes_to_exclude,
+                extra_options=self.ort_config.extra_options,
             )
         else:
             raise ValueError(
@@ -238,8 +241,8 @@ class ORTQuantizer:
         """
         Returns the calibration :class:`~torch.utils.data.DataLoader`.
         Args:
-            calib_dataset (:obj:`torch.utils.data.Dataset`, `optional`):
-                If provided, will override :obj:`self.calib_dataset`.
+            calib_dataset (`torch.utils.data.Dataset`, `optional`):
+                If provided, will override `self.calib_dataset`.
         """
         if calib_dataset is None and self.calib_dataset is None:
             raise ValueError("ORTQuantizer: static quantization calibration step requires a calib_dataset.")
@@ -268,7 +271,7 @@ class ORTQuantizer:
         """
         Returns the calibration :class:`~optimum.onnxruntime.quantization.ORTCalibrationDataReader`.
         Args:
-            calib_dataloader (:obj:`torch.utils.data.DataLoader`):
+            calib_dataloader (`torch.utils.data.DataLoader`):
                 Calibration dataloader to use for the post-training static quantization calibration step.
         """
         return ORTCalibrationDataReader(calib_dataloader)
