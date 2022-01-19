@@ -60,7 +60,7 @@ python run_qa.py \
 The following example fine-tunes DistilBERT model of 90% sparsity on the SQuAD1.0 dataset through applying quantization aware-training, pattern lock pruning and distillation simultaneously.
 
 ```
-python run_glue.py \
+python run_qa.py \
     --model_name_or_path Intel/distilbert-base-uncased-sparse-90-unstructured-pruneofa \
     --teacher_model_name_or_path distilbert-base-uncased-distilled-squad \
     --dataset_name squad \
@@ -69,7 +69,7 @@ python run_glue.py \
     --distillation \
     --one_shot_optimization \
     --do_train --do_eval \
-    --output_dir/tmp/sst2_output
+    --output_dir/tmp/squad_output
 ```
 
 In order to apply dynamic, static or aware-training quantization, `quantization_approach` must be set to 
