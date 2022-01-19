@@ -18,7 +18,7 @@ limitations under the License.
 
 
 The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/question-answering/run_qa.py)
-allows us to apply different quantization approaches (such as dynamic, static and aware-training quantization) as well as pruning 
+allows us to apply different quantization approaches (such as dynamic, static and aware-training quantization) as well as pruning and distillation 
 using the [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) library for
 question answering tasks.
 
@@ -57,13 +57,29 @@ python run_qa.py \
     --output_dir /tmp/squad_output
 ```
 
+The following example fine-tunes DistilBERT model of 90% sparsity on the SQuAD1.0 dataset through applying quantization aware-training, pattern lock pruning and distillation simultaneously.
+
+```
+python run_glue.py \
+    --model_name_or_path Intel/distilbert-base-uncased-sparse-90-unstructured-pruneofa \
+    --teacher_model_name_or_path distilbert-base-uncased-distilled-squad \
+    --dataset_name squad \
+    --quantize --quantization_approach aware_training \
+    --prune --pruning_config ../config/prune_pattern_lock.yml \
+    --distillation \
+    --one_shot_optimization \
+    --do_train --do_eval \
+    --output_dir/tmp/sst2_output
+```
+
 In order to apply dynamic, static or aware-training quantization, `quantization_approach` must be set to 
 respectively `dynamic`, `static` or `aware_training`.
 
-The configuration file containing all the information related to the model quantization and pruning objectives can be 
-specified using respectively `quantization_config` and `pruning_config`. If not specified, the default
-[quantization](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/quantization.yml) 
-and [pruning](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/prune.yml) 
+The configuration file containing all the information related to the model quantization, pruning and distillation objectives can be 
+specified using respectively `quantization_config`, `pruning_config` and `distillation_config`. If not specified, the default
+[quantization](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/quantization.yml), 
+[pruning](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/prune.yml) 
+and [distillation](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/config/distillation.yml) 
 config files will be used.
 
 The flag `--verify_loading` can be passed along to verify that the resulting quantized model can be loaded correctly.

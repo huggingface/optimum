@@ -379,6 +379,9 @@ class IncTrainer(Trainer):
                     steps_in_epoch <= args.gradient_accumulation_steps
                     and (step + 1) == steps_in_epoch
                 ):
+                    if isinstance(agent, Component):
+                        agent.on_post_grad()
+
                     # Gradient clipping
                     if args.max_grad_norm is not None and args.max_grad_norm > 0:
 
@@ -402,8 +405,6 @@ class IncTrainer(Trainer):
                     if optimizer_was_run:
                         self.lr_scheduler.step()
 
-                    if isinstance(agent, Component):
-                        agent.on_post_grad()
                     model.zero_grad()
                     self.state.global_step += 1
                     self.state.epoch = epoch + (step + 1) / steps_in_epoch
