@@ -23,8 +23,8 @@ import numpy
 import torch
 from datasets import Dataset, load_dataset
 from torch.utils.data import DataLoader, RandomSampler
-from transformers import AutoTokenizer, default_data_collator
-from transformers.onnx import export
+from transformers import AutoTokenizer, PretrainedConfig, default_data_collator
+from transformers.onnx import OnnxConfig, export
 from transformers.onnx.features import FeaturesManager
 
 import onnx
@@ -68,7 +68,6 @@ class ORTCalibrationDataReader(CalibrationDataReader):
 class ORTQuantizer:
     def __init__(
         self,
-        model_name_or_path: str,
         ort_config: Union[str, ORTConfig],
         feature: str = "default",
         calib_dataset: Optional[Dataset] = None,
@@ -80,15 +79,13 @@ class ORTQuantizer:
     ):
         """
         Args:
-            model_name_or_path (`str`):
-                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
             ort_config (`Union[ORTConfig, str]`):
                 Configuration file containing all the information related to the model quantization.
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
-            feature (`str`):
-                Feature used when exporting the model.
+            feature (`str`, defaults to `"default"`):
+                Feature to use when exporting the model.
             calib_dataset (`Dataset`, `optional`):
                 Dataset to use for the calibration step.
             dataset_name (`str`, `optional`):
@@ -120,13 +117,10 @@ class ORTQuantizer:
             ("resume_download", False),
             ("revision", None),
         ]
-        config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
-        model_kwargs = copy.deepcopy(config_kwargs)
-        tokenizer_kwargs = copy.deepcopy(config_kwargs)
-        self.cache_dir = config_kwargs.get("cache_dir")
-        self.model_name_or_path = model_name_or_path
+        ort_config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
+        self.cache_dir = ort_config_kwargs.get("cache_dir")
         if not isinstance(ort_config, ORTConfig):
-            ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
+            ort_config = ORTConfig.from_pretrained(ort_config, **ort_config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
         self.activation_type = QuantType[Q_TYPE.get(ort_config.activation_type)]
@@ -139,46 +133,107 @@ class ORTQuantizer:
         self.dataset_config_name = dataset_config_name
         self.data_files = data_files
         self.preprocess_function = preprocess_function
-        self.onnx_config = None
         self.feature = feature
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, **tokenizer_kwargs)
-        model_class = FeaturesManager.get_model_class_for_feature(self.feature)
-        self.model = model_class.from_pretrained(self.model_name_or_path, **model_kwargs)
+        self.onnx_config = None
+        self.tokenizer = None
+        self.model = None
 
-    def export(self, model_path: os.PathLike) -> None:
+    def export(
+        self,
+        model_name_or_path: Union[str, os.PathLike],
+        output_path: Union[str, os.PathLike],
+        feature: str = "default",
+        **kwargs
+    ) -> None:
         """
-        Load and export a model to an ONNX Intermediate Representation (IR).
+        Loads and exports a model to an ONNX Intermediate Representation (IR).
 
         Args:
-            model_path (`os.PathLike`):
+            model_name_or_path (`Union[str, os.PathLike]`):
+                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
+            output_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            feature (`str`, defaults to `"default"`):
+                Feature to use when exporting the model.
+            cache_dir (`str`, `optional`):
+                Path to a directory in which a downloaded pretrained model configuration should be cached if the
+                standard cache should not be used.
+            force_download (`bool`, `optional`, defaults to `False`):
+                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
+                cached versions if they exist.
+            resume_download (`bool`, `optional`, defaults to `False`):
+                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
+                exists.
+            revision(`str`, `optional`):
+                The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
+                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
+                identifier allowed by git.
         """
-        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
-            self.model, feature=self.feature
-        )
+        kwargs_default = [
+            ("cache_dir", None),
+            ("force_download", False),
+            ("resume_download", False),
+            ("revision", None),
+        ]
+        model_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in kwargs_default}
+        tokenizer_kwargs = copy.deepcopy(model_kwargs)
+        output_path = Path(output_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
+        model_class = FeaturesManager.get_model_class_for_feature(feature)
+        self.model = model_class.from_pretrained(model_name_or_path, **model_kwargs)
+        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         self.onnx_config = model_onnx_config(self.model.config)
         opset = self.onnx_config.default_onnx_opset if self.ort_config.opset is None else self.ort_config.opset
-        _ = export(self.tokenizer, self.model, self.onnx_config, opset, model_path)
+        _ = export(self.tokenizer, self.model, self.onnx_config, opset, output_path)
 
-    def fit(self, output_dir: Union[str, os.PathLike]) -> None:
+    def fit(
+        self,
+        model_name_or_path: Union[str, os.PathLike],
+        output_dir: Union[str, os.PathLike],
+        feature: Optional[str] = None,
+        config: Optional[PretrainedConfig] = None,
+        **kwargs
+    ) -> None:
         """
-        Load and export a model to an ONNX Intermediate Representation (IR) and apply the specified quantization
-        approach.
+        Applies ONNX Runtime quantization on a given model and saves the resulting model.
 
         Args:
+            model_name_or_path (`Union[str, os.PathLike]`):
+                Repository name in the Hugging Face Hub, path to a local directory hosting the model or path to a
+                pre-existing onnx model.
             output_dir (`Union[str, os.PathLike]`):
                 The output directory where the quantized model will be saved.
+            feature (`str`, `optional`):
+                Feature to use when exporting the model.
+            config (`PretrainedConfig`, `optional`):
+                 A configuration associated to the pre-existing ONNX model.
         """
-        output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
+        feature = feature if feature is not None else self.feature
+        model_path = Path(model_name_or_path)
+        output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        model_path = output_dir.joinpath("model.onnx")
-        quant_model_path = generate_identified_filename(model_path, "-quantized")
+        if not model_path.is_file():
+            model_path = output_dir.joinpath("model.onnx")
+            self.export(model_name_or_path, model_path, feature=feature, **kwargs)
+        elif self.onnx_config is None and self.quantization_approach == ORTQuantizationMode.STATIC:
+            if config is None:
+                raise ValueError(
+                    "A configuration `config` associated to the model must be provided when applying static "
+                    "quantization on a pre-existing ONNX model."
+                )
+            if not isinstance(config, PretrainedConfig):
+                raise TypeError(
+                    f"The configuration `config` associated to the pre-existing ONNX model is of type {type(config)}, "
+                    f"which is not an instance of `PretrainedConfig`."
+                )
+            model_onnx_config = FeaturesManager._SUPPORTED_MODEL_TYPE[config.model_type][feature]
+            self.onnx_config = model_onnx_config(config)
 
-        self.export(model_path)
+        q_model_path = generate_identified_filename(model_path, "-quantized")
         if self.quantization_approach == ORTQuantizationMode.DYNAMIC:
             quantize_dynamic(
                 model_path,
-                quant_model_path,
+                q_model_path,
                 per_channel=self.ort_config.per_channel,
                 reduce_range=self.ort_config.reduce_range,
                 activation_type=self.activation_type,
@@ -192,7 +247,7 @@ class ORTQuantizer:
             calib_data_reader = self.get_data_reader(calib_dataloader)
             quantize_static(
                 model_path,
-                quant_model_path,
+                q_model_path,
                 calib_data_reader,
                 quant_format=self.quant_format,
                 per_channel=self.ort_config.per_channel,
