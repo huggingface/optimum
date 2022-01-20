@@ -149,7 +149,7 @@ class ORTOptimizer:
         **kwargs
     ) -> None:
         """
-        Load and export a model to an ONNX Intermediate Representation (IR).
+        Loads and exports a model to an ONNX Intermediate Representation (IR).
 
         Args:
             model_name_or_path (`Union[str, os.PathLike]`):
@@ -180,7 +180,7 @@ class ORTOptimizer:
         ]
         model_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in kwargs_default}
         tokenizer_kwargs = copy.deepcopy(model_kwargs)
-        output_path = output_path if isinstance(output_path, Path) else Path(output_path)
+        output_path = Path(output_path)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
         model_class = FeaturesManager.get_model_class_for_feature(feature)
         self.model = model_class.from_pretrained(model_name_or_path, **model_kwargs)
@@ -198,8 +198,7 @@ class ORTOptimizer:
         **kwargs
     ) -> None:
         """
-        Exports a model to an ONNX Intermediate Representation (IR) and apply the graph-level optimization by
-        ONNX Runtime.
+        Applies the ONNX Runtime graph-level optimization on a given model and saves the resulting model.
 
         Args:
             model_name_or_path (`Union[str, os.PathLike]`):
@@ -249,9 +248,9 @@ class ORTOptimizer:
                 `True` since the fusion is incompatible with ONNX Runtime quantization.
         """
         feature = feature if feature is not None else self.feature
-        output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
+        output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        self.onnx_model_path = model_name_or_path if isinstance(model_name_or_path, Path) else Path(model_name_or_path)
+        self.onnx_model_path = Path(model_name_or_path)
         if not self.onnx_model_path.is_file():
             self.onnx_model_path = output_dir.joinpath("model.onnx")
             self.export(model_name_or_path, self.onnx_model_path, feature=feature, **kwargs)
