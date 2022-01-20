@@ -18,7 +18,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Callable, Optional, Union
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, PretrainedConfig
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 from transformers.utils import logging
@@ -100,13 +100,11 @@ class ORTOptimizer:
     ORTOptimizer is a class for ONNX Runtime optimization of models in `huggingface/transformers/models`.
     """
 
-    def __init__(self, model_name_or_path: str, ort_config: Union[str, ORTConfig], feature: str = "default", **kwargs):
+    def __init__(self, ort_config: Union[str, ORTConfig], feature: str = "default", **kwargs):
         """
         Args:
-            model_name_or_path (`str`):
-                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
             ort_config (`Union[ORTConfig, str]`):
-                Configuration file containing all the information related to the model optimization and quantization.
+                Configuration file containing all the information related to the model optimization.
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
@@ -133,43 +131,99 @@ class ORTOptimizer:
             ("revision", None),
         ]
         config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
-        model_kwargs = copy.deepcopy(config_kwargs)
-        tokenizer_kwargs = copy.deepcopy(config_kwargs)
-        self.model_name_or_path = model_name_or_path
         if not isinstance(ort_config, ORTConfig):
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
-        self.onnx_config = None
         self.feature = feature
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, **tokenizer_kwargs)
-        model_class = FeaturesManager.get_model_class_for_feature(self.feature)
-        self.model = model_class.from_pretrained(self.model_name_or_path, **model_kwargs)
+        self.onnx_config = None
         self.onnx_model_path = None
         self.optim_model_path = None
+        self.tokenizer = None
+        self.model = None
 
-    def export(self, model_path: os.PathLike) -> None:
+    def export(
+        self,
+        model_name_or_path: Union[str, os.PathLike],
+        output_path: Union[str, os.PathLike],
+        feature: str = "default",
+        **kwargs
+    ) -> None:
         """
-        Exports a model to an ONNX Intermediate Representation (IR).
+        Load and export a model to an ONNX Intermediate Representation (IR).
 
         Args:
-            model_path (`os.PathLike`):
+            model_name_or_path (`Union[str, os.PathLike]`):
+                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
+            output_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            feature (`str`, defaults to `"default"`):
+                Feature to use when exporting the model.
+            cache_dir (`str`, `optional`):
+                Path to a directory in which a downloaded pretrained model configuration should be cached if the
+                standard cache should not be used.
+            force_download (`bool`, `optional`, defaults to `False`):
+                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
+                cached versions if they exist.
+            resume_download (`bool`, `optional`, defaults to `False`):
+                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
+                exists.
+            revision(`str`, `optional`):
+                The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
+                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
+                identifier allowed by git.
         """
-        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
-            self.model, feature=self.feature
-        )
+        kwargs_default = [
+            ("cache_dir", None),
+            ("force_download", False),
+            ("resume_download", False),
+            ("revision", None),
+        ]
+        model_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in kwargs_default}
+        tokenizer_kwargs = copy.deepcopy(model_kwargs)
+        output_path = output_path if isinstance(output_path, Path) else Path(output_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
+        model_class = FeaturesManager.get_model_class_for_feature(feature)
+        self.model = model_class.from_pretrained(model_name_or_path, **model_kwargs)
+        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         self.onnx_config = model_onnx_config(self.model.config)
         opset = self.onnx_config.default_onnx_opset if self.ort_config.opset is None else self.ort_config.opset
-        _ = export(self.tokenizer, self.model, self.onnx_config, opset, model_path)
+        _ = export(self.tokenizer, self.model, self.onnx_config, opset, output_path)
 
-    def fit(self, output_dir: Union[str, os.PathLike], **kwargs) -> None:
+    def fit(
+        self,
+        model_name_or_path: Union[str, os.PathLike],
+        output_dir: Union[str, os.PathLike],
+        feature: Optional[str] = None,
+        config: Optional[PretrainedConfig] = None,
+        **kwargs
+    ) -> None:
         """
         Exports a model to an ONNX Intermediate Representation (IR) and apply the graph-level optimization by
         ONNX Runtime.
 
         Args:
+            model_name_or_path (`Union[str, os.PathLike]`):
+                Repository name in the Hugging Face Hub, path to a local directory hosting the model or path to a
+                pre-existing onnx model.
             output_dir (`Union[str, os.PathLike]`):
                 The output directory where the optimized model will be saved.
+            feature (`str`, `optional`):
+                Feature to use when exporting the model.
+            config (`PretrainedConfig`, `optional`):
+                 A configuration associated to the pre-existing ONNX model.
+            cache_dir (`str`, `optional`):
+                Path to a directory in which a downloaded pretrained model configuration should be cached if the
+                standard cache should not be used.
+            force_download (`bool`, `optional`, defaults to `False`):
+                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
+                cached versions if they exist.
+            resume_download (`bool`, `optional`, defaults to `False`):
+                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
+                exists.
+            revision(`str`, `optional`):
+                The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
+                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
+                identifier allowed by git.
             disable_gelu (`bool`, `optional`, defaults to `False`):
                 Whether or not to disable Gelu fusion.
             disable_layer_norm (`bool`, `optional`, defaults to `False`):
@@ -194,20 +248,27 @@ class ORTOptimizer:
                 Whether or not to disable EmbedLayerNormalization fusion. The default value is set to
                 `True` since the fusion is incompatible with ONNX Runtime quantization.
         """
+        feature = feature if feature is not None else self.feature
         output_dir = output_dir if isinstance(output_dir, Path) else Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        self.onnx_model_path = output_dir.joinpath("model.onnx")
+        self.onnx_model_path = model_name_or_path if isinstance(model_name_or_path, Path) else Path(model_name_or_path)
+        if not self.onnx_model_path.is_file():
+            self.onnx_model_path = output_dir.joinpath("model.onnx")
+            self.export(model_name_or_path, self.onnx_model_path, feature=feature, **kwargs)
+            config = self.model.config
+        elif config is None:
+            raise ValueError(
+                "A configuration `config` associated to the model must be provided when a pre-existing ONNX model is "
+                "provided."
+            )
         self.optim_model_path = generate_identified_filename(self.onnx_model_path, "-optimized")
-
-        self.export(self.onnx_model_path)
-        config = self.model.config
         model_type = getattr(config, "model_type")
         onnx_config_defined = OnnxConfigManager.check_supported_model(model_type)
         num_heads = getattr(config, OnnxConfigManager.get_num_heads(model_type)) if onnx_config_defined else 0
         hidden_size = getattr(config, OnnxConfigManager.get_hidden_size(model_type)) if onnx_config_defined else 0
         model_type = "bert" if "bert" in model_type else model_type
 
-        fusion_config_kwargs_default = [
+        optimization_kwargs_default = [
             ("model_type", model_type),
             ("disable_gelu", False),
             ("disable_layer_norm", False),
@@ -220,10 +281,10 @@ class ORTOptimizer:
             ("no_attention_mask", False),
             ("disable_embed_layer_norm", True),
         ]
-        fusion_config_kwargs = AttrDict(
-            {name: kwargs.get(name, default_value) for (name, default_value) in fusion_config_kwargs_default}
+        optimization_kwargs = AttrDict(
+            {name: kwargs.get(name, default_value) for (name, default_value) in optimization_kwargs_default}
         )
-        optimization_options = FusionOptions.parse(fusion_config_kwargs)
+        optimization_options = FusionOptions.parse(optimization_kwargs)
 
         optimizer = optimize_model(
             self.onnx_model_path.as_posix(),
@@ -235,7 +296,6 @@ class ORTOptimizer:
             use_gpu=self.ort_config.use_gpu,
             only_onnxruntime=self.ort_config.only_onnxruntime,
         )
-
         optimizer.save_model_to_file(self.optim_model_path.as_posix(), self.ort_config.use_external_data_format)
 
         if optimizer.is_fully_optimized():
@@ -260,9 +320,9 @@ class ORTOptimizer:
                 Path of a stored onnx model.
             optimized_model_path (`str`, `optional`):
                 Path of the corresponding optimized onnx model.
-            summary (`bool`):
+            summary (`bool`, defaults to `True`):
                 Whether report the optimization details: reduction of nodes, and complex node fusions.
-            nodes_details (`bool`):
+            nodes_details (`bool`, defaults to `True`):
                 Whether report the top 5 reduced op_types, and return the detailed node change list.
 
         Returns:
@@ -280,33 +340,33 @@ class ORTOptimizer:
                 "ORTOptimizer: a path toward the optimized onnx model `optimized_model_path` is needed to get the "
                 "optimization details."
             )
-        onnx_model_path = onnx_model_path if onnx_model_path else self.onnx_model_path
+        onnx_model_path = onnx_model_path if onnx_model_path is not None else self.onnx_model_path
         optimized_model_path = optimized_model_path if optimized_model_path else self.optim_model_path
         onnx_model = load_model(onnx_model_path, format=None, load_external_data=True)
         optim_model = load_model(optimized_model_path, format=None, load_external_data=True)
         onnx_model = BertOnnxModel(onnx_model)
-        optimizer = BertOnnxModel(optim_model)
+        optim_model = BertOnnxModel(optim_model)
 
         def get_node_change(op_type):
-            return len(onnx_model.get_nodes_by_op_type(op_type)) - len(optimizer.get_nodes_by_op_type(op_type))
+            return len(onnx_model.get_nodes_by_op_type(op_type)) - len(optim_model.get_nodes_by_op_type(op_type))
 
         if summary:
             # Nodes reduction information
             count_nodes_onnx = len(onnx_model.nodes())
-            count_nodes_optim = len(optimizer.nodes())
+            count_nodes_optim = len(optim_model.nodes())
             logger.info(
                 f"There are {count_nodes_onnx} nodes before optimization and {count_nodes_optim} nodes after. "
                 f"The number of nodes removed is {count_nodes_onnx - count_nodes_optim}."
             )
             if self.ort_config.opt_level and self.ort_config.opt_level > 1:
                 # Extended fusion statistics
-                extended_fusion_statistic = optimizer.get_fused_operator_statistics()
+                extended_fusion_statistic = optim_model.get_fused_operator_statistics()
                 logger.info("Complex node fusions:\n", extended_fusion_statistic)
 
         # Top 5 reduced operations & node details onnx model v.s. optimized model
         if nodes_details:
             op_types = []
-            for model in [onnx_model, optimizer]:
+            for model in [onnx_model, optim_model]:
                 for node in model.nodes():
                     if node.op_type not in op_types:
                         op_types.append(node.op_type)
