@@ -21,7 +21,7 @@ install_requires = [
 
 extras = {
     "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
-    "intel": ["pycocotools", "neural_compressor>=1.9", "datasets>=1.2.1"],
+    "intel": ["pycocotools", "neural_compressor>=1.9", "datasets>=1.2.1", "pandas<1.4.0"],
     "graphcore": "optimum-graphcore",
 }
 
