@@ -100,7 +100,7 @@ class ORTOptimizer:
     ORTOptimizer is a class for ONNX Runtime optimization of models in `huggingface/transformers/models`.
     """
 
-    def __init__(self, ort_config: Union[str, ORTConfig], feature: str = "default", **kwargs):
+    def __init__(self, ort_config: Union[str, ORTConfig], **kwargs):
         """
         Args:
             ort_config (`Union[ORTConfig, str]`):
@@ -108,8 +108,6 @@ class ORTOptimizer:
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
-            feature (`str`):
-                Feature used when exporting the model.
             cache_dir (`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
@@ -134,7 +132,6 @@ class ORTOptimizer:
         if not isinstance(ort_config, ORTConfig):
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
-        self.feature = feature
         self.onnx_config = None
         self.onnx_model_path = None
         self.optim_model_path = None
@@ -193,7 +190,7 @@ class ORTOptimizer:
         self,
         model_name_or_path: Union[str, os.PathLike],
         output_dir: Union[str, os.PathLike],
-        feature: Optional[str] = None,
+        feature: str = "default",
         config: Optional[PretrainedConfig] = None,
         **kwargs
     ) -> None:
@@ -206,7 +203,7 @@ class ORTOptimizer:
                 pre-existing onnx model.
             output_dir (`Union[str, os.PathLike]`):
                 The output directory where the optimized model will be saved.
-            feature (`str`, `optional`):
+            feature (`str`, defaults to `"default"`):
                 Feature to use when exporting the model.
             config (`PretrainedConfig`, `optional`):
                  A configuration associated to the pre-existing ONNX model.
@@ -247,7 +244,6 @@ class ORTOptimizer:
                 Whether or not to disable EmbedLayerNormalization fusion. The default value is set to
                 `True` since the fusion is incompatible with ONNX Runtime quantization.
         """
-        feature = feature if feature is not None else self.feature
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         self.onnx_model_path = Path(model_name_or_path)

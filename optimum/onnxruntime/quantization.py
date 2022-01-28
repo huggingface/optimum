@@ -69,7 +69,6 @@ class ORTQuantizer:
     def __init__(
         self,
         ort_config: Union[str, ORTConfig],
-        feature: str = "default",
         calib_dataset: Optional[Dataset] = None,
         dataset_name: Optional[str] = None,
         dataset_config_name: Optional[str] = None,
@@ -84,8 +83,6 @@ class ORTQuantizer:
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
-            feature (`str`, defaults to `"default"`):
-                Feature to use when exporting the model.
             calib_dataset (`Dataset`, `optional`):
                 Dataset to use for the calibration step.
             dataset_name (`str`, `optional`):
@@ -133,7 +130,6 @@ class ORTQuantizer:
         self.dataset_config_name = dataset_config_name
         self.data_files = data_files
         self.preprocess_function = preprocess_function
-        self.feature = feature
         self.onnx_config = None
         self.tokenizer = None
         self.model = None
@@ -190,7 +186,7 @@ class ORTQuantizer:
         self,
         model_name_or_path: Union[str, os.PathLike],
         output_dir: Union[str, os.PathLike],
-        feature: Optional[str] = None,
+        feature: str = "default",
         config: Optional[PretrainedConfig] = None,
         **kwargs
     ) -> None:
@@ -203,12 +199,11 @@ class ORTQuantizer:
                 pre-existing onnx model.
             output_dir (`Union[str, os.PathLike]`):
                 The output directory where the quantized model will be saved.
-            feature (`str`, `optional`):
+            feature (`str`, defaults to `"default"`):
                 Feature to use when exporting the model.
             config (`PretrainedConfig`, `optional`):
                  A configuration associated to the pre-existing ONNX model.
         """
-        feature = feature if feature is not None else self.feature
         model_path = Path(model_name_or_path)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)

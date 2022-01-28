@@ -33,8 +33,8 @@ class TestORTOptimizer(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
                     optim_model_path = output_dir.joinpath("model-optimized.onnx")
-                    optimizer = ORTOptimizer(ort_config, cache_dir=tmp_dir)
-                    optimizer.fit(model_name, output_dir)
+                    optimizer = ORTOptimizer(ort_config)
+                    optimizer.fit(model_name, output_dir, feature="sequence-classification")
                     optimizer.get_optimize_details()
                     validate_model_outputs(
                         optimizer.onnx_config,
@@ -62,8 +62,8 @@ class TestORTQuantizer(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
-                    quantizer = ORTQuantizer(ort_config, feature="sequence-classification", cache_dir=tmp_dir)
-                    quantizer.fit(model_name, output_dir)
+                    quantizer = ORTQuantizer(ort_config)
+                    quantizer.fit(model_name, output_dir, feature="sequence-classification")
                     validate_model_outputs(
                         quantizer.onnx_config,
                         quantizer.tokenizer,
@@ -103,10 +103,9 @@ class TestORTQuantizer(unittest.TestCase):
                         dataset_name="glue",
                         dataset_config_name="sst2",
                         preprocess_function=preprocess_function,
-                        feature="sequence-classification",
                     )
                     tokenizer = AutoTokenizer.from_pretrained(model_name)
-                    quantizer.fit(model_name, output_dir)
+                    quantizer.fit(model_name, output_dir, feature="sequence-classification")
                     validate_model_outputs(
                         quantizer.onnx_config,
                         tokenizer,
