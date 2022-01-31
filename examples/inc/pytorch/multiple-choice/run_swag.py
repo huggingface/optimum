@@ -545,10 +545,10 @@ def main():
             quant_approach = getattr(IncQuantizationMode, optim_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
 
+        quant_approach = IncQuantizationMode(q8_config.get_config("quantization.approach"))
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
-
+        if quant_approach != IncQuantizationMode.DYNAMIC:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for static and aware training quantization.")
 
@@ -576,7 +576,7 @@ def main():
                 num_choices=num_choices,
             )
 
-        calib_dataloader = trainer.get_train_dataloader()
+        calib_dataloader = trainer.get_train_dataloader() if quant_approach == IncQuantizationMode.STATIC else None
         inc_quantizer = IncQuantizer(
             model, q8_config, eval_func=eval_func, train_func=train_func, calib_dataloader=calib_dataloader
         )
