@@ -15,26 +15,51 @@
 import os
 import tempfile
 import unittest
-
 import numpy as np
+import yaml
+
 from datasets import load_dataset, load_metric
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    BertForSequenceClassification,
     EvalPrediction,
     TrainingArguments,
     default_data_collator,
 )
+from transformers.utils.fx import symbolic_trace
+from optimum.intel.neural_compressor import IncOptimizer, IncPruner, IncQuantizer, IncTrainer
+from optimum.intel.neural_compressor.config import IncPruningConfig, IncQuantizationConfig
+from optimum.intel.neural_compressor.quantization import (
+    IncQuantizationMode,
+    IncQuantizedModelForSequenceClassification,
+    IncQuantizer,
+    IncQuantizerForSequenceClassification,
+
+)
+from optimum.intel.neural_compressor.pruning import IncPrunerForSequenceClassification
+from optimum.intel.neural_compressor.utils import CONFIG_NAME
+from optimum.intel.neural_compressor.trainer_inc import IncTrainer
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 class TestINCQuantization(unittest.TestCase):
-    def helper(self, model_name, output_dir, do_train=False, max_train_samples=128, max_eval_samples=128):
 
-        from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+    def test_quantizer_from_config(self):
+        model_name = "bert-base-uncased"
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        q8_config = IncQuantizationConfig.from_pretrained(config_path)
+        quantizer = IncQuantizer(model, q8_config)
+        quantizer_from_config = IncQuantizerForSequenceClassification.from_config(model_name, inc_config=config_path)
+        self.assertEqual(quantizer_from_config.approach, quantizer.approach)
+        self.assertEqual(quantizer_from_config.config.usr_cfg, quantizer.config.usr_cfg)
+        self.assertIsInstance(quantizer_from_config.model, BertForSequenceClassification)
 
+    @staticmethod
+    def helper(model_name, output_dir, do_train=False, max_train_samples=128, max_eval_samples=128):
         task = "sst2"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModelForSequenceClassification.from_pretrained(model_name)
@@ -82,16 +107,6 @@ class TestINCQuantization(unittest.TestCase):
         return model, trainer, eval_func
 
     def test_dynamic_quantization(self):
-
-        import yaml
-        from optimum.intel.neural_compressor.config import IncQuantizationConfig
-        from optimum.intel.neural_compressor.quantization import (
-            IncQuantizationMode,
-            IncQuantizedModelForSequenceClassification,
-            IncQuantizer,
-        )
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
-
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
@@ -121,18 +136,6 @@ class TestINCQuantization(unittest.TestCase):
             self.assertEqual(q_model_result, loaded_model_result)
 
     def test_static_quantization(self):
-
-        from transformers.utils.fx import symbolic_trace
-
-        import yaml
-        from optimum.intel.neural_compressor.config import IncQuantizationConfig
-        from optimum.intel.neural_compressor.quantization import (
-            IncQuantizationMode,
-            IncQuantizedModelForSequenceClassification,
-            IncQuantizer,
-        )
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
-
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
@@ -179,18 +182,6 @@ class TestINCQuantization(unittest.TestCase):
             self.assertEqual(q_model_result, loaded_model_result)
 
     def test_aware_training_quantization(self):
-
-        from transformers.utils.fx import symbolic_trace
-
-        import yaml
-        from optimum.intel.neural_compressor.config import IncQuantizationConfig
-        from optimum.intel.neural_compressor.quantization import (
-            IncQuantizationMode,
-            IncQuantizedModelForSequenceClassification,
-            IncQuantizer,
-        )
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
-
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
 
@@ -242,81 +233,9 @@ class TestINCQuantization(unittest.TestCase):
             # Verification quantized model was correctly loaded
             self.assertEqual(q_model_result, loaded_model_result)
 
-    def test_quantization_from_config(self):
-
-        import yaml
-        from optimum.intel.neural_compressor.quantization import (
-            IncQuantizedModelForSequenceClassification,
-            IncQuantizerForSequenceClassification,
-        )
-        from optimum.intel.neural_compressor.trainer_inc import IncTrainer
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
-
-        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
-        task = "sst2"
-        max_eval_samples = 128
-        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
-
-        quantizer = IncQuantizerForSequenceClassification.from_config(model_name, inc_config=config_path)
-        tokenizer = quantizer.tokenizer
-        model = quantizer.model
-
-        metric = load_metric("glue", task)
-        eval_dataset = load_dataset("glue", task, split="validation")
-        eval_dataset = eval_dataset.select(range(max_eval_samples))
-        eval_dataset = eval_dataset.map(
-            lambda examples: tokenizer(examples["sentence"], padding="max_length", max_length=128), batched=True
-        )
-
-        def compute_metrics(p: EvalPrediction):
-            preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-            preds = np.argmax(preds, axis=1)
-            result = metric.compute(predictions=preds, references=p.label_ids)
-            return result
-
-        def eval_func(model):
-            trainer.model = model
-            metrics = trainer.evaluate()
-            return metrics.get("eval_accuracy")
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-
-            trainer = IncTrainer(
-                model=model,
-                args=TrainingArguments(tmp_dir),
-                train_dataset=None,
-                eval_dataset=eval_dataset,
-                compute_metrics=compute_metrics,
-                tokenizer=tokenizer,
-                data_collator=default_data_collator,
-            )
-
-            model_result = eval_func(model)
-            quantizer.eval_func = eval_func
-            q_model = quantizer.fit_dynamic()
-            q_model_result = eval_func(q_model.model)
-
-            # Verification accuracy loss is under 2%
-            self.assertGreaterEqual(q_model_result, model_result * 0.98)
-
-            trainer.save_model(tmp_dir)
-            with open(os.path.join(tmp_dir, CONFIG_NAME), "w") as f:
-                yaml.dump(q_model.tune_cfg, f, default_flow_style=False)
-
-            loaded_model = IncQuantizedModelForSequenceClassification.from_pretrained(tmp_dir)
-            loaded_model.eval()
-            loaded_model_result = eval_func(loaded_model)
-
-            # Verification quantized model was correctly loaded
-            self.assertEqual(q_model_result, loaded_model_result)
-
 
 class TestINCPruning(unittest.TestCase):
     def test_pruning_from_config(self):
-        from optimum.intel.neural_compressor.config import IncPruningConfig
-        from optimum.intel.neural_compressor.pruning import IncPrunerForSequenceClassification
-        from optimum.intel.neural_compressor.trainer_inc import IncTrainer
-
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         task = "sst2"
         max_eval_samples = 64
@@ -390,14 +309,6 @@ class TestINCPruning(unittest.TestCase):
 
 class TestINCOptimizer(unittest.TestCase):
     def test_optimizer(self):
-        import yaml
-        from optimum.intel.neural_compressor import IncOptimizer, IncPruner, IncQuantizer, IncTrainer
-        from optimum.intel.neural_compressor.config import IncPruningConfig, IncQuantizationConfig
-        from optimum.intel.neural_compressor.quantization import (
-            IncQuantizationMode,
-            IncQuantizedModelForSequenceClassification,
-        )
-        from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         task = "sst2"
