@@ -15,9 +15,8 @@
 import os
 import tempfile
 import unittest
-import numpy as np
-import yaml
 
+import numpy as np
 from datasets import load_dataset, load_metric
 from transformers import (
     AutoModelForSequenceClassification,
@@ -28,25 +27,25 @@ from transformers import (
     default_data_collator,
 )
 from transformers.utils.fx import symbolic_trace
+
+import yaml
 from optimum.intel.neural_compressor import IncOptimizer, IncPruner, IncQuantizer, IncTrainer
 from optimum.intel.neural_compressor.config import IncPruningConfig, IncQuantizationConfig
+from optimum.intel.neural_compressor.pruning import IncPrunerForSequenceClassification
 from optimum.intel.neural_compressor.quantization import (
     IncQuantizationMode,
     IncQuantizedModelForSequenceClassification,
     IncQuantizer,
     IncQuantizerForSequenceClassification,
-
 )
-from optimum.intel.neural_compressor.pruning import IncPrunerForSequenceClassification
-from optimum.intel.neural_compressor.utils import CONFIG_NAME
 from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 class TestINCQuantization(unittest.TestCase):
-
     def test_quantizer_from_config(self):
         model_name = "bert-base-uncased"
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantization.yml")
