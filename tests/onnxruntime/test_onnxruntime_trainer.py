@@ -94,12 +94,11 @@ class TestORTTrainer(unittest.TestCase):
                         )
 
                         
-                        # train_result = trainer.train()
-                        # train_metrics = train_result.metrics
-                        eval_metrics = trainer.evaluate_ort()
+                        train_result = trainer.train()
+                        train_metrics = train_result.metrics
+                        # eval_metrics = trainer.evaluate()
                         # print(train_metrics)
-                        print(eval_metrics)
-                        # trainer.evaluate()
+                        # print(eval_metrics)
                         # trainer.predict(test_dataset)
 
 
