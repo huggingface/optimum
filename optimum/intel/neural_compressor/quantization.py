@@ -88,7 +88,7 @@ class IncQuantizer:
             if isinstance(config_path_or_obj, IncQuantizationConfig)
             else Quantization_Conf(config_path_or_obj)
         )
-        self.approach = self.config.usr_cfg.quantization.approach
+        self.approach = IncQuantizationMode(self.config.usr_cfg.quantization.approach)
         self.model = model
         self.tokenizer = tokenizer
         self._eval_func = eval_func
@@ -164,13 +164,12 @@ class IncQuantizer:
 
     def fit(self):
         quantizer = self.init_quantizer()
-
-        if self.approach == IncQuantizationMode.STATIC.value:
+        if self.approach == IncQuantizationMode.STATIC:
             if self._calib_dataloader is None:
                 raise ValueError("calib_dataloader must be provided for post-training quantization.")
             quantizer.calib_dataloader = self._calib_dataloader
 
-        if self.approach == IncQuantizationMode.AWARE_TRAINING.value:
+        if self.approach == IncQuantizationMode.AWARE_TRAINING:
             if self._train_func is None:
                 raise ValueError("train_func must be provided for quantization aware training.")
             quantizer.q_func = self._train_func
@@ -316,13 +315,14 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
             "Unknown quantization approach. Supported approach are " + ", ".join(SUPPORTED_QUANT_MODE.keys())
         )
 
+    quant_mode = IncQuantizationMode(approach)
     q_model = copy.deepcopy(model)
     q_model.eval()
 
     if framework == "pytorch_fx":
         op_cfgs = _cfg_to_qconfig(q_config, approach)
         fx_op_cfgs = _cfgs_to_fx_cfgs(op_cfgs, approach)
-        if approach == IncQuantizationMode.AWARE_TRAINING.value:
+        if quant_mode == IncQuantizationMode.AWARE_TRAINING:
             q_model.train()
             q_model = prepare_qat_fx(q_model, fx_op_cfgs)
         else:
@@ -330,7 +330,7 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
         q_model = convert_fx(q_model)
         return q_model
 
-    if approach == IncQuantizationMode.DYNAMIC.value:
+    if quant_mode == IncQuantizationMode.DYNAMIC:
         q_mapping = torch.quantization.quantization_mappings.get_default_dynamic_quant_module_mappings()
         op_cfgs = _cfg_to_qconfig(q_config, approach)
     else:
@@ -339,7 +339,7 @@ def apply_quantization_from_config(q_config: Dict, model: torch.nn.Module) -> to
 
     _propagate_qconfig(q_model, op_cfgs, approach=approach)
 
-    if approach != IncQuantizationMode.DYNAMIC.value:
+    if quant_mode != IncQuantizationMode.DYNAMIC:
         add_observer_(q_model)
     q_model = convert(q_model, mapping=q_mapping, inplace=True)
 

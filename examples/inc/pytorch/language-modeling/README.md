@@ -16,8 +16,8 @@ limitations under the License.
 
 # Language modeling training
 
-The scripts [`run_clm.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/language-modeling/run_clm.py) 
-and [`run_mlm.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/language-modeling/run_mlm.py)
+The scripts [`run_clm.py`](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/language-modeling/run_clm.py) 
+and [`run_mlm.py`](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/language-modeling/run_mlm.py)
 allow us to apply different quantization approaches (such as dynamic, static and aware-training quantization) as well as pruning 
 using the [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) library for language modeling tasks.
 
