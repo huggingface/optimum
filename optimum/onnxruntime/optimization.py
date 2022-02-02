@@ -16,7 +16,7 @@ import copy
 import os
 from collections import OrderedDict
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 from transformers import AutoTokenizer, PretrainedConfig
 from transformers.onnx import export
@@ -312,16 +312,16 @@ class ORTOptimizer:
 
         Args:
             onnx_model_path (`str`, `optional`):
-                Path of a stored onnx model.
+                Path of a stored ONNX model.
             optimized_model_path (`str`, `optional`):
-                Path of the corresponding optimized onnx model.
+                Path of the corresponding optimized ONNX model.
             summary (`bool`, defaults to `True`):
                 Whether report the optimization details: reduction of nodes, and complex node fusions.
             nodes_details (`bool`, defaults to `True`):
                 Whether report the top 5 reduced op_types, and return the detailed node change list.
 
         Returns:
-            sorted_nodes_change (`dict`):
+            sorted_nodes_change (`List[Tuple[str, int]]`):
                 Returns a sorted list with op types and its change after the optimization.
         """
         if self.onnx_model_path is None and onnx_model_path is None:
@@ -359,6 +359,7 @@ class ORTOptimizer:
                 logger.info("Complex node fusions:\n", extended_fusion_statistic)
 
         # Top 5 reduced operations & node details onnx model v.s. optimized model
+        sorted_nodes_change = []
         if nodes_details:
             op_types = []
             for model in [onnx_model, optim_model]:
@@ -369,4 +370,4 @@ class ORTOptimizer:
             nodes_change = dict(map(lambda op_type: (op_type, get_node_change(op_type)), op_types))
             sorted_nodes_change = sorted(nodes_change.items(), key=lambda op: -abs(op[1]))
             logger.info("Top 5 optimized ops are:\n", [op[0] for op in sorted_nodes_change[:5]])
-            return sorted_nodes_change
+        return sorted_nodes_change
