@@ -17,7 +17,7 @@ limitations under the License.
 # Token classification
 
 
-The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/token-classification/run_ner.py)
+The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/token-classification/run_ner.py)
 allows us to apply different quantization approaches (such as dynamic, static and aware-training quantization) as well as pruning
 using the [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) library for token classification tasks.
 

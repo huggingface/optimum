@@ -545,10 +545,10 @@ def main():
             quant_approach = getattr(IncQuantizationMode, optim_args.quantization_approach.upper()).value
             q8_config.set_config("quantization.approach", quant_approach)
 
+        quant_approach = IncQuantizationMode(q8_config.get_config("quantization.approach"))
         # torch FX used for post-training quantization and quantization aware training
         # dynamic quantization will be added when torch FX is more mature
-        if q8_config.get_config("quantization.approach") != IncQuantizationMode.DYNAMIC.value:
-
+        if quant_approach != IncQuantizationMode.DYNAMIC:
             if not training_args.do_train:
                 raise ValueError("do_train must be set to True for static and aware training quantization.")
 
@@ -576,7 +576,7 @@ def main():
                 num_choices=num_choices,
             )
 
-        calib_dataloader = trainer.get_train_dataloader()
+        calib_dataloader = trainer.get_train_dataloader() if quant_approach == IncQuantizationMode.STATIC else None
         inc_quantizer = IncQuantizer(
             model, q8_config, eval_func=eval_func, train_func=train_func, calib_dataloader=calib_dataloader
         )
@@ -621,8 +621,6 @@ def main():
 
     inc_optimizer = IncOptimizer(model, quantizer=quantizer, pruner=pruner)
     opt_model = inc_optimizer.fit()
-
-    _, sparsity = opt_model.report_sparsity()
     result_opt_model = take_eval_steps(opt_model.model, trainer, metric_name, save_metrics=True)
 
     trainer.save_model(training_args.output_dir)
@@ -630,8 +628,8 @@ def main():
         yaml.dump(opt_model.tune_cfg, f, default_flow_style=False)
 
     logger.info(
-        f"Optimized model with final sparsity of {sparsity} and {metric_name} of {result_opt_model} saved to: "
-        f"{training_args.output_dir}. Original model had an {metric_name} of {result_baseline_model}"
+        f"Optimized model with {metric_name} of {result_opt_model} saved to: {training_args.output_dir}."
+        f" Original model had an {metric_name} of {result_baseline_model}."
     )
 
     if optim_args.quantize and optim_args.verify_loading:

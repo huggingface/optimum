@@ -17,7 +17,7 @@ limitations under the License.
 # Question answering
 
 
-The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/pytorch/question-answering/run_qa.py)
+The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/inc/pytorch/question-answering/run_qa.py)
 allows us to apply different quantization approaches (such as dynamic, static and aware-training quantization) as well as pruning 
 using the [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) library for
 question answering tasks.
