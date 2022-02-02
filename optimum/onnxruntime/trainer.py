@@ -643,7 +643,7 @@ class ORTTrainer(Trainer):
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
         # Update the `session_options` for inference
-        inference_manager = self.model._torch_module._execution_manager._inference_manager
+        inference_manager = model._torch_module._execution_manager._inference_manager
         self.session_options, providers, provider_options = inference_manager._get_session_config()
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
