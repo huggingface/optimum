@@ -642,21 +642,12 @@ class ORTTrainer(Trainer):
 
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
-        return TrainOutput(self.state.global_step, train_loss, metrics)
-
-
-        # Wrap the model with `torch_ort.ORTModule`
-        self.model_wrapped = ORTModule(self.model_wrapped)  
-        self.model = ORTModule(self.model)
-        
-        # Training
-        train_output = super().train(resume_from_checkpoint, trial, ignore_keys_for_eval, **kwargs)
+        # Update the `session_options` for inference
         inference_manager = self.model._torch_module._execution_manager._inference_manager
         self.session_options, providers, provider_options = inference_manager._get_session_config()
 
-        self.ort_trained_model = unwrap_model(self.model)
+        return TrainOutput(self.state.global_step, train_loss, metrics)
 
-        return train_output
     
     def evaluation_loop(
         self,
