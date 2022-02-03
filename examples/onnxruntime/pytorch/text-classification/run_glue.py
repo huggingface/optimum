@@ -42,7 +42,6 @@ from transformers import (
     default_data_collator,
     set_seed,
 )
-from transformers.onnx import validate_model_outputs
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
@@ -268,6 +267,12 @@ class OptimizationArguments:
         default=100,
         metadata={
             "help": "Maximum number of examples to use for the calibration step resulting from static quantization."
+        },
+    )
+    metric_name: str = field(
+        default=None,
+        metadata={
+            "help": "Metric used to compare the evaluation results between the original and the optimized models."
         },
     )
 
@@ -567,7 +572,9 @@ def main():
 
     eval_dataloader = trainer.get_eval_dataloader()
     metric_name = (
-        "pearson"
+        optim_args.metric_name
+        if optim_args.metric_name is not None
+        else "pearson"
         if data_args.task_name == "stsb"
         else "matthews_correlation"
         if data_args.task_name == "cola"
