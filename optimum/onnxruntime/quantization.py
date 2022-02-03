@@ -23,7 +23,7 @@ import numpy
 import torch
 from datasets import Dataset, load_dataset
 from torch.utils.data import DataLoader, RandomSampler
-from transformers import AutoTokenizer, PretrainedConfig, default_data_collator
+from transformers import AutoTokenizer, DataCollator, PretrainedConfig, default_data_collator
 from transformers.onnx import OnnxConfig, export
 from transformers.onnx.features import FeaturesManager
 
@@ -74,6 +74,7 @@ class ORTQuantizer:
         dataset_config_name: Optional[str] = None,
         data_files: Optional[str] = None,
         preprocess_function: Optional[Callable] = None,
+        data_collator: Optional[DataCollator] = None,
         **kwargs
     ):
         """
@@ -94,6 +95,9 @@ class ORTQuantizer:
                 Path to source data files.
             preprocess_function (`Callable`, `optional`):
                 Processing function to apply to each example after loading dataset.
+            data_collator (`DataCollator`, `optional`):
+                The function to use to form a batch from a list of elements of `calib_dataset`. Will default to
+                `default_data_collator`.
             cache_dir (`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
@@ -130,6 +134,7 @@ class ORTQuantizer:
         self.dataset_config_name = dataset_config_name
         self.data_files = data_files
         self.preprocess_function = preprocess_function
+        self.data_collator = data_collator if data_collator is not None else default_data_collator
         self.onnx_config = None
         self.tokenizer = None
         self.model = None
@@ -313,7 +318,7 @@ class ORTQuantizer:
             calib_dataset,
             batch_size=self.ort_config.calib_batch_size,
             sampler=sampler,
-            collate_fn=default_data_collator,
+            collate_fn=self.data_collator,
         )
 
     @staticmethod
