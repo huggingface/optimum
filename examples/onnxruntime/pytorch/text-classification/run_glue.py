@@ -595,6 +595,8 @@ def main():
             if optim_args.calib_dataset_split not in raw_datasets:
                 raise ValueError(f"The split {optim_args.calib_dataset_split} is not present in the provided dataset.")
             calib_dataset = raw_datasets[optim_args.calib_dataset_split]
+            if optim_args.max_calib_samples is not None:
+                calib_dataset = calib_dataset.select(range(optim_args.max_calib_samples))
 
         quantizer = ORTQuantizer(ort_config, calib_dataset=calib_dataset)
         quantizer.fit(
