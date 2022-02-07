@@ -70,7 +70,7 @@ class ORTConfig(BaseConfig):
                     QuantizeLinear and DeQuantizeLinear operators carry the quantization parameters.
         calibration_method (`str`, `optional`, defaults to `"minmax"`):
             The method chosen to calculate the activations quantization parameters using the calibration dataset.
-            Current supported calibration methods are "minmax" and "entropy"
+            Current supported calibration methods are "minmax", "entropy" and "percentile".
         split (`str`, `optional`, defaults to `"train"`):
             Which split of the calibration dataset to load.
             Depending on the calibration dataset to load, the possible values are "train", "validation" and "test".

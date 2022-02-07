@@ -268,7 +268,7 @@ class OptimizationArguments:
         default="minmax",
         metadata={
             "help": "The method chosen to calculate the activation quantization parameters using the calibration "
-            "dataset. Current supported calibration methods are minmax and entropy."
+            "dataset. Current supported calibration methods are minmax, entropy and percentile."
         },
     )
     calib_dataset_split: str = field(

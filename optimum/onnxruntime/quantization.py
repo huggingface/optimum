@@ -50,7 +50,7 @@ class ORTQuantizationMode(Enum):
 
 SUPPORTED_QUANT_MODE = set([approach.value for approach in ORTQuantizationMode])
 
-CALIB_METHOD = {"minmax": "MinMax", "entropy": "Entropy"}
+CALIB_METHOD = {"minmax": "MinMax", "entropy": "Entropy", "percentile": "Percentile"}
 
 Q_FORMAT = {"operator": "QOperator", "qdq": "QDQ"}
 
