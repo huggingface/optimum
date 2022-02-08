@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 import transformers
-from datasets import load_dataset, load_metric
-from transformers import AutoTokenizer, BertForSequenceClassification, TrainingArguments, default_data_collator
+from datasets import load_metric, load_dataset
+from transformers import AutoTokenizer, TrainingArguments, BertForSequenceClassification, default_data_collator
 from transformers.onnx import validate_model_outputs
 from transformers.onnx.features import FeaturesManager
 
@@ -60,9 +60,11 @@ class TestORTTrainer(unittest.TestCase):
                         max_train_samples = 1000
                         max_valid_samples = 200
                         max_test_samples = 20
-                        train_dataset = encoded_dataset["train"]#.select(range(max_train_samples))
-                        valid_dataset = encoded_dataset["validation"]#.select(range(max_valid_samples))
-                        test_dataset = encoded_dataset["test"].remove_columns(["label"])#.select(range(max_test_samples))
+                        train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
+                        valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
+                        test_dataset = encoded_dataset["test"].remove_columns(
+                            ["label"]
+                        )  # .select(range(max_test_samples))
 
                         def compute_metrics(eval_pred):
                             predictions, labels = eval_pred
@@ -73,14 +75,14 @@ class TestORTTrainer(unittest.TestCase):
                             return metric.compute(predictions=predictions, references=labels)
 
                         training_args = TrainingArguments(
-                            output_dir='./results',  # './results'
+                            output_dir="./results",  # './results'
                             num_train_epochs=1,
                             per_device_train_batch_size=16,
                             per_device_eval_batch_size=16,  # As for onnxruntime, the training and the evlaution shall set the same barch size
                             warmup_steps=500,
                             weight_decay=0.01,
                             logging_dir=tmp_dir,  # './logs'
-                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule 
+                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule
                         )
 
                         trainer = ORTTrainer(
@@ -93,7 +95,7 @@ class TestORTTrainer(unittest.TestCase):
                             data_collator=default_data_collator,
                         )
 
-                        # Test 1: ORT training + pytorch inference 
+                        # Test 1: ORT training + pytorch inference
                         train_result = trainer.train()
                         # trainer.save_model()
                         train_metrics = train_result.metrics

@@ -15,21 +15,22 @@
 The Trainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task.
 """
 
-import collections
-import contextlib
-import inspect
-import math
 import os
-import random
 import re
-import shutil
 import sys
+import math
 import time
+import random
+import shutil
+import inspect
 import warnings
+import contextlib
+import collections
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union, Callable, Optional
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from tqdm.auto import tqdm
+
 
 # Integrations must be imported before ML frameworks:
 from transformers.integrations import (  # isort: split
@@ -47,75 +48,72 @@ from transformers.integrations import (  # isort: split
 
 import numpy as np
 import torch
-from packaging import version
-from packaging.version import parse
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, IterableDataset
-from torch.utils.data.distributed import DistributedSampler
-
-from huggingface_hub import Repository
-
-from transformers import __version__
-from transformers import PreTrainedTokenizer, TensorType, is_torch_available
-from transformers.configuration_utils import PretrainedConfig
-from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
-from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
+from packaging import version
+from transformers import TensorType, PreTrainedTokenizer, __version__, is_torch_available
+from torch.utils.data import Dataset, DataLoader, IterableDataset
+from packaging.version import parse
+from transformers.onnx import export, validate_model_outputs
+from transformers.utils import logging
+from transformers.trainer import Trainer
 from transformers.deepspeed import deepspeed_init, deepspeed_reinit
-from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
     is_apex_available,
+    is_torch_tpu_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
     is_torch_onnx_dict_inputs_support_available,
 )
-from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from transformers.trainer_callback import TrainerCallback, TrainerState
-from transformers.trainer_pt_utils import (
-    DistributedTensorGatherer,
-    IterableDatasetShard,
-    LabelSmoother,
-    SequentialDistributedSampler,
-    find_batch_size,
-    nested_concat,
-    nested_detach,
-    nested_numpify,
-    nested_truncate,
-)
+from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
+from transformers.onnx.config import OnnxConfig
+from transformers.onnx.convert import ensure_model_and_config_inputs_match
+from transformers.onnx.features import FeaturesManager
 from transformers.trainer_utils import (
+    TrainOutput,
     EvalLoopOutput,
     EvalPrediction,
     HPSearchBackend,
     PredictionOutput,
     ShardedDDPOption,
-    TrainOutput,
-    denumpify_detensorize,
-    get_last_checkpoint,
     set_seed,
     speed_metrics,
+    get_last_checkpoint,
+    denumpify_detensorize,
 )
 from transformers.training_args import TrainingArguments
-from transformers.utils import logging
-from transformers.trainer import Trainer
-
-from transformers.onnx import export, validate_model_outputs
-from transformers.onnx.config import OnnxConfig
-from transformers.onnx.features import FeaturesManager
-from transformers.onnx.convert import ensure_model_and_config_inputs_match
+from transformers.modeling_utils import PreTrainedModel, unwrap_model
+from torch.utils.data.distributed import DistributedSampler
+from transformers.trainer_callback import TrainerState, TrainerCallback
+from transformers.trainer_pt_utils import (
+    LabelSmoother,
+    IterableDatasetShard,
+    DistributedTensorGatherer,
+    SequentialDistributedSampler,
+    nested_concat,
+    nested_detach,
+    nested_numpify,
+    find_batch_size,
+    nested_truncate,
+)
+from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
+from transformers.configuration_utils import PretrainedConfig
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from transformers.dependency_versions_check import dep_version_check
 
 import onnx
 import onnxruntime
 from torch_ort import ORTModule
+from huggingface_hub import Repository
+
 
 if is_apex_available():
     from apex import amp
 
 if is_torch_tpu_available():
-    import torch_xla.core.xla_model as xm
     import torch_xla.debug.metrics as met
+    import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
 
 if is_sagemaker_dp_enabled():
@@ -135,6 +133,7 @@ TRAINER_STATE_NAME = "trainer_state.json"
 OPTIMIZER_NAME = "optimizer.pt"
 SCHEDULER_NAME = "scheduler.pt"
 SCALER_NAME = "scaler.pt"
+
 
 class ORTTrainer(Trainer):
     def __init__(
@@ -164,12 +163,12 @@ class ORTTrainer(Trainer):
         )
 
         # onnxruntime.set_seed(self.args.seed)
-        self.ort_trained_model = None   # Trained onnx model for ort inference(not available yet)
-        self.ort_model_path = None   # Path for trained onnx model for ort inference(not available yet) 
+        self.ort_trained_model = None  # Trained onnx model for ort inference(not available yet)
+        self.ort_model_path = None  # Path for trained onnx model for ort inference(not available yet)
         self.session_options = None
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
-        
+
     def train(
         self,
         resume_from_checkpoint: Optional[Union[str, bool]] = None,
@@ -196,7 +195,7 @@ class ORTTrainer(Trainer):
 
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
-        
+
         args = self.args
 
         self.is_in_train = True
@@ -227,13 +226,13 @@ class ORTTrainer(Trainer):
             model_reloaded = True
             # Reinitializes optimizer and scheduler
             self.optimizer, self.lr_scheduler = None, None
-        
+
         # Load potential model checkpoint
         if isinstance(resume_from_checkpoint, bool) and resume_from_checkpoint:
             resume_from_checkpoint = get_last_checkpoint(args.output_dir)
             if resume_from_checkpoint is None:
                 raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
-        
+
         if resume_from_checkpoint is not None:
             if not os.path.isfile(os.path.join(resume_from_checkpoint, WEIGHTS_NAME)):
                 raise ValueError(f"Can't find a valid checkpoint at {resume_from_checkpoint}")
@@ -267,7 +266,7 @@ class ORTTrainer(Trainer):
             if self.place_model_on_device:
                 self._move_model_to_device(self.model, args.device)
             self.model_wrapped = self.model
-        
+
         # Keeping track whether we can can len() on the dataset or not
         train_dataset_is_sized = isinstance(self.train_dataset, collections.abc.Sized)
 
@@ -647,7 +646,7 @@ class ORTTrainer(Trainer):
         self.session_options, providers, provider_options = inference_manager._get_session_config()
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
-    
+
     def evaluate_ort(
         self,
         eval_dataset: Optional[Dataset] = None,
@@ -725,7 +724,7 @@ class ORTTrainer(Trainer):
         self._memory_tracker.stop_and_update_metrics(output.metrics)
 
         return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
-    
+
     def evaluation_loop_ort(
         self,
         dataloader: DataLoader,
@@ -748,7 +747,9 @@ class ORTTrainer(Trainer):
 
         if self.ort_trained_model:
             # `train()` function has been called, `self.ort_trained_model` is an instance of `PreTrainedModel`
-            print("-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------")
+            print(
+                "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
+            )
             self.model = self.ort_trained_model
             self._export(onnx_model_path)
             self.ort_model_path = onnx_model_path.as_posix()
@@ -760,10 +761,10 @@ class ORTTrainer(Trainer):
 
         # Can't infer the exported onnx models due to impatible opset
         self.infer_sess = onnxruntime.InferenceSession(
-            self.ort_model_path, 
+            self.ort_model_path,
             # session_options=self.session_options,
-            providers=['CPUExecutionProvider', 'CUDAExecutionProvider'],
-        )  #TODO: Specify providers in the args
+            providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
+        )  # TODO: Specify providers in the args
 
         args = self.args
 
@@ -835,7 +836,9 @@ class ORTTrainer(Trainer):
                     batch_size = observed_batch_size
 
             # Prediction step(send also onnxruntime inference session)
-            loss, logits, labels = self.prediction_step_ort(model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            loss, logits, labels = self.prediction_step_ort(
+                model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys
+            )
 
             if is_torch_tpu_available():
                 xm.mark_step()
@@ -922,7 +925,7 @@ class ORTTrainer(Trainer):
             if not key.startswith(f"{metric_key_prefix}_"):
                 metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
 
-        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)    
+        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
 
     def prediction_loop_ort(
         self,
@@ -945,7 +948,9 @@ class ORTTrainer(Trainer):
 
         if self.ort_model_path:
             # `train()` function has been called, `self.ort_trained_model` is an instance of `PreTrainedModel`
-            print("-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------")
+            print(
+                "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
+            )
             self.model = self.ort_trained_model
             self._export(onnx_model_path)
             self.ort_model_path = onnx_model_path.as_posix()
@@ -956,10 +961,10 @@ class ORTTrainer(Trainer):
 
         # Can't infer the exported onnx models due to impatible opset
         self.infer_sess = onnxruntime.InferenceSession(
-            self.ort_model_path, 
+            self.ort_model_path,
             session_options=self.session_options,
-            providers=['CPUExecutionProvider', 'CUDAExecutionProvider'],
-        )  #TODO: Specify providers in the args
+            providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
+        )  # TODO: Specify providers in the args
 
         args = self.args
 
@@ -1024,7 +1029,9 @@ class ORTTrainer(Trainer):
         self.callback_handler.eval_dataloader = dataloader
 
         for step, inputs in enumerate(dataloader):
-            loss, logits, labels = self.prediction_step_ort(model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            loss, logits, labels = self.prediction_step_ort(
+                model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys
+            )
             if loss is not None:
                 losses = loss.repeat(batch_size)
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
@@ -1084,7 +1091,7 @@ class ORTTrainer(Trainer):
         prediction_loss_only: bool,
         ignore_keys: Optional[List[str]] = None,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
-        
+
         has_labels = all(inputs.get(k) is not None for k in self.label_names)
         inputs = self._prepare_inputs(inputs)
         output_names = [output.name for output in infer_sess._outputs_meta]
@@ -1111,17 +1118,21 @@ class ORTTrainer(Trainer):
             else:
                 if has_labels:
                     with self.autocast_smart_context_manager():
-                        loss, outputs = self.compute_loss_ort(model, inputs, input_names, output_names, return_outputs=True)
+                        loss, outputs = self.compute_loss_ort(
+                            model, inputs, input_names, output_names, return_outputs=True
+                        )
                     loss = loss.mean().detach()
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
                     else:
-                        logits = outputs  #outputs[1:]
+                        logits = outputs  # outputs[1:]
                 else:
                     loss = None
                     with self.autocast_smart_context_manager():
-                        input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+                        input_feed = dict(
+                            map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
+                        )
                         outputs = self.infer_sess.run(output_names, input_feed)
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys)
@@ -1134,16 +1145,16 @@ class ORTTrainer(Trainer):
         if prediction_loss_only:
             return (loss, None, None)
 
-        if isinstance(logits, (list, tuple)): 
+        if isinstance(logits, (list, tuple)):
             logits = [torch.Tensor(arr) for arr in logits]
-        
+
         logits = nested_detach(logits)
 
         if len(logits) == 1:
             logits = logits[0]
 
         return (loss, logits, labels)
-    
+
     def compute_loss_ort(self, model, inputs, input_names, output_names, return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
@@ -1153,7 +1164,7 @@ class ORTTrainer(Trainer):
             labels = inputs.pop("labels")
         else:
             labels = None
-        
+
         input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
         outputs = self.infer_sess.run(output_names, input_feed)
         outputs[0] = torch.Tensor(outputs[0])  # logits: `numpy.ndarray` -> tensor
@@ -1169,21 +1180,18 @@ class ORTTrainer(Trainer):
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
-    
+
     def _save_onnx_model(self, model: onnx.ModelProto, file_path: str):
         onnx.save(model, file_path)
-    
+
     def save_onnx_model(self, model):
         # save the ortmodule exported model
-        path = Path(
-            os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
-        )
+        path = Path(os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx"))
         self._save_model(
             model,
             path,
         )
 
-    
     def _export(self, model_path: os.PathLike, feature: str = "default", opset: Optional[int] = None) -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
@@ -1195,10 +1203,6 @@ class ORTTrainer(Trainer):
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
         onnx_config = model_onnx_config(self.model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
-        self.model.to('cpu')
-        _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX 
-        # _ = export_static(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export static ONNX 
-    
-
-    
-    
+        self.model.to("cpu")
+        _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX
+        # _ = export_static(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export static ONNX
