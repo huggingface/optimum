@@ -31,7 +31,7 @@ class TestORTTrainer(unittest.TestCase):
     def test_ort_trainer(self):
 
         model_names = {
-            "bert-base-cased"
+            "roberta-base"
         }  # "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
         dataset_names = {"sst2"}  # glue
 
@@ -57,12 +57,12 @@ class TestORTTrainer(unittest.TestCase):
                             return tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
 
                         encoded_dataset = dataset.map(preprocess_function, batched=True)
-                        max_train_samples = 10
-                        max_valid_samples = 100
-                        max_test_samples = 10
-                        train_dataset = encoded_dataset["train"].select(range(max_train_samples))
-                        valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
-                        test_dataset = encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
+                        max_train_samples = 1000
+                        max_valid_samples = 200
+                        max_test_samples = 20
+                        train_dataset = encoded_dataset["train"]#.select(range(max_train_samples))
+                        valid_dataset = encoded_dataset["validation"]#.select(range(max_valid_samples))
+                        test_dataset = encoded_dataset["test"].remove_columns(["label"])#.select(range(max_test_samples))
 
                         def compute_metrics(eval_pred):
                             predictions, labels = eval_pred
@@ -93,13 +93,21 @@ class TestORTTrainer(unittest.TestCase):
                             data_collator=default_data_collator,
                         )
 
-                        
+                        # Test 1: ORT training + pytorch inference 
                         train_result = trainer.train()
+                        # trainer.save_model()
                         train_metrics = train_result.metrics
-                        # eval_metrics = trainer.evaluate()
-                        # print(train_metrics)
-                        # print(eval_metrics)
-                        # trainer.predict(test_dataset)
+                        eval_metrics = trainer.evaluate()
+                        prediction = trainer.predict(test_dataset)
+                        print("Train metrics:\n", train_metrics)
+                        print("Evaluation metrics(PyTorch):\n", eval_metrics)
+                        print("Prediction results(PyTorch):\n", prediction)
+
+                        # Test 2: ORT Inference
+                        # ort_eval_metrics = trainer.evaluate_ort()
+                        # ort_prediction = trainer.predict_ort(test_dataset)
+                        # print("Evaluation metrics(ORT):\n", ort_eval_metrics)
+                        # print("Prediction results(ORT):\n", ort_prediction)
 
 
 if __name__ == "__main__":

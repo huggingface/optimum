@@ -164,8 +164,8 @@ class ORTTrainer(Trainer):
         )
 
         # onnxruntime.set_seed(self.args.seed)
-        self.ort_trained_model = None
-        self.ort_model_path = None
+        self.ort_trained_model = None   # Trained onnx model for ort inference(not available yet)
+        self.ort_model_path = None   # Path for trained onnx model for ort inference(not available yet) 
         self.session_options = None
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
@@ -178,7 +178,7 @@ class ORTTrainer(Trainer):
         **kwargs,
     ):
         """
-        Main training entry point.
+        Main onnxruntime training entry point.
         Args:
             resume_from_checkpoint (`str` or `bool`, *optional*):
                 If a `str`, local path to a saved checkpoint as saved by a previous instance of [`Trainer`]. If a
@@ -647,9 +647,86 @@ class ORTTrainer(Trainer):
         self.session_options, providers, provider_options = inference_manager._get_session_config()
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
-
     
-    def evaluation_loop(
+    def evaluate_ort(
+        self,
+        eval_dataset: Optional[Dataset] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+    ) -> Dict[str, float]:
+        """
+        Run evaluation within onnxruntime backend and returns metrics.(Overriden from `evaluate()`)
+        """
+        # memory metrics - must set up as early as possible
+        self._memory_tracker.start()
+
+        eval_dataloader = self.get_eval_dataloader(eval_dataset)
+        start_time = time.time()
+
+        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+        output = eval_loop(
+            eval_dataloader,
+            description="Evaluation",
+            # No point gathering the predictions if there are no metrics, otherwise we defer to
+            # self.args.prediction_loss_only
+            prediction_loss_only=True if self.compute_metrics is None else None,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+        )
+
+        total_batch_size = self.args.eval_batch_size * self.args.world_size
+        output.metrics.update(
+            speed_metrics(
+                metric_key_prefix,
+                start_time,
+                num_samples=output.num_samples,
+                num_steps=math.ceil(output.num_samples / total_batch_size),
+            )
+        )
+
+        self.log(output.metrics)
+
+        if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
+            # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
+            xm.master_print(met.metrics_report())
+
+        self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
+
+        self._memory_tracker.stop_and_update_metrics(output.metrics)
+
+        return output.metrics
+
+    def predict_ort(
+        self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
+    ) -> PredictionOutput:
+        """
+        Run prediction within onnxruntime backend and returns predictions and potential metrics.(Overriden from `predict()`)
+        """
+        # memory metrics - must set up as early as possible
+        self._memory_tracker.start()
+
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        start_time = time.time()
+
+        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+        output = eval_loop(
+            test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
+        )
+        total_batch_size = self.args.eval_batch_size * self.args.world_size
+        output.metrics.update(
+            speed_metrics(
+                metric_key_prefix,
+                start_time,
+                num_samples=output.num_samples,
+                num_steps=math.ceil(output.num_samples / total_batch_size),
+            )
+        )
+
+        self._memory_tracker.stop_and_update_metrics(output.metrics)
+
+        return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
+    
+    def evaluation_loop_ort(
         self,
         dataloader: DataLoader,
         description: str,
@@ -758,7 +835,7 @@ class ORTTrainer(Trainer):
                     batch_size = observed_batch_size
 
             # Prediction step(send also onnxruntime inference session)
-            loss, logits, labels = self.prediction_step(model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            loss, logits, labels = self.prediction_step_ort(model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys)
 
             if is_torch_tpu_available():
                 xm.mark_step()
@@ -845,10 +922,9 @@ class ORTTrainer(Trainer):
             if not key.startswith(f"{metric_key_prefix}_"):
                 metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
 
-        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
-        
+        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)    
 
-    def prediction_loop(
+    def prediction_loop_ort(
         self,
         dataloader: DataLoader,
         description: str,
@@ -948,7 +1024,7 @@ class ORTTrainer(Trainer):
         self.callback_handler.eval_dataloader = dataloader
 
         for step, inputs in enumerate(dataloader):
-            loss, logits, labels = self.prediction_step(model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            loss, logits, labels = self.prediction_step_ort(model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys)
             if loss is not None:
                 losses = loss.repeat(batch_size)
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
@@ -1000,7 +1076,7 @@ class ORTTrainer(Trainer):
 
         return PredictionOutput(predictions=preds, label_ids=label_ids, metrics=metrics)
 
-    def prediction_step(
+    def prediction_step_ort(
         self,
         model: nn.Module,
         infer_sess: onnxruntime.InferenceSession,
@@ -1058,7 +1134,11 @@ class ORTTrainer(Trainer):
         if prediction_loss_only:
             return (loss, None, None)
 
+        if isinstance(logits, (list, tuple)): 
+            logits = [torch.Tensor(arr) for arr in logits]
+        
         logits = nested_detach(logits)
+
         if len(logits) == 1:
             logits = logits[0]
 
@@ -1116,87 +1196,9 @@ class ORTTrainer(Trainer):
         onnx_config = model_onnx_config(self.model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
         self.model.to('cpu')
-        # _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX 
-        _ = export_static(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export static ONNX 
+        _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX 
+        # _ = export_static(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export static ONNX 
     
-def export_static(
-    tokenizer: PreTrainedTokenizer, model: PreTrainedModel, config: OnnxConfig, opset: int, output: Path
-) -> Tuple[List[str], List[str]]:
-    """
-    Export a PyTorch backed pipeline to ONNX Intermediate Representation (IR
-    Args:
-        tokenizer:
-        model:
-        config:
-        opset:
-        output:
-    Returns:
-    """
-    if not is_torch_available():
-        raise ImportError("Cannot convert because PyTorch is not installed. Please install torch first.")
 
-    import torch
-    from torch.onnx import export
-
-    from transformers.file_utils import torch_version
-
-    if not is_torch_onnx_dict_inputs_support_available():
-        raise AssertionError(f"Unsupported PyTorch version, minimum required is 1.8.0, got: {torch_version}")
-
-    logger.info(f"Using framework PyTorch: {torch.__version__}")
-    with torch.no_grad():
-        model.config.return_dict = True
-        model.eval()
-
-        # Check if we need to override certain configuration item
-        if config.values_override is not None:
-            logger.info(f"Overriding {len(config.values_override)} configuration item(s)")
-            for override_config_key, override_config_value in config.values_override.items():
-                logger.info(f"\t- {override_config_key} -> {override_config_value}")
-                setattr(model.config, override_config_key, override_config_value)
-
-        # Ensure inputs match
-        # TODO: Check when exporting QA we provide "is_pair=True"
-        model_inputs = config.generate_dummy_inputs(tokenizer, framework=TensorType.PYTORCH)
-        inputs_match, matched_inputs = ensure_model_and_config_inputs_match(model, model_inputs.keys())
-        onnx_outputs = list(config.outputs.keys())
-
-        if not inputs_match:
-            raise ValueError("Model and config inputs doesn't match")
-
-        config.patch_ops()
-
-        # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
-        # so we check the torch version for backwards compatibility
-        if parse(torch.__version__) <= parse("1.10.99"):
-            # export can work with named args but the dict containing named args
-            # has to be the last element of the args tuple.
-            export(
-                model,
-                (model_inputs,),
-                f=output.as_posix(),
-                input_names=list(config.inputs.keys()),
-                output_names=onnx_outputs,
-                # dynamic_axes={name: axes for name, axes in chain(config.inputs.items(), config.outputs.items())},
-                do_constant_folding=True,
-                use_external_data_format=config.use_external_data_format(model.num_parameters()),
-                enable_onnx_checker=True,
-                opset_version=opset,
-            )
-        else:
-            export(
-                model,
-                (model_inputs,),
-                f=output.as_posix(),
-                input_names=list(config.inputs.keys()),
-                output_names=onnx_outputs,
-                # dynamic_axes={name: axes for name, axes in chain(config.inputs.items(), config.outputs.items())},
-                do_constant_folding=True,
-                opset_version=opset,
-            )
-
-        config.restore_ops()
-
-    return matched_inputs, onnx_outputs
     
     
