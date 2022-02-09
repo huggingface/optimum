@@ -38,8 +38,8 @@ GLUE has 9 different tasks: cola, sst2, mrpc, stsb, qqp, mnli, qnli, rte, wnli. 
 of fine-tuning with `bert-base-uncased` by ONNX Runtime compared with PyTorch.
 
 
-| Task  | Metric                       | Result      |(v.s. PyTorch) |Latency       |(v.s. PyTorch) | Throughput |(v.s. PyTorch) |
-|-------|------------------------------|-------------|---------------|--------------|---------------|----------------------------|
+| Task  | Metric                       | Result      | (v.s. PyTorch) | Latency       |m(v.s. PyTorch) | Throughput | (v.s. PyTorch) |
+|-------|------------------------------|-------------|----------------|--------------|---------------|----------------------------|
 | CoLA  | Matthews corr                |             |               |              |               |                            |
 | SST-2 | Accuracy                     |             |               |              |               |                            |
 | MRPC  | F1/Accuracy                  |             |               |              |               |                            |
