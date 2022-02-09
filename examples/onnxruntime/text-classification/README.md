@@ -37,6 +37,7 @@ python run_glue.py \
 GLUE has 9 different tasks: cola, sst2, mrpc, stsb, qqp, mnli, qnli, rte, wnli. Here are the results and performances 
 of fine-tuning with `bert-base-uncased` by ONNX Runtime compared with PyTorch.
 
+
 | Task  | Metric                       | Result      |(v.s. PyTorch) |Latency       |(v.s. PyTorch) | Throughput |(v.s. PyTorch) |
 |-------|------------------------------|-------------|---------------|--------------|---------------|----------------------------|
 | CoLA  | Matthews corr                |             |               |              |               |                            |
@@ -57,14 +58,8 @@ Runtime just for inference. Here is an example on the previous task:
 
 ```bash
 python run_glue.py \
-    --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english \
-    --task_name sst2 \
-    --quantize \
-    --quantization_approach dynamic \
-    --prune \
-    --target_sparsity 0.1 \
-    --do_train \
+    --model_name_or_path bert-base-uncased \
+    --task_name $TASK_NAME \
     --do_eval \
-    --verify_loading \
-    --output_dir /tmp/sst2_output
+    --output_dir /tmp/$TASK_NAME/
 ```
