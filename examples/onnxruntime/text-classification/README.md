@@ -40,15 +40,15 @@ of fine-tuning with `bert-base-uncased` by ONNX Runtime compared with PyTorch.
 
 | Task  | Metric                       | Result      | (v.s. PyTorch) | Latency       |m(v.s. PyTorch) | Throughput | (v.s. PyTorch) |
 |-------|------------------------------|-------------|----------------|--------------|---------------|----------------------------|
-| CoLA  | Matthews corr                |             |               |              |               |                            |
-| SST-2 | Accuracy                     |             |               |              |               |                            |
-| MRPC  | F1/Accuracy                  |             |               |              |               |                            |
-| STS-B | Pearson/Spearman corr.       |             |               |              |               |                            |
-| QQP   | Accuracy/F1                  |             |               |              |               |                            |
-| MNLI  | Matched acc./Mismatched acc. |             |               |              |               |                            |
-| QNLI  | Accuracy                     |             |               |              |               |                            |
-| RTE   | Accuracy                     |             |               |              |               |                            |
-| WNLI  | Accuracy                     |             |               |              |               |                            |
+| CoLA  | Matthews corr                |    0        |    0        |    0        |    0        |    0        |
+| SST-2 | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
+| MRPC  | F1/Accuracy                  |    0        |    0        |    0        |    0        |    0        |
+| STS-B | Pearson/Spearman corr.       |    0        |    0        |    0        |    0        |    0        |
+| QQP   | Accuracy/F1                  |    0        |    0        |    0        |    0        |    0        |
+| MNLI  | Matched acc./Mismatched acc. |    0        |    0        |    0        |    0        |    0        |
+| QNLI  | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
+| RTE   | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
+| WNLI  | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
 
 ### Inference
 
