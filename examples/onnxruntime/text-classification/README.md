@@ -38,17 +38,17 @@ GLUE has 9 different tasks: cola, sst2, mrpc, stsb, qqp, mnli, qnli, rte, wnli. 
 of fine-tuning with `bert-base-uncased` by ONNX Runtime compared with PyTorch.
 
 
-| Task  | Metric                       | Result      | (v.s. PyTorch) | Latency       |m(v.s. PyTorch) | Throughput | (v.s. PyTorch) |
-|-------|------------------------------|-------------|----------------|--------------|---------------|----------------------------|
-| CoLA  | Matthews corr                |    0        |    0        |    0        |    0        |    0        |
-| SST-2 | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
-| MRPC  | F1/Accuracy                  |    0        |    0        |    0        |    0        |    0        |
-| STS-B | Pearson/Spearman corr.       |    0        |    0        |    0        |    0        |    0        |
-| QQP   | Accuracy/F1                  |    0        |    0        |    0        |    0        |    0        |
-| MNLI  | Matched acc./Mismatched acc. |    0        |    0        |    0        |    0        |    0        |
-| QNLI  | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
-| RTE   | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
-| WNLI  | Accuracy                     |    0        |    0        |    0        |    0        |    0        |
+| Task  | Metric                       | Result      | Training time |
+|-------|------------------------------|-------------|---------------|
+| CoLA  | Matthews corr                | 56.53       | 3:17          |
+| SST-2 | Accuracy                     | 92.32       | 26:06         |
+| MRPC  | F1/Accuracy                  | 88.85/84.07 | 2:21          |
+| STS-B | Pearson/Spearman corr.       | 88.64/88.48 | 2:13          |
+| QQP   | Accuracy/F1                  | 90.71/87.49 | 2:22:26       |
+| MNLI  | Matched acc./Mismatched acc. | 83.91/84.10 | 2:35:23       |
+| QNLI  | Accuracy                     | 90.66       | 40:57         |
+| RTE   | Accuracy                     | 65.70       | 57            |
+| WNLI  | Accuracy                     | 56.34       | 24            |
 
 ### Inference
 
