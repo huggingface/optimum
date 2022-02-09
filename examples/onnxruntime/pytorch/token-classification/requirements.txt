@@ -1,3 +1,8 @@
-seqeval
 datasets >= 1.8.0
+protobuf
+scipy
+scikit-learn
+seqeval
+sentencepiece != 0.1.92
 torch >= 1.9
+torch-ort
