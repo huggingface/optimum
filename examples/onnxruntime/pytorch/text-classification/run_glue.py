@@ -52,6 +52,8 @@ from optimum.onnxruntime import (
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
+
+require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
 require_version("torch_ort>=1.9.0", "To fix, follow the `torch_ort` setup: https://github.com/microsoft/pytorch-ort")
 
 task_to_keys = {
@@ -514,27 +516,19 @@ def main():
             logger.info("*** Evaluate within onnxruntime ***")
             for eval_dataset, task in zip(eval_datasets, tasks):
                 metrics = trainer.evaluate_ort(eval_dataset=eval_dataset)
-
-                max_eval_samples = (
-                    data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-                )
-                metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
-
-                trainer.log_metrics("eval", metrics)
-                trainer.save_metrics("eval", metrics)
         else:
             # (Fine-tuned with onnxruntime) Inference with pytorch
             logger.info("*** Evaluate within pytorch ***")
             for eval_dataset, task in zip(eval_datasets, tasks):
                 metrics = trainer.evaluate(eval_dataset=eval_dataset)
+        
+        max_eval_samples = (
+            data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+        )
+        metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
-                max_eval_samples = (
-                    data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-                )
-                metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
-
-                trainer.log_metrics("eval", metrics)
-                trainer.save_metrics("eval", metrics)
+        trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("eval", metrics)
 
     if training_args.do_predict:
         logger.info("*** Predict ***")
