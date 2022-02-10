@@ -1,19 +1,18 @@
 #!/usr/bin/env python
 # coding=utf-8
-#  Copyright 2022 The HuggingFace Team. All rights reserved.
+# Copyright 2020 The HuggingFace Inc. team. All rights reserved.
 #
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
-
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """ Finetuning the library models for sequence classification on GLUE."""
 # You can also adapt this script on your own text classification task. Pointers for this are left as comments.
 
@@ -21,14 +20,13 @@ import logging
 import os
 import random
 import sys
+import numpy as np
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
 
 import datasets
-import numpy as np
-import transformers
 from datasets import load_dataset, load_metric
+import transformers
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
@@ -37,7 +35,6 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     PretrainedConfig,
-    Trainer,
     TrainingArguments,
     default_data_collator,
     set_seed,
@@ -46,15 +43,16 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizer
-
+from optimum.onnxruntime import (
+    ORTTrainer,
+    ORTConfig,
+    ORTOptimizer,
+    ORTQuantizer,
+)
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.15.0")
-
-require_version(
-    "datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/pytorch/text-classification/requirements.txt"
-)
+check_min_version("4.12.0")
+require_version("torch_ort>=1.9.0", "To fix, follow the `torch_ort` setup: https://github.com/microsoft/pytorch-ort")
 
 task_to_keys = {
     "cola": ("sentence", None),
@@ -75,7 +73,6 @@ logger = logging.getLogger(__name__)
 class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
-
     Using `HfArgumentParser` we can turn this class
     into argparse arguments to be able to specify them on
     the command line.
@@ -191,109 +188,18 @@ class ModelArguments:
     )
 
 
-@dataclass
-class OptimizationArguments:
-    """
-    Arguments pertaining to what type of optimization we are going to apply on the model.
-    """
-
-    optimize: bool = field(
-        default=True,
-        metadata={"help": "Whether or not to optimize the model."},
-    )
-    quantize: bool = field(
-        default=False,
-        metadata={"help": "Whether or not to apply quantization."},
-    )
-    opset: Optional[int] = field(
-        default=None,
-        metadata={"help": "ONNX opset version to export the model with."},
-    )
-    opt_level: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "Optimization level performed by ONNX Runtime of the loaded graph."
-            "0 will disable all optimizations."
-            "1 will enable basic optimizations."
-            "2 will enable basic and extended optimizations, including complex node fusions applied to the nodes "
-            "assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent."
-            "99 will enable all available optimizations including layout optimizations."
-        },
-    )
-    only_onnxruntime: bool = field(
-        default=False,
-        metadata={"help": "Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python."},
-    )
-    quantization_approach: str = field(
-        default="dynamic",
-        metadata={"help": "Quantization approach. Supported approach are static and dynamic."},
-    )
-    per_channel: bool = field(
-        default=False,
-        metadata={"help": "Whether to quantize the weights per channel."},
-    )
-    reduce_range: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to quantize the weights with 7-bits. It may improve the accuracy for some models running "
-            "on non-VNNI machine, especially for per-channel mode."
-        },
-    )
-    weight_type: str = field(
-        default="uint8",
-        metadata={"help": "The quantization data type of weights. Supported data type are uint8 and int8."},
-    )
-    quant_format: str = field(
-        default="operator",
-        metadata={
-            "help": "ONNX quantization representation format."
-            "Supported quantization representation format are operator and qdq. "
-            "operator : Operator Oriented (QOperator) : all the quantized operators have their own ONNX definitions."
-            "qdq : Tensor Oriented (QDQ) : this format quantize the model by inserting QuantizeLinear/DeQuantizeLinear "
-        },
-    )
-    calibration_method: str = field(
-        default="minmax",
-        metadata={
-            "help": "The method chosen to calculate the activation quantization parameters using the calibration "
-            "dataset. Current supported calibration methods are minmax, entropy and percentile."
-        },
-    )
-    calib_dataset_split: str = field(
-        default="train",
-        metadata={
-            "help": "Which split of the calibration dataset to load. "
-            "Depending on the calibration dataset to load, the possible values are train, validation and test."
-        },
-    )
-    max_calib_samples: int = field(
-        default=100,
-        metadata={
-            "help": "Maximum number of examples to use for the calibration step resulting from static quantization."
-        },
-    )
-    metric_name: str = field(
-        default=None,
-        metadata={
-            "help": "Metric used to compare the evaluation results between the original and the optimized models."
-        },
-    )
-
-
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, optim_args = parser.parse_json_file(
-            json_file=os.path.abspath(sys.argv[1])
-        )
+        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -561,18 +467,8 @@ def main():
     else:
         data_collator = None
 
-    if not optim_args.quantize and not optim_args.optimize:
-        raise ValueError("`optimize` and `quantize` are both set to False.")
-
-    if not training_args.do_eval:
-        raise ValueError(
-            "`do_eval` must be set to True in order to compare the evaluation results between the original and the "
-            "optimized models."
-        )
-
     # Initialize our Trainer
-    # TODO : Replace Trainer by our ORTTrainer
-    trainer = Trainer(
+    trainer = ORTTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
@@ -582,112 +478,126 @@ def main():
         data_collator=data_collator,
     )
 
-    ort_config = ORTConfig(
-        opset=optim_args.opset,
-        opt_level=optim_args.opt_level,
-        only_onnxruntime=optim_args.only_onnxruntime,
-        quantization_approach=optim_args.quantization_approach,
-        per_channel=optim_args.per_channel,
-        reduce_range=optim_args.reduce_range,
-        weight_type=optim_args.weight_type,
-        activation_type="uint8",
-        quant_format=optim_args.quant_format,
-        calibration_method=optim_args.calibration_method,
-        optimize_model=optim_args.optimize,
-        max_samples=optim_args.max_calib_samples,
-        calib_batch_size=training_args.per_device_eval_batch_size,
-        seed=training_args.seed,
-        extra_options={
-            "CalibMovingAverage": True
-        },  # activations quantization parameters will be computed using the moving average of the minimum and maximum
-    )
-
-    metric_name = (
-        optim_args.metric_name
-        if optim_args.metric_name is not None
-        else "pearson"
-        if data_args.task_name == "stsb"
-        else "matthews_correlation"
-        if data_args.task_name == "cola"
-        else "accuracy"
-    )
-
-    metrics_model = trainer.evaluate(eval_dataset)
-    results_model = metrics_model.get("eval_" + metric_name)
-    output_dir = Path(training_args.output_dir)
-
-    if optim_args.quantize:
-        calib_dataset = None
-        if optim_args.quantization_approach == "static":
-            if optim_args.calib_dataset_split == "validation" and "mnli" in data_args.task_name:
-                optim_args.calib_dataset_split = (
-                    "validation_matched" if data_args.task_name == "mnli" else "validation_mismatched"
-                )
-
-            if optim_args.calib_dataset_split not in raw_datasets:
-                raise ValueError(f"The split {optim_args.calib_dataset_split} is not present in the provided dataset.")
-            calib_dataset = raw_datasets[optim_args.calib_dataset_split]
-            if optim_args.max_calib_samples is not None:
-                calib_dataset = calib_dataset.select(range(optim_args.max_calib_samples))
-
-        quantizer = ORTQuantizer(ort_config, calib_dataset=calib_dataset)
-        quantizer.fit(
-            model_args.model_name_or_path,
-            output_dir,
-            feature="sequence-classification",
-            cache_dir=model_args.cache_dir,
+    # Training
+    if training_args.do_train:
+        checkpoint = None
+        if training_args.resume_from_checkpoint is not None:
+            checkpoint = training_args.resume_from_checkpoint
+        elif last_checkpoint is not None:
+            checkpoint = last_checkpoint
+        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        metrics = train_result.metrics
+        max_train_samples = (
+            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
         )
-        onnx_config = quantizer.onnx_config
-        opt_model_path = output_dir.joinpath("model-quantized.onnx")
+        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
-    elif optim_args.optimize:
-        optimizer = ORTOptimizer(ort_config)
-        optimizer.fit(
-            model_args.model_name_or_path,
-            output_dir,
-            feature="sequence-classification",
-            cache_dir=model_args.cache_dir,
-        )
-        onnx_config = optimizer.onnx_config
-        opt_model_path = output_dir.joinpath("model-optimized.onnx")
+        trainer.save_model()  # Saves the tokenizer too for easy upload
 
-    # Save the ONNX Runtime configuration
-    ort_config.save_pretrained(training_args.output_dir)
+        trainer.log_metrics("train", metrics)
+        trainer.save_metrics("train", metrics)
+        trainer.save_state()
 
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
-        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics, label_names=["label"])
-        output_opt_model = ort_model.evaluation_loop(eval_dataset)
-        metrics_opt_model = output_opt_model.metrics
-        trainer.save_metrics("eval", metrics_opt_model)
-        results_opt_model = metrics_opt_model.get(metric_name)
 
-        logger.info(
-            f"Optimized model with {metric_name} of {results_opt_model} saved to: {training_args.output_dir}. "
-            f"Original model had an {metric_name} of {results_model}."
-        )
+        # Loop to handle MNLI double evaluation (matched, mis-matched)
+        tasks = [data_args.task_name]
+        eval_datasets = [eval_dataset]
+        if data_args.task_name == "mnli":
+            tasks.append("mnli-mm")
+            eval_datasets.append(raw_datasets["validation_mismatched"])
 
-    # Prediction
+        if not training_args.do_train:
+            # (Not fine-tuned with onnxruntime) Inference with onnxruntime
+            logger.info("*** Evaluate within onnxruntime ***")
+            for eval_dataset, task in zip(eval_datasets, tasks):
+                metrics = trainer.evaluate_ort(eval_dataset=eval_dataset)
+
+                max_eval_samples = (
+                    data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+                )
+                metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+
+                trainer.log_metrics("eval", metrics)
+                trainer.save_metrics("eval", metrics)
+        else:
+            # (Fine-tuned with onnxruntime) Inference with pytorch
+            logger.info("*** Evaluate within pytorch ***")
+            for eval_dataset, task in zip(eval_datasets, tasks):
+                metrics = trainer.evaluate(eval_dataset=eval_dataset)
+
+                max_eval_samples = (
+                    data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+                )
+                metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+
+                trainer.log_metrics("eval", metrics)
+                trainer.save_metrics("eval", metrics)
+
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        ort_model = ORTModel(opt_model_path, onnx_config)
-        output_opt_model = ort_model.evaluation_loop(predict_dataset)
-        predictions = output_opt_model.predictions
-        predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
+        # Loop to handle MNLI double evaluation (matched, mis-matched)
+        tasks = [data_args.task_name]
+        predict_datasets = [predict_dataset]
+        if data_args.task_name == "mnli":
+            tasks.append("mnli-mm")
+            predict_datasets.append(raw_datasets["test_mismatched"])
 
-        # Save predictions
-        output_predictions_file = os.path.join(training_args.output_dir, f"prediction_{data_args.task_name}.txt")
-        with open(output_predictions_file, "w") as writer:
-            logger.info(f"***** Predict results {data_args.task_name} *****")
-            writer.write("index\tprediction\n")
-            for index, item in enumerate(predictions):
-                if is_regression:
-                    writer.write(f"{index}\t{item:3.3f}\n")
-                else:
-                    item = label_list[item]
-                    writer.write(f"{index}\t{item}\n")
+        if not training_args.do_train:
+            # (Not fine-tuned with onnxruntime) Inference with onnxruntime
+            logger.info("*** Predict within onnxruntime ***")
+            for predict_dataset, task in zip(predict_datasets, tasks):
+                # Removing the `label` columns because it contains -1 and Trainer won't like that.
+                predict_dataset = predict_dataset.remove_columns("label")
+                predictions = trainer.predict_ort(predict_dataset, metric_key_prefix="predict").predictions
+                predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
+
+                output_predict_file = os.path.join(training_args.output_dir, f"predict_results_{task}.txt")
+                if trainer.is_world_process_zero():
+                    with open(output_predict_file, "w") as writer:
+                        logger.info(f"***** Predict results {task} *****")
+                        writer.write("index\tprediction\n")
+                        for index, item in enumerate(predictions):
+                            if is_regression:
+                                writer.write(f"{index}\t{item:3.3f}\n")
+                            else:
+                                item = label_list[item]
+                                writer.write(f"{index}\t{item}\n")
+        else:
+            # (Fine-tuned with onnxruntime) Inference with pytorch
+            logger.info("*** Predict within pytorch ***")
+            for predict_dataset, task in zip(predict_datasets, tasks):
+                # Removing the `label` columns because it contains -1 and Trainer won't like that.
+                predict_dataset = predict_dataset.remove_columns("label")
+                predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
+                predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
+
+                output_predict_file = os.path.join(training_args.output_dir, f"predict_results_{task}.txt")
+                if trainer.is_world_process_zero():
+                    with open(output_predict_file, "w") as writer:
+                        logger.info(f"***** Predict results {task} *****")
+                        writer.write("index\tprediction\n")
+                        for index, item in enumerate(predictions):
+                            if is_regression:
+                                writer.write(f"{index}\t{item:3.3f}\n")
+                            else:
+                                item = label_list[item]
+                                writer.write(f"{index}\t{item}\n")
+
+    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "text-classification"}
+    if data_args.task_name is not None:
+        kwargs["language"] = "en"
+        kwargs["dataset_tags"] = "glue"
+        kwargs["dataset_args"] = data_args.task_name
+        kwargs["dataset"] = f"GLUE {data_args.task_name.upper()}"
+
+    if training_args.push_to_hub:
+        trainer.push_to_hub(**kwargs)
+    else:
+        trainer.create_model_card(**kwargs)
 
 
 def _mp_fn(index):

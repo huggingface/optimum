@@ -122,6 +122,11 @@ if is_sagemaker_dp_enabled():
 else:
     import torch.distributed as dist
 
+if is_sagemaker_mp_enabled():
+    import smdistributed.modelparallel.torch as smp
+
+    from transformers.trainer_pt_utils import smp_forward_backward, smp_forward_only, smp_gather, smp_nested_concat
+
 if TYPE_CHECKING:
     import optuna
 
@@ -163,7 +168,7 @@ class ORTTrainer(Trainer):
         )
 
         # onnxruntime.set_seed(self.args.seed)
-        self.ort_trained_model = None  # Trained onnx model for ort inference(not available yet)
+        self.trained_with_ort = False  # Register if the model has been trained with onnxruntime
         self.ort_model_path = None  # Path for trained onnx model for ort inference(not available yet)
         self.session_options = None
         if self.args.local_rank:
@@ -645,6 +650,8 @@ class ORTTrainer(Trainer):
         inference_manager = model._torch_module._execution_manager._inference_manager
         self.session_options, providers, provider_options = inference_manager._get_session_config()
 
+        self.trained_with_ort = True
+
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
     def evaluate_ort(
@@ -745,12 +752,11 @@ class ORTTrainer(Trainer):
             os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
         )
 
-        if self.ort_trained_model:
-            # `train()` function has been called, `self.ort_trained_model` is an instance of `PreTrainedModel`
+        if self.trained_with_ort:
+            # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
             print(
                 "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
             )
-            self.model = self.ort_trained_model
             self._export(onnx_model_path)
             self.ort_model_path = onnx_model_path.as_posix()
             print("The onnx IR is store in:\n", self.ort_model_path)
@@ -946,12 +952,11 @@ class ORTTrainer(Trainer):
             os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
         )
 
-        if self.ort_model_path:
-            # `train()` function has been called, `self.ort_trained_model` is an instance of `PreTrainedModel`
+        if self.trained_with_ort:
+            # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
             print(
                 "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
             )
-            self.model = self.ort_trained_model
             self._export(onnx_model_path)
             self.ort_model_path = onnx_model_path.as_posix()
         else:
@@ -1113,8 +1118,24 @@ class ORTTrainer(Trainer):
 
         with torch.no_grad():
             if is_sagemaker_mp_enabled():
-                # TODO:Sagemaker part not implemented
-                pass
+                raw_outputs = smp_forward_only(model, inputs)
+                if has_labels:
+                    if isinstance(raw_outputs, dict):
+                        loss_mb = raw_outputs["loss"]
+                        logits_mb = tuple(v for k, v in raw_outputs.items() if k not in ignore_keys + ["loss"])
+                    else:
+                        loss_mb = raw_outputs[0]
+                        logits_mb = raw_outputs[1:]
+
+                    loss = loss_mb.reduce_mean().detach().cpu()
+                    logits = smp_nested_concat(logits_mb)
+                else:
+                    loss = None
+                    if isinstance(raw_outputs, dict):
+                        logits_mb = tuple(v for k, v in raw_outputs.items() if k not in ignore_keys)
+                    else:
+                        logits_mb = raw_outputs
+                    logits = smp_nested_concat(logits_mb)
             else:
                 if has_labels:
                     with self.autocast_smart_context_manager():
