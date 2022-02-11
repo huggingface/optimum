@@ -95,17 +95,24 @@ class TestORTTrainer(unittest.TestCase):
                             data_collator=default_data_collator,
                         )
 
-                        # Test 1: ORT training + pytorch inference
+                       # Test 1: ORT training + pytorch inference 
                         train_result = trainer.train()
-                        # trainer.save_model()
                         train_metrics = train_result.metrics
+                        trainer.save_model()
+                        trainer.log_metrics("train", train_metrics)
+                        trainer.save_metrics("train", train_metrics)
+                        trainer.save_state()
                         eval_metrics = trainer.evaluate()
                         prediction = trainer.predict(test_dataset)
                         print("Train metrics:\n", train_metrics)
                         print("Evaluation metrics(PyTorch):\n", eval_metrics)
                         print("Prediction results(PyTorch):\n", prediction)
 
-                        # Test 2: ORT Inference
+                        # Test 2: (ORT Training) + ORT Inference
+                        # -------- ORT training part --------
+                        # train_result = trainer.train()
+                        # train_metrics = train_result.metrics
+                        # -------- ORT inference part --------
                         # ort_eval_metrics = trainer.evaluate_ort()
                         # ort_prediction = trainer.predict_ort(test_dataset)
                         # print("Evaluation metrics(ORT):\n", ort_eval_metrics)

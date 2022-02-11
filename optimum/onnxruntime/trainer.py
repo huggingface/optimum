@@ -106,6 +106,7 @@ import onnx
 import onnxruntime
 from torch_ort import ORTModule
 from huggingface_hub import Repository
+from .utils import export_static
 
 
 if is_apex_available():
@@ -1213,7 +1214,7 @@ class ORTTrainer(Trainer):
             path,
         )
 
-    def _export(self, model_path: os.PathLike, feature: str = "default", opset: Optional[int] = None) -> None:
+    def _export(self, model_path: os.PathLike, feature: str = "default", opset: Optional[int] = None, mode="static") -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
 
@@ -1225,5 +1226,8 @@ class ORTTrainer(Trainer):
         onnx_config = model_onnx_config(self.model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
         self.model.to("cpu")
-        _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX
-        # _ = export_static(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export static ONNX
+        if mode=="static":
+            _ = export_static(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export static ONNX
+        else:
+            _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX
+        
