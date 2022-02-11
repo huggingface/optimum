@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-# Copyright 2020 The HuggingFace Team All rights reserved.
+# Copyright 2022 The HuggingFace Team All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -189,6 +189,7 @@ class DataTrainingArguments:
                 extension = self.validation_file.split(".")[-1]
                 assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         self.task_name = self.task_name.lower()
+
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -430,7 +431,7 @@ def main():
             labels.append(label_ids)
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
-    
+
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
@@ -514,7 +515,6 @@ def main():
                 "f1": results["overall_f1"],
                 "accuracy": results["overall_accuracy"],
             }
-    
 
     # Initialize our Trainer
     trainer = ORTTrainer(
@@ -546,7 +546,7 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
-    
+
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
@@ -565,7 +565,7 @@ def main():
 
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
-    
+
     # Predict
     if training_args.do_predict:
         logger.info("*** Predict ***")

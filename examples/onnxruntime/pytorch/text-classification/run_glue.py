@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-# Copyright 2020 The HuggingFace Inc. team. All rights reserved.
+# Copyright 2022 The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ import logging
 import os
 import random
 import sys
+
+# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional
@@ -49,6 +51,7 @@ from optimum.onnxruntime import (
     ORTOptimizer,
     ORTQuantizer,
 )
+
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
@@ -521,10 +524,8 @@ def main():
             logger.info("*** Evaluate within pytorch ***")
             for eval_dataset, task in zip(eval_datasets, tasks):
                 metrics = trainer.evaluate(eval_dataset=eval_dataset)
-        
-        max_eval_samples = (
-            data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-        )
+
+        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
         trainer.log_metrics("eval", metrics)

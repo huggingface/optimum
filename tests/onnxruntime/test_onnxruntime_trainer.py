@@ -95,7 +95,7 @@ class TestORTTrainer(unittest.TestCase):
                             data_collator=default_data_collator,
                         )
 
-                       # Test 1: ORT training + pytorch inference 
+                        # Test 1: ORT training + pytorch inference
                         train_result = trainer.train()
                         train_metrics = train_result.metrics
                         trainer.save_model()
