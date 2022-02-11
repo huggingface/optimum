@@ -30,6 +30,7 @@ from onnxruntime import InferenceSession, SessionOptions
 logger = logging.getLogger(__name__)
 
 
+# TODO : Temporary class, added to perform ONNX models evaluation, will be replaced with ONNXModel class
 class ORTModel:
     def __init__(
         self,
