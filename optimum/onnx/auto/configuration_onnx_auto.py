@@ -13,17 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Auto ONNX Config class."""
+import importlib
 import re
 import warnings
-import importlib
-from typing import List, Union
 from collections import OrderedDict
+from typing import List, Union
 
-from transformers.utils import logging
-from transformers.file_utils import CONFIG_NAME
-from transformers.onnx.config import OnnxConfig
 from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto.dynamic import get_class_from_dynamic_module
+from transformers.file_utils import CONFIG_NAME
 from transformers.models.auto.configuration_auto import (
     CONFIG_MAPPING,
     MODEL_NAMES_MAPPING,
@@ -31,6 +28,9 @@ from transformers.models.auto.configuration_auto import (
     _get_class_name,
     _LazyConfigMapping,
 )
+from transformers.models.auto.dynamic import get_class_from_dynamic_module
+from transformers.onnx.config import OnnxConfig
+from transformers.utils import logging
 
 
 logger = logging.get_logger(__name__)
