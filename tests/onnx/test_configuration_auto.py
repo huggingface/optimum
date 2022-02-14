@@ -28,16 +28,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import os
 import tempfile
 import unittest
+import importlib
+
+from transformers.onnx import OnnxConfig
 
 from optimum.onnx.auto.configuration_onnx_auto import AutoOnnxConfig
-from transformers.onnx import OnnxConfig
 
 
 SAMPLE_ROBERTA_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures/dummy-config.json")
+
 
 class AutoOnnxConfigTest(unittest.TestCase):
     def test_config_from_model_shortcut(self):

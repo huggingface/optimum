@@ -13,24 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Auto ONNX Config class."""
-import importlib
 import re
 import warnings
-from collections import OrderedDict
+import importlib
 from typing import List, Union
+from collections import OrderedDict
 
-from transformers.configuration_utils import PretrainedConfig
-from transformers.file_utils import CONFIG_NAME
 from transformers.utils import logging
+from transformers.file_utils import CONFIG_NAME
 from transformers.onnx.config import OnnxConfig
+from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto.dynamic import get_class_from_dynamic_module
 from transformers.models.auto.configuration_auto import (
-    _get_class_name,
-    AutoConfig,
-    _LazyConfigMapping,
     CONFIG_MAPPING,
-    MODEL_NAMES_MAPPING, 
+    MODEL_NAMES_MAPPING,
+    AutoConfig,
+    _get_class_name,
+    _LazyConfigMapping,
 )
+
 
 logger = logging.get_logger(__name__)
 
@@ -53,6 +54,7 @@ ONNX_CONFIG_MAPPING_NAMES = OrderedDict(
     ]
 )
 
+
 def config_class_to_model_type(config):
     """Converts a onnx config class name to the corresponding model type"""
     for key, cls in ONNX_CONFIG_MAPPING_NAMES.items():
@@ -60,14 +62,18 @@ def config_class_to_model_type(config):
             return key
     return None
 
+
 ONNX_CONFIG_MAPPING = _LazyConfigMapping(ONNX_CONFIG_MAPPING_NAMES)
+
 
 def _list_model_options(indent, config_to_class=None, use_model_types=True):
     if config_to_class is None and not use_model_types:
         raise ValueError("Using `use_model_types=False` requires a `config_to_class` dictionary.")
     if use_model_types:
         if config_to_class is None:
-            model_type_to_name = {model_type: f"[`{config}`]" for model_type, config in ONNX_CONFIG_MAPPING_NAMES.items()}
+            model_type_to_name = {
+                model_type: f"[`{config}`]" for model_type, config in ONNX_CONFIG_MAPPING_NAMES.items()
+            }
         else:
             model_type_to_name = {
                 model_type: _get_class_name(model_class)
@@ -93,6 +99,7 @@ def _list_model_options(indent, config_to_class=None, use_model_types=True):
         ]
     return "\n".join(lines)
 
+
 def replace_list_option_in_docstrings(config_to_class=None, use_model_types=True):
     def docstring_decorator(fn):
         docstrings = fn.__doc__
@@ -115,17 +122,18 @@ def replace_list_option_in_docstrings(config_to_class=None, use_model_types=True
 
     return docstring_decorator
 
+
 class AutoOnnxConfig(AutoConfig):
     r"""
     This is an Onnx configuration class that will be instantiated as one of the configuration classes of the library
-    when created with the [`~AutoOnnxConfig.from_pretrained`] class method. 
+    when created with the [`~AutoOnnxConfig.from_pretrained`] class method.
 
     This class cannot be instantiated directly using `__init__()` (throws an error).
     """
 
     def __init__(self):
         super().__init__()
-    
+
     @classmethod
     def for_model(cls, model_type: str, *args, **kwargs):
         if model_type in ONNX_CONFIG_MAPPING:
@@ -134,11 +142,11 @@ class AutoOnnxConfig(AutoConfig):
         raise ValueError(
             f"Unrecognized model identifier: {model_type}. Should contain one of {', '.join(ONNX_CONFIG_MAPPING.keys())}"
         )
-    
+
     @classmethod
     # @replace_list_option_in_docstrings()
     def from_pretrained(cls, pretrained_model_name_or_path, task="default", **kwargs):
-        #TODO: Add docstring
+        # TODO: Add docstring
 
         kwargs["_from_auto"] = True
         kwargs["name_or_path"] = pretrained_model_name_or_path
@@ -157,7 +165,7 @@ class AutoOnnxConfig(AutoConfig):
                     "ensure no malicious code has been contributed in a newer revision."
                 )
             class_ref = config_dict["auto_map"]["AutoConfig"]
-            onnx_class_ref = config_dict["auto_map"]["AutoOnnxConfig"]  #TODO: confirm the standard config file
+            onnx_class_ref = config_dict["auto_map"]["AutoOnnxConfig"]  # TODO: confirm the standard config file
             module_file, class_name = class_ref.split(".")
             onnx_module_file, onnx_class_name = onnx_class_ref.split(".")
             config_class = get_class_from_dynamic_module(
@@ -169,7 +177,7 @@ class AutoOnnxConfig(AutoConfig):
             return onnx_config_class(config_class.from_pretrained(pretrained_model_name_or_path, **kwargs), task=task)
         elif "model_type" in config_dict:
             config_class = CONFIG_MAPPING[config_dict["model_type"]]
-            onnx_config_class =ONNX_CONFIG_MAPPING[config_dict["model_type"]]
+            onnx_config_class = ONNX_CONFIG_MAPPING[config_dict["model_type"]]
             return onnx_config_class(config_class.from_dict(config_dict, **kwargs), task=task)
         else:
             # Fallback: use pattern matching on the string.
@@ -184,7 +192,6 @@ class AutoOnnxConfig(AutoConfig):
             f"Should have a `model_type` key in its {ONNX_CONFIG_MAPPING}, or contain one of the following strings "
             f"in its name: {', '.join(ONNX_CONFIG_MAPPING.keys())}"
         )
-
 
     @staticmethod
     def register(model_type, config):

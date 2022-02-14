@@ -18,7 +18,7 @@
 
 from typing import TYPE_CHECKING
 
-from transformers.file_utils import _LazyModule, is_flax_available, is_tf_available, is_torch_available
+from transformers.file_utils import _LazyModule, is_tf_available, is_flax_available, is_torch_available
 
 
 _import_structure = {
