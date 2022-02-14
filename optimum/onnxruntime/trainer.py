@@ -15,19 +15,19 @@
 The Trainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task.
 """
 
-import os
-import re
-import sys
-import math
-import time
-import random
-import shutil
-import inspect
-import warnings
-import contextlib
 import collections
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union, Callable, Optional
+import contextlib
+import inspect
+import math
+import os
+import random
+import re
+import shutil
+import sys
+import time
+import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from tqdm.auto import tqdm
 
@@ -48,64 +48,64 @@ from transformers.integrations import (  # isort: split
 
 import numpy as np
 import torch
-from torch import nn
 from packaging import version
-from transformers import TensorType, PreTrainedTokenizer, __version__, is_torch_available
-from torch.utils.data import Dataset, DataLoader, IterableDataset
 from packaging.version import parse
-from transformers.onnx import export, validate_model_outputs
-from transformers.utils import logging
-from transformers.trainer import Trainer
+from torch import nn
+from torch.utils.data import DataLoader, Dataset, IterableDataset
+from torch.utils.data.distributed import DistributedSampler
+from transformers import PreTrainedTokenizer, TensorType, __version__, is_torch_available
+from transformers.configuration_utils import PretrainedConfig
+from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
+from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_reinit
+from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
     is_apex_available,
-    is_torch_tpu_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
     is_torch_onnx_dict_inputs_support_available,
+    is_torch_tpu_available,
 )
-from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
+from transformers.modeling_utils import PreTrainedModel, unwrap_model
+from transformers.onnx import export, validate_model_outputs
 from transformers.onnx.config import OnnxConfig
 from transformers.onnx.convert import ensure_model_and_config_inputs_match
 from transformers.onnx.features import FeaturesManager
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from transformers.trainer import Trainer
+from transformers.trainer_callback import TrainerCallback, TrainerState
+from transformers.trainer_pt_utils import (
+    DistributedTensorGatherer,
+    IterableDatasetShard,
+    LabelSmoother,
+    SequentialDistributedSampler,
+    find_batch_size,
+    nested_concat,
+    nested_detach,
+    nested_numpify,
+    nested_truncate,
+)
 from transformers.trainer_utils import (
-    TrainOutput,
     EvalLoopOutput,
     EvalPrediction,
     HPSearchBackend,
     PredictionOutput,
     ShardedDDPOption,
+    TrainOutput,
+    denumpify_detensorize,
+    get_last_checkpoint,
     set_seed,
     speed_metrics,
-    get_last_checkpoint,
-    denumpify_detensorize,
 )
 from transformers.training_args import TrainingArguments
-from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from torch.utils.data.distributed import DistributedSampler
-from transformers.trainer_callback import TrainerState, TrainerCallback
-from transformers.trainer_pt_utils import (
-    LabelSmoother,
-    IterableDatasetShard,
-    DistributedTensorGatherer,
-    SequentialDistributedSampler,
-    nested_concat,
-    nested_detach,
-    nested_numpify,
-    find_batch_size,
-    nested_truncate,
-)
-from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
-from transformers.configuration_utils import PretrainedConfig
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from transformers.dependency_versions_check import dep_version_check
+from transformers.utils import logging
 
 import onnx
 import onnxruntime
 from torch_ort import ORTModule
-from huggingface_hub import Repository
+
 from .utils import export_static
 
 
@@ -113,8 +113,8 @@ if is_apex_available():
     from apex import amp
 
 if is_torch_tpu_available():
-    import torch_xla.debug.metrics as met
     import torch_xla.core.xla_model as xm
+    import torch_xla.debug.metrics as met
     import torch_xla.distributed.parallel_loader as pl
 
 if is_sagemaker_dp_enabled():
@@ -124,9 +124,9 @@ else:
     import torch.distributed as dist
 
 if is_sagemaker_mp_enabled():
-    import smdistributed.modelparallel.torch as smp
-
     from transformers.trainer_pt_utils import smp_forward_backward, smp_forward_only, smp_gather, smp_nested_concat
+
+    import smdistributed.modelparallel.torch as smp
 
 if TYPE_CHECKING:
     import optuna

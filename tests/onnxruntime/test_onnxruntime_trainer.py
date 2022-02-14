@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 import transformers
-from datasets import load_metric, load_dataset
-from transformers import AutoTokenizer, TrainingArguments, BertForSequenceClassification, default_data_collator
+from datasets import load_dataset, load_metric
+from transformers import AutoTokenizer, BertForSequenceClassification, TrainingArguments, default_data_collator
 from transformers.onnx import validate_model_outputs
 from transformers.onnx.features import FeaturesManager
 

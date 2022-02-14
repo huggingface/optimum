@@ -12,22 +12,23 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 from pathlib import Path
-from packaging.version import parse
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from packaging.version import parse
 from transformers import PreTrainedTokenizer, TensorType, is_torch_available
-from transformers.utils import logging 
+from transformers.file_utils import is_torch_onnx_dict_inputs_support_available
 from transformers.modeling_utils import PreTrainedModel
-from transformers.file_utils import (
-    is_torch_onnx_dict_inputs_support_available,
-)
 from transformers.onnx.config import OnnxConfig
 from transformers.onnx.convert import ensure_model_and_config_inputs_match
+from transformers.utils import logging
+
 
 logger = logging.get_logger(__name__)
 
+
 def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
+
 
 def export_static(
     tokenizer: PreTrainedTokenizer, model: PreTrainedModel, config: OnnxConfig, opset: int, output: Path
@@ -40,7 +41,6 @@ def export_static(
 
     import torch
     from torch.onnx import export
-
     from transformers.file_utils import torch_version
 
     if not is_torch_onnx_dict_inputs_support_available():
