@@ -416,7 +416,7 @@ def main():
     elif training_args.do_eval:
         column_names = raw_datasets["validation"].column_names
     else:
-        raise ValueError("--do_train or --do_eval are both set to False")
+        column_names = raw_datasets["test"].column_names
     question_column_name = "question" if "question" in column_names else column_names[0]
     context_column_name = "context" if "context" in column_names else column_names[1]
     answer_column_name = "answers" if "answers" in column_names else column_names[2]
@@ -598,6 +598,27 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
+    if training_args.do_predict:
+        if "test" not in raw_datasets:
+            raise ValueError("--do_predict requires a test dataset")
+        predict_examples = raw_datasets["test"]
+        if data_args.max_predict_samples is not None:
+            # We will select sample from whole data
+            predict_examples = predict_examples.select(range(data_args.max_predict_samples))
+        # Predict Feature Creation
+        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
+            predict_dataset = predict_examples.map(
+                prepare_validation_features,
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                remove_columns=column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on prediction dataset",
+            )
+        if data_args.max_predict_samples is not None:
+            # During Feature creation dataset samples might increase, we will select required samples again
+            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+
     # Data collator
     # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data
     # collator.
@@ -728,6 +749,17 @@ def main():
             f"Optimized model with a {optim_args.metric_name} score of {results_opt_model} saved to: "
             f"{training_args.output_dir}. Original model had a {optim_args.metric_name} score of {results_model}."
         )
+
+    # Prediction
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+
+        predict_dataloader = trainer.get_eval_dataloader(predict_dataset)
+        ort_model = ORTModel(opt_model_path, onnx_config)
+        output_opt_model = ort_model.evaluation_loop(predict_dataloader)
+        predictions = post_processing_function(predict_examples, predict_dataset, output_opt_model.predictions)
+        metrics_opt_model = compute_metrics(predictions)
+        trainer.save_metrics("predict", metrics_opt_model)
 
 
 def _mp_fn(index):
