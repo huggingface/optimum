@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     PreTrainedTokenizerFast,
-    Trainer,
     TrainingArguments,
     default_data_collator,
     set_seed,
@@ -53,9 +52,9 @@ from utils_qa import postprocess_qa_predictions
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.12.0")
+check_min_version("4.15.0")
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/question-answering/requirements.txt")
+require_version("datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/pytorch/question-answering/requirements.txt")
 
 logger = logging.getLogger(__name__)
 
@@ -715,15 +714,20 @@ def main():
         onnx_config = optimizer.onnx_config
         opt_model_path = output_dir.joinpath("model-optimized.onnx")
 
-    ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-    output_opt_model = ort_model.evaluation_loop(eval_dataloader)
-    opt_model_eval_preds = post_processing_function(eval_examples, eval_dataset, output_opt_model.predictions)
-    metrics_opt_model = compute_metrics(opt_model_eval_preds)
-    results_opt_model = metrics_opt_model.get(optim_args.metric_name)
-    logger.info(
-        f"Optimized model with a {optim_args.metric_name} score of {results_opt_model} saved to: "
-        f"{training_args.output_dir}. Original model had a {optim_args.metric_name} score of {results_model}."
-    )
+    # Evaluation
+    if training_args.do_eval:
+        logger.info("*** Evaluate ***")
+
+        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
+        output_opt_model = ort_model.evaluation_loop(eval_dataloader)
+        predictions = post_processing_function(eval_examples, eval_dataset, output_opt_model.predictions)
+        metrics_opt_model = compute_metrics(predictions)
+        trainer.save_metrics("eval", metrics_opt_model)
+        results_opt_model = metrics_opt_model.get(optim_args.metric_name)
+        logger.info(
+            f"Optimized model with a {optim_args.metric_name} score of {results_opt_model} saved to: "
+            f"{training_args.output_dir}. Original model had a {optim_args.metric_name} score of {results_model}."
+        )
 
 
 def _mp_fn(index):

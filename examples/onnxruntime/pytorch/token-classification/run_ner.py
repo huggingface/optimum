@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-# Copyright 2020 The HuggingFace Team All rights reserved.
+# Copyright 2022 The HuggingFace Team All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ from transformers import (
     DataCollatorForTokenClassification,
     HfArgumentParser,
     PreTrainedTokenizerFast,
+    PretrainedConfig,
     Trainer,
     TrainingArguments,
     set_seed,
@@ -51,9 +52,9 @@ from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizer
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.12.0")
+check_min_version("4.15.0")
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
+require_version("datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/pytorch/token-classification/requirements.txt")
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ class DataTrainingArguments:
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_seq_length: int = field(
-        default=128,
+        default=None,
         metadata={
             "help": "The maximum total input sequence length after tokenization. If set, sequences longer "
             "than this will be truncated, sequences shorter will be padded."
@@ -389,22 +390,17 @@ def main():
         label_list.sort()
         return label_list
 
-    if isinstance(features[label_column_name].feature, ClassLabel):
+    # If the labels are of type ClassLabel, they are already integers and we have the map stored somewhere.
+    # Otherwise, we have to get the list of labels manually.
+    labels_are_int = isinstance(features[label_column_name].feature, ClassLabel)
+    if labels_are_int:
         label_list = features[label_column_name].feature.names
-        # No need to convert the labels since they are already ints.
         label_to_id = {i: i for i in range(len(label_list))}
     else:
         label_list = get_label_list(raw_datasets["train"][label_column_name])
         label_to_id = {l: i for i, l in enumerate(label_list)}
-    num_labels = len(label_list)
 
-    # Map that sends B-Xxx label to its I-Xxx counterpart
-    b_to_i_label = []
-    for idx, label in enumerate(label_list):
-        if label.startswith("B-") and label.replace("B-", "I-") in label_list:
-            b_to_i_label.append(label_list.index(label.replace("B-", "I-")))
-        else:
-            b_to_i_label.append(idx)
+    num_labels = len(label_list)
 
     # Load pretrained model and tokenizer
     #
@@ -414,8 +410,6 @@ def main():
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         num_labels=num_labels,
-        label2id=label_to_id,
-        id2label={i: l for l, i in label_to_id.items()},
         finetuning_task=data_args.task_name,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
@@ -457,6 +451,35 @@ def main():
             "at https://huggingface.co/transformers/index.html#supported-frameworks to find the model types that meet this "
             "requirement"
         )
+
+    # Model has labels -> use them.
+    if model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id:
+        if list(sorted(model.config.label2id.keys())) == list(sorted(label_list)):
+            # Reorganize `label_list` to match the ordering of the model.
+            if labels_are_int:
+                label_to_id = {i: int(model.config.label2id[l]) for i, l in enumerate(label_list)}
+                label_list = [model.config.id2label[i] for i in range(num_labels)]
+            else:
+                label_list = [model.config.id2label[i] for i in range(num_labels)]
+                label_to_id = {l: i for i, l in enumerate(label_list)}
+        else:
+            logger.warning(
+                "Your model seems to have been trained with labels, but they don't match the dataset: ",
+                f"model labels: {list(sorted(model.config.label2id.keys()))}, dataset labels: {list(sorted(label_list))}."
+                "\nIgnoring the model labels as a result.",
+            )
+
+    # Set the correspondences label/ID inside the model config
+    model.config.label2id = {l: i for i, l in enumerate(label_list)}
+    model.config.id2label = {i: l for i, l in enumerate(label_list)}
+
+    # Map that sends B-Xxx label to its I-Xxx counterpart
+    b_to_i_label = []
+    for idx, label in enumerate(label_list):
+        if label.startswith("B-") and label.replace("B-", "I-") in label_list:
+            b_to_i_label.append(label_list.index(label.replace("B-", "I-")))
+        else:
+            b_to_i_label.append(idx)
 
     # Preprocessing the dataset
     # Padding strategy
@@ -663,14 +686,44 @@ def main():
         onnx_config = optimizer.onnx_config
         opt_model_path = output_dir.joinpath("model-optimized.onnx")
 
-    ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-    output_opt_model = ort_model.evaluation_loop(eval_dataloader)
-    metrics_opt_model = output_opt_model.metrics
-    results_opt_model = metrics_opt_model.get(optim_args.metric_name)
-    logger.info(
-        f"Optimized model with a {optim_args.metric_name} score of {results_opt_model} saved to: "
-        f"{training_args.output_dir}. Original model had a {optim_args.metric_name} score of {results_model}."
-    )
+    # Evaluation
+    if training_args.do_eval:
+        logger.info("*** Evaluate ***")
+
+        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
+        output_opt_model = ort_model.evaluation_loop(eval_dataloader)
+        metrics_opt_model = output_opt_model.metrics
+        trainer.save_metrics("eval", metrics_opt_model)
+        results_opt_model = metrics_opt_model.get(optim_args.metric_name)
+
+        logger.info(
+            f"Optimized model with a {optim_args.metric_name} score of {results_opt_model} saved to: "
+            f"{training_args.output_dir}. Original model had a {optim_args.metric_name} score of {results_model}."
+        )
+
+    # Prediction
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+
+        predict_dataloader = trainer.get_eval_dataloader(predict_dataset)
+        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
+        output_opt_model = ort_model.evaluation_loop(predict_dataloader)
+        predictions = np.argmax(output_opt_model.predictions, axis=2)
+        labels = output_opt_model.label_ids
+
+        # Remove ignored index (special tokens)
+        true_predictions = [
+            [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
+            for prediction, label in zip(predictions, labels)
+        ]
+        trainer.save_metrics("predict", output_opt_model.metrics)
+
+        # Save predictions
+        output_predictions_file = os.path.join(training_args.output_dir, "predictions.txt")
+        if trainer.is_world_process_zero():
+            with open(output_predictions_file, "w") as writer:
+                for prediction in true_predictions:
+                    writer.write(" ".join(prediction) + "\n")
 
 
 def _mp_fn(index):

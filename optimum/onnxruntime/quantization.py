@@ -215,11 +215,11 @@ class ORTQuantizer:
         if not model_path.is_file():
             model_path = output_dir.joinpath("model.onnx")
             self.export(model_name_or_path, model_path, feature=feature, **kwargs)
-        elif self.onnx_config is None and self.quantization_approach == ORTQuantizationMode.STATIC:
+        elif self.onnx_config is None:
             if config is None:
                 raise ValueError(
-                    "A configuration `config` associated to the model must be provided when applying static "
-                    "quantization on a pre-existing ONNX model."
+                    "A configuration `config` associated to the model must be provided when applying quantization "
+                    "on a pre-existing ONNX model."
                 )
             if not isinstance(config, PretrainedConfig):
                 raise TypeError(

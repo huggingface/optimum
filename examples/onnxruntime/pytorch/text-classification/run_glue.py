@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
+from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizer
 
@@ -51,8 +52,11 @@ from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizer
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.12.0")
+check_min_version("4.15.0")
 
+require_version(
+    "datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/pytorch/text-classification/requirements.txt"
+)
 
 task_to_keys = {
     "cola": ("sentence", None),
@@ -133,6 +137,7 @@ class DataTrainingArguments:
     validation_file: Optional[str] = field(
         default=None, metadata={"help": "A csv or a json file containing the validation data."}
     )
+    test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
 
     def __post_init__(self):
         if self.task_name is not None:
@@ -356,6 +361,19 @@ def main():
         # CSV/JSON training and evaluation files are needed.
         data_files = {"train": data_args.train_file, "validation": data_args.validation_file}
 
+        # Get the test dataset: you can provide your own CSV/JSON test file (see below)
+        # when you use `do_predict` without specifying a GLUE benchmark task.
+        if training_args.do_predict:
+            if data_args.test_file is not None:
+                train_extension = data_args.train_file.split(".")[-1]
+                test_extension = data_args.test_file.split(".")[-1]
+                assert (
+                    test_extension == train_extension
+                ), "`test_file` should have the same extension (csv or json) as `train_file`."
+                data_files["test"] = data_args.test_file
+            else:
+                raise ValueError("Need either a GLUE task or a test file for `do_predict`.")
+
         for key in data_files.keys():
             logger.info(f"load a local file for {key}: {data_files[key]}")
 
@@ -460,6 +478,9 @@ def main():
     if label_to_id is not None:
         model.config.label2id = label_to_id
         model.config.id2label = {id: label for label, id in config.label2id.items()}
+    elif data_args.task_name is not None and not is_regression:
+        model.config.label2id = {l: i for i, l in enumerate(label_list)}
+        model.config.id2label = {id: label for label, id in config.label2id.items()}
 
     if data_args.max_seq_length > tokenizer.model_max_length:
         logger.warning(
@@ -482,7 +503,10 @@ def main():
 
     with training_args.main_process_first(desc="dataset map pre-processing"):
         raw_datasets = raw_datasets.map(
-            preprocess_function, batched=True, load_from_cache_file=not data_args.overwrite_cache
+            preprocess_function,
+            batched=True,
+            load_from_cache_file=not data_args.overwrite_cache,
+            desc="Running tokenizer on dataset",
         )
     if training_args.do_train:
         if "train" not in raw_datasets:
@@ -497,6 +521,13 @@ def main():
         eval_dataset = raw_datasets["validation_matched" if data_args.task_name == "mnli" else "validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+
+    if training_args.do_predict or data_args.task_name is not None or data_args.test_file is not None:
+        if "test" not in raw_datasets and "test_matched" not in raw_datasets:
+            raise ValueError("--do_predict requires a test dataset")
+        predict_dataset = raw_datasets["test_matched" if data_args.task_name == "mnli" else "test"]
+        if data_args.max_predict_samples is not None:
+            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
     # Log a few random samples from the training set:
     if training_args.do_train:
@@ -589,8 +620,10 @@ def main():
     if optim_args.quantize:
         calib_dataset = None
         if optim_args.quantization_approach == "static":
-            if optim_args.calib_dataset_split == "validation" and data_args.task_name == "mnli":
-                optim_args.calib_dataset_split = "validation_matched"
+            if optim_args.calib_dataset_split == "validation" and "mnli" in data_args.task_name:
+                optim_args.calib_dataset_split = (
+                    "validation_matched" if data_args.task_name == "mnli" else "validation_mismatched"
+                )
 
             if optim_args.calib_dataset_split not in raw_datasets:
                 raise ValueError(f"The split {optim_args.calib_dataset_split} is not present in the provided dataset.")
@@ -619,15 +652,41 @@ def main():
         onnx_config = optimizer.onnx_config
         opt_model_path = output_dir.joinpath("model-optimized.onnx")
 
-    ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-    output_opt_model = ort_model.evaluation_loop(eval_dataloader)
-    metrics_opt_model = output_opt_model.metrics
-    results_opt_model = metrics_opt_model.get(metric_name)
+    # Evaluation
+    if training_args.do_eval:
+        logger.info("*** Evaluate ***")
+        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
+        output_opt_model = ort_model.evaluation_loop(eval_dataloader)
+        metrics_opt_model = output_opt_model.metrics
+        trainer.save_metrics("eval", metrics_opt_model)
+        results_opt_model = metrics_opt_model.get(metric_name)
 
-    logger.info(
-        f"Optimized model with {metric_name} of {results_opt_model} saved to: {training_args.output_dir}. "
-        f"Original model had an {metric_name} of {results_model}."
-    )
+        logger.info(
+            f"Optimized model with {metric_name} of {results_opt_model} saved to: {training_args.output_dir}. "
+            f"Original model had an {metric_name} of {results_model}."
+        )
+
+    # Prediction
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+
+        predict_dataloader = trainer.get_eval_dataloader(predict_dataset)
+        ort_model = ORTModel(opt_model_path, onnx_config)
+        output_opt_model = ort_model.evaluation_loop(predict_dataloader)
+        predictions = output_opt_model.predictions
+        predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
+
+        # Save predictions
+        output_predictions_file = os.path.join(training_args.output_dir, f"prediction_{data_args.task_name}.txt")
+        with open(output_predictions_file, "w") as writer:
+            logger.info(f"***** Predict results {data_args.task_name} *****")
+            writer.write("index\tprediction\n")
+            for index, item in enumerate(predictions):
+                if is_regression:
+                    writer.write(f"{index}\t{item:3.3f}\n")
+                else:
+                    item = label_list[item]
+                    writer.write(f"{index}\t{item}\n")
 
 
 def _mp_fn(index):

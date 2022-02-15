@@ -100,12 +100,14 @@ class ORTModel:
                         )
                     else:
                         onnx_inputs[name] = value.numpy()
-            num_samples += onnx_inputs[name].shape[0]
+            num_samples += inputs[name].shape[0]
             preds = session.run(self.onnx_named_outputs, onnx_inputs)
+            if len(preds) == 1:
+                preds = preds[0]
             all_preds = preds if all_preds is None else nested_concat(all_preds, preds, padding_index=-100)
             all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
-            metrics = self.compute_metrics(EvalPrediction(predictions=all_preds[0], label_ids=all_labels))
+            metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
         else:
             metrics = {}
         return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
