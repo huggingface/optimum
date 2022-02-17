@@ -688,6 +688,9 @@ def main():
         onnx_config = optimizer.onnx_config
         opt_model_path = output_dir.joinpath("model-optimized.onnx")
 
+    # Save the ONNX Runtime configuration
+    ort_config.save_pretrained(training_args.output_dir)
+    
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
