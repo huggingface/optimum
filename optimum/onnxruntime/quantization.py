@@ -238,8 +238,12 @@ class ORTQuantizer:
                 reduce_range=self.ort_config.reduce_range,
                 activation_type=self.activation_type,
                 weight_type=self.weight_type,
+                op_types_to_quantize=self.ort_config.op_types_to_quantize,
+                nodes_to_quantize=self.ort_config.nodes_to_quantize,
+                nodes_to_exclude=self.ort_config.nodes_to_exclude,
                 optimize_model=self.ort_config.optimize_model,
                 use_external_data_format=self.ort_config.use_external_data_format,
+                extra_options=self.ort_config.extra_options,
             )
         elif self.quantization_approach == ORTQuantizationMode.STATIC:
             calib_dataset = self.calib_dataset if self.calib_dataset is not None else self.get_calib_dataset()
@@ -254,11 +258,12 @@ class ORTQuantizer:
                 reduce_range=self.ort_config.reduce_range,
                 activation_type=self.activation_type,
                 weight_type=self.weight_type,
-                optimize_model=self.ort_config.optimize_model,
-                use_external_data_format=self.ort_config.use_external_data_format,
-                calibrate_method=self.calibrate_method,
+                op_types_to_quantize=self.ort_config.op_types_to_quantize,
                 nodes_to_quantize=self.ort_config.nodes_to_quantize,
                 nodes_to_exclude=self.ort_config.nodes_to_exclude,
+                calibrate_method=self.calibrate_method,
+                optimize_model=self.ort_config.optimize_model,
+                use_external_data_format=self.ort_config.use_external_data_format,
                 extra_options=self.ort_config.extra_options,
             )
         else:
