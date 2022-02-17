@@ -58,6 +58,7 @@ RUN pip install torch-ort
 RUN python -m torch_ort.configure
 
 # Clone the optimum repo on branch `ort-train`
-RUN git clone https://github.com/huggingface/optimum.git && cd optimum && git checkout ort-trainer && cp tests/onnxruntime/test_onnxruntime_trainer.py ./
+RUN git clone https://github.com/huggingface/optimum.git && cd optimum
+RUN git checkout ort-trainer && cp tests/onnxruntime/test_onnxruntime_trainer.py ./
 
 CMD ["/bin/bash"]
