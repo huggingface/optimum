@@ -78,10 +78,12 @@ class ORTConfig(BaseConfig):
             Maximum number of examples to use for the calibration step resulting from static quantization.
         calib_batch_size (`int`, `optional`, defaults to 8):
             The batch size to use for the calibration step resulting from static quantization.
+        op_types_to_quantize (`List`, `optional`):
+            List of the types of operators to quantize. By default, all the supported operators are quantized.
         nodes_to_quantize (`List`, `optional`):
-            List of nodes names to quantize.
+            List of the nodes names to quantize.
         nodes_to_exclude (`List`, `optional`):
-            List of nodes names to exclude when applying quantization.
+            List of the nodes names to exclude when applying quantization.
         extra_options (`Dict[str, Any]`, `optional`):
             The dictionary mapping each extra options to the desired value, such as :
                 ActivationSymmetric (`bool`, `optional`, defaults to `False`):
@@ -135,6 +137,7 @@ class ORTConfig(BaseConfig):
         calib_batch_size: Optional[int] = 8,
         seed: Optional[int] = 42,
         use_external_data_format: Optional[bool] = False,
+        op_types_to_quantize: Optional[List] = None,
         nodes_to_quantize: Optional[List] = None,
         nodes_to_exclude: Optional[List] = None,
         extra_options: Optional[Dict[str, Any]] = None,
@@ -156,6 +159,7 @@ class ORTConfig(BaseConfig):
         self.calib_batch_size = calib_batch_size
         self.seed = seed
         self.use_external_data_format = use_external_data_format
+        self.op_types_to_quantize = op_types_to_quantize
         self.nodes_to_quantize = nodes_to_quantize
         self.nodes_to_exclude = nodes_to_exclude
         self.extra_options = extra_options
