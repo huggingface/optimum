@@ -690,7 +690,7 @@ def main():
 
     # Save the ONNX Runtime configuration
     ort_config.save_pretrained(training_args.output_dir)
-    
+
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
