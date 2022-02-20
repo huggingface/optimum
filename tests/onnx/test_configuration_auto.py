@@ -13,10 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import tempfile
 import unittest
-import importlib
 
 from transformers import is_tf_available, is_torch_available
 
@@ -27,7 +24,7 @@ if is_torch_available() or is_tf_available():
     from transformers.onnx.features import FeaturesManager
 
 from transformers.onnx import OnnxConfig
-from transformers.testing_utils import slow, require_torch
+from transformers.testing_utils import require_torch
 
 from optimum.onnx.auto.configuration_onnx_auto import AutoOnnxConfig
 

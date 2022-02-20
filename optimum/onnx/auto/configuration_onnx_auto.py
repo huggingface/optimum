@@ -15,17 +15,10 @@
 """ Auto ONNX Config class."""
 import re
 import warnings
-import importlib
-from typing import List, Union
-from tarfile import SUPPORTED_TYPES
 from collections import OrderedDict
+from typing import Optional
 
-from transformers.utils import logging
-from transformers.file_utils import CONFIG_NAME
-from transformers.onnx.config import OnnxConfig
-from transformers.onnx.features import FeaturesManager
 from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto.dynamic import get_class_from_dynamic_module
 from transformers.models.auto.configuration_auto import (
     CONFIG_MAPPING,
     MODEL_NAMES_MAPPING,
@@ -33,6 +26,10 @@ from transformers.models.auto.configuration_auto import (
     _get_class_name,
     _LazyConfigMapping,
 )
+from transformers.models.auto.dynamic import get_class_from_dynamic_module
+from transformers.onnx.config import OnnxConfig
+from transformers.onnx.features import FeaturesManager
+from transformers.utils import logging
 
 
 logger = logging.get_logger(__name__)
@@ -50,6 +47,22 @@ ONNX_CONFIG_MAPPING_NAMES = OrderedDict(
 ONNX_MODEL_NAMES_MAPPING = OrderedDict(
     [(key, MODEL_NAMES_MAPPING[key]) for key in ONNX_SUPPORTED_MODELS if key in CONFIG_MAPPING.keys()]
 )
+
+
+def check_supported_model_task_or_raise(model_type: str, model_name: Optional[str] = None, feature: str = "default"):
+    """
+    Check whether or not the model type is registered and has the requested features.
+    Args:
+        model_type: model type, ex: "albert", "bart".
+        feature: The name of the feature to check if it is available.
+    Returns:
+        (str) The type of the model (OnnxConfig) The OnnxConfig instance holding the model export properties.
+    """
+    model_features = FeaturesManager.get_supported_features_for_model_type(model_type, model_name=model_name)
+    if feature not in model_features:
+        raise ValueError(f"{model_type} doesn't support feature {feature}. " f"Supported values are: {model_features}")
+
+    return model_type, FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][feature]
 
 
 def config_class_to_model_type(config):
@@ -244,10 +257,11 @@ class AutoOnnxConfig(AutoConfig):
             onnx_config_class = get_class_from_dynamic_module(
                 pretrained_model_name_or_path, onnx_module_file + ".py", onnx_class_name, **kwargs
             )
-            # TODO: action when `task` is not supported by the model
+
             return onnx_config_class(config_class.from_pretrained(pretrained_model_name_or_path, **kwargs), task=task)
         elif "model_type" in config_dict:
-            # TODO: action when `model_type` doesn't have defined OnnxConfig
+            # Check if the `model_type` with task has defined OnnxConfig
+            check_supported_model_task_or_raise(model_type=config_dict["model_type"], feature=task)
             config_class = AutoConfig.from_pretrained(pretrained_model_name_or_path)
             onnx_config_class = FeaturesManager._SUPPORTED_MODEL_TYPE[config_dict["model_type"]][task]
             return onnx_config_class(config_class)
