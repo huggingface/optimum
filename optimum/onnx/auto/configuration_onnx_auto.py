@@ -13,15 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Auto ONNX Config class."""
-import importlib
 import re
-from tarfile import SUPPORTED_TYPES
 import warnings
-from collections import OrderedDict
+import importlib
 from typing import List, Union
+from tarfile import SUPPORTED_TYPES
+from collections import OrderedDict
 
-from transformers.configuration_utils import PretrainedConfig
+from transformers.utils import logging
 from transformers.file_utils import CONFIG_NAME
+from transformers.onnx.config import OnnxConfig
+from transformers.onnx.features import FeaturesManager
+from transformers.configuration_utils import PretrainedConfig
+from transformers.models.auto.dynamic import get_class_from_dynamic_module
 from transformers.models.auto.configuration_auto import (
     CONFIG_MAPPING,
     MODEL_NAMES_MAPPING,
@@ -29,10 +33,6 @@ from transformers.models.auto.configuration_auto import (
     _get_class_name,
     _LazyConfigMapping,
 )
-from transformers.models.auto.dynamic import get_class_from_dynamic_module
-from transformers.onnx.config import OnnxConfig
-from transformers.onnx.features import FeaturesManager
-from transformers.utils import logging
 
 
 logger = logging.get_logger(__name__)
@@ -40,8 +40,11 @@ logger = logging.get_logger(__name__)
 ONNX_SUPPORTED_MODELS = FeaturesManager._SUPPORTED_MODEL_TYPE.keys()
 
 ONNX_CONFIG_MAPPING_NAMES = OrderedDict(
-    [(key, FeaturesManager._SUPPORTED_MODEL_TYPE[key]['default'].func.__self__.__name__) 
-    for key in ONNX_SUPPORTED_MODELS if key in CONFIG_MAPPING.keys()]
+    [
+        (key, FeaturesManager._SUPPORTED_MODEL_TYPE[key]["default"].func.__self__.__name__)
+        for key in ONNX_SUPPORTED_MODELS
+        if key in CONFIG_MAPPING.keys()
+    ]
 )
 
 ONNX_MODEL_NAMES_MAPPING = OrderedDict(
@@ -228,23 +231,23 @@ class AutoOnnxConfig(AutoConfig):
             class_ref = config_dict["auto_map"]["AutoConfig"]
             module_file, class_name = class_ref.split(".")
 
-            if config_dict["auto_map"]["AutoOnnxConfig"]: # TODO: to confirm the term name
-                onnx_class_ref = config_dict["auto_map"]["AutoOnnxConfig"]  
+            if config_dict["auto_map"]["AutoOnnxConfig"]:  # TODO: to confirm the term name
+                onnx_class_ref = config_dict["auto_map"]["AutoOnnxConfig"]
                 onnx_module_file, onnx_class_name = onnx_class_ref.split(".")
             else:
                 onnx_module_file = module_file
-                onnx_class_name = re.sub(r'(.*)(Config)', r'\1Onnx\2', class_name)
-            
+                onnx_class_name = re.sub(r"(.*)(Config)", r"\1Onnx\2", class_name)
+
             config_class = get_class_from_dynamic_module(
                 pretrained_model_name_or_path, module_file + ".py", class_name, **kwargs
             )
             onnx_config_class = get_class_from_dynamic_module(
                 pretrained_model_name_or_path, onnx_module_file + ".py", onnx_class_name, **kwargs
             )
-            #TODO: action when `task` is not supported by the model
+            # TODO: action when `task` is not supported by the model
             return onnx_config_class(config_class.from_pretrained(pretrained_model_name_or_path, **kwargs), task=task)
         elif "model_type" in config_dict:
-            #TODO: action when `model_type` doesn't have defined OnnxConfig
+            # TODO: action when `model_type` doesn't have defined OnnxConfig
             config_class = AutoConfig.from_pretrained(pretrained_model_name_or_path)
             onnx_config_class = FeaturesManager._SUPPORTED_MODEL_TYPE[config_dict["model_type"]][task]
             return onnx_config_class(config_class)

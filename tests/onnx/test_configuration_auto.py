@@ -13,19 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import os
 import tempfile
 import unittest
-from parameterized import parameterized
+import importlib
 
 from transformers import is_tf_available, is_torch_available
+
+from parameterized import parameterized
+
+
 if is_torch_available() or is_tf_available():
     from transformers.onnx.features import FeaturesManager
+
 from transformers.onnx import OnnxConfig
-from transformers.testing_utils import require_torch, slow
+from transformers.testing_utils import slow, require_torch
 
 from optimum.onnx.auto.configuration_onnx_auto import AutoOnnxConfig
+
 
 PYTORCH_EXPORT_MODELS = {
     ("albert", "hf-internal-testing/tiny-albert"),
@@ -40,7 +45,7 @@ PYTORCH_EXPORT_MODELS = {
 
 PYTORCH_EXPORT_WITH_PAST_MODELS = {
     ("gpt2", "gpt2"),
-    ("gpt-neo", "EleutherAI/gpt-neo-125M"), 
+    ("gpt-neo", "EleutherAI/gpt-neo-125M"),
 }
 
 PYTORCH_EXPORT_SEQ2SEQ_WITH_PAST_MODELS = {
@@ -53,8 +58,9 @@ PYTORCH_EXPORT_SEQ2SEQ_WITH_PAST_MODELS = {
 PYTORCH_MODELS_UNSUPPORTED = {
     ("electra", "google/electra-base-generator"),
     ("deberta", "microsoft/deberta-base"),
-    ("hubert", "facebook/hubert-base-ls960")
+    ("hubert", "facebook/hubert-base-ls960"),
 }
+
 
 def _get_models_to_test(export_models_list):
     models_to_test = []
@@ -73,13 +79,12 @@ def _get_models_to_test(export_models_list):
 
 
 class AutoOnnxConfigTest(unittest.TestCase):
-
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
     @require_torch
     def test_config_from_supported_model(self, test_name, name, model_name, feature, onnx_config_class_constructor):
         config = AutoOnnxConfig.from_pretrained(model_name, task=feature)
         self.assertIsInstance(config, OnnxConfig)
-    
+
     @parameterized.expand(_get_models_to_test(PYTORCH_MODELS_UNSUPPORTED))
     @require_torch
     def test_config_from_unsupported_model(self, test_name, name, model_name, feature, onnx_config_class_constructor):
