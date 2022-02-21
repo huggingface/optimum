@@ -56,9 +56,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Check GH access
+      - name: Build image
+        working-directory: examples/onnxruntime/pytorch/docker
         run: |
-          ls -l optimum/ 
+          bash run.sh
+      # - name: Install dependencies
+      #   run: |
+      #     pip install .[onnxruntime]
 
   stop-runner:
     name: Stop self-hosted EC2 runner
