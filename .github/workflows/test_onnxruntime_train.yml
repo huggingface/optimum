@@ -63,7 +63,7 @@ jobs:
       - name: Install nvidia-docker toolkit
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
-          sudo su && apt-get update && apt-get install -y nvidia-container-toolkit
+          sudo yum update && yum install -y nvidia-container-toolkit
       # - name: Install dependencies
       #   run: |
       #     pip install .[onnxruntime]
