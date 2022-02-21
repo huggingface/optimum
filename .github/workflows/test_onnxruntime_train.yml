@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Check GH access
         run: |
-          ls 
+          ls -l optimum/ 
 
   stop-runner:
     name: Stop self-hosted EC2 runner
