@@ -56,13 +56,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Build image
+      # - name: Build image
+      #   working-directory: examples/onnxruntime/pytorch/docker
+      #   run: |
+      #     docker build -f Dockerfile-cu10  -t ort/cu10 .
+      - name: Install nvidia-docker toolkit
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
-          bash run.sh
-      - name: Install dependencies
-        run: |
-          pip install .[onnxruntime]
+          sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+      # - name: Install dependencies
+      #   run: |
+      #     pip install .[onnxruntime]
 
   stop-runner:
     name: Stop self-hosted EC2 runner
