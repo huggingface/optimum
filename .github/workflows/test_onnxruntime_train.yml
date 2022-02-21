@@ -48,7 +48,7 @@ jobs:
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
   do-the-job:
-    name: Build infinity Container
+    name: ONNXRUNTIME TRAIN TEST
     needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     env:
@@ -56,17 +56,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      # - name: Build image
-      #   working-directory: examples/onnxruntime/pytorch/docker
-      #   run: |
-      #     docker build -f Dockerfile-cu10  -t ort/cu10 .
-      - name: Install nvidia-docker toolkit
+      - name: Build & RUN CUDA10/PY38 Container
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
           bash run.sh
-      # - name: Install dependencies
-      #   run: |
-      #     pip install .[onnxruntime]
+      - name: Install dependencies
+        run: |
+          pip install .[onnxruntime]
 
   stop-runner:
     name: Stop self-hosted EC2 runner
