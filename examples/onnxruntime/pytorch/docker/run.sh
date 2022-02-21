@@ -8,12 +8,12 @@ docker build -f Dockerfile-cu10  -t ort/cu10 .
 # docker build -f Dockerfile-cu11  -t ort/cu11 .
 
 # Install nvidia docker toolkits
-# apt install -y nvidia-docker2
-# systemctl daemon-reload
-# systemctl restart docker
-curl https://nvidia.github.io/nvidia-docker/centos7/nvidia-docker.repo > /etc/yum.repos.d/nvidia-docker.repo
-sudo yum update -y && yum install -y nvidia-container-toolkit
-sudo systemctl restart docker
+yum install -y nvidia-docker2
+systemctl daemon-reload
+systemctl restart docker
+# curl https://nvidia.github.io/nvidia-docker/centos7/nvidia-docker.repo > /etc/yum.repos.d/nvidia-docker.repo
+# sudo yum update -y && yum install -y nvidia-container-toolkit
+# sudo systemctl restart docker
 
 # Run Image
 docker run --rm -p 80:8888 --gpus $GPU_DEVICES ort/cu10:latest $CMD
