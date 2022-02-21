@@ -60,9 +60,9 @@ jobs:
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
           bash run.sh
-      # - name: Install dependencies
-      #   run: |
-      #     pip install .[onnxruntime]
+      - name: Install dependencies
+        run: |
+          pip install .[onnxruntime]
 
   stop-runner:
     name: Stop self-hosted EC2 runner
