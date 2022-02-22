@@ -8,7 +8,7 @@ docker build -f Dockerfile-cu10  -t ort/cu10 .
 # docker build -f Dockerfile-cu11  -t ort/cu11 .
 
 # Install nvidia docker toolkits
-# curl https://nvidia.github.io/nvidia-docker/centos7/nvidia-docker.repo > /etc/yum.repos.d/nvidia-docker.repo
+curl https://nvidia.github.io/nvidia-docker/centos7/nvidia-docker.repo > /etc/yum.repos.d/nvidia-docker.repo
 sudo yum update -y && yum install -y nvidia-container-toolkit
 sudo systemctl daemon-reload
 sudo systemctl restart docker
