@@ -53,7 +53,8 @@ jobs:
         uses: actions/checkout@v2
       - name: do something
         run: echo "Hello World"
-
+      - name: nvidia-smi
+        run: nvidia-smi
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
