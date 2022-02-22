@@ -1,9 +1,13 @@
 name: "Test ORT Trainer"
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: 0 7 * * * #every day at 7 am
+  # workflow_dispatch:
+  # schedule:
+  #   - cron: 0 7 * * * #every day at 7 am
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   start-runner:
