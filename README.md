@@ -64,7 +64,7 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 ## Quickstart
 
-At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_`. For example, here's how you can apply dynamic quantization with ONNX Runtime:
+At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_. For example, here's how you can apply dynamic quantization with ONNX Runtime:
 
 ```python
 from optimum.onnxruntime import ORTConfig, ORTQuantizer
@@ -107,10 +107,10 @@ ort_outputs.predictions
 Similarly, you can apply static quantization by simply changing the `quantization_approach` in the `ORTConfig` object:
 
 ```python
-ort_config = ORTConfig(quantization_approach="dynamic")
+ort_config = ORTConfig(quantization_approach="static")
 ```
 
-Static quantization relies on feeding batches of data through the model to identify which activations should be quantized. To support this, 🤗 Optimum allows you to provide a _calibration dataset_. The calibration dataset can be a simple `Dataset` object from the 🤗 Datasets library, or any dataset that's hosted on the Hugging Face Hub. For this example, we'll pick the [`sst2`](https://huggingface.co/datasets/glue/viewer/sst2/test) dataset that the model was originally trained on:
+Static quantization relies on feeding batches of data through the model to observe the activation patterns ahead of inference time. The ideal quantization scheme is then calculated and saved. To support this, 🤗 Optimum allows you to provide a _calibration dataset_. The calibration dataset can be a simple `Dataset` object from the 🤗 Datasets library, or any dataset that's hosted on the Hugging Face Hub. For this example, we'll pick the [`sst2`](https://huggingface.co/datasets/glue/viewer/sst2/test) dataset that the model was originally trained on:
 
 ```python
 from transformers import DataCollatorWithPadding
