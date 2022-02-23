@@ -17,19 +17,19 @@ RUN unattended-upgrade
 RUN apt-get autoremove -y
 
 # Python3.6 and pip
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
-RUN apt-get install -y python3-pip
-RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
-RUN pip install --upgrade pip
+# RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+# RUN apt-get install -y python3-pip
+# RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+# RUN pip install --upgrade pip
 
 # Python3.8 and pip
-# RUN add-apt-repository ppa:deadsnakes/ppa && apt-get update
-# RUN apt-get install python3.8 -y
-# RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1
-# RUN update-alternatives --set python /usr/bin/python3.8
-# RUN apt install python3.8-venv python3-venv -y && apt-get update
-# RUN python -m ensurepip --upgrade
-# RUN python -m pip install --upgrade pip
+RUN add-apt-repository ppa:deadsnakes/ppa && apt-get update
+RUN apt-get install python3.8 -y
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1
+RUN update-alternatives --set python /usr/bin/python3.8
+RUN apt install python3.8-venv python3-venv -y && apt-get update
+RUN python -m ensurepip --upgrade
+RUN python -m pip install --upgrade pip
 
 RUN apt-get install -y  python-mpi4py
 

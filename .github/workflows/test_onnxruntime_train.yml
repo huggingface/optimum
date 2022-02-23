@@ -1,0 +1,88 @@
+name: "Test ORT Trainer"
+
+on:
+  # workflow_dispatch:
+  # schedule:
+  #   - cron: 0 7 * * * #every day at 7 am
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  start-runner:
+    name: Start self-hosted EC2 runner
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      EC2_AMI_ID: ami-0dc1c26161f869ed1
+      EC2_INSTANCE_TYPE: g4dn.xlarge
+      EC2_SUBNET_ID: subnet-859322b4,subnet-b7533b96,subnet-47cfad21,subnet-a396b2ad,subnet-06576a4b,subnet-df0f6180
+      EC2_SECURITY_GROUP: sg-0bb210cd3ec725a13
+      EC2_IAM_ROLE: optimum-ec2-github-actions-role
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: philschmid/philschmid-ec2-github-runner@main
+        with:
+          mode: start
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ${{ env.EC2_AMI_ID }}
+          ec2-instance-type: ${{ env.EC2_INSTANCE_TYPE }}
+          subnet-id: ${{ env.EC2_SUBNET_ID }}
+          security-group-id: ${{ env.EC2_SECURITY_GROUP }}
+          iam-role-name: ${{ env.EC2_IAM_ROLE }}
+          aws-resource-tags: > # optional, requires additional permissions
+            [
+              {"Key": "Name", "Value": "ec2-optimum-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+  do-the-job:
+    name: ONNXRUNTIME TRAIN TEST
+    needs: start-runner # required to start the main job when the runner is ready
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build & RUN CUDA10/PY38 Container
+        working-directory: examples/onnxruntime/pytorch/docker
+        run: |
+          bash run.sh
+      - name: Install dependencies
+        run: |
+          pip install .[onnxruntime]
+
+  stop-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-runner # required to get output from the start-runner job
+      - do-the-job # required to wait when the main job is done
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: philschmid/philschmid-ec2-github-runner@main
+        with:
+          mode: stop
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
