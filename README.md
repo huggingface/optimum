@@ -35,7 +35,7 @@ We currently support [ONNX runtime](https://github.com/microsoft/onnxruntime) al
 
 ## Installation
 
-🤗 Optimum can be installed using pip as follows:
+🤗 Optimum can be installed using `pip` as follows:
 
 ```bash
 python -m pip install optimum
@@ -50,10 +50,16 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [Graphcore IPU](https://www.graphcore.ai/products/ipu)                      | `python -m pip install optimum[graphcore]`   |
 
 
-If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the library from source as follows:
+If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
 
 ```bash
 python -m pip install git+https://github.com/huggingface/optimum.git
+```
+
+For the acclerator-specific features, you can install them by appending `egg=optimum[accelerator_type]` to the `pip` command, e.g.
+
+```bash
+python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
 ```
 
 ## Quickstart
@@ -146,6 +152,8 @@ And that's it - the model is now optimized and ready for inference! As you can s
 3. Apply the `fit()` method
 4. Run inference
 
-Happy optimising!
+Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) directory for more sophisticated usage.
+
+Happy optimising 🤗!
 
 
