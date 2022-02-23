@@ -79,7 +79,6 @@ class ORTModel:
         logger.info(f"***** Running evaluation *****")
         all_preds = None
         all_labels = None
-        num_samples = 0
         options = SessionOptions()
         session = InferenceSession(self.model_path.as_posix(), options)
         for step, inputs in enumerate(dataloader):
@@ -100,7 +99,6 @@ class ORTModel:
                         )
                     else:
                         onnx_inputs[name] = value.numpy()
-            num_samples += inputs[name].shape[0]
             preds = session.run(self.onnx_named_outputs, onnx_inputs)
             if len(preds) == 1:
                 preds = preds[0]
@@ -110,4 +108,7 @@ class ORTModel:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
         else:
             metrics = {}
-        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
+
+        return EvalLoopOutput(
+            predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataloader.dataset)
+        )
