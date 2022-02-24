@@ -56,7 +56,7 @@ If you'd like to play with the examples or need the bleeding edge of the code an
 python -m pip install git+https://github.com/huggingface/optimum.git
 ```
 
-For the acclerator-specific features, you can install them by appending `egg=optimum[accelerator_type]` to the `pip` command, e.g.
+For the acclerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
 
 ```bash
 python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
@@ -75,7 +75,7 @@ model_ckpt = "distilbert-base-uncased-finetuned-sst-2-english"
 ort_config = ORTConfig(quantization_approach="dynamic")
 quantizer = ORTQuantizer(ort_config)
 # Quantize the model!
-quantizer.fit(model_ckpt, output_dir="onnx", feature="sequence-classification")
+quantizer.fit(model_ckpt, output_dir=".", feature="sequence-classification")
 ```
 
 In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The `feature` argument in the `fit()` method corresponds to the type of task that we wish to quantize the model for. The result from applying the `fit()` method is a `model-quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
@@ -132,7 +132,7 @@ quantizer.fit(model_ckpt, output_dir=".", feature="sequence-classification")
 As a final example, let's take a look at applying _graph optimizations_ techniques such as operator fusion and constant folding. As before, we load a configuration object, but this time by setting the optimization level instead of the quantization approach:
 
 ```python
-# opt_level=99 will enable all graph optimisations
+# opt_level=99 enables all graph optimisations
 ort_config = ORTConfig(opt_level=99)
 ```
 
