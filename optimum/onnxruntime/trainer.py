@@ -104,9 +104,6 @@ from transformers.utils import logging
 
 import onnx
 import onnxruntime
-from torch_ort import ORTModule
-
-from .utils import export_static
 
 
 if is_apex_available():
@@ -154,6 +151,7 @@ class ORTTrainer(Trainer):
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
+        onnx_model_path: Union[str, os.PathLike] = None,
     ):
 
         super().__init__(
@@ -170,12 +168,27 @@ class ORTTrainer(Trainer):
 
         # onnxruntime.set_seed(self.args.seed)
         self.trained_with_ort = False  # Register if the model has been trained with onnxruntime
-        self.ort_model_path = None  # Path for trained onnx model for ort inference(not available yet)
+        self.onnx_model_path = onnx_model_path
         self.session_options = None
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
 
     def train(
+        self,
+        resume_from_checkpoint: Optional[Union[str, bool]] = None,
+        trial: Union["optuna.Trial", Dict[str, Any]] = None,
+        ignore_keys_for_eval: Optional[List[str]] = None,
+        ort: bool = True,
+        **kwargs,
+    ):
+        if ort:
+            # Train with onnxruntime
+            return self.train_ort(resume_from_checkpoint, trial, ignore_keys_for_eval, **kwargs)
+        else:
+            # Train with pytorch
+            return super().train(resume_from_checkpoint, trial, ignore_keys_for_eval, **kwargs)
+    
+    def train_ort(
         self,
         resume_from_checkpoint: Optional[Union[str, bool]] = None,
         trial: Union["optuna.Trial", Dict[str, Any]] = None,
@@ -197,6 +210,8 @@ class ORTTrainer(Trainer):
             kwargs:
                 Additional keyword arguments used to hide deprecated arguments
         """
+        from torch_ort import ORTModule
+
         resume_from_checkpoint = None if not resume_from_checkpoint else resume_from_checkpoint
 
         # memory metrics - must set up as early as possible
@@ -655,6 +670,20 @@ class ORTTrainer(Trainer):
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
+    def evaluate(
+        self,
+        eval_dataset: Optional[Dataset] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+        ort: bool = True,
+    ) -> Dict[str, float]:
+        if ort:
+            # Train with onnxruntime
+            return self.evaluate_ort(eval_dataset, ignore_keys, metric_key_prefix)
+        else:
+            # Train with pytorch
+            return super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
+
     def evaluate_ort(
         self,
         eval_dataset: Optional[Dataset] = None,
@@ -702,6 +731,20 @@ class ORTTrainer(Trainer):
         self._memory_tracker.stop_and_update_metrics(output.metrics)
 
         return output.metrics
+    
+    def predict(
+        self, 
+        test_dataset: Dataset, 
+        ignore_keys: Optional[List[str]] = None, 
+        metric_key_prefix: str = "test",
+        ort: bool = True,
+    ) -> PredictionOutput:
+        if ort:
+            # Train with onnxruntime
+            return self.predict_ort(test_dataset, ignore_keys, metric_key_prefix)
+        else:
+            # Train with pytorch
+            return super().predict(test_dataset, ignore_keys, metric_key_prefix)
 
     def predict_ort(
         self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
@@ -746,30 +789,34 @@ class ORTTrainer(Trainer):
         Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
         Works both with or without labels.
         """
-        print("------------------ORT Evaluation Starts----------------------")
+        print("------------------ORT Evaluation/Prediction Starts----------------------")
         # Create onnxruntime inference session & export onnx IR
         self.infer_sess = None
-        onnx_model_path = Path(
-            os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
-        )
 
-        if self.trained_with_ort:
-            # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
-            print(
-                "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
-            )
-            self._export(onnx_model_path)
-            self.ort_model_path = onnx_model_path.as_posix()
-            print("The onnx IR is store in:\n", self.ort_model_path)
+        if self.onnx_model_path:
+            self.onnx_model_path = Path(self.onnx_model_path).as_posix()
         else:
-            # Convert the `PreTrainedModel` to an onnx model and export the onnx graph
-            self._export(onnx_model_path)
-            self.ort_model_path = onnx_model_path.as_posix()
+            onnx_model_path = Path(
+                os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
+            )
 
-        # Can't infer the exported onnx models due to impatible opset
+            if self.trained_with_ort:
+                # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
+                # Currently incompatible!
+                print(
+                    "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
+                )
+                self._export(onnx_model_path)
+                self.onnx_model_path = onnx_model_path.as_posix()
+                print("The onnx IR is store in:\n", self.onnx_model_path)
+            else:
+                # Convert the `PreTrainedModel` to an onnx model and export the onnx graph
+                self._export(onnx_model_path)
+                self.onnx_model_path = onnx_model_path.as_posix()
+
         self.infer_sess = onnxruntime.InferenceSession(
-            self.ort_model_path,
-            # session_options=self.session_options,
+            self.onnx_model_path,
+            session_options=self.session_options,
             providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
         )  # TODO: Specify providers in the args
 
@@ -949,25 +996,30 @@ class ORTTrainer(Trainer):
         print("------------------ORT Prediction Starts----------------------")
         # Create onnxruntime inference session & export onnx IR
         self.infer_sess = None
-        onnx_model_path = Path(
-            os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
-        )
 
-        if self.trained_with_ort:
-            # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
-            print(
-                "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
-            )
-            self._export(onnx_model_path)
-            self.ort_model_path = onnx_model_path.as_posix()
+        if self.onnx_model_path:
+            self.onnx_model_path = Path(self.onnx_model_path).as_posix()
         else:
-            # Convert the `PreTrainedModel` to an onnx model and export the onnx graph
-            self._export(onnx_model_path)
-            self.ort_model_path = onnx_model_path.as_posix()
+            onnx_model_path = Path(
+                os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
+            )
+
+            if self.trained_with_ort:
+                # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
+                # Currently incompatible!
+                print(
+                    "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
+                )
+                self._export(onnx_model_path)
+                self.onnx_model_path = onnx_model_path.as_posix()
+            else:
+                # Convert the `PreTrainedModel` to an onnx model and export the onnx graph
+                self._export(onnx_model_path)
+                self.onnx_model_path = onnx_model_path.as_posix()
 
         # Can't infer the exported onnx models due to impatible opset
         self.infer_sess = onnxruntime.InferenceSession(
-            self.ort_model_path,
+            self.onnx_model_path,
             session_options=self.session_options,
             providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
         )  # TODO: Specify providers in the args
@@ -1215,7 +1267,7 @@ class ORTTrainer(Trainer):
         )
 
     def _export(
-        self, model_path: os.PathLike, feature: str = "default", opset: Optional[int] = None, mode="static"
+        self, model_path: os.PathLike, feature: str = "default", opset: Optional[int] = None,
     ) -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
@@ -1228,7 +1280,4 @@ class ORTTrainer(Trainer):
         onnx_config = model_onnx_config(self.model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
         self.model.to("cpu")
-        if mode == "static":
-            _ = export_static(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export static ONNX
-        else:
-            _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX
+        _ = export(self.tokenizer, self.model, onnx_config, opset, model_path)  # Export dynamic ONNX

@@ -1,4 +1,4 @@
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class TestORTTrainer(unittest.TestCase):
     def test_ort_trainer(self):
 
         model_names = {
-            "roberta-base"
+            "bert-base-cased"
         }  # "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
         dataset_names = {"sst2"}  # glue
 
@@ -60,11 +60,9 @@ class TestORTTrainer(unittest.TestCase):
                         max_train_samples = 1000
                         max_valid_samples = 200
                         max_test_samples = 20
-                        train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
-                        valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
-                        test_dataset = encoded_dataset["test"].remove_columns(
-                            ["label"]
-                        )  # .select(range(max_test_samples))
+                        train_dataset = encoded_dataset["train"].select(range(max_train_samples))
+                        valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
+                        test_dataset = encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
 
                         def compute_metrics(eval_pred):
                             predictions, labels = eval_pred
@@ -75,14 +73,14 @@ class TestORTTrainer(unittest.TestCase):
                             return metric.compute(predictions=predictions, references=labels)
 
                         training_args = TrainingArguments(
-                            output_dir="./results",  # './results'
+                            output_dir='./results',  # './results'
                             num_train_epochs=1,
                             per_device_train_batch_size=16,
                             per_device_eval_batch_size=16,  # As for onnxruntime, the training and the evlaution shall set the same barch size
                             warmup_steps=500,
                             weight_decay=0.01,
                             logging_dir=tmp_dir,  # './logs'
-                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule
+                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule 
                         )
 
                         trainer = ORTTrainer(
@@ -95,26 +93,26 @@ class TestORTTrainer(unittest.TestCase):
                             data_collator=default_data_collator,
                         )
 
-                        # Test 1: ORT training + pytorch inference
+                        # Test 1: ORT training + PyTorch Inference
                         train_result = trainer.train()
                         train_metrics = train_result.metrics
                         trainer.save_model()
                         trainer.log_metrics("train", train_metrics)
                         trainer.save_metrics("train", train_metrics)
                         trainer.save_state()
-                        eval_metrics = trainer.evaluate()
-                        prediction = trainer.predict(test_dataset)
+                        eval_metrics = trainer.evaluate(ort=False)
+                        prediction = trainer.predict(test_dataset, ort=False)
                         print("Train metrics:\n", train_metrics)
-                        print("Evaluation metrics(PyTorch):\n", eval_metrics)
-                        print("Prediction results(PyTorch):\n", prediction)
+                        print("Evaluation metrics(PT):\n", eval_metrics)
+                        print("Prediction results(PT):\n", prediction)
 
                         # Test 2: (ORT Training) + ORT Inference
                         # -------- ORT training part --------
                         # train_result = trainer.train()
                         # train_metrics = train_result.metrics
                         # -------- ORT inference part --------
-                        # ort_eval_metrics = trainer.evaluate_ort()
-                        # ort_prediction = trainer.predict_ort(test_dataset)
+                        # ort_eval_metrics = trainer.evaluate()
+                        # ort_prediction = trainer.predict(test_dataset)
                         # print("Evaluation metrics(ORT):\n", ort_eval_metrics)
                         # print("Prediction results(ORT):\n", ort_prediction)
 
