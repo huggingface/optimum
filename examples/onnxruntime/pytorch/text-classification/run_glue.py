@@ -297,6 +297,9 @@ def main():
     else:
         model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
 
+    if data_args.ort_train:
+        training_args.do_train = True
+
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -564,7 +567,7 @@ def main():
         data_collator = None
     
     # Raise unsupported situations
-    if not (optim_args.quantize or optim_args.optimize or training_args.ort_train):
+    if not (optim_args.quantize or optim_args.optimize or data_args.ort_train):
         raise ValueError("None of `onnxruntime training`, `optimize` or `quantize` is enbaled.")
     
     if (optim_args.quantize or optim_args.optimize) and not training_args.do_eval:
@@ -573,7 +576,7 @@ def main():
             "optimized models."
         )
 
-    if (optim_args.quantize or optim_args.optimize) and training_args.ort_train:
+    if (optim_args.quantize or optim_args.optimize) and data_args.ort_train:
         raise ValueError(
             "`onnxruntime training` is not supported when the quantization or the graph optimization is enabled."
         )
@@ -602,10 +605,10 @@ def main():
             checkpoint = training_args.resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
-        if training_args.ort_train:
+        if data_args.ort_train:
             train_result = trainer.train(resume_from_checkpoint=checkpoint)
         else:
-            train_result = trainer.train(resume_from_checkpoint=checkpoint, mode="pytorch")
+            train_result = trainer.train(resume_from_checkpoint=checkpoint, ort=False)
         metrics = train_result.metrics
         max_train_samples = (
             data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
@@ -711,20 +714,18 @@ def main():
             for eval_dataset, task in zip(eval_datasets, tasks):
                 metrics = trainer.evaluate(eval_dataset=eval_dataset)
                 results_opt_model = metrics.get(metric_name)
-        elif training_args.ort_train:
+            logger.info(
+                f"Optimized model with {metric_name} of {results_opt_model} saved to: {training_args.output_dir}. "
+                f"Original model had an {metric_name} of {results_model}."
+            )
+        elif data_args.ort_train:
             # (Fine-tuned with onnxruntime) Inference with pytorch
             logger.info("*** Evaluate within pytorch ***")
             for eval_dataset, task in zip(eval_datasets, tasks):
                 metrics = trainer.evaluate(eval_dataset=eval_dataset, ort=False)
-                results_opt_model = metrics.get(metric_name)
         else:
             raise ValueError(
             "At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled."
-        )
-
-        logger.info(
-            f"Optimized model with {metric_name} of {results_opt_model} saved to: {training_args.output_dir}. "
-            f"Original model had an {metric_name} of {results_model}."
         )
 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
@@ -764,7 +765,7 @@ def main():
                             else:
                                 item = label_list[item]
                                 writer.write(f"{index}\t{item}\n")
-        elif training_args.ort_train:
+        elif data_args.ort_train:
             # (Fine-tuned with onnxruntime) Inference with pytorch
             logger.info("*** Predict within pytorch ***")
             for predict_dataset, task in zip(predict_datasets, tasks):

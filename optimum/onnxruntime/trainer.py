@@ -789,7 +789,7 @@ class ORTTrainer(Trainer):
         Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
         Works both with or without labels.
         """
-        print("------------------ORT Evaluation/Prediction Starts----------------------")
+        logger.info("------------------ORT Evaluation/Prediction Starts----------------------")
         # Create onnxruntime inference session & export onnx IR
         self.infer_sess = None
 
@@ -803,12 +803,12 @@ class ORTTrainer(Trainer):
             if self.trained_with_ort:
                 # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
                 # Currently incompatible!
-                print(
+                logger.info(
                     "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
                 )
                 self._export(onnx_model_path)
                 self.onnx_model_path = onnx_model_path.as_posix()
-                print("The onnx IR is store in:\n", self.onnx_model_path)
+                logger.info("The onnx IR is store in:\n", self.onnx_model_path)
             else:
                 # Convert the `PreTrainedModel` to an onnx model and export the onnx graph
                 self._export(onnx_model_path)
@@ -993,7 +993,7 @@ class ORTTrainer(Trainer):
         Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
         Works both with or without labels.
         """
-        print("------------------ORT Prediction Starts----------------------")
+        logger.info("------------------ORT Prediction Starts----------------------")
         # Create onnxruntime inference session & export onnx IR
         self.infer_sess = None
 
@@ -1007,7 +1007,7 @@ class ORTTrainer(Trainer):
             if self.trained_with_ort:
                 # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
                 # Currently incompatible!
-                print(
+                logger.info(
                     "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
                 )
                 self._export(onnx_model_path)
