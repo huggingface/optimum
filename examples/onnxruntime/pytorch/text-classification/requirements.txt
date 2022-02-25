@@ -3,8 +3,4 @@ sentencepiece != 0.1.92
 scipy
 scikit-learn
 protobuf
-ninja
-torch==1.9.0+cu102
-torchvision==0.10.0+cu102
-onnxruntime-training==1.9.0
 torch-ort

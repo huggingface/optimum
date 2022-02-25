@@ -37,7 +37,6 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     PretrainedConfig,
-    Trainer,
     TrainingArguments,
     default_data_collator,
     set_seed,
@@ -48,7 +47,7 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer, ORTTrainer
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
+# os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.15.0")
@@ -56,7 +55,6 @@ check_min_version("4.15.0")
 require_version(
     "datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/pytorch/text-classification/requirements.txt"
 )
-require_version("torch_ort>=1.9.0", "To fix, follow the `torch_ort` setup: https://github.com/microsoft/pytorch-ort")
 
 task_to_keys = {
     "cola": ("sentence", None),
