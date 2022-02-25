@@ -187,7 +187,7 @@ class ORTTrainer(Trainer):
         else:
             # Train with pytorch
             return super().train(resume_from_checkpoint, trial, ignore_keys_for_eval, **kwargs)
-    
+
     def train_ort(
         self,
         resume_from_checkpoint: Optional[Union[str, bool]] = None,
@@ -731,11 +731,11 @@ class ORTTrainer(Trainer):
         self._memory_tracker.stop_and_update_metrics(output.metrics)
 
         return output.metrics
-    
+
     def predict(
-        self, 
-        test_dataset: Dataset, 
-        ignore_keys: Optional[List[str]] = None, 
+        self,
+        test_dataset: Dataset,
+        ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "test",
         ort: bool = True,
     ) -> PredictionOutput:
@@ -1267,7 +1267,10 @@ class ORTTrainer(Trainer):
         )
 
     def _export(
-        self, model_path: os.PathLike, feature: str = "default", opset: Optional[int] = None,
+        self,
+        model_path: os.PathLike,
+        feature: str = "default",
+        opset: Optional[int] = None,
     ) -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
