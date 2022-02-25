@@ -34,7 +34,7 @@ from onnxruntime.quantization import (
     QuantFormat,
     QuantType,
     quantize_dynamic,
-    quantize_static,
+    quantize_static, QuantizationMode,
 )
 from optimum.onnxruntime.configuration import ORTConfig
 from optimum.onnxruntime.utils import generate_identified_filename
@@ -48,13 +48,16 @@ class ORTQuantizationMode(Enum):
     STATIC = "static"
 
 
-SUPPORTED_QUANT_MODE = set([approach.value for approach in ORTQuantizationMode])
+SUPPORTED_QUANTIZATION_MODES = set([approach.value for approach in ORTQuantizationMode])
 
-CALIB_METHOD = {"minmax": "MinMax", "entropy": "Entropy", "percentile": "Percentile"}
+CALIBRATION_METHODS = {
+    "minmax": CalibrationMethod.MinMax,
+    "entropy": CalibrationMethod.Entropy,
+    "percentile": CalibrationMethod.Percentile
+}
 
-Q_FORMAT = {"operator": "QOperator", "qdq": "QDQ"}
-
-Q_TYPE = {"int8": "QInt8", "uint8": "QUInt8"}
+QUANTIZATION_FORMATS = {"operator": QuantFormat.QOperator, "qdq": QuantFormat.QDQ}
+QUANTIZATION_TYPES = {"int8": QuantType.QInt8, "uint8": QuantType.QUInt8}
 
 
 class ORTCalibrationDataReader(CalibrationDataReader):
@@ -124,10 +127,10 @@ class ORTQuantizer:
             ort_config = ORTConfig.from_pretrained(ort_config, **ort_config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
-        self.activation_type = QuantType[Q_TYPE.get(ort_config.activation_type)]
-        self.weight_type = QuantType[Q_TYPE.get(ort_config.weight_type)]
-        self.quant_format = QuantFormat[Q_FORMAT.get(ort_config.quant_format)]
-        self.calibrate_method = CalibrationMethod[CALIB_METHOD.get(ort_config.calibration_method)]
+        self.activation_type = QUANTIZATION_TYPES.get(ort_config.activation_type)
+        self.weight_type = QUANTIZATION_TYPES.get(ort_config.weight_type)
+        self.quant_format = QUANTIZATION_FORMATS.get(ort_config.quant_format)
+        self.calibrate_method = CALIBRATION_METHODS.get(ort_config.calibration_method)
         self.seed = ort_config.seed
         self.calib_dataset = calib_dataset
         self.dataset_name = dataset_name
@@ -176,13 +179,16 @@ class ORTQuantizer:
             ("resume_download", False),
             ("revision", None),
         ]
+        output_path = Path(output_path)
+
         model_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in kwargs_default}
         tokenizer_kwargs = copy.deepcopy(model_kwargs)
-        output_path = Path(output_path)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
+
         model_class = FeaturesManager.get_model_class_for_feature(feature)
         self.model = model_class.from_pretrained(model_name_or_path, **model_kwargs)
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
+
         self.onnx_config = model_onnx_config(self.model.config)
         opset = self.onnx_config.default_onnx_opset if self.ort_config.opset is None else self.ort_config.opset
         _ = export(self.tokenizer, self.model, self.onnx_config, opset, output_path)
@@ -212,6 +218,7 @@ class ORTQuantizer:
         model_path = Path(model_name_or_path)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
+
         if not model_path.is_file():
             model_path = output_dir.joinpath("model.onnx")
             self.export(model_name_or_path, model_path, feature=feature, **kwargs)
@@ -269,7 +276,7 @@ class ORTQuantizer:
         else:
             raise ValueError(
                 f"Unknown quantization approach: `quantization_approach` was set to {self.quantization_approach}. "
-                f"Supported quantization approaches are " + ", ".join(SUPPORTED_QUANT_MODE)
+                f"Supported quantization approaches are " + ", ".join(SUPPORTED_QUANTIZATION_MODES)
             )
 
     def get_calib_dataset(self) -> Dataset:
