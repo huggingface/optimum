@@ -105,10 +105,10 @@ class ORTQuantizer:
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
             force_download (`bool`, `optional`, defaults to `False`):
-                Whether or not to force to (re-)download the configuration files and override the cached versions if
+                Whether to force to (re-)download the configuration files and override the cached versions if
                 they exist.
             resume_download (`bool`, `optional`, defaults to `False`):
-                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
+                Whether to delete incompletely received file. Attempts to resume the download if such a file
                 exists.
             revision(`str`, `optional`):
                 The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
