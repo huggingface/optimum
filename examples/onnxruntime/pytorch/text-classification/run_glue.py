@@ -47,6 +47,7 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer, ORTTrainer
 
+
 # os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -563,11 +564,11 @@ def main():
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
     else:
         data_collator = None
-    
+
     # Raise unsupported situations
     if not (optim_args.quantize or optim_args.optimize or data_args.ort_train):
         raise ValueError("None of `onnxruntime training`, `optimize` or `quantize` is enbaled.")
-    
+
     if (optim_args.quantize or optim_args.optimize) and not training_args.do_eval:
         raise ValueError(
             "`do_eval` must be set to True in order to compare the evaluation results between the original and the "
@@ -579,21 +580,19 @@ def main():
             "`onnxruntime training` is not supported when the quantization or the graph optimization is enabled."
         )
     elif optim_args.quantize and optim_args.optimize:
-        raise ValueError(
-            "`quantize` is not supported when the graph optimization is enabled."
-        )
+        raise ValueError("`quantize` is not supported when the graph optimization is enabled.")
 
     # Initialize our Trainer:
     #
     # Instanciate `ORTTrainer` if enable onnxruntime training or inference(default), otherwise `Trainer`.
     trainer = ORTTrainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset if training_args.do_train else None,
-            eval_dataset=eval_dataset if training_args.do_eval else None,
-            compute_metrics=compute_metrics,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset if training_args.do_train else None,
+        eval_dataset=eval_dataset if training_args.do_eval else None,
+        compute_metrics=compute_metrics,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
     )
 
     # Training
@@ -620,7 +619,7 @@ def main():
         trainer.save_state()
 
     # Prepare the configuration if quantization or optimization os enabled.
-    if optim_args.quantize or optim_args.optimize:  
+    if optim_args.quantize or optim_args.optimize:
         ort_config = ORTConfig(
             opset=optim_args.opset,
             opt_level=optim_args.opt_level,
@@ -722,9 +721,7 @@ def main():
             for eval_dataset, task in zip(eval_datasets, tasks):
                 metrics = trainer.evaluate(eval_dataset=eval_dataset, ort=False)
         else:
-            raise ValueError(
-            "At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled."
-        )
+            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled.")
 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
@@ -784,9 +781,7 @@ def main():
                                 item = label_list[item]
                                 writer.write(f"{index}\t{item}\n")
         else:
-            raise ValueError(
-            "At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled."
-        )
+            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled.")
 
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "text-classification"}
     if data_args.task_name is not None:

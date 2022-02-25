@@ -29,4 +29,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m unittest discover -s onnxruntime -p 'test_*.py'
+        python -m unittest discover -s onnxruntime -p 'test_onnxruntime.py'

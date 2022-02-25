@@ -1,4 +1,4 @@
-name: "Test ORT Trainer"
+name: ONNX Runtime / Train - Test
 
 on:
   # workflow_dispatch:
@@ -62,6 +62,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install .[onnxruntime]
+      - name: Test with unittest
+        working-directory: tests
+        run: |
+          python -m unittest discover -s onnxruntime -p 'test_onnxruntime_train.py'
 
   stop-runner:
     name: Stop self-hosted EC2 runner

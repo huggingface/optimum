@@ -188,6 +188,7 @@ class DataTrainingArguments:
                 assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         self.task_name = self.task_name.lower()
 
+
 @dataclass
 class OptimizationArguments:
     """
@@ -276,6 +277,7 @@ class OptimizationArguments:
         },
     )
 
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
@@ -290,7 +292,7 @@ def main():
         )
     else:
         model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
-    
+
     if data_args.ort_train:
         training_args.do_train = True
 
@@ -606,10 +608,10 @@ def main():
                 "accuracy": results["overall_accuracy"],
             }
 
-     # Raise unsupported situations
+    # Raise unsupported situations
     if not (optim_args.quantize or optim_args.optimize or data_args.ort_train):
         raise ValueError("None of `onnxruntime training`, `optimize` or `quantize` is enbaled.")
-    
+
     if (optim_args.quantize or optim_args.optimize) and not training_args.do_eval:
         raise ValueError(
             "`do_eval` must be set to True in order to compare the evaluation results between the original and the "
@@ -621,21 +623,19 @@ def main():
             "`onnxruntime training` is not supported when the quantization or the graph optimization is enabled."
         )
     elif optim_args.quantize and optim_args.optimize:
-        raise ValueError(
-            "`quantize` is not supported when the graph optimization is enabled."
-        )
+        raise ValueError("`quantize` is not supported when the graph optimization is enabled.")
 
     # Initialize our Trainer:
     #
     # Instanciate `ORTTrainer` if enable onnxruntime training or inference(default), otherwise `Trainer`.
     trainer = ORTTrainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset if training_args.do_train else None,
-            eval_dataset=eval_dataset if training_args.do_eval else None,
-            compute_metrics=compute_metrics,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset if training_args.do_train else None,
+        eval_dataset=eval_dataset if training_args.do_eval else None,
+        compute_metrics=compute_metrics,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
     )
 
     # Training
@@ -659,9 +659,9 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
-    
+
     # Prepare the configuration if quantization or optimization os enabled.
-    if optim_args.quantize or optim_args.optimize:  
+    if optim_args.quantize or optim_args.optimize:
         ort_config = ORTConfig(
             opset=optim_args.opset,
             opt_level=optim_args.opt_level,
@@ -685,7 +685,7 @@ def main():
         metrics_model = output_model.metrics
         results_model = metrics_model.get("eval_" + optim_args.metric_name)
         output_dir = Path(training_args.output_dir)
-    
+
     if optim_args.quantize:
         calib_dataset = None
         if optim_args.quantization_approach == "static":
@@ -746,9 +746,7 @@ def main():
             logger.info("*** Evaluate within pytorch ***")
             metrics = trainer.evaluate(eval_dataset=eval_dataset, ort=False)
         else:
-            raise ValueError(
-            "At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled."
-        )
+            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled.")
 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
@@ -769,9 +767,7 @@ def main():
             logger.info("*** Predict within pytorch ***")
             predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict", ort=False)
         else:
-            raise ValueError(
-            "At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled."
-        )
+            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled.")
 
         predictions = np.argmax(predictions, axis=2)
 

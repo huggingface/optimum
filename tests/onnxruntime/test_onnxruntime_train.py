@@ -62,7 +62,9 @@ class TestORTTrainer(unittest.TestCase):
                         max_test_samples = 20
                         train_dataset = encoded_dataset["train"].select(range(max_train_samples))
                         valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
-                        test_dataset = encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
+                        test_dataset = (
+                            encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
+                        )
 
                         def compute_metrics(eval_pred):
                             predictions, labels = eval_pred
@@ -73,14 +75,14 @@ class TestORTTrainer(unittest.TestCase):
                             return metric.compute(predictions=predictions, references=labels)
 
                         training_args = TrainingArguments(
-                            output_dir='./results',  # './results'
+                            output_dir="./results",  # './results'
                             num_train_epochs=1,
                             per_device_train_batch_size=16,
                             per_device_eval_batch_size=16,  # As for onnxruntime, the training and the evlaution shall set the same barch size
                             warmup_steps=500,
                             weight_decay=0.01,
                             logging_dir=tmp_dir,  # './logs'
-                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule 
+                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule
                         )
 
                         trainer = ORTTrainer(
