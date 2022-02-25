@@ -73,7 +73,7 @@ class ExamplesTests(TestCasePlus):
             --output_dir {tmp_dir}
             --overwrite_output_dir
             --task_name sst2
-            --do_train
+            --ort_train
             --do_eval
             --per_device_train_batch_size=16
             --per_device_eval_batch_size=16
@@ -101,7 +101,7 @@ class ExamplesTests(TestCasePlus):
             --dataset_name conll2003
             --output_dir {tmp_dir}
             --overwrite_output_dir
-            --do_train
+            --ort_train
             --do_eval
             --learning_rate=1e-5
             --per_device_train_batch_size=16
@@ -126,7 +126,7 @@ class ExamplesTests(TestCasePlus):
             --dataset_name squad
             --output_dir {tmp_dir}
             --overwrite_output_dir
-            --do_train
+            --ort_train
             --do_eval
             --learning_rate=1e-5
             --per_device_train_batch_size=16
