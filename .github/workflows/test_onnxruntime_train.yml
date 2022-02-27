@@ -55,27 +55,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Check docker-compose
+        run: |
+             docker-compose version
       - name: Build & RUN CUDA10/PY38 Container
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
-            docker-compose version
-      #     bash run.sh
-      # - name: Install dependencies
-      #   run: |
-      #     pip install .[onnxruntime]
+            bash run.sh
+      - name: Install dependencies
+        run: |
+          pip install .[onnxruntime]
       # - name: Test with unittest
       #   working-directory: tests
       #   run: |
-      #     python -m unittest discover -s onnxruntime -p 'test_onnxruntime_train.py'
-
-  # do-the-job:
-  #   name: ONNXRUNTIME TRAIN TEST
-  #   needs:
-  #     - start-runner
-  #     - build-the-image
-  #   runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
-  #   env:
-      
+      #     python -m unittest discover -s onnxruntime -p 'test_onnxruntime_train.py'     
 
   stop-runner:
     name: Stop self-hosted EC2 runner
