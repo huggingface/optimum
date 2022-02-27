@@ -73,8 +73,7 @@ jobs:
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
-      - start-runner # required to get output from the start-runner job
-      - build-the-image 
+      - start-runner # required to get output from the start-runner job 
       - do-the-job # required to wait when the main job is done
     runs-on: ubuntu-latest
     env:
