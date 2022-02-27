@@ -46,8 +46,8 @@ jobs:
               {"Key": "Name", "Value": "ec2-optimum-github-runner"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
-  do-the-job:
-    name: ONNXRUNTIME TRAIN TEST
+  build-the-image:
+    name: Build docker env
     needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     env:
@@ -58,25 +58,30 @@ jobs:
       - name: Build & RUN CUDA10/PY38 Container
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
-          bash run.sh
-      - name: Install dependencies
-        run: |
-          pip install .[onnxruntime]
-      - name: Check dependencies
-        run: |
-          pip list -v
-      - name: Check python
-        run: |
-          which python
-      - name: Test with unittest
-        working-directory: tests
-        run: |
-          python -m unittest discover -s onnxruntime -p 'test_onnxruntime_train.py'
+            docker-compose version
+      #     bash run.sh
+      # - name: Install dependencies
+      #   run: |
+      #     pip install .[onnxruntime]
+      # - name: Test with unittest
+      #   working-directory: tests
+      #   run: |
+      #     python -m unittest discover -s onnxruntime -p 'test_onnxruntime_train.py'
+
+  # do-the-job:
+  #   name: ONNXRUNTIME TRAIN TEST
+  #   needs:
+  #     - start-runner
+  #     - build-the-image
+  #   runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+  #   env:
+      
 
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
       - start-runner # required to get output from the start-runner job
+      - build-the-image 
       - do-the-job # required to wait when the main job is done
     runs-on: ubuntu-latest
     env:
