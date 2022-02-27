@@ -7,6 +7,7 @@ GPU_DEVICES=${2:-"all"}
 # 下载最新版本的 docker-compose 到 /usr/bin 目录下
 sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
+which docker-compose
 
 # Check docker-compose
 docker-compose --version
