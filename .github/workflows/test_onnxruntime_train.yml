@@ -56,13 +56,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install docker-compose
-      run: |
-          sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 
-          && sudo chmod +x /usr/local/bin/docker-compose 
-          && which docker-compose
+        run: |
+            sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 
+            && sudo chmod +x /usr/local/bin/docker-compose 
+            && which docker-compose
       - name: Check docker-compose
-      run: |
-          docker-compose --version
+        run: |
+            docker-compose --version
       - name: Build & RUN CUDA10/PY38 Container
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
