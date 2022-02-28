@@ -55,7 +55,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Build CUDA10/PY36 Image
+      - name: Build Image & Run Test
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
             docker build -f Dockerfile-cu10  -t ort/cu10 .
