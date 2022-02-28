@@ -59,10 +59,11 @@ jobs:
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
             docker build -f Dockerfile-cu10  -t ort/cu10 .
-      - name: Install dependencies & Run tests
-        working-directory: examples/onnxruntime/pytorch/docker
-        run: |
-          docker run run.sh
+            docker run run.sh:ort/cu10
+      # - name: Install dependencies & Run tests
+      #   working-directory: examples/onnxruntime/pytorch/docker
+      #   run: |
+      #     docker run run.sh
       # - name: Test with unittest
       #   working-directory: tests
       #   run: |
