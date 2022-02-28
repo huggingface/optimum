@@ -14,5 +14,6 @@ GPU_DEVICES=${2:-"all"}
 # Install dependencies
 git clone https://github.com/huggingface/optimum.git
 cd optimum
-pip install .[onnxruntime]
-python -m unittest discover -s onnxruntime -p 'test_onnxruntime_train.py'  
+pip install coloredlogs transformers>=4.15.0 datasets>=1.8.0
+pip install scipy sklearn
+python -m unittest discover -s tests/onnxruntime -p 'test_onnxruntime_train.py'  
