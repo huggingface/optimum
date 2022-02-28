@@ -12,6 +12,7 @@ GPU_DEVICES=${2:-"all"}
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort/cu11:latest $CMD
 
 # Install dependencies
+ls /github/workspace
 git clone https://github.com/huggingface/optimum.git
 cd optimum
 git checkout ort-trainer
