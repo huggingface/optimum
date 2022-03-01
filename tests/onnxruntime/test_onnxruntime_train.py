@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import AutoTokenizer, BertForSequenceClassification, TrainingArguments, default_data_collator
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, TrainingArguments, default_data_collator
 from transformers.onnx import validate_model_outputs
 from transformers.onnx.features import FeaturesManager
 
@@ -30,9 +30,7 @@ from optimum.onnxruntime.trainer import ORTTrainer
 class TestORTTrainer(unittest.TestCase):
     def test_ort_trainer(self):
 
-        model_names = {
-            "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
-        }
+        model_names = {"gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"}
         dataset_names = {"sst2"}  # glue
 
         for model_name in model_names:
@@ -41,16 +39,19 @@ class TestORTTrainer(unittest.TestCase):
                     with tempfile.TemporaryDirectory() as tmp_dir:
 
                         # Prepare model
-                        feature = "default"
-                        model = BertForSequenceClassification.from_pretrained(model_name)
+                        model = AutoModelForSequenceClassification.from_pretrained(model_name)
                         tokenizer = AutoTokenizer.from_pretrained(model_name)
 
                         # Prepare dataset
                         dataset = load_dataset("glue", dataset_name)
                         metric = load_metric("glue", dataset_name)
 
-                        max_seq_length = min(128, tokenizer.model_max_length)
+                        max_seq_length = min(64, tokenizer.model_max_length)
                         padding = "max_length"
+
+                        if tokenizer.pad_token is None:
+                            tokenizer.pad_token = tokenizer.eos_token
+                            model.config.pad_token_id = model.config.eos_token_id
 
                         def preprocess_function(examples):
                             args = (examples["sentence"],)
@@ -75,14 +76,13 @@ class TestORTTrainer(unittest.TestCase):
                             return metric.compute(predictions=predictions, references=labels)
 
                         training_args = TrainingArguments(
-                            output_dir="./results",  # './results'
+                            output_dir=tmp_dir,
                             num_train_epochs=1,
-                            per_device_train_batch_size=16,
-                            per_device_eval_batch_size=16,  # As for onnxruntime, the training and the evlaution shall set the same barch size
+                            per_device_train_batch_size=8,
+                            per_device_eval_batch_size=8,
                             warmup_steps=500,
                             weight_decay=0.01,
-                            logging_dir=tmp_dir,  # './logs'
-                            # deepspeed="ds_config_zero2.json",  # Test the compatibility of deepspeed and ORTModule
+                            logging_dir=tmp_dir,
                         )
 
                         trainer = ORTTrainer(

@@ -16,13 +16,8 @@ The Trainer class, to easily train a 🤗 Transformers from scratch or finetune 
 """
 
 import collections
-import contextlib
-import inspect
 import math
 import os
-import random
-import re
-import shutil
 import sys
 import time
 import warnings
@@ -48,8 +43,6 @@ from transformers.integrations import (  # isort: split
 
 import numpy as np
 import torch
-from packaging import version
-from packaging.version import parse
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data.distributed import DistributedSampler
@@ -166,8 +159,7 @@ class ORTTrainer(Trainer):
             optimizers=optimizers,
         )
 
-        # onnxruntime.set_seed(self.args.seed)
-        self.trained_with_ort = False  # Register if the model has been trained with onnxruntime
+        self.trained_with_ort = False
         self.onnx_model_path = onnx_model_path
         self.session_options = None
         if self.args.local_rank:
@@ -803,9 +795,7 @@ class ORTTrainer(Trainer):
             if self.trained_with_ort:
                 # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
                 # Currently incompatible!
-                logger.info(
-                    "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
-                )
+                logger.info("***** Exporting ort trained model from PyTorch to ONNX *****")
                 self._export(onnx_model_path)
                 self.onnx_model_path = onnx_model_path.as_posix()
                 logger.info("The onnx IR is store in:\n", self.onnx_model_path)
@@ -818,7 +808,7 @@ class ORTTrainer(Trainer):
             self.onnx_model_path,
             session_options=self.session_options,
             providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
-        )  # TODO: Specify providers in the args
+        )  # TODO: Eable users to specify execution providers in the args
 
         args = self.args
 
@@ -1007,9 +997,7 @@ class ORTTrainer(Trainer):
             if self.trained_with_ort:
                 # `train()` function has been called, `self.model` is an onnxruntime-trained PyTorch model.
                 # Currently incompatible!
-                logger.info(
-                    "-----------------------Exporting ort trained model from PyTorch to ONNX-----------------------------"
-                )
+                logger.info("***** Exporting ort trained model from PyTorch to ONNX *****")
                 self._export(onnx_model_path)
                 self.onnx_model_path = onnx_model_path.as_posix()
             else:
@@ -1022,7 +1010,7 @@ class ORTTrainer(Trainer):
             self.onnx_model_path,
             session_options=self.session_options,
             providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
-        )  # TODO: Specify providers in the args
+        )  # TODO: Eable users to specify execution providers in the args
 
         args = self.args
 
