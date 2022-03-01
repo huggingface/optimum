@@ -31,8 +31,8 @@ class TestORTTrainer(unittest.TestCase):
     def test_ort_trainer(self):
 
         model_names = {
-            "bert-base-cased"
-        }  # "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
+            "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
+        }
         dataset_names = {"sst2"}  # glue
 
         for model_name in model_names:
