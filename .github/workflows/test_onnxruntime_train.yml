@@ -59,7 +59,7 @@ jobs:
         working-directory: examples/onnxruntime/pytorch/docker
         run: |
             docker build -f Dockerfile-cu10  -t ort/cu10 .
-            docker run -p 80:8888 --gpus all ort/cu10:latest /bin/bash run.sh    
+            docker run -p 80:8888 --gpus all ort/cu10:latest run.sh    
 
   stop-runner:
     name: Stop self-hosted EC2 runner
