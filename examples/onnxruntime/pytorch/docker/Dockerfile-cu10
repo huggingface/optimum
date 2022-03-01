@@ -42,5 +42,7 @@ RUN pip install onnxruntime-training==1.9.0 -f https://download.onnxruntime.ai/o
 RUN pip install torch-ort
 RUN python -m torch_ort.configure
 
+WORKDIR .
+
 CMD ["/bin/bash"]
 # CMD ["/run.sh"]

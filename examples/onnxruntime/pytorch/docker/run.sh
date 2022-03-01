@@ -12,10 +12,6 @@ GPU_DEVICES=${2:-"all"}
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort/cu11:latest $CMD
 
 # Install dependencies
-ls /github/workspace
-git clone https://github.com/huggingface/optimum.git
-cd optimum
-git checkout ort-trainer
 pip install coloredlogs transformers>=4.15.0 datasets>=1.8.0
 pip install scipy sklearn
 python -m unittest discover -s tests/onnxruntime -p 'test_onnxruntime_train.py'  
