@@ -48,7 +48,7 @@ jobs:
           cd ..
 
           cd optimum
-          pip install .[dev,onnxruntime]
+          pip install .[dev]
           cd ..
 
       - name: Setup git
