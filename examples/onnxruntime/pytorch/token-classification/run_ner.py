@@ -608,7 +608,7 @@ def main():
 
     # Raise unsupported situations
     if not (optim_args.quantize or optim_args.optimize or data_args.ort_train):
-        raise ValueError("None of `onnxruntime training`, `optimize` or `quantize` is enbaled.")
+        raise ValueError("None of `onnxruntime training`, `optimize` or `quantize` is enabled.")
 
     if (optim_args.quantize or optim_args.optimize) and not training_args.do_eval:
         raise ValueError(
