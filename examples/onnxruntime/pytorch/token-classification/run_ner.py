@@ -656,7 +656,7 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-    # Prepare the configuration if quantization or optimization os enabled.
+    # Prepare the configuration if quantization or optimization is enabled.
     if optim_args.quantize or optim_args.optimize:
         ort_config = ORTConfig(
             opset=optim_args.opset,
