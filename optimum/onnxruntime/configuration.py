@@ -11,10 +11,472 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, List, Optional, Union, Tuple
 
-from typing import Any, Dict, List, Optional
+from datasets import Dataset
+from onnxruntime import GraphOptimizationLevel
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType, CalibrationMethod, CalibraterBase, \
+    MinMaxCalibrater, QDQQuantizer
+from onnxruntime.quantization.calibrate import EntropyCalibrater, PercentileCalibrater, create_calibrator
+from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
+
+from optimum.onnxruntime import ORT_FULLY_CONNECTED_OPERATORS, ORTQuantizableOperator, ORT_DEFAULT_CHANNEL_FOR_OPERATORS
+from transformers import PreTrainedModel
 
 from ..configuration_utils import BaseConfig
+
+NodeName = NodeType = str
+
+
+@dataclass
+class CalibrationConfig:
+    dataset_name: str
+    dataset_config_name: Optional[str]
+    dataset_split: Optional[str]
+    dataset_num_samples: int
+    method: CalibrationMethod
+    num_bins: Optional[int] = None
+    num_quantized_bins: Optional[int] = None
+    percentiles: Optional[float] = None
+
+    def create_calibrator(
+        self,
+        onnx_model_path: Union[str, os.PathLike, Path],
+        operators_to_quantize: Optional[List[NodeType]],
+        use_external_data_format: bool = False,
+        force_symmetric_range: bool = False,
+        augmented_model_name: str = "augmented_model.onnx"
+    ) -> CalibraterBase:
+        return create_calibrator(
+            model=onnx_model_path,
+            op_types_to_calibrate=operators_to_quantize or [],
+            calibrate_method=self.method,
+            use_external_data_format=use_external_data_format,
+            augmented_model_path=augmented_model_name,
+            extra_options={
+                "num_bins": self.num_bins,
+                "num_quantized_bins": self.num_quantized_bins,
+                "percentiles": self.percentiles,
+                "symmetric": force_symmetric_range
+            }
+        )
+
+
+class AutoCalibrationConfig:
+    @staticmethod
+    def minmax(
+        dataset: Dataset,
+    ) -> CalibrationConfig:
+        """
+
+        :param dataset: The dataset to use to calibrate the model
+        :return:
+        """
+        return CalibrationConfig(
+            dataset_name=dataset.info.builder_name,
+            dataset_config_name=dataset.info.config_name,
+            dataset_split=str(dataset.split),
+            dataset_num_samples=dataset.num_rows,
+            method=CalibrationMethod.MinMax
+        )
+
+    @staticmethod
+    def entropy(
+        dataset: Dataset,
+        num_bins: int = 128,
+        num_quantized_bins: int = 2048,
+    ) -> CalibrationConfig:
+        """
+
+        :param dataset:
+        :param num_bins:
+        :param num_quantized_bins:
+        :return:
+        """
+        if num_bins <= 0:
+            raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
+
+        if num_quantized_bins <= 0:
+            raise ValueError(f"Invalid value num_quantized_bins ({num_quantized_bins}) should be >= 1")
+
+        return CalibrationConfig(
+            dataset_name=dataset.info.builder_name,
+            dataset_config_name=dataset.info.config_name,
+            dataset_split=str(dataset.split),
+            dataset_num_samples=dataset.num_rows,
+            method=CalibrationMethod.MinMax,
+            num_bins=num_bins,
+            num_quantized_bins=num_quantized_bins,
+        )
+
+    @staticmethod
+    def percentiles(
+        dataset: Dataset,
+        num_bins: int = 128,
+        num_quantized_bins: int = 2048,
+        percentiles: float = 99.999
+    ) -> CalibrationConfig:
+        """
+
+        :param dataset:
+        :param num_bins:
+        :param num_quantized_bins:
+        :param percentiles:
+        :return:
+        """
+
+        if num_bins <= 0:
+            raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
+
+        if num_quantized_bins <= 0:
+            raise ValueError(f"Invalid value num_quantized_bins ({num_quantized_bins}) should be >= 1")
+
+        if not 0 <= percentiles <= 100:
+            raise ValueError(f"Invalid value percentiles ({percentiles}) should be within [0; 100.[")
+
+        return CalibrationConfig(
+            dataset_name=dataset.info.builder_name,
+            dataset_config_name=dataset.info.config_name,
+            dataset_split=str(dataset.split),
+            dataset_num_samples=dataset.num_rows,
+            method=CalibrationMethod.MinMax,
+            num_bins=num_bins,
+            num_quantized_bins=num_quantized_bins,
+            percentiles=percentiles
+        )
+
+
+@dataclass
+class QuantizationConfig:
+    format: QuantFormat.QDQ
+    mode: QuantizationMode = QuantizationMode.QLinearOps
+    activations_dtype: QuantType = QuantType.QInt8
+    activations_symmetric: bool = False
+    weights_dtype: QuantType = QuantType.QInt8
+    weights_symmetric: bool = True
+    per_channel: bool = False
+    reduce_range: bool = False
+    nodes_to_quantize: List[NodeName] = None
+    nodes_to_exclude: List[NodeName] = None
+    operators_to_quantize: List[NodeType] = None
+    qdq_add_pair_to_weight: bool = False
+    qdq_dedicated_pair: bool = False
+    qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
+        default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
+    )
+
+    @staticmethod
+    def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
+        return f"{'s8' if activations_dtype == QuantType.QInt8 else 'u8'}" \
+               f"/" \
+               f"{'s8' if weights_dtype == QuantType.QInt8 else 'u8'}"
+
+    def __str__(self):
+        return f"{self.format} (" \
+               f"mode: {self.mode}, " \
+               f"schema: {QuantizationConfig.quantization_type_str(self.activations_dtype, self.weights_dtype)}, " \
+               f"channel-wise: {self.per_channel})"
+
+
+def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: QuantizationMode):
+    if not use_static_quantization and mode == QuantizationMode.QLinearOps:
+        raise ValueError(
+            "Invalid combination of "
+            "use_static_quantization = False "
+            "and "
+            "mode = QuantizationMode.QLinearOps. "
+            "OnnxRuntime dynamic quantization requires mode = QuantizationMode.IntegerOps"
+        )
+
+
+def default_quantization_parameters(
+    is_static: bool,
+    format: Optional[QuantFormat] = None,
+    mode: Optional[QuantizationMode] = None
+) -> Tuple[QuantFormat, QuantizationMode]:
+    if format is None:
+        format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
+
+    if mode is None:
+        mode = QuantizationMode.QLinearOps if is_static else QuantizationMode.IntegerOps
+
+    return format, mode
+
+
+class AutoQuantizationConfig:
+
+    @staticmethod
+    def arm64(
+        is_static: bool,
+        format: Optional[QuantFormat] = None,
+        mode: Optional[QuantizationMode] = None,
+        use_symmetric_activations: bool = False,
+        use_symmetric_weights: bool = True,
+        per_channel: bool = True,
+        nodes_to_quantize: Optional[List[NodeName]] = None,
+        nodes_to_exclude: Optional[List[NodeName]] = None,
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+    ):
+        """
+
+        :param is_static: Boolean flag to indicate whether we target static or dynamic quantization.
+        :param format: Targeted ONNX Runtime quantization format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param mode: Targeted ONNX Runtime quantization mode, default is QLinearOps to match QDQ format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param use_symmetric_activations:
+        :param use_symmetric_weights:
+        :param per_channel: Whether we should quantize per-channel (also known as "per-row"). Enabling this can
+            increase overall accuracy while making the quantized model heavier.
+        :param nodes_to_quantize:
+        :param nodes_to_exclude:
+        :param operators_to_quantize:
+        :return:
+        """
+        ensure_valid_mode_or_raise(is_static, mode)
+
+        if format is None:
+            format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
+
+        if mode is None:
+            mode = QuantizationMode.QLinearOps if is_static else QuantizationMode.IntegerOps
+
+        # u8/s8 is faster (than u8/u8) on lower-end ARM64 and identical on higher-end ARM64,
+        # so let's use u8/s8 by default
+        return QuantizationConfig(
+            format=format,
+            mode=mode,
+            activations_dtype=QuantType.QUInt8,
+            activations_symmetric=use_symmetric_activations,
+            weights_dtype=QuantType.QInt8,
+            weights_symmetric=use_symmetric_weights,
+            per_channel=per_channel,
+            reduce_range=False,
+            nodes_to_quantize=nodes_to_quantize,
+            nodes_to_exclude=nodes_to_exclude,
+            operators_to_quantize=operators_to_quantize
+        )
+
+    @staticmethod
+    def avx2(
+        is_static: bool,
+        format: Optional[QuantFormat] = None,
+        mode: Optional[QuantizationMode] = None,
+        use_symmetric_activations: bool = False,
+        use_symmetric_weights: bool = True,
+        per_channel: bool = True,
+        reduce_range: bool = False,
+        nodes_to_quantize: Optional[List[NodeName]] = None,
+        nodes_to_exclude: Optional[List[NodeName]] = None,
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+    ) -> QuantizationConfig:
+        """
+
+        :param is_static: Boolean flag to indicate whether we target static or dynamic quantization.
+        :param format: Targeted ONNX Runtime quantization format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param mode: Targeted ONNX Runtime quantization mode, default is QLinearOps to match QDQ format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param use_symmetric_activations:
+        :param use_symmetric_weights:
+        :param per_channel: Whether we should quantize per-channel (also known as "per-row"). Enabling this can
+            increase overall accuracy while making the quantized model heavier.
+        :param reduce_range: Indicate whether to use 8-bits integers (False) or reduce-range 7-bits integers (True).
+            As a baseline, it is always recommended testing with full range (reduce_range = False) and then, if
+            accuracy drop is significant, to try with reduced range (reduce_range = True).
+            Intel's CPUs using AVX512 (non VNNI) can suffer from saturation issue when invoking
+            the VPMADDUBSW instruction. To counter this, one should use 7-bits rather than 8-bits integers.
+        :param nodes_to_quantize:
+        :param nodes_to_exclude:
+        :param operators_to_quantize:
+        :return:
+        """
+        ensure_valid_mode_or_raise(is_static, mode)
+        format, mode = default_quantization_parameters(is_static, format, mode)
+
+        return QuantizationConfig(
+            format=format,
+            mode=mode,
+            activations_dtype=QuantType.QUInt8,
+            activations_symmetric=use_symmetric_activations,
+            weights_dtype=QuantType.QUInt8,
+            weights_symmetric=use_symmetric_weights,
+            per_channel=per_channel,
+            reduce_range=reduce_range,
+            nodes_to_quantize=nodes_to_quantize,
+            nodes_to_exclude=nodes_to_exclude,
+            operators_to_quantize=operators_to_quantize
+        )
+
+    @staticmethod
+    def avx512(
+        is_static: bool,
+        format: Optional[QuantFormat] = None,
+        mode: Optional[QuantizationMode] = None,
+        use_symmetric_activations: bool = False,
+        use_symmetric_weights: bool = True,
+        per_channel: bool = True,
+        reduce_range: bool = False,
+        nodes_to_quantize: Optional[List[NodeName]] = None,
+        nodes_to_exclude: Optional[List[NodeName]] = None,
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+    ) -> QuantizationConfig:
+        """
+
+        :param is_static: Boolean flag to indicate whether we target static or dynamic quantization.
+        :param format: Targeted ONNX Runtime quantization format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param mode: Targeted ONNX Runtime quantization mode, default is QLinearOps to match QDQ format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param use_symmetric_activations:
+        :param use_symmetric_weights:
+        :param per_channel: Whether we should quantize per-channel (also known as "per-row"). Enabling this can
+            increase overall accuracy while making the quantized model heavier.
+        :param reduce_range: Indicate whether to use 8-bits integers (False) or reduce-range 7-bits integers (True).
+            As a baseline, it is always recommended testing with full range (reduce_range = False) and then, if
+            accuracy drop is significant, to try with reduced range (reduce_range = True).
+            Intel's CPUs using AVX512 (non VNNI) can suffer from saturation issue when invoking
+            the VPMADDUBSW instruction. To counter this, one should use 7-bits rather than 8-bits integers.
+        :param nodes_to_quantize:
+        :param nodes_to_exclude:
+        :param operators_to_quantize:
+        :return:
+        """
+        ensure_valid_mode_or_raise(is_static, mode)
+        format, mode = default_quantization_parameters(is_static, format, mode)
+
+        return QuantizationConfig(
+            format=format,
+            mode=mode,
+            activations_dtype=QuantType.QUInt8,
+            activations_symmetric=use_symmetric_activations,
+            weights_dtype=QuantType.QInt8,
+            weights_symmetric=use_symmetric_weights,
+            per_channel=per_channel,
+            reduce_range=reduce_range,
+            nodes_to_quantize=nodes_to_quantize,
+            nodes_to_exclude=nodes_to_exclude,
+            operators_to_quantize=operators_to_quantize
+        )
+
+    @staticmethod
+    def avx512_vnni(
+        is_static: bool,
+        format: Optional[QuantFormat] = None,
+        mode: Optional[QuantizationMode] = None,
+        use_symmetric_activations: bool = False,
+        use_symmetric_weights: bool = True,
+        per_channel: bool = True,
+        nodes_to_quantize: Optional[List[NodeName]] = None,
+        nodes_to_exclude: Optional[List[NodeName]] = None,
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+    ) -> QuantizationConfig:
+        """
+        When targeting Intel AVX512-VNNI CPU underlying execution engine leverage the CPU instruction VPDPBUSD to
+        compute  \\i32 += i8(w) * u8(x)\\ within a single instruction.
+
+        AVX512-VNNI (AVX512 Vector Neural Network Instruction)
+        is an x86 extension Instruction set and is a part of the AVX-512 ISA.
+
+        AVX512 VNNI is designed to accelerate convolutional neural network for INT8 inference.
+
+        :param is_static: Boolean flag to indicate whether we target static or dynamic quantization.
+        :param format: Targeted ONNX Runtime quantization format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param mode: Targeted ONNX Runtime quantization mode, default is QLinearOps to match QDQ format.
+            When targeting dynamic quantization mode, the default value is `QuantFormat.QOperator` whereas the default
+            value for static quantization mode is `QuantFormat.QLinearOps`
+        :param use_symmetric_activations:
+        :param use_symmetric_weights:
+        :param per_channel: Whether we should quantize per-channel (also known as "per-row"). Enabling this can
+            increase overall accuracy while making the quantized model heavier.
+        :param nodes_to_quantize:
+        :param nodes_to_exclude:
+        :param operators_to_quantize:
+        :return:
+        """
+        ensure_valid_mode_or_raise(is_static, mode)
+        format, mode = default_quantization_parameters(is_static, format, mode)
+
+        return QuantizationConfig(
+            format=format,
+            mode=mode,
+            activations_dtype=QuantType.QUInt8,
+            activations_symmetric=use_symmetric_activations,
+            weights_dtype=QuantType.QInt8,
+            weights_symmetric=use_symmetric_weights,
+            per_channel=per_channel,
+            reduce_range=False,
+            nodes_to_quantize=nodes_to_quantize,
+            nodes_to_exclude=nodes_to_exclude,
+            operators_to_quantize=operators_to_quantize
+        )
+
+    @staticmethod
+    def tensorrt(
+        is_static: bool,
+        format: Optional[QuantFormat] = None,
+        mode: Optional[QuantizationMode] = None,
+        per_channel: bool = True,
+        nodes_to_quantize: Optional[List[NodeName]] = None,
+        nodes_to_exclude: Optional[List[NodeName]] = None,
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+    ) -> QuantizationConfig:
+        ensure_valid_mode_or_raise(is_static, mode)
+        format, mode = default_quantization_parameters(is_static, format, mode)
+
+        return QuantizationConfig(
+            format=format,
+            mode=mode,
+            activations_dtype=QuantType.QInt8,
+            activations_symmetric=True,  # TRT only supports symmetric
+            weights_dtype=QuantType.QInt8,
+            weights_symmetric=True,  # TRT only supports symmetric
+            per_channel=per_channel,
+            reduce_range=False,
+            nodes_to_quantize=nodes_to_quantize,
+            nodes_to_exclude=nodes_to_exclude,
+            operators_to_quantize=operators_to_quantize,
+            qdq_add_pair_to_weight=True,
+            qdq_dedicated_pair=True
+        )
+
+
+@dataclass
+class OptimizationConfig:
+    """
+    Optimization level performed by ONNX Runtime of the loaded graph.
+    Supported optimization level are 0, 1, 2 and 99.
+    0 will disable all optimizations (GraphOptimizationLevel.ORT_DISABLE_ALL).
+    1 will enable basic optimizations. (GraphOptimizationLevel.ORT_ENABLE_BASIC)
+    2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
+    assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
+    (GraphOptimizationLevel.ORT_ENABLE_EXTENDED)
+    99 will enable all available optimizations including layout optimizations. (GraphOptimizationLevel.ORT_ENABLE_ALL)
+    """
+    optimization_level: Union[int, GraphOptimizationLevel] = GraphOptimizationLevel.ORT_ENABLE_BASIC
+
+    """
+    Whether to optimize the model for GPU inference.
+    The optimized graph might contain operators for GPU or CPU only when opt_level > 1.
+    """
+    optimize_for_gpu: bool = False
+
+    """
+    Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python. 
+    Graph fusion might require offline, Python scripts, to be run.
+    """
+    optimize_with_onnxruntime_only: bool = False
 
 
 class ORTConfig(BaseConfig):
@@ -26,93 +488,10 @@ class ORTConfig(BaseConfig):
             ONNX opset version to export the model with.
         use_external_data_format (`bool`, `optional`, defaults to `False`):
             Allow exporting model >= than 2Gb.
-        seed (`int`, `optional`, defaults to 42):
-            The seed used to ensure reproducibility across runs.
-
-        > Parameters for optimization
-
-        opt_level (`int`, `optional`):
-            Optimization level performed by ONNX Runtime of the loaded graph.
-            Supported optimization level are 0, 1, 2 and 99.
-            0 will disable all optimizations.
-            1 will enable basic optimizations.
-            2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
-            assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
-            99 will enable all available optimizations including layout optimizations.
-        use_gpu (`bool`, `optional`, defaults to `False`):
-            Whether to optimize the model for GPU inference.
-            The optimized graph might contain operators for GPU or CPU only when opt_level > 1.
-        only_onnxruntime (`bool`, `optional`, defaults to `False`):
-            Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python.
-
-        > Parameters for quantization
-
-        quantization_approach (`str`, `optional`):
-            The quantization approach to apply. Supported approach are static and dynamic.
-        optimize_model (`bool`, `optional`, defaults to `True`):
-            Whether to optimize the model before quantization.
-        per_channel (`bool`, `optional`, defaults to `False`):
-            Whether to quantize the weights per channel.
-        reduce_range (`bool`, `optional`, defaults to `False`):
-            Whether to quantize the weights with 7-bits. It may improve the accuracy for some models running on
-            non-VNNI machine, especially for per-channel mode
-        activation_type (`str`, `optional`, defaults to `"uint8"`):
-            The quantization data type of activation.
-            Currently, OnnxRuntime CPU only supports activation with type uint8.
-        weight_type (`str`, `optional`, defaults to `"uint8"`):
-            The quantization data type of weight. Supported data type are uint8 and int8.
-        quant_format (`str`, `optional`, defaults to `"operator"`):
-            ONNX quantization representation format.
-            Supported quantization representation format are "operator" and "qdq".
-            "operator" : Operator Oriented (QOperator) : all the quantized operators have their own ONNX definitions.
-            "qdq" : Tensor Oriented (QDQ) : this format quantize the model by inserting QuantizeLinear/DeQuantizeLinear
-                    on the tensor to simulate the quantize and dequantize process.
-                    QuantizeLinear and DeQuantizeLinear operators carry the quantization parameters.
-        calibration_method (`str`, `optional`, defaults to `"minmax"`):
-            The method chosen to calculate the activations quantization parameters using the calibration dataset.
-            Current supported calibration methods are "minmax", "entropy" and "percentile".
-        split (`str`, `optional`, defaults to `"train"`):
-            Which split of the calibration dataset to load.
-            Depending on the calibration dataset to load, the possible values are "train", "validation" and "test".
-        max_samples (`int`, `optional`, defaults to 80):
-            Maximum number of examples to use for the calibration step resulting from static quantization.
-        calib_batch_size (`int`, `optional`, defaults to 8):
-            The batch size to use for the calibration step resulting from static quantization.
-        op_types_to_quantize (`List`, `optional`):
-            List of the types of operators to quantize. By default, all the supported operators are quantized.
-        nodes_to_quantize (`List`, `optional`):
-            List of the nodes names to quantize.
-        nodes_to_exclude (`List`, `optional`):
-            List of the nodes names to exclude when applying quantization.
-        extra_options (`Dict[str, Any]`, `optional`):
-            The dictionary mapping each extra options to the desired value, such as :
-                ActivationSymmetric (`bool`, `optional`, defaults to `False`):
-                    Symmetrize calibration data for activations.
-                WeightSymmetric (`bool`, `optional`, defaults to `True`):
-                    Symmetrize calibration data for weights.
-                EnableSubgraph (`bool`, `optional`, defaults to `False`):
-                    If enabled, subgraph will be quantized.
-                DisableShapeInference (`bool`, `optional`, defaults to `False`):
-                    In dynamic quantization mode, shape inference is not mandatory and can be disabled in case it causes
-                    issues.
-                ForceQuantizeNoInputCheck (`bool`, `optional`, defaults to `False`):
-                    By default, the outputs of some latent operators such as maxpool or transpose are not quantized if
-                    the corresponding input is not already quantized. When set to True, this option will force such
-                    operator to always quantize their input, resulting in quantized output.
-                MatMulConstBOnly (`bool`, `optional`, defaults to `False`):
-                    If enabled, only MatMul with const B will be quantized.
-                AddQDQPairToWeight (`bool`, `optional`, defaults to `False`):
-                    By default, floating-point weights are quantized and feed to solely inserted DeQuantizeLinear node.
-                    If set to True, the floating-point weights will remain and both QuantizeLinear/DeQuantizeLinear
-                    nodes will be inserted.
-                OpTypesToExcludeOutputQuantization (`List`, `optional`, defaults to `[]`):
-                    If any op type is specified, the output of ops with this specific op types will not be quantized.
-                DedicatedQDQPair (`bool`, `optional`, defaults to `False`):
-                    When inserting QDQ pair, multiple nodes can share a single QDQ pair as their inputs. If True, it
-                    will create an identical and dedicated QDQ pair for each node.
-                QDQOpTypePerChannelSupportToAxis (`Dict`, `optional`, defaults to `{}`):
-                    Set the channel axis for a specific op type. Effective only when per channel quantization is
-                    supported and per_channel is set to True.
+        optimization (`OptimizationConfig`, `optional`, defaults to None):
+            Specify a configuration to optimize ONNX Runtime model
+        quantization (`QuantizationConfig`, `optional`, defaults to None):
+            Specify a configuration to quantize ONNX Runtime model
     """
 
     CONFIG_NAME = "ort_config.json"
@@ -121,45 +500,13 @@ class ORTConfig(BaseConfig):
     def __init__(
         self,
         opset: Optional[int] = None,
-        opt_level: Optional[int] = None,
-        use_gpu: Optional[bool] = False,
-        only_onnxruntime: Optional[bool] = False,
-        quantization_approach: Optional[str] = None,
-        optimize_model: Optional[bool] = True,
-        per_channel: Optional[bool] = False,
-        reduce_range: Optional[bool] = False,
-        activation_type: Optional[str] = "uint8",
-        weight_type: Optional[str] = "uint8",
-        quant_format: Optional[str] = "operator",
-        calibration_method: Optional[str] = "minmax",
-        split: Optional[str] = "train",
-        max_samples: Optional[int] = 80,
-        calib_batch_size: Optional[int] = 8,
-        seed: Optional[int] = 42,
-        use_external_data_format: Optional[bool] = False,
-        op_types_to_quantize: Optional[List] = None,
-        nodes_to_quantize: Optional[List] = None,
-        nodes_to_exclude: Optional[List] = None,
-        extra_options: Optional[Dict[str, Any]] = None,
+        use_external_data_format: bool = False,
+        optimization_config: Optional[OptimizationConfig] = None,
+        config: Optional[QuantizationConfig] = None
     ):
+        super().__init__()
         self.opset = opset
-        self.opt_level = opt_level
-        self.use_gpu = use_gpu
-        self.only_onnxruntime = only_onnxruntime
-        self.quantization_approach = quantization_approach
-        self.optimize_model = optimize_model
-        self.per_channel = per_channel
-        self.reduce_range = reduce_range
-        self.activation_type = activation_type
-        self.weight_type = weight_type
-        self.quant_format = quant_format
-        self.calibration_method = calibration_method
-        self.split = split
-        self.max_samples = max_samples
-        self.calib_batch_size = calib_batch_size
-        self.seed = seed
         self.use_external_data_format = use_external_data_format
-        self.op_types_to_quantize = op_types_to_quantize
-        self.nodes_to_quantize = nodes_to_quantize
-        self.nodes_to_exclude = nodes_to_exclude
-        self.extra_options = extra_options
+
+        self.optimization = optimization_config
+        self.quantization = config
