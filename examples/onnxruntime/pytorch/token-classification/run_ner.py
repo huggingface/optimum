@@ -48,8 +48,6 @@ from transformers.utils.versions import require_version
 from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer, ORTTrainer
 
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.15.0")
 
@@ -625,9 +623,7 @@ def main():
     elif optim_args.quantize and optim_args.optimize:
         raise ValueError("`quantize` is not supported when the graph optimization is enabled.")
 
-    # Initialize our Trainer:
-    #
-    # Instanciate `ORTTrainer` if enable onnxruntime training or inference(default), otherwise `Trainer`.
+    # Initialize Trainer
     trainer = ORTTrainer(
         model=model,
         args=training_args,
