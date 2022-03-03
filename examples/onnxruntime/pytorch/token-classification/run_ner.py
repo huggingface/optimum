@@ -763,7 +763,7 @@ def main():
             logger.info("*** Predict within pytorch ***")
             predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict", ort=False)
         else:
-            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled.")
+            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enabled.")
 
         predictions = np.argmax(predictions, axis=2)
 
