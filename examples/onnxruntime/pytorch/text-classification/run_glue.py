@@ -717,7 +717,7 @@ def main():
             for eval_dataset, task in zip(eval_datasets, tasks):
                 metrics = trainer.evaluate(eval_dataset=eval_dataset, ort=False)
         else:
-            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled.")
+            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enabled.")
 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
