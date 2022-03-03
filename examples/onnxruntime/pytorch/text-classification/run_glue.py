@@ -777,7 +777,7 @@ def main():
                                 item = label_list[item]
                                 writer.write(f"{index}\t{item}\n")
         else:
-            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enbaled.")
+            raise ValueError("At least one of `onnxruntime training`, `optimize` or `quantize` should be enabled.")
 
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "text-classification"}
     if data_args.task_name is not None:
