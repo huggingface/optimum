@@ -1,0 +1,9 @@
+- sections:
+  - local: index
+    title: 🤗 Optimum
+  - local: quickstart
+    title: Quickstart
+  title: ONNX Runtime
+- sections:
+  - local: onnxruntime/configuration
+    title: Configuration
