@@ -14,12 +14,12 @@
 
 __version__ = "1.0.0"
 
-from transformers.file_utils import _LazyModule
 from typing import TYPE_CHECKING
 
-_import_structure = {
-    "onnxruntime.configuration": ["ORTConfig"]
-}
+from transformers.file_utils import _LazyModule
+
+
+_import_structure = {"onnxruntime.configuration": ["ORTConfig"]}
 
 if TYPE_CHECKING:
     from .onnxruntime.configuration import ORTConfig
