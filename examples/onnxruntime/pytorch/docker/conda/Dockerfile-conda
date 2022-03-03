@@ -45,7 +45,7 @@ RUN echo "source activate venv_ort" > ~/.bashrc
 ENV PATH /opt/conda/envs/venv_ort/bin:$PATH
 ENV CONDA_DEFAULT_ENV $venv_ort
 
-# Install ort related dependancies
+# Install ort related dependencies
 # PyTorch
 RUN pip install onnx==1.9.0 ninja
 RUN pip install torch==1.9.0+cu102 torchvision==0.10.0+cu102 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
