@@ -48,7 +48,7 @@ jobs:
           cd ..
 
           cd optimum
-          pip install .[dev,onnxruntime] # This is a dirty hack to get the docs built with ORT imports - remove!
+          pip install .[dev]
           cd ..
 
       - name: Setup git

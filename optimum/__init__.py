@@ -13,23 +13,3 @@
 #  limitations under the License.
 
 __version__ = "1.0.0"
-
-from typing import TYPE_CHECKING
-
-from transformers.file_utils import _LazyModule
-
-
-_import_structure = {"onnxruntime.configuration": ["ORTConfig"]}
-
-if TYPE_CHECKING:
-    from .onnxruntime.configuration import ORTConfig
-else:
-    import sys
-
-    sys.modules[__name__] = _LazyModule(
-        __name__,
-        globals()["__file__"],
-        _import_structure,
-        module_spec=__spec__,
-        extra_objects={"__version__": __version__},
-    )

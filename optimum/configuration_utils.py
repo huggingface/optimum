@@ -23,8 +23,8 @@ from packaging import version
 from transformers import PretrainedConfig
 from transformers.file_utils import cached_path, get_list_of_files, hf_bucket_url, is_offline_mode, is_remote_url
 
+from . import __version__
 from .utils import logging
-from .version import __version__
 
 
 logger = logging.get_logger(__name__)

@@ -3,9 +3,9 @@ import re
 from setuptools import find_namespace_packages, setup
 
 
-# Ensure we match the version set in src/optimum/version.py
+# Ensure we match the version set in optimum/__init__.py
 try:
-    filepath = "optimum/version.py"
+    filepath = "optimum/__init__.py"
     with open(filepath) as version_file:
         (__version__,) = re.findall('__version__ = "(.*)"', version_file.read())
 except Exception as error:
