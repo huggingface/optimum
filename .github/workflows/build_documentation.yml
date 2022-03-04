@@ -53,8 +53,6 @@ jobs:
 
       - name: Setup environment
         run: |
-          # sudo apt-get -y update && sudo apt-get install -y libsndfile1-dev
-
           pip install git+https://github.com/huggingface/doc-builder
           cd optimum
           pip install .[dev]
@@ -71,8 +69,9 @@ jobs:
 
       - name: Make documentation
         run: |
+          version=$(pip show optimum | grep Version | cut -c 10-20) &&
           cd doc-builder &&
-          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build --clean --html &&
+          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build --clean --version $version --html &&
           cd ..
         env:
           NODE_OPTIONS: --max-old-space-size=6656
