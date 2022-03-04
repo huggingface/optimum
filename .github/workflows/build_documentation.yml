@@ -3,7 +3,7 @@ name: Build documentation
 on:
   push:
     branches:
-      - master
+      - main
       - doc-builder*
       - v*-release
 
@@ -68,10 +68,6 @@ jobs:
           cd doc-build
           git pull origin main
           cd ..
-
-          # cd notebooks
-          # git pull origin master
-          # cd ..
 
       - name: Make documentation
         run: |
