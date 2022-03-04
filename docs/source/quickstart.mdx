@@ -41,7 +41,7 @@ In this example, we've quantized a model from the Hugging Face Hub, but it could
 >>> tokenizer = AutoTokenizer.from_pretrained(model_ckpt)
 
 >>> def preprocess_fn(ex):
-...    return tokenizer(ex["sentence"])
+...     return tokenizer(ex["sentence"])
 
 >>> tokenized_ds = ds.map(preprocess_fn, remove_columns=ds.column_names)
 >>> tokenized_ds.set_format("torch")
@@ -67,12 +67,12 @@ Static quantization relies on feeding batches of data through the model to obser
 >>> data_collator = DataCollatorWithPadding(tokenizer)
 >>> # For calibration we define the dataset and preprocessing function
 >>> quantizer = ORTQuantizer(
-...    ort_config,
-...    dataset_name="glue",
-...    dataset_config_name="sst2",
-...    preprocess_function=preprocess_fn,
-...    data_collator=data_collator,
-...)
+...     ort_config,
+...     dataset_name="glue",
+...     dataset_config_name="sst2",
+...     preprocess_function=preprocess_fn,
+...     data_collator=data_collator,
+... )
 >>> # Quantize the same way we did for dynamic quantization!
 >>> quantizer.fit(model_ckpt, output_dir=".", feature="sequence-classification")
 ```
