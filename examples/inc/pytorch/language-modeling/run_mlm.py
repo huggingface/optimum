@@ -66,6 +66,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
 
+require_version("transformers<1.7.0")
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/inc/pytorch/language-modeling/requirements.txt")
 
 logger = logging.getLogger(__name__)
