@@ -3,9 +3,9 @@ import re
 from setuptools import find_namespace_packages, setup
 
 
-# Ensure we match the version set in optimum/__init__.py
+# Ensure we match the version set in src/optimum/version.py
 try:
-    filepath = "optimum/__init__.py"
+    filepath = "optimum/version.py"
     with open(filepath) as version_file:
         (__version__,) = re.findall('__version__ = "(.*)"', version_file.read())
 except Exception as error:
@@ -21,7 +21,13 @@ install_requires = [
 
 extras = {
     "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
-    "intel": ["pycocotools", "neural_compressor>=1.9", "datasets>=1.2.1", "pandas<1.4.0"],
+    "intel": [
+        "pycocotools",
+        "neural_compressor>=1.9",
+        "datasets>=1.2.1",
+        "pandas<1.4.0",
+        "transformers >= 4.15.0, < 4.17.0",
+    ],
     "graphcore": "optimum-graphcore",
 }
 
