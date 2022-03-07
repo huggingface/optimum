@@ -56,6 +56,7 @@ class ORTCalibrationDataReader(CalibrationDataReader):
         self._dataset_iter = iter(self.dataset)
 
     def get_next(self):
+        featurized_samples = None
         try:
             if self.batch_size == 1:
                 featurized_samples = {key: [value] for key, value in next(self._dataset_iter).items()}
@@ -70,7 +71,7 @@ class ORTCalibrationDataReader(CalibrationDataReader):
         except StopIteration:
             pass
         finally:
-            if len(featurized_samples) > 0:
+            if featurized_samples is not None and len(featurized_samples) > 0:
                 return featurized_samples
             else:
                 return None
