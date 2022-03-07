@@ -29,4 +29,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m unittest onnxruntime/test_onnxruntime.py
+        python -m unittest ./onnxruntime/test_onnxruntime.py
