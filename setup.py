@@ -17,6 +17,7 @@ install_requires = [
     "sympy",
     "transformers>=4.15.0",
     "torch>=1.9",
+    "packaging"
 ]
 
 extras = {
