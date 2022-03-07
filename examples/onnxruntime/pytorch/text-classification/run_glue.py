@@ -71,6 +71,20 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class ORTTrainingArguments:
+    """
+    ORTTrainingArguments is the subset of the arguments we use in our example scripts **which relate to the training loop
+    itself within ONNX Runtime**.
+
+    Using `HfArgumentParser` we can turn this class
+    into argparse arguments to be able to specify them on
+    the command line.
+    """
+
+    ort_train: bool = field(default=False, metadata={"help": "Whether use onnxruntime for training."})
+
+
+@dataclass
 class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
@@ -135,7 +149,6 @@ class DataTrainingArguments:
         default=None, metadata={"help": "A csv or a json file containing the validation data."}
     )
     test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
-    ort_train: bool = field(default=False, metadata={"help": "Whether use onnxruntime for training."})
 
     def __post_init__(self):
         if self.task_name is not None:
@@ -284,17 +297,19 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments, ORTTrainingArguments, OptimizationArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, optim_args = parser.parse_json_file(
+        model_args, data_args, training_args, ort_training_args, optim_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, ort_training_args, optim_args = parser.parse_args_into_dataclasses()
 
-    if data_args.ort_train:
+    if ort_training_args.ort_train:
         training_args.do_train = True
 
     # Setup logging
@@ -564,7 +579,7 @@ def main():
         data_collator = None
 
     # Raise unsupported situations
-    if not (optim_args.quantize or optim_args.optimize or data_args.ort_train):
+    if not (optim_args.quantize or optim_args.optimize or ort_training_args.ort_train):
         raise ValueError("None of `onnxruntime training`, `optimize` or `quantize` is enabled.")
 
     if (optim_args.quantize or optim_args.optimize) and not training_args.do_eval:
@@ -572,13 +587,6 @@ def main():
             "`do_eval` must be set to True in order to compare the evaluation results between the original and the "
             "optimized models."
         )
-
-    if (optim_args.quantize or optim_args.optimize) and data_args.ort_train:
-        raise ValueError(
-            "`onnxruntime training` is not supported when the quantization or the graph optimization is enabled."
-        )
-    elif optim_args.quantize and optim_args.optimize:
-        raise ValueError("`quantize` is not supported when the graph optimization is enabled.")
 
     # Initialize Trainer
     trainer = ORTTrainer(
@@ -598,7 +606,7 @@ def main():
             checkpoint = training_args.resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
-        if data_args.ort_train:
+        if ort_training_args.ort_train:
             train_result = trainer.train(resume_from_checkpoint=checkpoint)
         else:
             train_result = trainer.train(resume_from_checkpoint=checkpoint, ort=False)
@@ -711,7 +719,7 @@ def main():
                 f"Optimized model with {metric_name} of {results_opt_model} saved to: {training_args.output_dir}. "
                 f"Original model had an {metric_name} of {results_model}."
             )
-        elif data_args.ort_train:
+        elif ort_training_args.ort_train:
             # (Fine-tuned with onnxruntime) Inference with pytorch
             logger.info("*** Evaluate within pytorch ***")
             for eval_dataset, task in zip(eval_datasets, tasks):
@@ -756,7 +764,7 @@ def main():
                             else:
                                 item = label_list[item]
                                 writer.write(f"{index}\t{item}\n")
-        elif data_args.ort_train:
+        elif ort_training_args.ort_train:
             # (Fine-tuned with onnxruntime) Inference with pytorch
             logger.info("*** Predict within pytorch ***")
             for predict_dataset, task in zip(predict_datasets, tasks):

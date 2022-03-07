@@ -1,17 +1,17 @@
 # coding=utf-8
-# Copyright 2022 HuggingFace Inc..
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
 
 import argparse
 import json
@@ -62,24 +62,27 @@ def is_cuda_and_apex_available():
 
 
 class ExamplesTests(TestCasePlus):
-    def test_run_glue(self):
+
+    # Text Classification Tests
+    # --Task 1: Quantization
+    def test_run_glue_quantize(self):
         stream_handler = logging.StreamHandler(sys.stdout)
         logger.addHandler(stream_handler)
 
         tmp_dir = self.get_auto_remove_tmp_dir()
         testargs = f"""
             run_glue.py
-            --model_name_or_path bert-base-uncased
+            --model_name_or_path bert-base-uncased     
+            --task_name sst2
+            --quantize
+            --quantization_approach static
+            --do_train
+            --do_eval
             --output_dir {tmp_dir}
             --overwrite_output_dir
-            --task_name sst2
-            --ort_train
-            --do_eval
+            --learning_rate=1e-5
             --per_device_train_batch_size=16
             --per_device_eval_batch_size=16
-            --learning_rate=1e-5
-            --max_seq_length=128
-            --num_train_epoch 2
             """.split()
 
         with patch.object(sys, "argv", testargs):
@@ -87,7 +90,58 @@ class ExamplesTests(TestCasePlus):
             result = get_results(tmp_dir)
             self.assertGreaterEqual(result["eval_accuracy"], 0.75)
 
-    def test_run_ner(self):
+    # --Task 2: Graph Optimization
+    def test_run_glue_optimize(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_glue.py
+            --model_name_or_path bert-base-uncased     
+            --task_name sst2
+            --optimize
+            --do_train
+            --do_eval
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
+            --learning_rate=1e-5
+            --per_device_train_batch_size=16
+            --per_device_eval_batch_size=16
+            """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_glue.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_accuracy"], 0.75)
+
+    # --Task 3: ONNX Runtime Training
+    def test_run_glue_ort_train(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_glue.py
+            --model_name_or_path bert-base-uncased     
+            --task_name sst2
+            --ort_train
+            --do_eval
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
+            --learning_rate=1e-5
+            --per_device_train_batch_size=16
+            --per_device_eval_batch_size=16
+            """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_glue.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_accuracy"], 0.75)
+
+    # Token Classification Tests
+    # --Task 1: Quantization
+    def test_run_ner_quantize(self):
         stream_handler = logging.StreamHandler(sys.stdout)
         logger.addHandler(stream_handler)
 
@@ -99,10 +153,12 @@ class ExamplesTests(TestCasePlus):
             run_ner.py
             --model_name_or_path bert-base-uncased
             --dataset_name conll2003
+            --quantize
+            --quantization_approach static
+            --do_train
+            --do_eval
             --output_dir {tmp_dir}
             --overwrite_output_dir
-            --ort_train
-            --do_eval
             --learning_rate=1e-5
             --per_device_train_batch_size=16
             --per_device_eval_batch_size=16
@@ -115,7 +171,68 @@ class ExamplesTests(TestCasePlus):
             self.assertGreaterEqual(result["eval_accuracy"], 0.75)
             self.assertLess(result["eval_loss"], 0.5)
 
-    def test_run_qa(self):
+    # --Task 2: Graph Optimization
+    def test_run_ner_optimize(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        # with so little data distributed training needs more epochs to get the score on par with 0/1 gpu
+        epochs = 7 if get_gpu_count() > 1 else 2
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_ner.py
+            --model_name_or_path bert-base-uncased
+            --dataset_name conll2003
+            --optimize
+            --do_train
+            --do_eval
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
+            --learning_rate=1e-5
+            --per_device_train_batch_size=16
+            --per_device_eval_batch_size=16
+            --num_train_epochs={epochs}
+        """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_ner.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_accuracy"], 0.75)
+            self.assertLess(result["eval_loss"], 0.5)
+
+    # --Task 3: ONNX Runtime Training
+    def test_run_ner_ort_train(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        # with so little data distributed training needs more epochs to get the score on par with 0/1 gpu
+        epochs = 7 if get_gpu_count() > 1 else 2
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_ner.py
+            --model_name_or_path bert-base-uncased
+            --dataset_name conll2003
+            --ort_train
+            --do_eval
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
+            --learning_rate=1e-5
+            --per_device_train_batch_size=16
+            --per_device_eval_batch_size=16
+            --num_train_epochs={epochs}
+        """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_ner.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_accuracy"], 0.75)
+            self.assertLess(result["eval_loss"], 0.5)
+
+    # Question Answering Tests
+    # --Task 1: Quantization
+    def test_run_qa_quantize(self):
         stream_handler = logging.StreamHandler(sys.stdout)
         logger.addHandler(stream_handler)
 
@@ -124,10 +241,63 @@ class ExamplesTests(TestCasePlus):
             run_qa.py
             --model_name_or_path bert-base-uncased
             --dataset_name squad
+            --quantize
+            --quantization_approach static
+            --do_train
+            --do_eval
             --output_dir {tmp_dir}
             --overwrite_output_dir
+            --learning_rate=1e-5
+            --per_device_train_batch_size=16
+            --per_device_eval_batch_size=16
+        """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_qa.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_f1"], 30)
+            self.assertGreaterEqual(result["eval_exact"], 30)
+
+    # --Task 2: Graph Optimization
+    def test_run_qa_optimize(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_qa.py
+            --model_name_or_path bert-base-uncased
+            --dataset_name squad
+            --optimize
+            --do_train
+            --do_eval
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
+            --learning_rate=1e-5
+            --per_device_train_batch_size=16
+            --per_device_eval_batch_size=16
+        """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_qa.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_f1"], 30)
+            self.assertGreaterEqual(result["eval_exact"], 30)
+
+    # --Task 3: ONNX Runtime Training
+    def test_run_qa_ort_train(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_qa.py
+            --model_name_or_path bert-base-uncased
+            --dataset_name squad
             --ort_train
             --do_eval
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
             --learning_rate=1e-5
             --per_device_train_batch_size=16
             --per_device_eval_batch_size=16

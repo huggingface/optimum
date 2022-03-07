@@ -51,9 +51,25 @@ from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer, ORTTraine
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.15.0")
 
-require_version("datasets>=1.18.0", "To fix: pip install -r examples/onnxruntime/pytorch/token-classification/requirements.txt")
+require_version(
+    "datasets>=1.18.0", "To fix: pip install -r examples/onnxruntime/pytorch/token-classification/requirements.txt"
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ORTTrainingArguments:
+    """
+    ORTTrainingArguments is the subset of the arguments we use in our example scripts **which relate to the training loop
+    itself within ONNX Runtime**.
+
+    Using `HfArgumentParser` we can turn this class
+    into argparse arguments to be able to specify them on
+    the command line.
+    """
+
+    ort_train: bool = field(default=False, metadata={"help": "Whether use onnxruntime for training."})
 
 
 @dataclass
@@ -172,7 +188,6 @@ class DataTrainingArguments:
         default=False,
         metadata={"help": "Whether to return all the entity levels during evaluation or just the overall ones."},
     )
-    ort_train: bool = field(default=False, metadata={"help": "Whether use onnxruntime for training."})
 
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
@@ -281,17 +296,19 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments, ORTTrainingArguments, OptimizationArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, optim_args = parser.parse_json_file(
+        model_args, data_args, training_args, ort_training_args, optim_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, ort_training_args, optim_args = parser.parse_args_into_dataclasses()
 
-    if data_args.ort_train:
+    if ort_training_args.ort_train:
         training_args.do_train = True
 
     # Setup logging
@@ -607,7 +624,7 @@ def main():
             }
 
     # Raise unsupported situations
-    if not (optim_args.quantize or optim_args.optimize or data_args.ort_train):
+    if not (optim_args.quantize or optim_args.optimize or ort_training_args.ort_train):
         raise ValueError("None of `onnxruntime training`, `optimize` or `quantize` is enabled.")
 
     if (optim_args.quantize or optim_args.optimize) and not training_args.do_eval:
@@ -615,13 +632,6 @@ def main():
             "`do_eval` must be set to True in order to compare the evaluation results between the original and the "
             "optimized models."
         )
-
-    if (optim_args.quantize or optim_args.optimize) and data_args.ort_train:
-        raise ValueError(
-            "`onnxruntime training` is not supported when the quantization or the graph optimization is enabled."
-        )
-    elif optim_args.quantize and optim_args.optimize:
-        raise ValueError("`quantize` is not supported when the graph optimization is enabled.")
 
     # Initialize Trainer
     trainer = ORTTrainer(
@@ -641,7 +651,7 @@ def main():
             checkpoint = training_args.resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
-        if data_args.ort_train:
+        if ort_training_args.ort_train:
             train_result = trainer.train(resume_from_checkpoint=checkpoint)
         else:
             train_result = trainer.train(resume_from_checkpoint=checkpoint, ort=False)
@@ -737,7 +747,7 @@ def main():
                 f"Optimized model with a {optim_args.metric_name} score of {results_opt_model} saved to: "
                 f"{training_args.output_dir}. Original model had a {optim_args.metric_name} score of {results_model}."
             )
-        elif data_args.ort_train:
+        elif ort_training_args.ort_train:
             # (Fine-tuned with onnxruntime) Inference with pytorch
             logger.info("*** Evaluate within pytorch ***")
             metrics = trainer.evaluate(eval_dataset=eval_dataset, ort=False)
@@ -758,7 +768,7 @@ def main():
             # (Not fine-tuned with onnxruntime) Inference with onnxruntime
             logger.info("*** Predict within onnxruntime ***")
             predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict")
-        elif data_args.ort_train:
+        elif ort_training_args.ort_train:
             # (Fine-tuned with onnxruntime) Inference with pytorch
             logger.info("*** Predict within pytorch ***")
             predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict", ort=False)
