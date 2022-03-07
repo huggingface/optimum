@@ -113,6 +113,13 @@ class ORTConfig(BaseConfig):
                 QDQOpTypePerChannelSupportToAxis (`Dict`, `optional`, defaults to `{}`):
                     Set the channel axis for a specific op type. Effective only when per channel quantization is
                     supported and per_channel is set to True.
+                CalibMovingAverage (`bool`, `optional`, defaults to `False`):
+                    If enabled, the moving average of the minimum and maximum values will be computed when the
+                    calibration method selected is MinMax.
+                CalibMovingAverage (`float`, `optional`, defaults to `0.01`):
+                    Constant smoothing factor to use when computing the moving average of the minimum and maximum
+                    values. Effective only when the calibration method selected is MinMax and when CalibMovingAverage
+                    is set to True.
     """
 
     CONFIG_NAME = "ort_config.json"
