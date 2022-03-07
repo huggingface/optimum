@@ -134,9 +134,10 @@ class ORTQuantizer(ABC):
         calibration_config: CalibrationConfig,
         onnx_model_path: Union[str, os.PathLike, Path],
         onnx_augmented_model_name: str = "augmented_model.onnx",
+        operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
-        operators_to_quantize: Optional[List[NodeType]] = None
+        use_gpu: bool = False
     ) -> Dict[str, Tuple[float, float]]:
         """
 
@@ -144,9 +145,10 @@ class ORTQuantizer(ABC):
         :param calibration_config:
         :param onnx_model_path:
         :param onnx_augmented_model_name
+        :param operators_to_quantize:
         :param batch_size:
         :param use_external_data_format:
-        :param operators_to_quantize:
+        :param use_gpu:
         :return:
         """
         # If a dataset is provided, then we are in a static quantization mode
@@ -161,9 +163,10 @@ class ORTQuantizer(ABC):
             calibration_config,
             onnx_model_path,
             onnx_augmented_model_name,
+            operators_to_quantize,
             batch_size,
             use_external_data_format,
-            operators_to_quantize
+            use_gpu
         )
         return self.compute_ranges()
 
@@ -173,19 +176,21 @@ class ORTQuantizer(ABC):
         calibration_config: CalibrationConfig,
         onnx_model_path: Union[str, os.PathLike],
         onnx_augmented_model_name: str = "augmented_model.onnx",
+        operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
-        operators_to_quantize: Optional[List[NodeType]] = None
+        use_gpu: bool = False
     ):
         """
 
-        :param dataset
-        :param batch_size
+        :param dataset:
         :param calibration_config:
         :param onnx_model_path:
-        :param onnx_augmented_model_name
-        :param use_external_data_format:
+        :param onnx_augmented_model_name:
         :param operators_to_quantize:
+        :param batch_size:
+        :param use_external_data_format:
+        :param use_gpu:
         :return:
         """
         if not isinstance(onnx_model_path, Path):
@@ -206,6 +211,9 @@ class ORTQuantizer(ABC):
                 augmented_model_name=onnx_augmented_model_name,
                 operators_to_quantize=operators_to_quantize
             )
+
+        if use_gpu:
+            self._calibrator.set_execution_providers(execution_providers=["CUDAExecutionProvider"])
 
         LOGGER.info("Collecting tensors statistics...")
         self._calibrator.collect_data(
