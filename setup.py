@@ -17,6 +17,7 @@ REQUIRED_PKGS = [
     "sympy",
     "transformers>=4.15.0",
     "torch>=1.9",
+    "packaging"
 ]
 
 TESTS_REQUIRE = ["pytest"]

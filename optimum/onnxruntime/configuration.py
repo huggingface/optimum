@@ -17,10 +17,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-from onnxruntime.quantization.calibrate import create_calibrator
 from datasets import Dataset
 from onnxruntime import GraphOptimizationLevel
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType, CalibrationMethod, CalibraterBase
+from onnxruntime.quantization.calibrate import create_calibrator
 
 from optimum.onnxruntime import ORT_FULLY_CONNECTED_OPERATORS, ORT_DEFAULT_CHANNEL_FOR_OPERATORS
 
@@ -94,6 +94,9 @@ class AutoCalibrationConfig:
         :param num_quantized_bins:
         :return:
         """
+        # if parse(ort_version) < Version("1.11.0"):
+        #     raise NotImplementedError("entropy calibration method is only implemented for onnxruntime >= 1.11.0")
+
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
 
@@ -105,7 +108,7 @@ class AutoCalibrationConfig:
             dataset_config_name=dataset.info.config_name,
             dataset_split=str(dataset.split),
             dataset_num_samples=dataset.num_rows,
-            method=CalibrationMethod.MinMax,
+            method=CalibrationMethod.Entropy,
             num_bins=num_bins,
             num_quantized_bins=num_quantized_bins,
         )
@@ -126,6 +129,9 @@ class AutoCalibrationConfig:
         :return:
         """
 
+        # if parse(ort_version) < Version("1.11.0"):
+        #     raise NotImplementedError("percentiles calibration method is only implemented for onnxruntime >= 1.11.0")
+
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
 
@@ -140,7 +146,7 @@ class AutoCalibrationConfig:
             dataset_config_name=dataset.info.config_name,
             dataset_split=str(dataset.split),
             dataset_num_samples=dataset.num_rows,
-            method=CalibrationMethod.MinMax,
+            method=CalibrationMethod.Percentile,
             num_bins=num_bins,
             num_quantized_bins=num_quantized_bins,
             percentiles=percentiles
