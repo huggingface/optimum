@@ -31,11 +31,9 @@ from optimum.onnxruntime.trainer import ORTTrainer
 class TestORTTrainer(unittest.TestCase):
     def test_ort_trainer(self):
 
-        model_names = {
-            "gpt2"
-        }  # "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
+        model_names = {"distilbert-base-uncased", "bert-base-cased", "roberta-base"}  # "gpt2", "facebook/bart-base"
         dataset_names = {"sst2"}  # glue
-        modes = {"ort_infer"}  # "ort_train", "ort_infer"
+        modes = {"ort_train", "ort_infer"}
 
         def test_ort_train_or_infer(trainer, mode):
             if mode == "ort_train":
