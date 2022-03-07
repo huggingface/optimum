@@ -27,5 +27,6 @@ jobs:
       run: |
         pip install .[onnxruntime]
     - name: Test with unittest
+      working-directory: tests/onnxruntime
       run: |
-        python -m unittest ./tests/onnxruntime/test_onnxruntime.py
+        python -m unittest test_onnxruntime
