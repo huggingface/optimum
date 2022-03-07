@@ -162,4 +162,4 @@ class ORTConfig(BaseConfig):
         self.op_types_to_quantize = op_types_to_quantize
         self.nodes_to_quantize = nodes_to_quantize
         self.nodes_to_exclude = nodes_to_exclude
-        self.extra_options = extra_options
+        self.extra_options = {} if extra_options is None else extra_options
