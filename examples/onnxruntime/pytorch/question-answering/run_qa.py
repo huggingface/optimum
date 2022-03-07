@@ -690,6 +690,9 @@ def main():
         max_samples=optim_args.max_calib_samples,
         calib_batch_size=training_args.per_device_eval_batch_size,
         seed=training_args.seed,
+        extra_options={
+            "CalibMovingAverage": True
+        },  # activations quantization parameters will be computed using the moving average of the minimum and maximum
     )
 
     eval_dataloader = trainer.get_eval_dataloader(eval_dataset)
