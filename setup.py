@@ -12,13 +12,7 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 
-install_requires = [
-    "coloredlogs",
-    "sympy",
-    "transformers>=4.15.0",
-    "torch>=1.9",
-    "packaging"
-]
+install_requires = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging"]
 
 extras = {
     "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],

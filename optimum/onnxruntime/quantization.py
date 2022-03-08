@@ -17,34 +17,26 @@ import os
 from abc import ABC
 from collections import defaultdict
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple, Union, List
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import onnx
 from datasets import Dataset, load_dataset
-from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
-from onnxruntime.transformers.onnx_model import OnnxModel
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
-from onnxruntime.quantization import (
-    CalibrationDataReader,
-    QDQQuantizer,
-    QuantFormat,
-    QuantizationMode,
-)
-
-from optimum.onnxruntime.configuration import NodeName, QuantizationConfig, CalibrationConfig, NodeType
-
+import onnx
+from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode
+from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
+from onnxruntime.transformers.onnx_model import OnnxModel
 from optimum.onnxruntime import ORTQuantizableOperator
+from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
+
 
 LOGGER = logging.getLogger(__name__)
 
 
 class ORTCalibrationDataReader(CalibrationDataReader):
-    """
-
-    """
+    """ """
 
     def __init__(self, dataset: Dataset, batch_size: int = 1):
         if dataset is None:
@@ -81,16 +73,12 @@ class ORTCalibrationDataReader(CalibrationDataReader):
 
 
 class ORTQuantizer(ABC):
-    """
-
-    """
+    """ """
 
     @staticmethod
     def from_pretrained(
-        model_name_or_path: Union[str, os.PathLike],
-        feature: str,
-        opset: Optional[int] = None
-    ) -> 'ORTQuantizer':
+        model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
+    ) -> ORTQuantizer:
         """
 
         :param model_name_or_path:
@@ -109,7 +97,7 @@ class ORTQuantizer(ABC):
         tokenizer: PreTrainedTokenizer,
         model: PreTrainedModel,
         feature: str = "default",
-        opset: Optional[int] = None
+        opset: Optional[int] = None,
     ):
         """
 
@@ -140,7 +128,7 @@ class ORTQuantizer(ABC):
         operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
-        use_gpu: bool = False
+        use_gpu: bool = False,
     ) -> Dict[str, Tuple[float, float]]:
         """
 
@@ -169,7 +157,7 @@ class ORTQuantizer(ABC):
             operators_to_quantize,
             batch_size,
             use_external_data_format,
-            use_gpu
+            use_gpu,
         )
         return self.compute_ranges()
 
@@ -182,7 +170,7 @@ class ORTQuantizer(ABC):
         operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
-        use_gpu: bool = False
+        use_gpu: bool = False,
     ):
         """
 
@@ -213,16 +201,14 @@ class ORTQuantizer(ABC):
                 use_external_data_format=use_external_data_format,
                 augmented_model_name=onnx_augmented_model_name,
                 operators_to_quantize=operators_to_quantize,
-                force_symmetric_range=False
+                force_symmetric_range=False,
             )
 
         if use_gpu:
             self._calibrator.set_execution_providers(execution_providers=["CUDAExecutionProvider"])
 
         LOGGER.info("Collecting tensors statistics...")
-        self._calibrator.collect_data(
-            ORTCalibrationDataReader(dataset, batch_size)
-        )
+        self._calibrator.collect_data(ORTCalibrationDataReader(dataset, batch_size))
 
     def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
         """
@@ -243,7 +229,7 @@ class ORTQuantizer(ABC):
         onnx_quantized_model_output_path: Union[str, os.PathLike],
         calibration_tensors_range: Dict[NodeName, Tuple[float, float]],
         quantization_config: QuantizationConfig,
-        use_external_data_format: bool = False
+        use_external_data_format: bool = False,
     ) -> Path:
         """
 
@@ -263,14 +249,11 @@ class ORTQuantizer(ABC):
                 f"(got: {quantization_config.mode})."
             )
 
-        LOGGER.info(
-            f"Creating {'dynamic' if is_static else 'static'} quantizer: "
-            f"{quantization_config}"
-        )
+        LOGGER.info(f"Creating {'dynamic' if is_static else 'static'} quantizer: {quantization_config}")
 
         if ORTQuantizableOperator.FullyConnected in quantization_config.operators_to_quantize:
-            from optimum.onnxruntime.graph import find_fully_connected_layers_nodes
             from onnx import load
+            from optimum.onnxruntime.graph import find_fully_connected_layers_nodes
 
             # Add MatMul and Add operator
             quantization_config.operators_to_quantize.remove(ORTQuantizableOperator.FullyConnected)
@@ -295,7 +278,6 @@ class ORTQuantizer(ABC):
             # Add them to the nodes to quantize
             quantization_config.nodes_to_quantize = fc_nodes_names
 
-
         onnx_model = onnx.load(onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
         quantizer = quantizer_factory(
@@ -312,7 +294,7 @@ class ORTQuantizer(ABC):
             op_types_to_quantize=[
                 operator.value if isinstance(operator, ORTQuantizableOperator) else operator
                 for operator in quantization_config.operators_to_quantize
-            ]
+            ],
         )
 
         LOGGER.info("Quantizing model...")
@@ -331,7 +313,7 @@ class ORTQuantizer(ABC):
         dataset_split: Optional[str] = None,
         preprocess_function: Optional[Callable] = None,
         preprocess_batch: bool = True,
-        seed: int = 2016
+        seed: int = 2016,
     ) -> Dataset:
         """
         Returns the calibration :class:`~datasets.arrow_dataset.Dataset` to use for the post-training static

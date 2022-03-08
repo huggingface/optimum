@@ -14,17 +14,19 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset
-from onnxruntime import GraphOptimizationLevel, version as ort_version
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType, CalibrationMethod, CalibraterBase
-from onnxruntime.quantization.calibrate import create_calibrator
+from packaging.version import Version, parse
 
+from onnxruntime import GraphOptimizationLevel
+from onnxruntime import version as ort_version
+from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
+from onnxruntime.quantization.calibrate import create_calibrator
 from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORTQuantizableOperator
-from packaging.version import parse, Version
 
 from ..configuration_utils import BaseConfig
+
 
 NodeName = NodeType = str
 
@@ -43,10 +45,12 @@ class CalibrationConfig:
     def create_calibrator(
         self,
         onnx_model_path: Union[str, os.PathLike, Path],
-        operators_to_quantize: Optional[List[Union[NodeType, ORTQuantizableOperator]]] = [ORTQuantizableOperator.FullyConnected],
+        operators_to_quantize: Optional[List[Union[NodeType, ORTQuantizableOperator]]] = [
+            ORTQuantizableOperator.FullyConnected
+        ],
         use_external_data_format: bool = False,
         force_symmetric_range: bool = False,
-        augmented_model_name: str = "augmented_model.onnx"
+        augmented_model_name: str = "augmented_model.onnx",
     ) -> CalibraterBase:
 
         operators_to_calibrate = (operators_to_quantize or []).copy()
@@ -70,8 +74,8 @@ class CalibrationConfig:
                 "num_bins": self.num_bins,
                 "num_quantized_bins": self.num_quantized_bins,
                 "percentiles": self.percentiles,
-                "symmetric": force_symmetric_range
-            }
+                "symmetric": force_symmetric_range,
+            },
         )
 
 
@@ -90,7 +94,7 @@ class AutoCalibrationConfig:
             dataset_config_name=dataset.info.config_name,
             dataset_split=str(dataset.split),
             dataset_num_samples=dataset.num_rows,
-            method=CalibrationMethod.MinMax
+            method=CalibrationMethod.MinMax,
         )
 
     @staticmethod
@@ -127,10 +131,7 @@ class AutoCalibrationConfig:
 
     @staticmethod
     def percentiles(
-        dataset: Dataset,
-        num_bins: int = 128,
-        num_quantized_bins: int = 2048,
-        percentiles: float = 99.999
+        dataset: Dataset, num_bins: int = 128, num_quantized_bins: int = 2048, percentiles: float = 99.999
     ) -> CalibrationConfig:
         """
 
@@ -161,7 +162,7 @@ class AutoCalibrationConfig:
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
             num_quantized_bins=num_quantized_bins,
-            percentiles=percentiles
+            percentiles=percentiles,
         )
 
 
@@ -186,15 +187,19 @@ class QuantizationConfig:
 
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
-        return f"{'s8' if activations_dtype == QuantType.QInt8 else 'u8'}" \
-               f"/" \
-               f"{'s8' if weights_dtype == QuantType.QInt8 else 'u8'}"
+        return (
+            f"{'s8' if activations_dtype == QuantType.QInt8 else 'u8'}"
+            f"/"
+            f"{'s8' if weights_dtype == QuantType.QInt8 else 'u8'}"
+        )
 
     def __str__(self):
-        return f"{self.format} (" \
-               f"mode: {self.mode}, " \
-               f"schema: {QuantizationConfig.quantization_type_str(self.activations_dtype, self.weights_dtype)}, " \
-               f"channel-wise: {self.per_channel})"
+        return (
+            f"{self.format} ("
+            f"mode: {self.mode}, "
+            f"schema: {QuantizationConfig.quantization_type_str(self.activations_dtype, self.weights_dtype)}, "
+            f"channel-wise: {self.per_channel})"
+        )
 
 
 def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: QuantizationMode):
@@ -209,9 +214,7 @@ def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: Quantization
 
 
 def default_quantization_parameters(
-    is_static: bool,
-    format: Optional[QuantFormat] = None,
-    mode: Optional[QuantizationMode] = None
+    is_static: bool, format: Optional[QuantFormat] = None, mode: Optional[QuantizationMode] = None
 ) -> Tuple[QuantFormat, QuantizationMode]:
     if format is None:
         format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
@@ -223,7 +226,6 @@ def default_quantization_parameters(
 
 
 class AutoQuantizationConfig:
-
     @staticmethod
     def arm64(
         is_static: bool,
@@ -234,7 +236,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected],
     ):
         """
 
@@ -275,7 +277,7 @@ class AutoQuantizationConfig:
             reduce_range=False,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -289,7 +291,7 @@ class AutoQuantizationConfig:
         reduce_range: bool = False,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected],
     ) -> QuantizationConfig:
         """
 
@@ -328,7 +330,7 @@ class AutoQuantizationConfig:
             reduce_range=reduce_range,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -342,7 +344,7 @@ class AutoQuantizationConfig:
         reduce_range: bool = False,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-            operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected],
     ) -> QuantizationConfig:
         """
 
@@ -381,7 +383,7 @@ class AutoQuantizationConfig:
             reduce_range=reduce_range,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -394,7 +396,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected],
     ) -> QuantizationConfig:
         """
         When targeting Intel AVX512-VNNI CPU underlying execution engine leverage the CPU instruction VPDPBUSD to
@@ -435,7 +437,7 @@ class AutoQuantizationConfig:
             reduce_range=False,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -446,7 +448,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-            operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected],
     ) -> QuantizationConfig:
         ensure_valid_mode_or_raise(is_static, mode)
         format, mode = default_quantization_parameters(is_static, format, mode)
@@ -464,7 +466,7 @@ class AutoQuantizationConfig:
             nodes_to_exclude=nodes_to_exclude,
             operators_to_quantize=operators_to_quantize,
             qdq_add_pair_to_weight=True,
-            qdq_dedicated_pair=True
+            qdq_dedicated_pair=True,
         )
 
 
@@ -480,6 +482,7 @@ class OptimizationConfig:
     (GraphOptimizationLevel.ORT_ENABLE_EXTENDED)
     99 will enable all available optimizations including layout optimizations. (GraphOptimizationLevel.ORT_ENABLE_ALL)
     """
+
     optimization_level: Union[int, GraphOptimizationLevel] = GraphOptimizationLevel.ORT_ENABLE_BASIC
 
     """
@@ -518,7 +521,7 @@ class ORTConfig(BaseConfig):
         opset: Optional[int] = None,
         use_external_data_format: bool = False,
         optimization_config: Optional[OptimizationConfig] = None,
-        config: Optional[QuantizationConfig] = None
+        config: Optional[QuantizationConfig] = None,
     ):
         super().__init__()
         self.opset = opset
