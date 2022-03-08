@@ -209,7 +209,8 @@ class ORTQuantizer(ABC):
                 onnx_model_path=onnx_model_path.as_posix(),
                 use_external_data_format=use_external_data_format,
                 augmented_model_name=onnx_augmented_model_name,
-                operators_to_quantize=operators_to_quantize
+                operators_to_quantize=operators_to_quantize,
+                force_symmetric_range=False
             )
 
         if use_gpu:
