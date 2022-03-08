@@ -300,7 +300,10 @@ class ORTQuantizer(ABC):
         LOGGER.info("Quantizing model...")
         quantizer.quantize_model()
 
-        LOGGER.info(f"Saving quantized model at: {onnx_model_path} (external data format: {use_external_data_format})")
+        LOGGER.info(
+            f"Saving quantized model at: {onnx_quantized_model_output_path} (external data format: "
+            f"{use_external_data_format})"
+        )
         quantizer.model.save_model_to_file(onnx_quantized_model_output_path, use_external_data_format)
 
         return Path(onnx_quantized_model_output_path)
