@@ -324,11 +324,6 @@ class ORTQuantizer(ABC):
                 "ORTQuantizer: Static quantization calibration step requires a dataset_name if no calib_dataset is "
                 "provided."
             )
-        if preprocess_function is None:
-            raise ValueError(
-                "ORTQuantizer: Processing function to apply after loading the dataset used for static quantization "
-                "calibration step was not provided."
-            )
 
         calib_dataset = load_dataset(
             dataset_name,
