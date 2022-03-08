@@ -22,9 +22,10 @@ from onnxruntime import GraphOptimizationLevel
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType, CalibrationMethod, CalibraterBase
 from onnxruntime.quantization.calibrate import create_calibrator
 
-from optimum.onnxruntime import ORT_FULLY_CONNECTED_OPERATORS, ORT_DEFAULT_CHANNEL_FOR_OPERATORS
+from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORT_FULLY_CONNECTED_OPERATORS
 
 from ..configuration_utils import BaseConfig
+
 
 NodeName = NodeType = str
 
@@ -46,7 +47,7 @@ class CalibrationConfig:
         operators_to_quantize: Optional[List[NodeType]],
         use_external_data_format: bool = False,
         force_symmetric_range: bool = False,
-        augmented_model_name: str = "augmented_model.onnx"
+        augmented_model_name: str = "augmented_model.onnx",
     ) -> CalibraterBase:
         return create_calibrator(
             model=onnx_model_path,
@@ -58,8 +59,8 @@ class CalibrationConfig:
                 "num_bins": self.num_bins,
                 "num_quantized_bins": self.num_quantized_bins,
                 "percentiles": self.percentiles,
-                "symmetric": force_symmetric_range
-            }
+                "symmetric": force_symmetric_range,
+            },
         )
 
 
@@ -78,7 +79,7 @@ class AutoCalibrationConfig:
             dataset_config_name=dataset.info.config_name,
             dataset_split=str(dataset.split),
             dataset_num_samples=dataset.num_rows,
-            method=CalibrationMethod.MinMax
+            method=CalibrationMethod.MinMax,
         )
 
     @staticmethod
@@ -149,7 +150,7 @@ class AutoCalibrationConfig:
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
             num_quantized_bins=num_quantized_bins,
-            percentiles=percentiles
+            percentiles=percentiles,
         )
 
 
@@ -164,8 +165,8 @@ class QuantizationConfig:
     per_channel: bool = False
     reduce_range: bool = False
     nodes_to_quantize: List[NodeName] = None
-    nodes_to_exclude: List[NodeName] = None
-    operators_to_quantize: List[NodeType] = None
+    nodes_to_exclude: List[NodeName] = field(default_factory=list)
+    operators_to_quantize: List[NodeType] = field(default_factory=list)
     qdq_add_pair_to_weight: bool = False
     qdq_dedicated_pair: bool = False
     qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
@@ -174,15 +175,19 @@ class QuantizationConfig:
 
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
-        return f"{'s8' if activations_dtype == QuantType.QInt8 else 'u8'}" \
-               f"/" \
-               f"{'s8' if weights_dtype == QuantType.QInt8 else 'u8'}"
+        return (
+            f"{'s8' if activations_dtype == QuantType.QInt8 else 'u8'}"
+            f"/"
+            f"{'s8' if weights_dtype == QuantType.QInt8 else 'u8'}"
+        )
 
     def __str__(self):
-        return f"{self.format} (" \
-               f"mode: {self.mode}, " \
-               f"schema: {QuantizationConfig.quantization_type_str(self.activations_dtype, self.weights_dtype)}, " \
-               f"channel-wise: {self.per_channel})"
+        return (
+            f"{self.format} ("
+            f"mode: {self.mode}, "
+            f"schema: {QuantizationConfig.quantization_type_str(self.activations_dtype, self.weights_dtype)}, "
+            f"channel-wise: {self.per_channel})"
+        )
 
 
 def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: QuantizationMode):
@@ -211,7 +216,6 @@ def default_quantization_parameters(
 
 
 class AutoQuantizationConfig:
-
     @staticmethod
     def arm64(
         is_static: bool,
@@ -263,7 +267,7 @@ class AutoQuantizationConfig:
             reduce_range=False,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -316,7 +320,7 @@ class AutoQuantizationConfig:
             reduce_range=reduce_range,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -369,7 +373,7 @@ class AutoQuantizationConfig:
             reduce_range=reduce_range,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -423,7 +427,7 @@ class AutoQuantizationConfig:
             reduce_range=False,
             nodes_to_quantize=nodes_to_quantize,
             nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -452,7 +456,7 @@ class AutoQuantizationConfig:
             nodes_to_exclude=nodes_to_exclude,
             operators_to_quantize=operators_to_quantize,
             qdq_add_pair_to_weight=True,
-            qdq_dedicated_pair=True
+            qdq_dedicated_pair=True,
         )
 
 

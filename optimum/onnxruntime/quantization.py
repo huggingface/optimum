@@ -25,7 +25,7 @@ from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
 import onnx
-from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode, QuantType
+from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.transformers.onnx_model import OnnxModel
 from optimum.onnxruntime import ORTQuantizableOperator
@@ -195,13 +195,6 @@ class ORTQuantizer(ABC):
 
             LOGGER.info(f"Exported model to ONNX at: {onnx_model_path.as_posix()}")
 
-        # Replace FullyConnected operator with MatMul and Add operators
-        if operators_to_quantize is not None and ORTQuantizableOperator.FullyConnected in operators_to_quantize:
-            operators_to_quantize = [
-                operator for operator in operators_to_quantize if operator != ORTQuantizableOperator.FullyConnected
-            ]
-            operators_to_quantize += [ORTQuantizableOperator.MatMul, ORTQuantizableOperator.Add]
-
         # If no calibrator, then create one
         if calibration_config.method is not None:
             LOGGER.info(f"Creating calibrator: {calibration_config.method}({calibration_config})")
@@ -217,8 +210,7 @@ class ORTQuantizer(ABC):
             self._calibrator.set_execution_providers(execution_providers=["CUDAExecutionProvider"])
 
         LOGGER.info("Collecting tensors statistics...")
-        reader = ORTCalibrationDataReader(dataset, batch_size)
-        self._calibrator.collect_data(reader)
+        self._calibrator.collect_data(ORTCalibrationDataReader(dataset, batch_size))
 
     def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
         """
@@ -275,30 +267,6 @@ class ORTQuantizer(ABC):
             f"Creating {'dynamic' if quantization_config.is_static else 'static'} quantizer: {quantization_config}"
         )
 
-        if ORTQuantizableOperator.FullyConnected in quantization_config.operators_to_quantize:
-            from onnx import load
-            from optimum.onnxruntime.graph import find_fully_connected_layers_nodes
-
-            # Add MatMul and Add operator
-            quantization_config.operators_to_quantize.remove(ORTQuantizableOperator.FullyConnected)
-            quantization_config.operators_to_quantize += [
-                ORTQuantizableOperator.MatMul,
-                ORTQuantizableOperator.Add
-            ]
-
-            # Find fully connected nodes
-            fc_nodes = find_fully_connected_layers_nodes(OnnxModel(load(onnx_model_path)))
-            fc_nodes_names = [node.name for nodes in fc_nodes for node in nodes]
-
-            if len(fc_nodes_names) != 2 * len(fc_nodes):
-                raise AssertionError(
-                    "Number of fully-connected nodes doesn't match -> "
-                    f"awaiting: {2 * len(fc_nodes)}, got: {len(fc_nodes_names)}"
-                )
-
-            # Add them to the nodes to quantize
-            quantization_config.nodes_to_quantize = (quantization_config.nodes_to_quantize or []) + fc_nodes_names
-
         onnx_model = onnx.load(onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
         quantizer = quantizer_factory(
@@ -321,7 +289,7 @@ class ORTQuantizer(ABC):
                 "ActivationSymmetric": quantization_config.activations_symmetric,
                 "EnableSubgraph": False,
                 "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric
-            }
+            },
         )
 
         LOGGER.info("Quantizing model...")
@@ -366,9 +334,5 @@ class ORTQuantizer(ABC):
         else:
             processed_calib_dataset = calib_dataset
 
-        return self.clean_calibration_dataset(processed_calib_dataset)
-
-    def clean_calibration_dataset(self, dataset: Dataset) -> Dataset:
-        ignored_columns = list(set(dataset.column_names) - set(self._onnx_config.inputs.keys()))
-
-        return dataset.remove_columns(ignored_columns)
+        ignored_columns = list(set(processed_calib_dataset.column_names) - set(self._onnx_config.inputs.keys()))
+        return processed_calib_dataset.remove_columns(ignored_columns)
