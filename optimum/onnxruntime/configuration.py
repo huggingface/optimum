@@ -94,7 +94,7 @@ class AutoCalibrationConfig:
         :param num_quantized_bins:
         :return:
         """
-        if parse(ort_version) < Version("1.11.0"):
+        if parse(ort_version) <= Version("1.10.99"):
             raise NotImplementedError("entropy calibration method is only implemented for onnxruntime >= 1.11.0")
 
         if num_bins <= 0:
@@ -129,8 +129,8 @@ class AutoCalibrationConfig:
         :return:
         """
 
-        if parse(ort_version) < Version("1.11.0"):
-            raise NotImplementedError("percentiles calibration method is only implemented for onnxruntime >= 1.11.0")
+        if parse(ort_version) <= Version("1.10.99"):
+            raise NotImplementedError("percentiles calibration method is only implemented for onnxruntime > 1.10.0")
 
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
@@ -164,8 +164,8 @@ class QuantizationConfig:
     per_channel: bool = False
     reduce_range: bool = False
     nodes_to_quantize: List[NodeName] = None
-    nodes_to_exclude: List[NodeName] = None
-    operators_to_quantize: List[NodeType] = None
+    nodes_to_exclude: List[NodeName] = field(default_factory=list)
+    operators_to_quantize: List[NodeType] = field(default_factory=list)
     qdq_add_pair_to_weight: bool = False
     qdq_dedicated_pair: bool = False
     qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
