@@ -41,6 +41,8 @@ class CalibrationConfig:
     num_bins: Optional[int] = None
     num_quantized_bins: Optional[int] = None
     percentiles: Optional[float] = None
+    moving_average: Optional[bool] = None
+    averaging_constant: Optional[float] = None
 
     def create_calibrator(
         self,
@@ -75,6 +77,8 @@ class CalibrationConfig:
                 "num_quantized_bins": self.num_quantized_bins,
                 "percentiles": self.percentiles,
                 "symmetric": force_symmetric_range,
+                "moving_average": self.moving_average,
+                "averaging_constant": self.averaging_constant,
             },
         )
 
@@ -83,18 +87,33 @@ class AutoCalibrationConfig:
     @staticmethod
     def minmax(
         dataset: Dataset,
+        moving_average: bool = False,
+        averaging_constant: float = 0.01,
     ) -> CalibrationConfig:
         """
 
         :param dataset: The dataset to use to calibrate the model
+        :param moving_average:
+        :param averaging_constant:
         :return:
         """
+        if moving_average and parse(ort_version) < Version("1.10.99"):
+            raise NotImplementedError(
+                "MinMax calibration method using the moving average for the activations quantization parameters "
+                "computation is only implemented for onnxruntime >= 1.11.0."
+            )
+
+        if moving_average and not 0 <= averaging_constant <= 1:
+            raise ValueError(f"Invalid averaging constant value ({averaging_constant}) should be within [0, 1]")
+
         return CalibrationConfig(
             dataset_name=dataset.info.builder_name,
             dataset_config_name=dataset.info.config_name,
             dataset_split=str(dataset.split),
             dataset_num_samples=dataset.num_rows,
             method=CalibrationMethod.MinMax,
+            moving_average=moving_average,
+            averaging_constant=averaging_constant,
         )
 
     @staticmethod
@@ -152,7 +171,7 @@ class AutoCalibrationConfig:
             raise ValueError(f"Invalid value num_quantized_bins ({num_quantized_bins}) should be >= 1")
 
         if not 0 <= percentiles <= 100:
-            raise ValueError(f"Invalid value percentiles ({percentiles}) should be within [0; 100.[")
+            raise ValueError(f"Invalid value percentiles ({percentiles}) should be within [0, 100]")
 
         return CalibrationConfig(
             dataset_name=dataset.info.builder_name,
