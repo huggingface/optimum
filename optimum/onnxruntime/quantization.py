@@ -25,7 +25,7 @@ from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
 import onnx
-from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode
+from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.transformers.onnx_model import OnnxModel
 from optimum.onnxruntime import ORTQuantizableOperator
@@ -78,7 +78,7 @@ class ORTQuantizer(ABC):
     @staticmethod
     def from_pretrained(
         model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
-    ) -> ORTQuantizer:
+    ) -> 'ORTQuantizer':
         """
 
         :param model_name_or_path:
@@ -227,27 +227,33 @@ class ORTQuantizer(ABC):
         self,
         onnx_model_path: Union[str, os.PathLike],
         onnx_quantized_model_output_path: Union[str, os.PathLike],
-        calibration_tensors_range: Dict[NodeName, Tuple[float, float]],
         quantization_config: QuantizationConfig,
+        calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
     ) -> Path:
         """
 
         :param onnx_model_path:
         :param onnx_quantized_model_output_path:
-        :param calibration_tensors_range:
         :param quantization_config:
+        :param calibration_tensors_range:
         :param use_external_data_format:
         :return:
         """
         is_static = calibration_tensors_range is not None
         use_qdq = is_static and quantization_config.format == QuantFormat.QDQ
 
-        if not is_static and quantization_config.mode != QuantizationMode.IntegerOps:
-            LOGGER.warning(
-                f"ONNX Runtime dynamic quantization mode should be QuantizationMode.IntegerOps "
-                f"(got: {quantization_config.mode})."
-            )
+        if not is_static:
+            if quantization_config.mode != QuantizationMode.IntegerOps:
+                LOGGER.warning(
+                    f"ONNX Runtime dynamic quantization mode should be QuantizationMode.IntegerOps "
+                    f"(got: {quantization_config.mode})."
+                )
+            if quantization_config.activations_dtype != QuantType.QUInt8:
+                LOGGER.warning(
+                    f"ONNX Runtime dynamic quantization activations data type should be QuantType.QUInt8 "
+                    f"(got: {quantization_config.activations_dtype})."
+                )
 
         LOGGER.info(f"Creating {'dynamic' if is_static else 'static'} quantizer: {quantization_config}")
 
