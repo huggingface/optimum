@@ -49,7 +49,7 @@ class CalibrationConfig:
         augmented_model_name: str = "augmented_model.onnx"
     ) -> CalibraterBase:
 
-        operators_to_calibrate = list(operators_to_quantize) or []
+        operators_to_calibrate = (operators_to_quantize or []).copy()
 
         if ORTQuantizableOperator.FullyConnected in operators_to_calibrate:
             operators_to_calibrate.remove(ORTQuantizableOperator.FullyConnected)
