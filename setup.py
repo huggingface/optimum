@@ -29,6 +29,7 @@ extras = {
         "transformers >= 4.15.0, < 4.17.0",
     ],
     "graphcore": "optimum-graphcore",
+    "openvino": "openvino-optimum",
 }
 
 setup(
