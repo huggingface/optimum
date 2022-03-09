@@ -187,6 +187,7 @@ class AutoCalibrationConfig:
 
 @dataclass
 class QuantizationConfig:
+    is_static: bool
     format: QuantFormat.QDQ
     mode: QuantizationMode = QuantizationMode.QLinearOps
     activations_dtype: QuantType = QuantType.QInt8
@@ -203,6 +204,10 @@ class QuantizationConfig:
     qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
         default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
     )
+
+    def __post_init__(self):
+        ensure_valid_mode_or_raise(self.is_static, self.mode)
+        ensure_valid_data_type_or_raise(self.is_static, self.activations_dtype, self.weights_dtype)
 
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
@@ -232,6 +237,28 @@ def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: Quantization
         )
 
 
+def ensure_valid_data_type_or_raise(use_static_quantization: bool, activations_dtype: QuantType, weights_dtype: QuantType):
+    if not use_static_quantization and activations_dtype == QuantType.QInt8:
+        raise ValueError(
+            "Invalid combination of "
+            "use_static_quantization = False "
+            "and "
+            "activations_dtype = QuantType.QInt8. "
+            "OnnxRuntime dynamic quantization requires activations_dtype = QuantType.QUInt8"
+        )
+
+    if use_static_quantization and activations_dtype == QuantType.QInt8 and weights_dtype == QuantType.QUInt8:
+        raise ValueError(
+            "Invalid combination of "
+            "use_static_quantization = True, "
+            "activations_dtype = QuantType.QInt8 "
+            "and "
+            "weights_dtype = QuantType.QUInt8."
+            "OnnxRuntime static quantization does not support "
+            "activations_dtype = QuantType.QInt8 with weights_dtype = QuantType.QUInt8."
+        )
+
+
 def default_quantization_parameters(
     is_static: bool, format: Optional[QuantFormat] = None, mode: Optional[QuantizationMode] = None
 ) -> Tuple[QuantFormat, QuantizationMode]:
@@ -256,7 +283,7 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
         operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected],
-    ):
+    ) -> QuantizationConfig:
         """
 
         :param is_static: Boolean flag to indicate whether we target static or dynamic quantization.
@@ -275,8 +302,6 @@ class AutoQuantizationConfig:
         :param operators_to_quantize:
         :return:
         """
-        ensure_valid_mode_or_raise(is_static, mode)
-
         if format is None:
             format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
 
@@ -286,6 +311,7 @@ class AutoQuantizationConfig:
         # u8/s8 is faster (than u8/u8) on lower-end ARM64 and identical on higher-end ARM64,
         # so let's use u8/s8 by default
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -335,10 +361,10 @@ class AutoQuantizationConfig:
         :param operators_to_quantize:
         :return:
         """
-        ensure_valid_mode_or_raise(is_static, mode)
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -388,10 +414,10 @@ class AutoQuantizationConfig:
         :param operators_to_quantize:
         :return:
         """
-        ensure_valid_mode_or_raise(is_static, mode)
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -442,10 +468,10 @@ class AutoQuantizationConfig:
         :param operators_to_quantize:
         :return:
         """
-        ensure_valid_mode_or_raise(is_static, mode)
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -469,10 +495,10 @@ class AutoQuantizationConfig:
         nodes_to_exclude: Optional[List[NodeName]] = None,
         operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected],
     ) -> QuantizationConfig:
-        ensure_valid_mode_or_raise(is_static, mode)
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QInt8,
