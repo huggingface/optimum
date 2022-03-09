@@ -17,11 +17,12 @@ import os
 from abc import ABC
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple, Union, List
+from typing import Callable, Dict, Optional, Tuple, Union, List
 
 import onnx
 from datasets import Dataset, load_dataset
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
+from onnxruntime.transformers.onnx_model import OnnxModel
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
@@ -34,6 +35,8 @@ from onnxruntime.quantization import (
 )
 
 from optimum.onnxruntime.configuration import NodeName, QuantizationConfig, CalibrationConfig, NodeType
+
+from optimum.onnxruntime import ORTQuantizableOperator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -265,6 +268,34 @@ class ORTQuantizer(ABC):
             f"{quantization_config}"
         )
 
+        if ORTQuantizableOperator.FullyConnected in quantization_config.operators_to_quantize:
+            from optimum.onnxruntime.graph import find_fully_connected_layers_nodes
+            from onnx import load
+
+            # Add MatMul and Add operator
+            quantization_config.operators_to_quantize.remove(ORTQuantizableOperator.FullyConnected)
+            quantization_config.operators_to_quantize += ["MatMul", "Add"]
+
+            # Find fully connected nodes
+            fc_nodes = find_fully_connected_layers_nodes(OnnxModel(load(onnx_model_path)))
+            fc_nodes_names = [
+                node.name
+                for nodes in fc_nodes
+                for node in nodes
+                # for input in node.input
+                # if input in calibration_tensors_range
+            ]
+
+            if len(fc_nodes_names) != 2 * len(fc_nodes):
+                raise Error(
+                    "Number of fully-connected nodes doesn't match -> "
+                    f"awaiting: {2 * len(fc_nodes)}, got: {len(fc_nodes_names)}"
+                )
+
+            # Add them to the nodes to quantize
+            quantization_config.nodes_to_quantize = fc_nodes_names
+
+
         onnx_model = onnx.load(onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
         quantizer = quantizer_factory(
@@ -278,7 +309,10 @@ class ORTQuantizer(ABC):
             reduce_range=quantization_config.reduce_range,
             nodes_to_quantize=quantization_config.nodes_to_quantize,
             nodes_to_exclude=quantization_config.nodes_to_exclude,
-            op_types_to_quantize=quantization_config.operators_to_quantize
+            op_types_to_quantize=[
+                operator.value if isinstance(operator, ORTQuantizableOperator) else operator
+                for operator in quantization_config.operators_to_quantize
+            ]
         )
 
         LOGGER.info("Quantizing model...")

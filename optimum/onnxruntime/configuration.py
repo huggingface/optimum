@@ -21,7 +21,7 @@ from onnxruntime import GraphOptimizationLevel, version as ort_version
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType, CalibrationMethod, CalibraterBase
 from onnxruntime.quantization.calibrate import create_calibrator
 
-from optimum.onnxruntime import ORT_FULLY_CONNECTED_OPERATORS, ORT_DEFAULT_CHANNEL_FOR_OPERATORS
+from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORTQuantizableOperator
 from packaging.version import parse, Version
 
 from ..configuration_utils import BaseConfig
@@ -43,14 +43,26 @@ class CalibrationConfig:
     def create_calibrator(
         self,
         onnx_model_path: Union[str, os.PathLike, Path],
-        operators_to_quantize: Optional[List[NodeType]],
+        operators_to_quantize: Optional[List[Union[NodeType, ORTQuantizableOperator]]] = [ORTQuantizableOperator.FullyConnected],
         use_external_data_format: bool = False,
         force_symmetric_range: bool = False,
         augmented_model_name: str = "augmented_model.onnx"
     ) -> CalibraterBase:
+
+        operators_to_calibrate = list(operators_to_quantize) or []
+
+        if ORTQuantizableOperator.FullyConnected in operators_to_calibrate:
+            operators_to_calibrate.remove(ORTQuantizableOperator.FullyConnected)
+            operators_to_calibrate += [ORTQuantizableOperator.MatMul, ORTQuantizableOperator.Add]
+
+        operators_to_calibrate = [
+            operator.value if isinstance(operator, ORTQuantizableOperator) else operator
+            for operator in operators_to_calibrate
+        ]
+
         return create_calibrator(
             model=onnx_model_path,
-            op_types_to_calibrate=operators_to_quantize or [],
+            op_types_to_calibrate=operators_to_calibrate,
             calibrate_method=self.method,
             use_external_data_format=use_external_data_format,
             augmented_model_path=augmented_model_name,
@@ -129,8 +141,8 @@ class AutoCalibrationConfig:
         :return:
         """
 
-        if parse(ort_version) <= Version("1.10.99"):
-            raise NotImplementedError("percentiles calibration method is only implemented for onnxruntime > 1.10.0")
+        # if parse(ort_version) <= Version("1.10.99"):
+        #     raise NotImplementedError("percentiles calibration method is only implemented for onnxruntime > 1.10.0")
 
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
@@ -222,7 +234,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
     ):
         """
 
@@ -277,7 +289,7 @@ class AutoQuantizationConfig:
         reduce_range: bool = False,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
     ) -> QuantizationConfig:
         """
 
@@ -330,7 +342,7 @@ class AutoQuantizationConfig:
         reduce_range: bool = False,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+            operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
     ) -> QuantizationConfig:
         """
 
@@ -382,7 +394,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+        operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
     ) -> QuantizationConfig:
         """
         When targeting Intel AVX512-VNNI CPU underlying execution engine leverage the CPU instruction VPDPBUSD to
@@ -434,7 +446,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+            operators_to_quantize: List[Union[NodeType, ORTQuantizableOperator]] = [ORTQuantizableOperator.FullyConnected]
     ) -> QuantizationConfig:
         ensure_valid_mode_or_raise(is_static, mode)
         format, mode = default_quantization_parameters(is_static, format, mode)
