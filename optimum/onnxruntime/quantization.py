@@ -240,10 +240,9 @@ class ORTQuantizer(ABC):
         :param use_external_data_format:
         :return:
         """
-        is_static = calibration_tensors_range is not None
-        use_qdq = is_static and quantization_config.format == QuantFormat.QDQ
+        use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
 
-        if not is_static:
+        if not quantization_config.is_static:
             if quantization_config.mode != QuantizationMode.IntegerOps:
                 LOGGER.warning(
                     f"ONNX Runtime dynamic quantization mode should be QuantizationMode.IntegerOps "
@@ -255,7 +254,9 @@ class ORTQuantizer(ABC):
                     f"(got: {quantization_config.activations_dtype})."
                 )
 
-        LOGGER.info(f"Creating {'dynamic' if is_static else 'static'} quantizer: {quantization_config}")
+        LOGGER.info(
+            f"Creating {'dynamic' if quantization_config.is_static else 'static'} quantizer: {quantization_config}"
+        )
 
         if ORTQuantizableOperator.FullyConnected in quantization_config.operators_to_quantize:
             from onnx import load
@@ -288,7 +289,7 @@ class ORTQuantizer(ABC):
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
         quantizer = quantizer_factory(
             model=onnx_model,
-            static=is_static,
+            static=quantization_config.is_static,
             per_channel=quantization_config.per_channel,
             mode=quantization_config.mode,
             weight_qType=quantization_config.weights_dtype,
