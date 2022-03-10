@@ -49,8 +49,6 @@ from transformers.utils.versions import require_version
 from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizer
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.15.0")
 
@@ -648,9 +646,7 @@ def main():
         },  # activations quantization parameters will be computed using the moving average of the minimum and maximum
     )
 
-    eval_dataloader = trainer.get_eval_dataloader()
-    output_model = trainer.evaluation_loop(eval_dataloader, description="evaluation")
-    metrics_model = output_model.metrics
+    metrics_model = trainer.evaluate(eval_dataset)
     results_model = metrics_model.get("eval_" + optim_args.metric_name)
     output_dir = Path(training_args.output_dir)
 
@@ -699,7 +695,7 @@ def main():
         logger.info("*** Evaluate ***")
 
         ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-        output_opt_model = ort_model.evaluation_loop(eval_dataloader)
+        output_opt_model = ort_model.evaluation_loop(eval_dataset)
         metrics_opt_model = output_opt_model.metrics
         trainer.save_metrics("eval", metrics_opt_model)
         results_opt_model = metrics_opt_model.get(optim_args.metric_name)
@@ -713,9 +709,8 @@ def main():
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        predict_dataloader = trainer.get_eval_dataloader(predict_dataset)
         ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-        output_opt_model = ort_model.evaluation_loop(predict_dataloader)
+        output_opt_model = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(output_opt_model.predictions, axis=2)
         labels = output_opt_model.label_ids
 

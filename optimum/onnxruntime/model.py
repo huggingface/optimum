@@ -17,10 +17,11 @@ import os
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
-from torch.utils.data import DataLoader
+import numpy as np
+from datasets import Dataset
 from transformers import EvalPrediction
 from transformers.onnx import OnnxConfig
-from transformers.trainer_pt_utils import nested_concat, nested_numpify
+from transformers.trainer_pt_utils import nested_concat
 from transformers.trainer_utils import EvalLoopOutput
 
 import onnx
@@ -68,37 +69,28 @@ class ORTModel:
         )
         self.label_names = default_label_names if label_names is None else label_names
 
-    def evaluation_loop(self, dataloader: DataLoader):
+    def evaluation_loop(self, dataset: Dataset):
         """
         Run evaluation and returns metrics and predictions.
 
         Args:
-            dataloader (`torch.utils.data.DataLoader`):
-                Dataloader to use for the evaluation step.
+            dataset (`datasets.arrow_dataset.Dataset`):
+                Dataset to use for the evaluation step.
         """
         logger.info(f"***** Running evaluation *****")
         all_preds = None
         all_labels = None
         options = SessionOptions()
         session = InferenceSession(self.model_path.as_posix(), options)
-        for step, inputs in enumerate(dataloader):
-            onnx_inputs = {}
+        for step, inputs in enumerate(dataset):
             has_labels = all(inputs.get(k) is not None for k in self.label_names)
             if has_labels:
-                labels = nested_numpify(tuple(inputs.get(name) for name in self.label_names))
+                labels = tuple(np.array([inputs.get(name)]) for name in self.label_names)
                 if len(labels) == 1:
                     labels = labels[0]
             else:
                 labels = None
-            for name, value in inputs.items():
-                if name in self.onnx_named_inputs:
-                    if isinstance(value, (list, tuple)):
-                        value = self.onnx_config.flatten_output_collection_property(name, value)
-                        onnx_inputs.update(
-                            {tensor_name: pt_tensor.numpy() for tensor_name, pt_tensor in value.items()}
-                        )
-                    else:
-                        onnx_inputs[name] = value.numpy()
+            onnx_inputs = {key: np.array([inputs[key]]) for key in self.onnx_config.inputs.keys()}
             preds = session.run(self.onnx_named_outputs, onnx_inputs)
             if len(preds) == 1:
                 preds = preds[0]
@@ -108,7 +100,4 @@ class ORTModel:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
         else:
             metrics = {}
-
-        return EvalLoopOutput(
-            predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataloader.dataset)
-        )
+        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataset))
