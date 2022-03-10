@@ -38,8 +38,7 @@ jobs:
       run: |
         source venv/bin/activate
         pip install --upgrade pip
-        pip install isort
-        pip install black
+        pip install .[quality]
     - name: Check style with black
       run: |
         source venv/bin/activate
