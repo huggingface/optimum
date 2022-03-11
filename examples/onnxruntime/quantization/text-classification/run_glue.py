@@ -20,36 +20,22 @@
 import json
 import logging
 import os
-import random
 import sys
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import (
-    AutoTokenizer,
-    DataCollatorWithPadding,
-    EvalPrediction,
-    HfArgumentParser,
-    PretrainedConfig,
-    PreTrainedTokenizer,
-    Trainer,
-    TrainingArguments,
-    default_data_collator,
-    set_seed,
-)
-from transformers.trainer_utils import get_last_checkpoint
+from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, AutoQuantizationConfig, QuantizationConfig
+from optimum.onnxruntime import ORTModel, ORTQuantizableOperator
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.quantization import ORTQuantizer, QuantFormat, QuantizationMode, QuantType
 
 
