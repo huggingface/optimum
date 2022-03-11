@@ -49,8 +49,6 @@ from transformers.utils.versions import require_version
 from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizer
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.15.0")
 
@@ -599,9 +597,11 @@ def main():
         max_samples=optim_args.max_calib_samples,
         calib_batch_size=training_args.per_device_eval_batch_size,
         seed=training_args.seed,
+        extra_options={
+            "CalibMovingAverage": True
+        },  # activations quantization parameters will be computed using the moving average of the minimum and maximum
     )
 
-    eval_dataloader = trainer.get_eval_dataloader()
     metric_name = (
         optim_args.metric_name
         if optim_args.metric_name is not None
@@ -612,8 +612,7 @@ def main():
         else "accuracy"
     )
 
-    output_model = trainer.evaluation_loop(eval_dataloader, description="evaluation")
-    metrics_model = output_model.metrics
+    metrics_model = trainer.evaluate(eval_dataset)
     results_model = metrics_model.get("eval_" + metric_name)
     output_dir = Path(training_args.output_dir)
 
@@ -658,8 +657,8 @@ def main():
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
-        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-        output_opt_model = ort_model.evaluation_loop(eval_dataloader)
+        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics, label_names=["label"])
+        output_opt_model = ort_model.evaluation_loop(eval_dataset)
         metrics_opt_model = output_opt_model.metrics
         trainer.save_metrics("eval", metrics_opt_model)
         results_opt_model = metrics_opt_model.get(metric_name)
@@ -673,9 +672,8 @@ def main():
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        predict_dataloader = trainer.get_eval_dataloader(predict_dataset)
         ort_model = ORTModel(opt_model_path, onnx_config)
-        output_opt_model = ort_model.evaluation_loop(predict_dataloader)
+        output_opt_model = ort_model.evaluation_loop(predict_dataset)
         predictions = output_opt_model.predictions
         predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
 

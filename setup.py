@@ -12,12 +12,30 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 
-install_requires = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging"]
+REQUIRED_PKGS = [
+    "coloredlogs",
+    "sympy",
+    "transformers>=4.15.0",
+    "torch>=1.9",
+]
 
-extras = {
+TESTS_REQUIRE = ["pytest"]
+
+QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
+
+EXTRAS_REQUIRE = {
     "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
-    "intel": ["pycocotools", "neural_compressor>=1.9", "datasets>=1.2.1", "pandas<1.4.0"],
+    "intel": [
+        "pycocotools",
+        "neural_compressor>=1.9",
+        "datasets>=1.2.1",
+        "pandas<1.4.0",
+        "transformers >= 4.15.0, < 4.17.0",
+    ],
     "graphcore": "optimum-graphcore",
+    "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
+    "tests": TESTS_REQUIRE,
+    "quality": QUALITY_REQUIRE,
 }
 
 setup(
@@ -45,8 +63,8 @@ setup(
     author_email="hardware@huggingface.co",
     license="Apache",
     packages=find_namespace_packages(include=["optimum*"]),
-    install_requires=install_requires,
-    extras_require=extras,
+    install_requires=REQUIRED_PKGS,
+    extras_require=EXTRAS_REQUIRE,
     entry_points={
         "console_scripts": [
             "optimum_export=optimum.onnxruntime.convert:main",

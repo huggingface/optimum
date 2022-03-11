@@ -38,6 +38,11 @@ from transformers import (
     default_data_collator,
     set_seed,
 )
+from transformers.utils.versions import require_version
+
+
+require_version("transformers<4.17.0")
+
 from transformers.file_utils import PaddingStrategy
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint

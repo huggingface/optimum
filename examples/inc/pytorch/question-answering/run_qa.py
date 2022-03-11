@@ -40,10 +40,14 @@ from transformers import (
     default_data_collator,
     set_seed,
 )
+from transformers.utils.versions import require_version
+
+
+require_version("transformers<4.17.0")
+
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.fx import symbolic_trace
-from transformers.utils.versions import require_version
 
 import yaml
 from optimum.intel.neural_compressor import (

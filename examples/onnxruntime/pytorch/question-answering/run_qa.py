@@ -49,8 +49,6 @@ from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.15.0")
 
@@ -690,6 +688,9 @@ def main():
         max_samples=optim_args.max_calib_samples,
         calib_batch_size=training_args.per_device_eval_batch_size,
         seed=training_args.seed,
+        extra_options={
+            "CalibMovingAverage": True
+        },  # activations quantization parameters will be computed using the moving average of the minimum and maximum
     )
 
     eval_dataloader = trainer.get_eval_dataloader(eval_dataset)
@@ -745,7 +746,7 @@ def main():
         logger.info("*** Evaluate ***")
 
         ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-        output_opt_model = ort_model.evaluation_loop(eval_dataloader)
+        output_opt_model = ort_model.evaluation_loop(eval_dataset)
         predictions = post_processing_function(eval_examples, eval_dataset, output_opt_model.predictions)
         metrics_opt_model = compute_metrics(predictions)
         trainer.save_metrics("eval", metrics_opt_model)
@@ -759,9 +760,8 @@ def main():
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        predict_dataloader = trainer.get_eval_dataloader(predict_dataset)
         ort_model = ORTModel(opt_model_path, onnx_config)
-        output_opt_model = ort_model.evaluation_loop(predict_dataloader)
+        output_opt_model = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, output_opt_model.predictions)
         metrics_opt_model = compute_metrics(predictions)
         trainer.save_metrics("predict", metrics_opt_model)

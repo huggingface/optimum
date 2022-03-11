@@ -26,8 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest
-        pip install .
+        pip install .[tests]
         ls -l optimum/
     - name: Test with pytest
       shell: bash
