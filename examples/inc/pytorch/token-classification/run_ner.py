@@ -39,10 +39,14 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
+from transformers.utils.versions import require_version
+
+
+require_version("transformers<4.17.0")
+
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.fx import symbolic_trace
-from transformers.utils.versions import require_version
 
 import yaml
 from optimum.intel.neural_compressor import (
@@ -63,7 +67,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.0")
 
-require_version("transformers<1.7.0")
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/inc/pytorch/token-classification/requirements.txt")
 
 logger = logging.getLogger(__name__)
