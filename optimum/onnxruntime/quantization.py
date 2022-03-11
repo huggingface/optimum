@@ -78,7 +78,7 @@ class ORTQuantizer(ABC):
     @staticmethod
     def from_pretrained(
         model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
-    ) -> 'ORTQuantizer':
+    ) -> "ORTQuantizer":
         """
 
         :param model_name_or_path:
@@ -240,6 +240,13 @@ class ORTQuantizer(ABC):
         :param use_external_data_format:
         :return:
         """
+        if not isinstance(onnx_model_path, Path):
+            onnx_model_path = Path(onnx_model_path)
+
+        # Export the model if it has not already been exported to ONNX IR (useful for dynamic quantization)
+        if not onnx_model_path.exists():
+            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
+
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
 
         if not quantization_config.is_static:
@@ -335,11 +342,7 @@ class ORTQuantizer(ABC):
                 "provided."
             )
 
-        calib_dataset = load_dataset(
-            dataset_name,
-            name=dataset_config_name,
-            split=dataset_split,
-        )
+        calib_dataset = load_dataset(dataset_name, name=dataset_config_name, split=dataset_split)
 
         if num_samples is not None:
             num_samples = min(num_samples, len(calib_dataset))
