@@ -85,11 +85,7 @@ class CalibrationConfig:
 
 class AutoCalibrationConfig:
     @staticmethod
-    def minmax(
-        dataset: Dataset,
-        moving_average: bool = False,
-        averaging_constant: float = 0.01,
-    ) -> CalibrationConfig:
+    def minmax(dataset: Dataset, moving_average: bool = False, averaging_constant: float = 0.01) -> CalibrationConfig:
         """
 
         :param dataset: The dataset to use to calibrate the model
@@ -117,11 +113,7 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def entropy(
-        dataset: Dataset,
-        num_bins: int = 128,
-        num_quantized_bins: int = 2048,
-    ) -> CalibrationConfig:
+    def entropy(dataset: Dataset, num_bins: int = 128, num_quantized_bins: int = 128) -> CalibrationConfig:
         """
 
         :param dataset:
@@ -149,14 +141,11 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def percentiles(
-        dataset: Dataset, num_bins: int = 128, num_quantized_bins: int = 2048, percentiles: float = 99.999
-    ) -> CalibrationConfig:
+    def percentiles(dataset: Dataset, num_bins: int = 2048, percentiles: float = 99.999) -> CalibrationConfig:
         """
 
         :param dataset:
         :param num_bins:
-        :param num_quantized_bins:
         :param percentiles:
         :return:
         """
@@ -166,9 +155,6 @@ class AutoCalibrationConfig:
 
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
-
-        if num_quantized_bins <= 0:
-            raise ValueError(f"Invalid value num_quantized_bins ({num_quantized_bins}) should be >= 1")
 
         if not 0 <= percentiles <= 100:
             raise ValueError(f"Invalid value percentiles ({percentiles}) should be within [0, 100]")
@@ -180,7 +166,6 @@ class AutoCalibrationConfig:
             dataset_num_samples=dataset.num_rows,
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
-            num_quantized_bins=num_quantized_bins,
             percentiles=percentiles,
         )
 
@@ -237,7 +222,9 @@ def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: Quantization
         )
 
 
-def ensure_valid_data_type_or_raise(use_static_quantization: bool, activations_dtype: QuantType, weights_dtype: QuantType):
+def ensure_valid_data_type_or_raise(
+    use_static_quantization: bool, activations_dtype: QuantType, weights_dtype: QuantType
+):
     if not use_static_quantization and activations_dtype == QuantType.QInt8:
         raise ValueError(
             "Invalid combination of "
