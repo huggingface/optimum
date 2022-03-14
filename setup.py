@@ -65,13 +65,6 @@ setup(
     packages=find_namespace_packages(include=["optimum*"]),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
-    entry_points={
-        "console_scripts": [
-            "optimum_export=optimum.onnxruntime.convert:main",
-            "optimum_optimize=optimum.onnxruntime.optimize_model:main",
-            "optimum_export_optimize=optimum.onnxruntime.convert_and_optimize:main",
-        ],
-    },
     include_package_data=True,
     zip_safe=False,
 )
