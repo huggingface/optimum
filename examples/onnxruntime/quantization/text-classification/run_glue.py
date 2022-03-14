@@ -91,20 +91,6 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached preprocessed datasets or not."}
     )
-    pad_to_max_length: bool = field(
-        default=True,
-        metadata={
-            "help": "Whether to pad all samples to `max_seq_length`. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch."
-        },
-    )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
-            "value if set."
-        },
-    )
     max_eval_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -154,30 +140,9 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
-    config_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
-    )
-    tokenizer_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
-    )
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
-    )
-    use_fast_tokenizer: bool = field(
-        default=True,
-        metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."},
-    )
-    model_revision: str = field(
-        default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
-    )
-    use_auth_token: bool = field(
-        default=False,
-        metadata={
-            "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
-            "with private models)."
-        },
     )
 
 
@@ -276,6 +241,16 @@ def main():
 
     logger.info(f"Optimization with the following parameters {optim_args}")
 
+    if os.path.isdir(training_args.output_dir) and not training_args.overwrite_output_dir:
+        raise ValueError(
+            f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+            "Use --overwrite_output_dir to overcome."
+        )
+
+    os.makedirs(training_args.output_dir, exist_ok=True)
+    model_path = os.path.join(training_args.output_dir, "model.onnx")
+    quantized_model_path = os.path.join(training_args.output_dir, "model-quantized.onnx")
+
     # Get the datasets: you can either provide your own CSV/JSON training and evaluation files (see below)
     # or specify a GLUE benchmark task (the dataset will be downloaded automatically from the datasets Hub).
     #
@@ -327,9 +302,16 @@ def main():
     # Labels
     if data_args.task_name is not None:
         is_regression = data_args.task_name == "stsb"
+        if not is_regression:
+            label_list = raw_datasets["train"].features["label"].names
     else:
         # Trying to have good defaults here, don't hesitate to tweak to your needs.
         is_regression = raw_datasets["train"].features["label"].dtype in ["float32", "float64"]
+        if not is_regression:
+            # A useful fast method:
+            # https://huggingface.co/docs/datasets/package_reference/main_classes.html#datasets.Dataset.unique
+            label_list = raw_datasets["train"].unique("label")
+            label_list.sort()  # Let's sort it for determinism
 
     # Preprocessing the raw_datasets
     if data_args.task_name is not None:
@@ -345,16 +327,14 @@ def main():
             else:
                 sentence1_key, sentence2_key = non_label_column_names[0], None
 
-    os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
-    quantized_model_path = os.path.join(training_args.output_dir, "model-quantized.onnx")
-
     def preprocess_function(examples, tokenizer: PreTrainedTokenizer, max_length: Optional[int] = None):
         # Tokenize the texts
         args = (
             (examples[sentence1_key],) if sentence2_key is None else (examples[sentence1_key], examples[sentence2_key])
         )
-        result = tokenizer(*args, padding="max_length", max_length=max_length, truncation=True)
+        result = tokenizer(
+            *args, padding="max_length", max_length=min(max_length, tokenizer.model_max_length), truncation=True
+        )
         return result
 
     # Get the metric function
@@ -460,7 +440,9 @@ def main():
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
-        # Download and load the evaluation dataset from the hub
+
+        if "validation" not in preprocessed_datasets and "validation_matched" not in preprocessed_datasets:
+            raise ValueError("--do_eval requires a validation dataset")
         eval_dataset = preprocessed_datasets["validation_matched" if data_args.task_name == "mnli" else "validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
@@ -472,6 +454,32 @@ def main():
         # Save metrics
         with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
+
+    # Prediction
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+
+        if "test" not in preprocessed_datasets and "test_matched" not in preprocessed_datasets:
+            raise ValueError("--do_predict requires a test dataset")
+        predict_dataset = preprocessed_datasets["test_matched" if data_args.task_name == "mnli" else "test"]
+        if data_args.max_predict_samples is not None:
+            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+
+        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config)
+        outputs = ort_model.evaluation_loop(predict_dataset)
+        predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
+
+        # Save predictions
+        output_predictions_file = os.path.join(training_args.output_dir, f"prediction.txt")
+        with open(output_predictions_file, "w") as writer:
+            logger.info(f"***** Predict results {data_args.task_name} *****")
+            writer.write("index\tprediction\n")
+            for index, item in enumerate(predictions):
+                if is_regression:
+                    writer.write(f"{index}\t{item:3.3f}\n")
+                else:
+                    item = label_list[item]
+                    writer.write(f"{index}\t{item}\n")
 
 
 def _mp_fn(index):
