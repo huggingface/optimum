@@ -1,32 +1,38 @@
 # coding=utf-8
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+# Copyright 2022 The HuggingFace Team All rights reserved.
 #
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
-A subclass of `IncTrainer` specific to Question-Answering tasks
+A subclass of `ORTTrainer` specific to Question-Answering tasks
 """
-
-from transformers import Trainer
 from transformers.trainer_utils import PredictionOutput
 
+from optimum.onnxruntime import ORTTrainer
 
-class QuestionAnsweringTrainer(Trainer):
+
+class QuestionAnsweringORTTrainer(ORTTrainer):
     def __init__(self, *args, eval_examples=None, post_process_function=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.eval_examples = eval_examples
         self.post_process_function = post_process_function
 
-    def evaluate(self, eval_dataset=None, eval_examples=None, ignore_keys=None, metric_key_prefix: str = "eval"):
+    def evaluate(
+        self,
+        eval_dataset=None,
+        eval_examples=None,
+        ignore_keys=None,
+        metric_key_prefix: str = "eval",
+    ):
         eval_dataset = self.eval_dataset if eval_dataset is None else eval_dataset
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
         eval_examples = self.eval_examples if eval_examples is None else eval_examples
@@ -34,7 +40,7 @@ class QuestionAnsweringTrainer(Trainer):
         # Temporarily disable metric computation, we will do it in the loop here.
         compute_metrics = self.compute_metrics
         self.compute_metrics = None
-        eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
         try:
             output = eval_loop(
                 eval_dataloader,
@@ -63,13 +69,19 @@ class QuestionAnsweringTrainer(Trainer):
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, metrics)
         return metrics
 
-    def predict(self, predict_dataset, predict_examples, ignore_keys=None, metric_key_prefix: str = "test"):
+    def predict(
+        self,
+        predict_dataset,
+        predict_examples,
+        ignore_keys=None,
+        metric_key_prefix: str = "test",
+    ):
         predict_dataloader = self.get_test_dataloader(predict_dataset)
 
         # Temporarily disable metric computation, we will do it in the loop here.
         compute_metrics = self.compute_metrics
         self.compute_metrics = None
-        eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
         try:
             output = eval_loop(
                 predict_dataloader,
