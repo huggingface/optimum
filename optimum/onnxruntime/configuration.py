@@ -73,10 +73,10 @@ class CalibrationConfig:
             use_external_data_format=use_external_data_format,
             augmented_model_path=augmented_model_name,
             extra_options={
+                "symmetric": force_symmetric_range,
                 "num_bins": self.num_bins,
                 "num_quantized_bins": self.num_quantized_bins,
                 "percentiles": self.percentiles,
-                "symmetric": force_symmetric_range,
                 "moving_average": self.moving_average,
                 "averaging_constant": self.averaging_constant,
             },
@@ -113,7 +113,11 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def entropy(dataset: Dataset, num_bins: int = 128, num_quantized_bins: int = 128) -> CalibrationConfig:
+    def entropy(
+        dataset: Dataset,
+        num_bins: int = 128,
+        num_quantized_bins: int = 128,
+    ) -> CalibrationConfig:
         """
 
         :param dataset:
@@ -141,11 +145,17 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def percentiles(dataset: Dataset, num_bins: int = 2048, percentiles: float = 99.999) -> CalibrationConfig:
+    def percentiles(
+        dataset: Dataset,
+        num_bins: int = 2048,
+        num_quantized_bins: int = 128,
+        percentiles: float = 99.999
+    ) -> CalibrationConfig:
         """
 
         :param dataset:
         :param num_bins:
+        :param num_quantized_bins:
         :param percentiles:
         :return:
         """
@@ -156,8 +166,11 @@ class AutoCalibrationConfig:
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
 
+        if num_quantized_bins <= 0:
+            raise ValueError(f"Invalid value num_quantized_bins ({num_quantized_bins}) should be >= 1")
+
         if not 0 <= percentiles <= 100:
-            raise ValueError(f"Invalid value percentiles ({percentiles}) should be within [0, 100]")
+            raise ValueError(f"Invalid value percentiles ({percentiles}) should be within [0; 100.[")
 
         return CalibrationConfig(
             dataset_name=dataset.info.builder_name,
@@ -166,7 +179,8 @@ class AutoCalibrationConfig:
             dataset_num_samples=dataset.num_rows,
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
-            percentiles=percentiles,
+            num_quantized_bins=num_quantized_bins,
+            percentiles=percentiles
         )
 
 
@@ -307,9 +321,9 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=False,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
+            operators_to_quantize=operators_to_quantize
         )
 
     @staticmethod
@@ -360,9 +374,9 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=reduce_range,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
+            operators_to_quantize=operators_to_quantize
         )
 
     @staticmethod
@@ -413,8 +427,8 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=reduce_range,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
         )
 
@@ -467,8 +481,8 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=False,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
         )
 
@@ -494,8 +508,8 @@ class AutoQuantizationConfig:
             weights_symmetric=True,  # TRT only supports symmetric
             per_channel=per_channel,
             reduce_range=False,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
             qdq_add_pair_to_weight=True,
             qdq_dedicated_pair=True,
