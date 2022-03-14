@@ -14,13 +14,9 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
-from packaging.version import parse
-from transformers import PreTrainedTokenizer, TensorType, is_torch_available
-from transformers.file_utils import is_torch_onnx_dict_inputs_support_available
-from transformers.modeling_utils import PreTrainedModel
-from transformers.onnx.config import OnnxConfig
-from transformers.onnx.convert import ensure_model_and_config_inputs_match
 from transformers.utils import logging
+
+import onnx
 
 
 logger = logging.get_logger(__name__)
@@ -28,3 +24,28 @@ logger = logging.get_logger(__name__)
 
 def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
+
+
+def fix_atenops_to_gather(model_path):
+    # Fix broken ATenOp nodes back to Gather nodes.
+    model = onnx.load(model_path)
+    onnx.checker.check_model(model)
+
+    nodes = model.graph.node
+
+    for node in nodes:
+        if node.op_type == "ATenOp":
+            logger.info(f"----Start fixing node: {node.name}----")
+            op_num = node.name.split("_")[-1]
+            new_node = onnx.helper.make_node(
+                "Gather",
+                name="Gather_" + op_num,
+                inputs=[node.input[0], node.input[1]],
+                outputs=node.output,
+            )
+
+            model.graph.node.remove(node)
+            model.graph.node.insert(int(op_num), new_node)
+
+    onnx.checker.check_model(model)
+    onnx.save(model, model_path)
