@@ -38,6 +38,8 @@ LOGGER = logging.getLogger(__name__)
 class ORTCalibrationDataReader(CalibrationDataReader):
     """ """
 
+    __slots__ = ["batch_size", "dataset", "_dataset_iter"]
+
     def __init__(self, dataset: Dataset, batch_size: int = 1):
         if dataset is None:
             raise ValueError("Provided dataset is None.")
@@ -208,7 +210,8 @@ class ORTQuantizer(ABC):
             self._calibrator.set_execution_providers(execution_providers=["CUDAExecutionProvider"])
 
         LOGGER.info("Collecting tensors statistics...")
-        self._calibrator.collect_data(ORTCalibrationDataReader(dataset, batch_size))
+        reader = ORTCalibrationDataReader(dataset, batch_size)
+        self._calibrator.collect_data(reader)
 
     def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
         """
@@ -271,20 +274,17 @@ class ORTQuantizer(ABC):
 
             # Add MatMul and Add operator
             quantization_config.operators_to_quantize.remove(ORTQuantizableOperator.FullyConnected)
-            quantization_config.operators_to_quantize += ["MatMul", "Add"]
+            quantization_config.operators_to_quantize += [
+                ORTQuantizableOperator.MatMul,
+                ORTQuantizableOperator.Add
+            ]
 
             # Find fully connected nodes
             fc_nodes = find_fully_connected_layers_nodes(OnnxModel(load(onnx_model_path)))
-            fc_nodes_names = [
-                node.name
-                for nodes in fc_nodes
-                for node in nodes
-                # for input in node.input
-                # if input in calibration_tensors_range
-            ]
+            fc_nodes_names = [node.name for nodes in fc_nodes for node in nodes]
 
             if len(fc_nodes_names) != 2 * len(fc_nodes):
-                raise Error(
+                raise AssertionError(
                     "Number of fully-connected nodes doesn't match -> "
                     f"awaiting: {2 * len(fc_nodes)}, got: {len(fc_nodes_names)}"
                 )
@@ -309,6 +309,12 @@ class ORTQuantizer(ABC):
                 operator.value if isinstance(operator, ORTQuantizableOperator) else operator
                 for operator in quantization_config.operators_to_quantize
             ],
+            extra_options={
+                "WeightSymmetric": quantization_config.weights_symmetric,
+                "ActivationSymmetric": quantization_config.activations_symmetric,
+                "EnableSubgraph": False,
+                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric
+            }
         )
 
         LOGGER.info("Quantizing model...")
