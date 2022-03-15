@@ -29,16 +29,16 @@ logger = logging.getLogger(__name__)
 
 
 def postprocess_qa_predictions(
-        examples,
-        features,
-        predictions: Tuple[np.ndarray, np.ndarray],
-        version_2_with_negative: bool = False,
-        n_best_size: int = 20,
-        max_answer_length: int = 30,
-        null_score_diff_threshold: float = 0.0,
-        output_dir: Optional[str] = None,
-        prefix: Optional[str] = None,
-        log_level: Optional[int] = logging.WARNING,
+    examples,
+    features,
+    predictions: Tuple[np.ndarray, np.ndarray],
+    version_2_with_negative: bool = False,
+    n_best_size: int = 20,
+    max_answer_length: int = 30,
+    null_score_diff_threshold: float = 0.0,
+    output_dir: Optional[str] = None,
+    prefix: Optional[str] = None,
+    log_level: Optional[int] = logging.WARNING,
 ):
     """
     Post-processes the predictions of a question-answering model to convert them to answers that are substrings of the
@@ -134,10 +134,10 @@ def postprocess_qa_predictions(
                     # Don't consider out-of-scope answers, either because the indices are out of bounds or correspond
                     # to part of the input_ids that are not in the context.
                     if (
-                            start_index >= len(offset_mapping)
-                            or end_index >= len(offset_mapping)
-                            or offset_mapping[start_index] is None
-                            or offset_mapping[end_index] is None
+                        start_index >= len(offset_mapping)
+                        or end_index >= len(offset_mapping)
+                        or offset_mapping[start_index] is None
+                        or offset_mapping[end_index] is None
                     ):
                         continue
                     # Don't consider answers with a length that is either < 0 or > max_answer_length.
@@ -243,17 +243,17 @@ def postprocess_qa_predictions(
 
 
 def postprocess_qa_predictions_with_beam_search(
-        examples,
-        features,
-        predictions: Tuple[np.ndarray, np.ndarray],
-        version_2_with_negative: bool = False,
-        n_best_size: int = 20,
-        max_answer_length: int = 30,
-        start_n_top: int = 5,
-        end_n_top: int = 5,
-        output_dir: Optional[str] = None,
-        prefix: Optional[str] = None,
-        log_level: Optional[int] = logging.WARNING,
+    examples,
+    features,
+    predictions: Tuple[np.ndarray, np.ndarray],
+    version_2_with_negative: bool = False,
+    n_best_size: int = 20,
+    max_answer_length: int = 30,
+    start_n_top: int = 5,
+    end_n_top: int = 5,
+    output_dir: Optional[str] = None,
+    prefix: Optional[str] = None,
+    log_level: Optional[int] = logging.WARNING,
 ):
     """
     Post-processes the predictions of a question-answering model with beam search to convert them to answers that are substrings of the
@@ -344,10 +344,10 @@ def postprocess_qa_predictions_with_beam_search(
                     # Don't consider out-of-scope answers (last part of the test should be unnecessary because of the
                     # p_mask but let's not take any risk)
                     if (
-                            start_index >= len(offset_mapping)
-                            or end_index >= len(offset_mapping)
-                            or offset_mapping[start_index] is None
-                            or offset_mapping[end_index] is None
+                        start_index >= len(offset_mapping)
+                        or end_index >= len(offset_mapping)
+                        or offset_mapping[start_index] is None
+                        or offset_mapping[end_index] is None
                     ):
                         continue
                     # Don't consider answers with a length negative or > max_answer_length.
