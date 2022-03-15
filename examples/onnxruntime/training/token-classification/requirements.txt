@@ -1,0 +1,10 @@
+datasets >= 1.18.3
+scipy
+scikit-learn
+sentencepiece != 0.1.92
+seqeval
+torch >= 1.8.1
+seqeval
+sentencepiece != 0.1.92
+torch >= 1.9
+torch-ort
