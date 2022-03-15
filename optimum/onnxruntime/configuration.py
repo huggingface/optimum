@@ -20,7 +20,7 @@ from datasets import Dataset
 from packaging.version import Version, parse
 
 from onnxruntime import GraphOptimizationLevel
-from onnxruntime import version as ort_version
+from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator
 from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORTQuantizableOperator
@@ -66,21 +66,23 @@ class CalibrationConfig:
             for operator in operators_to_calibrate
         ]
 
-        return create_calibrator(
-            model=onnx_model_path,
-            op_types_to_calibrate=operators_to_calibrate,
-            calibrate_method=self.method,
-            use_external_data_format=use_external_data_format,
-            augmented_model_path=augmented_model_name,
-            extra_options={
+        kwargs = {
+            "model": onnx_model_path,
+            "op_types_to_calibrate": operators_to_calibrate,
+            "calibrate_method": self.method,
+            "augmented_model_path": augmented_model_name,
+        }
+        if parse(ort_version) > Version("1.10.0"):
+            kwargs["use_external_data_format"] = use_external_data_format
+            kwargs["extra_options"] = {
                 "symmetric": force_symmetric_range,
                 "num_bins": self.num_bins,
                 "num_quantized_bins": self.num_quantized_bins,
                 "percentiles": self.percentiles,
                 "moving_average": self.moving_average,
                 "averaging_constant": self.averaging_constant,
-            },
-        )
+            }
+        return create_calibrator(**kwargs)
 
 
 class AutoCalibrationConfig:
@@ -149,7 +151,7 @@ class AutoCalibrationConfig:
         dataset: Dataset,
         num_bins: int = 2048,
         num_quantized_bins: int = 128,
-        percentiles: float = 99.999
+        percentiles: float = 99.999,
     ) -> CalibrationConfig:
         """
 
@@ -180,7 +182,7 @@ class AutoCalibrationConfig:
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
             num_quantized_bins=num_quantized_bins,
-            percentiles=percentiles
+            percentiles=percentiles,
         )
 
 
@@ -323,7 +325,7 @@ class AutoQuantizationConfig:
             reduce_range=False,
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -376,7 +378,7 @@ class AutoQuantizationConfig:
             reduce_range=reduce_range,
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
