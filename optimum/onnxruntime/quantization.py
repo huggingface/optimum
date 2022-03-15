@@ -31,6 +31,7 @@ from onnxruntime.transformers.onnx_model import OnnxModel
 from optimum.onnxruntime import ORTQuantizableOperator
 from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
 
+from optimum.onnxruntime.walker import GraphWalker
 
 LOGGER = logging.getLogger(__name__)
 
@@ -232,6 +233,7 @@ class ORTQuantizer(ABC):
         quantization_config: QuantizationConfig,
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
+        walker: Optional[GraphWalker] = None
     ) -> Path:
         """
 
@@ -240,6 +242,7 @@ class ORTQuantizer(ABC):
         :param quantization_config:
         :param calibration_tensors_range:
         :param use_external_data_format:
+        :param walker:
         :return:
         """
         if not isinstance(onnx_model_path, Path):
@@ -266,6 +269,16 @@ class ORTQuantizer(ABC):
         LOGGER.info(
             f"Creating {'dynamic' if quantization_config.is_static else 'static'} quantizer: {quantization_config}"
         )
+
+        if walker is not None:
+            LOGGER.info("GraphWalker detected, collecting nodes to include/exclude")
+            nodes_to_quantize, nodes_to_exclude = walker.collect_quantization()
+
+            nodes_to_quantize.update(quantization_config.nodes_to_quantize)
+            nodes_to_exclude.update(quantization_config.nodes_to_exclude)
+
+            quantization_config.nodes_to_quantize = nodes_to_quantize
+            quantization_config.nodes_to_exclude = nodes_to_exclude
 
         onnx_model = onnx.load(onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer

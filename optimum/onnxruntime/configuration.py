@@ -164,7 +164,7 @@ class QuantizationConfig:
     weights_symmetric: bool = True
     per_channel: bool = False
     reduce_range: bool = False
-    nodes_to_quantize: List[NodeName] = None
+    nodes_to_quantize: List[NodeName] = field(default_factory=list)
     nodes_to_exclude: List[NodeName] = field(default_factory=list)
     operators_to_quantize: List[NodeType] = field(default_factory=list)
     qdq_add_pair_to_weight: bool = False
