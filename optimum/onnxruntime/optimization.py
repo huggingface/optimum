@@ -286,10 +286,10 @@ class ORTOptimizer:
             model_type,
             num_heads,
             hidden_size,
-            opt_level=self.ort_config.opt_level,
+            opt_level=self.ort_config.optimization.optimization_level,
             optimization_options=optimization_options,
-            use_gpu=self.ort_config.use_gpu,
-            only_onnxruntime=self.ort_config.only_onnxruntime,
+            use_gpu=self.ort_config.optimization.optimize_for_gpu,
+            only_onnxruntime=self.ort_config.optimization.optimize_with_onnxruntime_only,
         )
         optimizer.save_model_to_file(self.optim_model_path.as_posix(), self.ort_config.use_external_data_format)
 
@@ -353,7 +353,7 @@ class ORTOptimizer:
                 f"There are {count_nodes_onnx} nodes before optimization and {count_nodes_optim} nodes after. "
                 f"The number of nodes removed is {count_nodes_onnx - count_nodes_optim}."
             )
-            if self.ort_config.opt_level and self.ort_config.opt_level > 1:
+            if self.ort_config.optimization.optimization_level and self.ort_config.optimization.optimization_level > 1:
                 # Extended fusion statistics
                 extended_fusion_statistic = optim_model.get_fused_operator_statistics()
                 logger.info("Complex node fusions:\n", extended_fusion_statistic)
