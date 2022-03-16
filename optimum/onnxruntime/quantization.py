@@ -224,7 +224,12 @@ class ORTQuantizer(ABC):
             )
 
         LOGGER.info("Computing calibration ranges")
-        return self._calibrator.compute_range()
+        ranges = self._calibrator.compute_range()
+
+        # Exclude invalid quantization ranges values
+        filtered_ranges = {k: v for k, v in ranges.items() if abs(v[0]) != float('inf') and abs(v[1]) != float('inf')}
+
+        return filtered_ranges
 
     def export(
         self,
