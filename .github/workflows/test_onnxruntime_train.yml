@@ -1,13 +1,9 @@
 name: ONNX Runtime / Test ORTTrainer
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  # workflow_dispatch:
-  # schedule:
-  #   - cron: 0 7 * * * #every day at 7 am
+  workflow_dispatch:
+  schedule:
+    - cron: 0 7 * * * #every day at 7 am
 
 jobs:
   start-runner:
