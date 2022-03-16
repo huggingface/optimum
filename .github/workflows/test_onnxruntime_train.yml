@@ -1,9 +1,13 @@
 name: ONNX Runtime / Test ORTTrainer
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: 0 7 * * * #every day at 7 am
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # workflow_dispatch:
+  # schedule:
+  #   - cron: 0 7 * * * #every day at 7 am
 
 jobs:
   start-runner:
@@ -52,7 +56,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Build Image
-        working-directory: examples/onnxruntime/pytorch/docker
+        working-directory: examples/onnxruntime/training/docker
         run: |
             docker build -f Dockerfile-cu10  -t ort/cu10 .
       - name: Run Test
