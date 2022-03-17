@@ -131,6 +131,7 @@ ranges = quantizer.fit(
     dataset=calibration_dataset,
     calibration_config=calibration_config,
     onnx_model_path="model.onnx",
+    operators_to_quantize=qconfig.operators_to_quantize,
 )
 # Quantize the same way we did for dynamic quantization!
 quantizer.export(
