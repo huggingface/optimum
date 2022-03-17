@@ -11,4 +11,12 @@
 - sections:
   - local: intel/configuration
     title: Configuration
+  - local: intel/optimization
+    title: Optimization
+  - local: intel/quantization
+    title: Quantization
+  - local: intel/pruning
+    title: Pruning
+  - local: intel/trainer
+    title: Trainer
   title: Intel Neural Compressor
