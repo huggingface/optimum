@@ -3,3 +3,12 @@
     title: 🤗 Optimum
   - local: quickstart
     title: Quickstart
+  title: Get started
+- sections:
+  - local: onnxruntime/configuration
+    title: Configuration
+  title: ONNX Runtime
+- sections:
+  - local: intel/configuration
+    title: Configuration
+  title: Intel Neural Compressor
