@@ -12,7 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -555,9 +556,9 @@ class ORTConfig(BaseConfig):
             ONNX opset version to export the model with.
         use_external_data_format (`bool`, `optional`, defaults to `False`):
             Allow exporting model >= than 2Gb.
-        optimization (`OptimizationConfig`, `optional`, defaults to None):
+        optimization_config (`OptimizationConfig`, `optional`, defaults to None):
             Specify a configuration to optimize ONNX Runtime model
-        quantization (`QuantizationConfig`, `optional`, defaults to None):
+        quantization_config (`QuantizationConfig`, `optional`, defaults to None):
             Specify a configuration to quantize ONNX Runtime model
     """
 
@@ -569,11 +570,24 @@ class ORTConfig(BaseConfig):
         opset: Optional[int] = None,
         use_external_data_format: bool = False,
         optimization_config: Optional[OptimizationConfig] = None,
-        config: Optional[QuantizationConfig] = None,
+        quantization_config: Optional[QuantizationConfig] = None,
     ):
         super().__init__()
         self.opset = opset
         self.use_external_data_format = use_external_data_format
+        self.optimization = self.dataclass_to_dict(optimization_config)
+        self.quantization = self.dataclass_to_dict(quantization_config)
 
-        self.optimization = optimization_config
-        self.quantization = config
+    @staticmethod
+    def dataclass_to_dict(config) -> dict:
+        new_config = {}
+        if config is None:
+            return new_config
+        for k, v in asdict(config).items():
+            if isinstance(v, Enum):
+                v = v.name
+            elif isinstance(v, list):
+                v = [elem.name if isinstance(elem, Enum) else elem for elem in v]
+            new_config[k] = v
+        return new_config
+
