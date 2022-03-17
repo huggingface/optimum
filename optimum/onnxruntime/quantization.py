@@ -297,7 +297,7 @@ class ORTQuantizer(ABC):
                 )
 
             # Add them to the nodes to quantize
-            quantization_config.nodes_to_quantize = fc_nodes_names
+            quantization_config.nodes_to_quantize = (quantization_config.nodes_to_quantize or []) + fc_nodes_names
 
         onnx_model = onnx.load(onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
