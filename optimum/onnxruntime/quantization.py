@@ -195,6 +195,13 @@ class ORTQuantizer(ABC):
 
             LOGGER.info(f"Exported model to ONNX at: {onnx_model_path.as_posix()}")
 
+        # Replace FullyConnected operator with MatMul and Add operators
+        if operators_to_quantize is not None and ORTQuantizableOperator.FullyConnected in operators_to_quantize:
+            operators_to_quantize = [
+                operator for operator in operators_to_quantize if operator != ORTQuantizableOperator.FullyConnected
+            ]
+            operators_to_quantize += [ORTQuantizableOperator.MatMul, ORTQuantizableOperator.Add]
+
         # If no calibrator, then create one
         if calibration_config.method is not None:
             LOGGER.info(f"Creating calibrator: {calibration_config.method}({calibration_config})")
