@@ -614,6 +614,7 @@ def main():
                 dataset=shard,
                 calibration_config=calibration_config,
                 onnx_model_path=model_path,
+                operators_to_quantize=qconfig.operators_to_quantize,
                 batch_size=optim_args.calibration_batch_size,
                 use_external_data_format=False,
             )
