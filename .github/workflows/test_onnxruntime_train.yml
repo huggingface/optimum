@@ -52,7 +52,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Build Image
-        working-directory: examples/onnxruntime/pytorch/docker
+        working-directory: examples/onnxruntime/training/docker
         run: |
             docker build -f Dockerfile-cu10  -t ort/cu10 .
       - name: Run Test
