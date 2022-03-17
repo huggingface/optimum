@@ -43,7 +43,7 @@ from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTModel, ORTQuantizableOperator
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig, ORTConfig
 from optimum.onnxruntime.quantization import ORTQuantizer, QuantFormat, QuantizationMode, QuantType
 
 
@@ -596,6 +596,11 @@ def main():
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
     )
+
+    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
+    ort_config = ORTConfig(opset=quantizer.opset, quantization_config=qconfig)
+    # Save the configuration
+    ort_config.save_pretrained(training_args.output_dir)
 
     # Evaluation
     if training_args.do_eval:
