@@ -7,6 +7,12 @@
 - sections:
   - local: onnxruntime/configuration
     title: Configuration
+  - local: onnxruntime/optimization
+    title: Optimization
+  - local: onnxruntime/quantization
+    title: Quantization
+  - local: onnxruntime/trainer
+    title: Trainer
   title: ONNX Runtime
 - sections:
   - local: intel/configuration
