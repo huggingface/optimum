@@ -55,7 +55,7 @@ jobs:
         run: |
           pip install git+https://github.com/huggingface/doc-builder
           cd optimum
-          pip install .[dev]
+          pip install .[dev,onnxruntime,intel]
           cd ..
 
       - name: Setup git
