@@ -188,6 +188,8 @@ class ORTQuantizer:
         config = AutoConfig.from_pretrained(model_name_or_path)
         if getattr(config, "pad_token_id", None) is None:
             config.pad_token_id = self.tokenizer.eos_token_id
+        if getattr(self.tokenizer, "pad_token_id", None) is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         model_class = FeaturesManager.get_model_class_for_feature(feature)
         self.model = model_class.from_pretrained(model_name_or_path, config=config, **model_kwargs)
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
