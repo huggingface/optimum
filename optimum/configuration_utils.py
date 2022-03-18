@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from packaging import version
 from transformers import PretrainedConfig
+from transformers import __version__ as transformers_version
 from transformers.file_utils import cached_path, get_list_of_files, hf_bucket_url, is_offline_mode, is_remote_url
 
 from .utils import logging
@@ -284,6 +285,7 @@ class BaseConfig(PretrainedConfig):
             output["model_type"] = self.__class__.model_type
 
         # Transformers version when serializing the model
+        output["transformers_version"] = transformers_version
         output["optimum_version"] = __version__
 
         self.dict_torch_dtype_to_str(output)
