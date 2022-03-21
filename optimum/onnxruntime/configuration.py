@@ -39,7 +39,9 @@ class CalibrationConfig:
     method: CalibrationMethod
     num_bins: Optional[int] = None
     num_quantized_bins: Optional[int] = None
-    percentiles: Optional[float] = None
+    percentile: Optional[float] = None
+    moving_average: Optional[bool] = None
+    averaging_constant: Optional[float] = None
 
     def create_calibrator(
         self,
@@ -56,37 +58,50 @@ class CalibrationConfig:
             use_external_data_format=use_external_data_format,
             augmented_model_path=augmented_model_name,
             extra_options={
+                "symmetric": force_symmetric_range,
                 "num_bins": self.num_bins,
                 "num_quantized_bins": self.num_quantized_bins,
-                "percentiles": self.percentiles,
-                "symmetric": force_symmetric_range,
+                "percentile": self.percentile,
+                "moving_average": self.moving_average,
+                "averaging_constant": self.averaging_constant,
             },
         )
 
 
 class AutoCalibrationConfig:
     @staticmethod
-    def minmax(
-        dataset: Dataset,
-    ) -> CalibrationConfig:
+    def minmax(dataset: Dataset, moving_average: bool = False, averaging_constant: float = 0.01) -> CalibrationConfig:
         """
 
         :param dataset: The dataset to use to calibrate the model
+        :param moving_average:
+        :param averaging_constant:
         :return:
         """
+        # if moving_average and parse(ort_version) < Version("1.10.99"):
+        #     raise NotImplementedError(
+        #         "MinMax calibration method using the moving average for the activations quantization parameters "
+        #         "computation is only implemented for onnxruntime >= 1.11.0."
+        #     )
+
+        if moving_average and not 0 <= averaging_constant <= 1:
+            raise ValueError(f"Invalid averaging constant value ({averaging_constant}) should be within [0, 1]")
+
         return CalibrationConfig(
             dataset_name=dataset.info.builder_name,
             dataset_config_name=dataset.info.config_name,
             dataset_split=str(dataset.split),
             dataset_num_samples=dataset.num_rows,
             method=CalibrationMethod.MinMax,
+            moving_average=moving_average,
+            averaging_constant=averaging_constant,
         )
 
     @staticmethod
     def entropy(
         dataset: Dataset,
         num_bins: int = 128,
-        num_quantized_bins: int = 2048,
+        num_quantized_bins: int = 128,
     ) -> CalibrationConfig:
         """
 
@@ -117,21 +132,21 @@ class AutoCalibrationConfig:
     @staticmethod
     def percentiles(
         dataset: Dataset,
-        num_bins: int = 128,
-        num_quantized_bins: int = 2048,
-        percentiles: float = 99.999
+        num_bins: int = 2048,
+        num_quantized_bins: int = 128,
+        percentile: float = 99.999
     ) -> CalibrationConfig:
         """
 
         :param dataset:
         :param num_bins:
         :param num_quantized_bins:
-        :param percentiles:
+        :param percentile:
         :return:
         """
 
-        # if parse(ort_version) < Version("1.11.0"):
-        #     raise NotImplementedError("percentiles calibration method is only implemented for onnxruntime >= 1.11.0")
+        # if parse(ort_version) <= Version("1.10.99"):
+        #     raise NotImplementedError("percentiles calibration method is only implemented for onnxruntime > 1.10.0")
 
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
@@ -139,8 +154,8 @@ class AutoCalibrationConfig:
         if num_quantized_bins <= 0:
             raise ValueError(f"Invalid value num_quantized_bins ({num_quantized_bins}) should be >= 1")
 
-        if not 0 <= percentiles <= 100:
-            raise ValueError(f"Invalid value percentiles ({percentiles}) should be within [0; 100.[")
+        if not 0 <= percentile <= 100:
+            raise ValueError(f"Invalid value percentile ({percentile}) should be within [0; 100.[")
 
         return CalibrationConfig(
             dataset_name=dataset.info.builder_name,
@@ -150,7 +165,7 @@ class AutoCalibrationConfig:
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
             num_quantized_bins=num_quantized_bins,
-            percentiles=percentiles,
+            percentile=percentile
         )
 
 
@@ -158,7 +173,7 @@ class AutoCalibrationConfig:
 class QuantizationConfig:
     format: QuantFormat.QDQ
     mode: QuantizationMode = QuantizationMode.QLinearOps
-    activations_dtype: QuantType = QuantType.QInt8
+    activations_dtype: QuantType = QuantType.QUInt8
     activations_symmetric: bool = False
     weights_dtype: QuantType = QuantType.QInt8
     weights_symmetric: bool = True
@@ -173,6 +188,10 @@ class QuantizationConfig:
         default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
     )
 
+    def __post_init__(self):
+        ensure_valid_mode_or_raise(self.is_static, self.mode)
+        ensure_valid_data_type_or_raise(self.is_static, self.activations_dtype, self.weights_dtype)
+
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
         return (
@@ -180,6 +199,10 @@ class QuantizationConfig:
             f"/"
             f"{'s8' if weights_dtype == QuantType.QInt8 else 'u8'}"
         )
+
+    @property
+    def use_symmetric_calibration(self) -> bool:
+        return self.activations_symmetric and self.weights_symmetric
 
     def __str__(self):
         return (
@@ -198,6 +221,30 @@ def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: Quantization
             "and "
             "mode = QuantizationMode.QLinearOps. "
             "OnnxRuntime dynamic quantization requires mode = QuantizationMode.IntegerOps"
+        )
+
+
+def ensure_valid_data_type_or_raise(
+    use_static_quantization: bool, activations_dtype: QuantType, weights_dtype: QuantType
+):
+    if not use_static_quantization and activations_dtype == QuantType.QInt8:
+        raise ValueError(
+            "Invalid combination of "
+            "use_static_quantization = False "
+            "and "
+            "activations_dtype = QuantType.QInt8. "
+            "OnnxRuntime dynamic quantization requires activations_dtype = QuantType.QUInt8"
+        )
+
+    if use_static_quantization and activations_dtype == QuantType.QInt8 and weights_dtype == QuantType.QUInt8:
+        raise ValueError(
+            "Invalid combination of "
+            "use_static_quantization = True, "
+            "activations_dtype = QuantType.QInt8 "
+            "and "
+            "weights_dtype = QuantType.QUInt8."
+            "OnnxRuntime static quantization does not support "
+            "activations_dtype = QuantType.QInt8 with weights_dtype = QuantType.QUInt8."
         )
 
 
@@ -257,6 +304,7 @@ class AutoQuantizationConfig:
         # u8/s8 is faster (than u8/u8) on lower-end ARM64 and identical on higher-end ARM64,
         # so let's use u8/s8 by default
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -265,9 +313,9 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=False,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
+            operators_to_quantize=operators_to_quantize
         )
 
     @staticmethod
@@ -310,6 +358,7 @@ class AutoQuantizationConfig:
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -318,9 +367,9 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=reduce_range,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
-            operators_to_quantize=operators_to_quantize,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
+            operators_to_quantize=operators_to_quantize
         )
 
     @staticmethod
@@ -363,6 +412,7 @@ class AutoQuantizationConfig:
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -371,8 +421,8 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=reduce_range,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
         )
 
@@ -417,6 +467,7 @@ class AutoQuantizationConfig:
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QUInt8,
@@ -425,8 +476,8 @@ class AutoQuantizationConfig:
             weights_symmetric=use_symmetric_weights,
             per_channel=per_channel,
             reduce_range=False,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
         )
 
@@ -444,6 +495,7 @@ class AutoQuantizationConfig:
         format, mode = default_quantization_parameters(is_static, format, mode)
 
         return QuantizationConfig(
+            is_static=is_static,
             format=format,
             mode=mode,
             activations_dtype=QuantType.QInt8,
@@ -452,8 +504,8 @@ class AutoQuantizationConfig:
             weights_symmetric=True,  # TRT only supports symmetric
             per_channel=per_channel,
             reduce_range=False,
-            nodes_to_quantize=nodes_to_quantize,
-            nodes_to_exclude=nodes_to_exclude,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
             qdq_add_pair_to_weight=True,
             qdq_dedicated_pair=True,
