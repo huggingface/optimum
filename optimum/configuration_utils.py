@@ -126,9 +126,9 @@ class BaseConfig(PretrainedConfig):
 
         # Defaults to FULL_CONFIGURATION_FILE and then try to look at some newer versions.
         configuration_file = cls.FULL_CONFIGURATION_FILE
-        transformers_version = version.parse(__version__)
+        optimum_version = version.parse(__version__)
         for v in available_versions:
-            if version.parse(v) <= transformers_version:
+            if version.parse(v) <= optimum_version:
                 configuration_file = configuration_files_map[v]
             else:
                 # No point going further since the versions are sorted.
