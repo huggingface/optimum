@@ -15,7 +15,7 @@ from abc import abstractmethod, ABC
 from logging import getLogger
 from os import PathLike
 from pathlib import Path
-from typing import Union, Set, Tuple
+from typing import Optional, Set, Tuple, Union
 
 from onnx import load_model, ModelProto
 from onnxruntime.transformers.onnx_model import OnnxModel
@@ -24,17 +24,17 @@ from onnxruntime.transformers.onnx_model import OnnxModel
 LOGGER = getLogger("GraphWalker")
 
 
-class WalkerPass(ABC):
+class PreprocessorPass(ABC):
 
     def __init__(self):
         self._logger = LOGGER
 
     @abstractmethod
-    def __call__(self, graph: ModelProto, model: OnnxModel):
+    def __call__(self, graph: ModelProto, model: OnnxModel) -> Tuple[Optional[Set[str]], Optional[Set[str]]]:
         raise NotImplementedError()
 
 
-class GraphWalker:
+class QuantizationPreprocessor:
     __slots__ = ("_graph", "_model", "_passes")
 
     def __init__(self, model_or_path: Union[str, PathLike, Path, bytes]):
@@ -45,17 +45,20 @@ class GraphWalker:
     def from_config(self, config):
         pass
 
-    def register_pass(self, target: WalkerPass):
+    def register_pass(self, target: PreprocessorPass):
         if target not in self._passes:
             self._passes.append(target)
 
-    def collect_quantization(self) -> Tuple[Set[str], Set[str]]:
+    def collect(self) -> Tuple[Set[str], Set[str]]:
         global_nodes_to_quantize, global_nodes_to_exclude = set(), set()
 
         for walking_pass in self._passes:
             nodes_to_quantize, nodes_to_exclude = walking_pass(self._graph, self._model)
 
-            global_nodes_to_quantize.update(nodes_to_quantize)
-            global_nodes_to_exclude.update(nodes_to_exclude)
+            if nodes_to_quantize is not None:
+                global_nodes_to_quantize.update(nodes_to_quantize)
+
+            if nodes_to_exclude is not None:
+                global_nodes_to_exclude.update(nodes_to_exclude)
 
         return global_nodes_to_quantize, global_nodes_to_exclude

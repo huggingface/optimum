@@ -27,11 +27,10 @@ from transformers.onnx.features import FeaturesManager
 import onnx
 from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
-from onnxruntime.transformers.onnx_model import OnnxModel
 from optimum.onnxruntime import ORTQuantizableOperator
 from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
 
-from optimum.onnxruntime.walker import GraphWalker
+from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -132,6 +131,7 @@ class ORTQuantizer(ABC):
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
+        force_symmetric_range: bool = False
     ) -> Dict[str, Tuple[float, float]]:
         """
 
@@ -143,6 +143,7 @@ class ORTQuantizer(ABC):
         :param batch_size:
         :param use_external_data_format:
         :param use_gpu:
+        :param force_symmetric_range:
         :return:
         """
         # If a dataset is provided, then we are in a static quantization mode
@@ -161,6 +162,7 @@ class ORTQuantizer(ABC):
             batch_size,
             use_external_data_format,
             use_gpu,
+            force_symmetric_range
         )
         return self.compute_ranges()
 
@@ -174,6 +176,7 @@ class ORTQuantizer(ABC):
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
+        force_symmetric_range: bool = False
     ):
         """
 
@@ -185,6 +188,7 @@ class ORTQuantizer(ABC):
         :param batch_size:
         :param use_external_data_format:
         :param use_gpu:
+        :param force_symmetric_range
         :return:
         """
         if not isinstance(onnx_model_path, Path):
@@ -204,14 +208,15 @@ class ORTQuantizer(ABC):
                 use_external_data_format=use_external_data_format,
                 augmented_model_name=onnx_augmented_model_name,
                 operators_to_quantize=operators_to_quantize,
-                force_symmetric_range=False,
+                force_symmetric_range=force_symmetric_range,
             )
 
         if use_gpu:
             self._calibrator.set_execution_providers(execution_providers=["CUDAExecutionProvider"])
 
         LOGGER.info("Collecting tensors statistics...")
-        self._calibrator.collect_data(ORTCalibrationDataReader(dataset, batch_size))
+        reader = ORTCalibrationDataReader(dataset, batch_size)
+        self._calibrator.collect_data(reader)
 
     def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
         """
@@ -233,7 +238,7 @@ class ORTQuantizer(ABC):
         quantization_config: QuantizationConfig,
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
-        walker: Optional[GraphWalker] = None
+        preprocessor: Optional[QuantizationPreprocessor] = None
     ) -> Path:
         """
 
@@ -242,7 +247,7 @@ class ORTQuantizer(ABC):
         :param quantization_config:
         :param calibration_tensors_range:
         :param use_external_data_format:
-        :param walker:
+        :param preprocessor:
         :return:
         """
         if not isinstance(onnx_model_path, Path):
@@ -270,9 +275,9 @@ class ORTQuantizer(ABC):
             f"Creating {'dynamic' if quantization_config.is_static else 'static'} quantizer: {quantization_config}"
         )
 
-        if walker is not None:
-            LOGGER.info("GraphWalker detected, collecting nodes to include/exclude")
-            nodes_to_quantize, nodes_to_exclude = walker.collect_quantization()
+        if preprocessor is not None:
+            LOGGER.info("Preprocessor detected, collecting nodes to include/exclude")
+            nodes_to_quantize, nodes_to_exclude = preprocessor.collect()
 
             nodes_to_quantize.update(quantization_config.nodes_to_quantize)
             nodes_to_exclude.update(quantization_config.nodes_to_exclude)
@@ -301,8 +306,8 @@ class ORTQuantizer(ABC):
                 "WeightSymmetric": quantization_config.weights_symmetric,
                 "ActivationSymmetric": quantization_config.activations_symmetric,
                 "EnableSubgraph": False,
-                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric
-            },
+                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
+            }
         )
 
         LOGGER.info("Quantizing model...")
