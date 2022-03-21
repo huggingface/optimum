@@ -42,7 +42,7 @@ class BaseConfig(PretrainedConfig):
 
     @classmethod
     def _re_configuration_file(cls):
-        return re.compile(rf"{cls.FULL_CONFIGURATION_FILE}\.(.*)\.json")
+        return re.compile(rf"{cls.FULL_CONFIGURATION_FILE.split('.')[0]}(.*)\.json")
 
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
         """
