@@ -567,7 +567,6 @@ class ORTConfig(BaseConfig):
         super().__init__()
         self.opset = opset
         self.use_external_data_format = use_external_data_format
-
         self.optimization = self.dataclass_to_dict(optimization_config)
         self.quantization = self.dataclass_to_dict(quantization_config)
 

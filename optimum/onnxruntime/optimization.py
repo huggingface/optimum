@@ -18,7 +18,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 
-from transformers import AutoTokenizer, PretrainedConfig
+from transformers import AutoConfig, AutoTokenizer, PretrainedConfig
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 from transformers.utils import logging
@@ -28,7 +28,7 @@ from onnx import load_model
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import FusionOptions, get_fusion_statistics, optimize_model
 from optimum.onnxruntime.configuration import ORTConfig
-from optimum.onnxruntime.utils import generate_identified_filename
+from optimum.onnxruntime.utils import ORTConfigManager, generate_identified_filename
 
 
 logger = logging.get_logger(__name__)
@@ -40,64 +40,9 @@ class AttrDict(dict):
         self.__dict__ = self
 
 
-class OnnxConfigManager:
-    """
-    A class that notes down the attribute names of models in `huggingface/transformers/models`.
-
-    The required attribute names are for the number of attention heads `num_heads` and hidden size `hidden_size`.
-    It is possible to add customized model information with the `update_model` method.
-
-    Attributes:
-        __conf (`dict`):
-            The dictionary mapping each model type to a dictionary containing the model attribute names corresponding to
-            the number of attention heads and hidden size.
-    """
-
-    __conf = {
-        "bert": {"num_heads": "num_attention_heads", "hidden_size": "hidden_size"},
-        "distilbert": {"num_heads": "n_heads", "hidden_size": "hidden_size"},
-        "roberta": {"num_heads": "num_attention_heads", "hidden_size": "hidden_size"},
-        "bart": {"num_heads": "encoder_attention_heads", "hidden_size": "d_model"},
-        "gpt2": {"num_heads": "n_head", "hidden_size": "n_embd"},
-    }
-
-    @staticmethod
-    def get_num_heads(model_type: str) -> str:
-        default = "num_attention_heads"
-        try:
-            return OnnxConfigManager.__conf[model_type]["num_heads"]
-        except KeyError:
-            logger.warning(
-                f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set "
-                f"to the default value {default}."
-            )
-            return default
-
-    @staticmethod
-    def get_hidden_size(model_type: str) -> str:
-        default = "hidden_size"
-        try:
-            return OnnxConfigManager.__conf[model_type]["hidden_size"]
-        except KeyError:
-            logger.warning(
-                f"{model_type} undefined in the configuration, please define it with `update_model` or it will be set "
-                f"to the default value {default}."
-            )
-            return default
-
-    @staticmethod
-    def update_model(model_type: str, num_heads: str, hidden_size: str):
-        OnnxConfigManager.__conf[model_type] = {"num_heads": num_heads, "hidden_size": hidden_size}
-        logger.info(f"{model_type} is now defined in the configuration.")
-
-    @staticmethod
-    def check_supported_model(model_type: str) -> bool:
-        return model_type in OnnxConfigManager.__conf
-
-
 class ORTOptimizer:
     """
-    ORTOptimizer is a class for ONNX Runtime optimization of models in `huggingface/transformers/models`.
+    Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
     """
 
     def __init__(self, ort_config: Union[str, ORTConfig], **kwargs):
@@ -179,10 +124,15 @@ class ORTOptimizer:
         tokenizer_kwargs = copy.deepcopy(model_kwargs)
         output_path = Path(output_path)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
+        config = AutoConfig.from_pretrained(model_name_or_path)
+        if getattr(config, "pad_token_id", None) is None:
+            config.pad_token_id = self.tokenizer.eos_token_id
+        if getattr(self.tokenizer, "pad_token_id", None) is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         model_class = FeaturesManager.get_model_class_for_feature(feature)
-        self.model = model_class.from_pretrained(model_name_or_path, **model_kwargs)
+        self.model = model_class.from_pretrained(model_name_or_path, config=config, **model_kwargs)
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
-        self.onnx_config = model_onnx_config(self.model.config)
+        self.onnx_config = model_onnx_config(config)
         opset = self.onnx_config.default_onnx_opset if self.ort_config.opset is None else self.ort_config.opset
         _ = export(self.tokenizer, self.model, self.onnx_config, opset, output_path)
 
@@ -258,10 +208,10 @@ class ORTOptimizer:
             )
         self.optim_model_path = generate_identified_filename(self.onnx_model_path, "-optimized")
         model_type = getattr(config, "model_type")
-        onnx_config_defined = OnnxConfigManager.check_supported_model(model_type)
-        num_heads = getattr(config, OnnxConfigManager.get_num_heads(model_type)) if onnx_config_defined else 0
-        hidden_size = getattr(config, OnnxConfigManager.get_hidden_size(model_type)) if onnx_config_defined else 0
-        model_type = "bert" if "bert" in model_type else model_type
+        ORTConfigManager.check_supported_model_or_raise(model_type)
+        num_heads = getattr(config, ORTConfigManager.get_num_heads_name(model_type))
+        hidden_size = getattr(config, ORTConfigManager.get_hidden_size_name(model_type))
+        model_type = ORTConfigManager.get_model_ort_type(model_type)
 
         optimization_kwargs_default = [
             ("model_type", model_type),

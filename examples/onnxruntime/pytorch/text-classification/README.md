@@ -16,7 +16,7 @@ limitations under the License.
 
 # Text classification 
 
-## GLUE tasks
+## GLUE Tasks
 
 The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/text-classification/run_glue.py)
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
