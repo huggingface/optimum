@@ -1,3 +1,5 @@
 seqeval
 datasets >= 1.8.0
 torch >= 1.9
+onnx
+onnxruntime >= 1.9.0

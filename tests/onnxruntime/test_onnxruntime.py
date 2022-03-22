@@ -30,7 +30,7 @@ from optimum.onnxruntime.configuration import AutoCalibrationConfig, Optimizatio
 class TestORTOptimizer(unittest.TestCase):
     def test_optimize(self):
         model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
-        optimization_config = OptimizationConfig(optimization_level=1, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
         ort_config = ORTConfig(optimization_config=optimization_config)
         for model_name in model_names:
             with self.subTest(model_name=model_name):
