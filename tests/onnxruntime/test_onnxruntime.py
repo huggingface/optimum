@@ -23,7 +23,7 @@ from transformers import AutoTokenizer
 from transformers.onnx import validate_model_outputs
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTModel, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
+from optimum.onnxruntime import ORTOptimizer, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, OptimizationConfig, ORTConfig, QuantizationConfig
 
 
@@ -63,7 +63,7 @@ class TestORTQuantizer(unittest.TestCase):
             weights_dtype=QuantType.QInt8,
             per_channel=False,
             reduce_range=False,
-            operators_to_quantize=[ORTQuantizableOperator.FullyConnected],
+            operators_to_quantize=["MatMul"],
         )
 
         for model_name in model_names:
@@ -100,7 +100,7 @@ class TestORTQuantizer(unittest.TestCase):
             weights_dtype=QuantType.QInt8,
             per_channel=False,
             reduce_range=False,
-            operators_to_quantize=[ORTQuantizableOperator.FullyConnected],
+            operators_to_quantize=["MatMul"],
         )
 
         def preprocess_function(examples, tokenizer):
