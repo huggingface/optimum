@@ -23,7 +23,7 @@ import numpy
 import torch
 from datasets import Dataset, load_dataset
 from torch.utils.data import DataLoader, RandomSampler
-from transformers import AutoTokenizer, DataCollator, PretrainedConfig, default_data_collator
+from transformers import AutoConfig, AutoTokenizer, DataCollator, PretrainedConfig, default_data_collator
 from transformers.onnx import OnnxConfig, export
 from transformers.onnx.features import FeaturesManager
 
@@ -37,7 +37,7 @@ from onnxruntime.quantization import (
     quantize_static,
 )
 from optimum.onnxruntime.configuration import ORTConfig
-from optimum.onnxruntime.utils import generate_identified_filename
+from optimum.onnxruntime.utils import ORTConfigManager, generate_identified_filename
 
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,11 @@ class ORTQuantizer:
             ort_config = ORTConfig.from_pretrained(ort_config, **ort_config_kwargs)
         self.ort_config = ort_config
         self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
+        if self.quantization_approach == ORTQuantizationMode.DYNAMIC and ort_config.activation_type != "uint8":
+            raise ValueError(
+                f"The activations quantization data type was set to {ort_config.activation_type}. Dynamic quantization "
+                f"only supports the uint8 data type."
+            )
         self.activation_type = QuantType[Q_TYPE.get(ort_config.activation_type)]
         self.weight_type = QuantType[Q_TYPE.get(ort_config.weight_type)]
         self.quant_format = QuantFormat[Q_FORMAT.get(ort_config.quant_format)]
@@ -180,10 +185,15 @@ class ORTQuantizer:
         tokenizer_kwargs = copy.deepcopy(model_kwargs)
         output_path = Path(output_path)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
+        config = AutoConfig.from_pretrained(model_name_or_path)
+        if getattr(config, "pad_token_id", None) is None:
+            config.pad_token_id = self.tokenizer.eos_token_id
+        if getattr(self.tokenizer, "pad_token_id", None) is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         model_class = FeaturesManager.get_model_class_for_feature(feature)
-        self.model = model_class.from_pretrained(model_name_or_path, **model_kwargs)
+        self.model = model_class.from_pretrained(model_name_or_path, config=config, **model_kwargs)
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
-        self.onnx_config = model_onnx_config(self.model.config)
+        self.onnx_config = model_onnx_config(config)
         opset = self.onnx_config.default_onnx_opset if self.ort_config.opset is None else self.ort_config.opset
         _ = export(self.tokenizer, self.model, self.onnx_config, opset, output_path)
 
@@ -229,6 +239,7 @@ class ORTQuantizer:
             model_onnx_config = FeaturesManager._SUPPORTED_MODEL_TYPE[config.model_type][feature]
             self.onnx_config = model_onnx_config(config)
 
+        ORTConfigManager.check_supported_model_or_raise(self.onnx_config._config.model_type)
         q_model_path = generate_identified_filename(model_path, "-quantized")
         if self.quantization_approach == ORTQuantizationMode.DYNAMIC:
             quantize_dynamic(
@@ -236,7 +247,6 @@ class ORTQuantizer:
                 q_model_path,
                 per_channel=self.ort_config.per_channel,
                 reduce_range=self.ort_config.reduce_range,
-                activation_type=self.activation_type,
                 weight_type=self.weight_type,
                 op_types_to_quantize=self.ort_config.op_types_to_quantize,
                 nodes_to_quantize=self.ort_config.nodes_to_quantize,

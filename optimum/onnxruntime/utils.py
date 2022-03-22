@@ -22,6 +22,68 @@ import onnx
 logger = logging.get_logger(__name__)
 
 
+class ORTConfigManager:
+    """
+    A class that contains all the information needed by ONNX Runtime optimization for a given model type.
+
+    Attributes:
+        _conf (`Dict[str, tuple]`):
+            A dictionary mapping each supported model type to a tuple containing the number of attention heads
+            and the hidden size model config attribute names as well as the corresponding ONNX Runtime model type.
+    """
+
+    _conf = {
+        "bert": ("num_attention_heads", "hidden_size", "bert"),
+        "distilbert": ("n_heads", "hidden_size", "bert"),
+        "roberta": ("num_attention_heads", "hidden_size", "bert"),
+        "camembert": ("num_attention_heads", "hidden_size", "bert"),
+        "albert": ("num_attention_heads", "hidden_size", "bert"),
+        "bart": ("encoder_attention_heads", "d_model", "bart"),
+        "gpt2": ("n_head", "n_embd", "gpt2"),
+        "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
+    }
+
+    @classmethod
+    def get_num_heads_name(cls, model_type: str) -> str:
+        num_heads = "num_attention_heads"
+        try:
+            num_heads = cls._conf[model_type][0]
+        except KeyError:
+            logger.warning(
+                f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported. The default value to "
+                f"access the number of heads defined in the config is set to `{num_heads}`."
+            )
+        return num_heads
+
+    @classmethod
+    def get_hidden_size_name(cls, model_type: str) -> str:
+        hidden_size = "hidden_size"
+        try:
+            hidden_size = cls._conf[model_type][1]
+        except KeyError:
+            logger.warning(
+                f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported. The default value to "
+                f"access the hidden size defined in the config is set to `{hidden_size}`."
+            )
+        return hidden_size
+
+    @classmethod
+    def get_model_ort_type(cls, model_type: str) -> str:
+        try:
+            model_type = cls._conf[model_type][2]
+        except KeyError:
+            logger.warning(f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported.")
+        return model_type
+
+    @classmethod
+    def check_supported_model_or_raise(cls, model_type: str) -> bool:
+        if model_type not in cls._conf:
+            raise KeyError(
+                f"{model_type} model type is not supported yet. Only {list(cls._conf.keys())} are supported. "
+                f"If you want to support {model_type} please propose a PR or open up an issue."
+            )
+
+
 def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
 
