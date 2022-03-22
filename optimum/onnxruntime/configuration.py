@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset
+from packaging.version import Version, parse
 
 from onnxruntime import GraphOptimizationLevel
 from onnxruntime import __version__ as ort_version
