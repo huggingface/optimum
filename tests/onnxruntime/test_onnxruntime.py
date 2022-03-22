@@ -22,9 +22,9 @@ from pathlib import Path
 from transformers import AutoTokenizer
 from transformers.onnx import validate_model_outputs
 
-from optimum.onnxruntime import ORTModel, ORTOptimizer, ORTQuantizableOperator
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from optimum.onnxruntime import ORTModel, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, OptimizationConfig, ORTConfig, QuantizationConfig
-from optimum.onnxruntime.quantization import ORTQuantizer, QuantFormat, QuantizationMode, QuantType
 
 
 class TestORTOptimizer(unittest.TestCase):
@@ -37,7 +37,7 @@ class TestORTOptimizer(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
                     optim_model_path = output_dir.joinpath("model-optimized.onnx")
-                    optimizer = ORTOptimizer(ort_config)
+                    optimizer = ORTOptimizer(ort_config, optimization_config)
                     optimizer.fit(model_name, output_dir, feature="sequence-classification")
                     optimizer.get_optimize_details()
                     validate_model_outputs(
@@ -110,11 +110,9 @@ class TestORTQuantizer(unittest.TestCase):
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
-
                     model_path = output_dir.joinpath("model.onnx")
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
                     quantizer = ORTQuantizer.from_pretrained(model_name, feature="sequence-classification")
-
                     calibration_dataset = quantizer.get_calibration_dataset(
                         "glue",
                         dataset_config_name="sst2",
@@ -128,14 +126,12 @@ class TestORTQuantizer(unittest.TestCase):
                         calibration_config=calibration_config,
                         onnx_model_path=model_path,
                     )
-
                     quantizer.export(
                         onnx_model_path=model_path,
                         onnx_quantized_model_output_path=q8_model_path,
                         calibration_tensors_range=ranges,
                         quantization_config=qconfig,
                     )
-
                     validate_model_outputs(
                         quantizer._onnx_config,
                         quantizer.tokenizer,
