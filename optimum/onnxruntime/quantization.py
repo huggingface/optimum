@@ -352,5 +352,9 @@ class ORTQuantizer(ABC):
         else:
             processed_calib_dataset = calib_dataset
 
-        ignored_columns = list(set(processed_calib_dataset.column_names) - set(self._onnx_config.inputs.keys()))
-        return processed_calib_dataset.remove_columns(ignored_columns)
+        return self.clean_calibration_dataset(processed_calib_dataset)
+
+    def clean_calibration_dataset(self, dataset: Dataset) -> Dataset:
+        ignored_columns = list(set(dataset.column_names) - set(self._onnx_config.inputs.keys()))
+
+        return dataset.remove_columns(ignored_columns)
