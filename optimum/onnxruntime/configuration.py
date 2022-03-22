@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from datasets import Dataset
 
 from onnxruntime import GraphOptimizationLevel
+from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator
 from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORT_FULLY_CONNECTED_OPERATORS
@@ -51,21 +52,24 @@ class CalibrationConfig:
         force_symmetric_range: bool = False,
         augmented_model_name: str = "augmented_model.onnx",
     ) -> CalibraterBase:
-        return create_calibrator(
-            model=onnx_model_path,
-            op_types_to_calibrate=operators_to_quantize or [],
-            calibrate_method=self.method,
-            use_external_data_format=use_external_data_format,
-            augmented_model_path=augmented_model_name,
-            extra_options={
+
+        kwargs = {
+            "model": onnx_model_path,
+            "op_types_to_calibrate": operators_to_quantize or [],
+            "calibrate_method": self.method,
+            "augmented_model_path": augmented_model_name,
+        }
+        if parse(ort_version) > Version("1.10.0"):
+            kwargs["use_external_data_format"] = use_external_data_format
+            kwargs["extra_options"] = {
                 "symmetric": force_symmetric_range,
                 "num_bins": self.num_bins,
                 "num_quantized_bins": self.num_quantized_bins,
                 "percentile": self.percentile,
                 "moving_average": self.moving_average,
                 "averaging_constant": self.averaging_constant,
-            },
-        )
+            }
+        return create_calibrator(**kwargs)
 
 
 class AutoCalibrationConfig:
