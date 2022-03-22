@@ -134,14 +134,11 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def percentiles(
-        dataset: Dataset, num_bins: int = 2048, num_quantized_bins: int = 128, percentile: float = 99.999
-    ) -> CalibrationConfig:
+    def percentiles(dataset: Dataset, num_bins: int = 2048, percentile: float = 99.999) -> CalibrationConfig:
         """
 
         :param dataset:
         :param num_bins:
-        :param num_quantized_bins:
         :param percentile:
         :return:
         """
@@ -151,9 +148,6 @@ class AutoCalibrationConfig:
 
         if num_bins <= 0:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
-
-        if num_quantized_bins <= 0:
-            raise ValueError(f"Invalid value num_quantized_bins ({num_quantized_bins}) should be >= 1")
 
         if not 0 <= percentile <= 100:
             raise ValueError(f"Invalid value percentile ({percentile}) should be within [0; 100.[")
@@ -165,7 +159,6 @@ class AutoCalibrationConfig:
             dataset_num_samples=dataset.num_rows,
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
-            num_quantized_bins=num_quantized_bins,
             percentile=percentile,
         )
 
