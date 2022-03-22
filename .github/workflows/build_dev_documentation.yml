@@ -44,7 +44,7 @@ jobs:
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
-          git log | head
+          git log -5
           pip install -e .
           cd ..
 
