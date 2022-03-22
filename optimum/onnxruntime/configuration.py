@@ -165,6 +165,7 @@ class AutoCalibrationConfig:
 
 @dataclass
 class QuantizationConfig:
+    is_static: bool
     format: QuantFormat.QDQ
     mode: QuantizationMode = QuantizationMode.QLinearOps
     activations_dtype: QuantType = QuantType.QUInt8
