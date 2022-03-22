@@ -48,6 +48,7 @@ jobs:
           cd ..
 
           cd optimum
+          pip uninstall -y detectron2
           pip install .[dev,onnxruntime,intel]
           cd ..
 
