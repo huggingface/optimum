@@ -44,7 +44,6 @@ jobs:
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
-          git log -5
           pip install -e .
           cd ..
 
@@ -90,6 +89,9 @@ jobs:
         run: |
           cd doc-build-dev && git pull
           cd ../doc-builder
+          git log -5
+          doc-builder build optimum ../optimum/docs/source --build_dir test-docs --clean --version pr_$PR_NUMBER --html
+          ls test-docs
           doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build-dev --clean --version pr_$PR_NUMBER --html
 
       - name: Push to repositories
