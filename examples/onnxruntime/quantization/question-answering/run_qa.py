@@ -34,9 +34,9 @@ from transformers import AutoConfig, EvalPrediction, HfArgumentParser, PreTraine
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTModel, ORTQuantizableOperator
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from optimum.onnxruntime import ORTModel, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
-from optimum.onnxruntime.quantization import ORTQuantizer, QuantFormat, QuantizationMode, QuantType
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
 
@@ -124,13 +124,6 @@ class DataTrainingArguments:
             "help": "Whether to pad all samples to `max_seq_length`. "
             "If False, will pad the samples dynamically when batching to the maximum length in the batch (which can "
             "be faster on GPU but will be slower on TPU)."
-        },
-    )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
-            "value if set."
         },
     )
     max_eval_samples: Optional[int] = field(
@@ -241,22 +234,23 @@ class OptimizationArguments:
         default=8,
         metadata={"help": "The batch size for the calibration step."},
     )
-    calibration_histogram_percentiles: float = field(
+    calibration_histogram_percentile: float = field(
         default=99.999,
         metadata={"help": "The percentile used for the percentile calibration method."},
     )
-    moving_average: bool = field(
+    calibration_moving_average: bool = field(
         default=False,
         metadata={
             "help": "Whether to compute the moving average of the minimum and maximum values for the minmax "
             "calibration method."
         },
     )
-    moving_average_constant: float = field(
+    calibration_moving_average_constant: float = field(
         default=0.01,
         metadata={
             "help": "Constant smoothing factor to use when computing the moving average of the minimum and maximum "
-            "values. Effective only when the selected calibration method is minmax and `moving_average` is set to True."
+            "values. Effective only when the selected calibration method is minmax and `calibration_moving_average` is "
+            "set to True."
         },
     )
 
@@ -506,7 +500,6 @@ def main():
     apply_static_quantization = optim_args.quantization_approach == "static"
 
     # Create the quantization configuration containing all the quantization parameters
-    # TODO: make the instantiation of `QuantizationConfig` easier for the user
     qconfig = QuantizationConfig(
         is_static=apply_static_quantization,
         format=QuantFormat.QDQ if apply_static_quantization else QuantFormat.QOperator,
@@ -515,7 +508,7 @@ def main():
         weights_dtype=QuantType.QInt8,
         per_channel=optim_args.per_channel,
         reduce_range=optim_args.reduce_range,
-        operators_to_quantize=[ORTQuantizableOperator.FullyConnected],
+        operators_to_quantize=["MatMul"],
     )
 
     # Create the quantizer
@@ -554,7 +547,7 @@ def main():
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on validation dataset",
+            desc="Running tokenizer on the validation dataset",
         )
         if data_args.max_eval_samples is not None:
             # During Feature creation dataset samples might increase, we will select required samples again
@@ -568,15 +561,14 @@ def main():
             # We will select sample from whole data
             predict_examples = predict_examples.select(range(data_args.max_predict_samples))
         # Predict Feature Creation
-        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-            predict_dataset = predict_examples.map(
-                prepare_validation_features,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on prediction dataset",
-            )
+        predict_dataset = predict_examples.map(
+            partial(prepare_validation_features, tokenizer=quantizer.tokenizer),
+            batched=True,
+            num_proc=data_args.preprocessing_num_workers,
+            remove_columns=column_names,
+            load_from_cache_file=not data_args.overwrite_cache,
+            desc="Running tokenizer on the prediction dataset",
+        )
         if data_args.max_predict_samples is not None:
             # During Feature creation dataset samples might increase, we will select required samples again
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
@@ -592,13 +584,13 @@ def main():
         elif optim_args.calibration_method == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
                 calibration_dataset,
-                percentiles=optim_args.calibration_histogram_percentiles,
+                percentile=optim_args.calibration_histogram_percentile,
             )
         else:
             calibration_config = AutoCalibrationConfig.minmax(
                 calibration_dataset,
-                optim_args.moving_average,
-                optim_args.moving_average_constant,
+                optim_args.calibration_moving_average,
+                optim_args.calibration_moving_average_constant,
             )
 
         if not 1 <= optim_args.num_calibration_shards <= len(calibration_dataset):

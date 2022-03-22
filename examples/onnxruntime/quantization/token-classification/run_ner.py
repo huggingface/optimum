@@ -24,27 +24,21 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Optional
 
 import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset, load_metric
-from transformers import (
-    AutoConfig,
-    AutoModelForTokenClassification,
-    AutoTokenizer,
-    HfArgumentParser,
-    PretrainedConfig,
-    PreTrainedTokenizerFast,
-    TrainingArguments,
-)
+from transformers import HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTModel, ORTQuantizableOperator
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from optimum.onnxruntime import ORTModel, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
-from optimum.onnxruntime.quantization import ORTQuantizer, QuantFormat, QuantizationMode, QuantType
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -219,22 +213,23 @@ class OptimizationArguments:
         default=8,
         metadata={"help": "The batch size for the calibration step."},
     )
-    calibration_histogram_percentiles: float = field(
+    calibration_histogram_percentile: float = field(
         default=99.999,
         metadata={"help": "The percentile used for the percentile calibration method."},
     )
-    moving_average: bool = field(
+    calibration_moving_average: bool = field(
         default=False,
         metadata={
             "help": "Whether to compute the moving average of the minimum and maximum values for the minmax "
             "calibration method."
         },
     )
-    moving_average_constant: float = field(
+    calibration_moving_average_constant: float = field(
         default=0.01,
         metadata={
             "help": "Constant smoothing factor to use when computing the moving average of the minimum and maximum "
-            "values. Effective only when the selected calibration method is minmax and `moving_average` is set to True."
+            "values. Effective only when the selected calibration method is minmax and `calibration_moving_average` is "
+            "set to True."
         },
     )
 
@@ -342,71 +337,6 @@ def main():
         label_list = get_label_list(raw_datasets["train"][label_column_name])
         label_to_id = {l: i for i, l in enumerate(label_list)}
 
-    num_labels = len(label_list)
-
-    # Load pretrained model and tokenizer
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        num_labels=num_labels,
-        finetuning_task=data_args.task_name,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-
-    tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
-    if config.model_type in {"gpt2", "roberta"}:
-        tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_name_or_path,
-            cache_dir=model_args.cache_dir,
-            use_fast=True,
-            revision=model_args.model_revision,
-            use_auth_token=True if model_args.use_auth_token else None,
-            add_prefix_space=True,
-        )
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_name_or_path,
-            cache_dir=model_args.cache_dir,
-            use_fast=True,
-            revision=model_args.model_revision,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
-
-    model = AutoModelForTokenClassification.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-
-    # Tokenizer check: this script requires a fast tokenizer.
-    if not isinstance(tokenizer, PreTrainedTokenizerFast):
-        raise ValueError(
-            "This example script only works for models that have a fast tokenizer. Checkout the big table of models "
-            "at https://huggingface.co/transformers/index.html#supported-frameworks to find the model types that meet this "
-            "requirement"
-        )
-
-    # Model has labels -> use them.
-    if model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id:
-        if list(sorted(model.config.label2id.keys())) == list(sorted(label_list)):
-            # Reorganize `label_list` to match the ordering of the model.
-            if labels_are_int:
-                label_to_id = {i: int(model.config.label2id[l]) for i, l in enumerate(label_list)}
-                label_list = [model.config.id2label[i] for i in range(num_labels)]
-            else:
-                label_list = [model.config.id2label[i] for i in range(num_labels)]
-                label_to_id = {l: i for i, l in enumerate(label_list)}
-        else:
-            logger.warning(
-                "Your model seems to have been trained with labels, but they don't match the dataset: ",
-                f"model labels: {list(sorted(model.config.label2id.keys()))}, dataset labels: {list(sorted(label_list))}."
-                "\nIgnoring the model labels as a result.",
-            )
-
     # Map that sends B-Xxx label to its I-Xxx counterpart
     b_to_i_label = []
     for idx, label in enumerate(label_list):
@@ -416,7 +346,7 @@ def main():
             b_to_i_label.append(idx)
 
     # Tokenize all texts and align the labels with them.
-    def tokenize_and_align_labels(examples):
+    def tokenize_and_align_labels(examples, tokenizer: PreTrainedTokenizer):
         tokenized_inputs = tokenizer(
             examples[text_column_name],
             padding="max_length",
@@ -450,53 +380,6 @@ def main():
             labels.append(label_ids)
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
-
-    if training_args.do_eval:
-        if "validation" not in raw_datasets:
-            raise ValueError("--do_eval requires a validation dataset")
-        eval_dataset = raw_datasets["validation"]
-        if data_args.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        with training_args.main_process_first(desc="validation dataset map pre-processing"):
-            eval_dataset = eval_dataset.map(
-                tokenize_and_align_labels,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on the validation dataset",
-            )
-
-    if training_args.do_predict:
-        if "test" not in raw_datasets:
-            raise ValueError("--do_predict requires a test dataset")
-        predict_dataset = raw_datasets["test"]
-        if data_args.max_predict_samples is not None:
-            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
-        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-            predict_dataset = predict_dataset.map(
-                tokenize_and_align_labels,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on the prediction dataset",
-            )
-
-    apply_static_quantization = optim_args.quantization_approach == "static"
-
-    # Create the calibration dataset used for the static quantization calibration step
-    if apply_static_quantization:
-        if "train" not in raw_datasets:
-            raise ValueError("Static quantization requires a train dataset for calibration")
-        calibration_dataset = raw_datasets["train"]
-        if data_args.max_train_samples is not None:
-            calibration_dataset = calibration_dataset.select(range(data_args.max_train_samples))
-        calibration_dataset = calibration_dataset.map(
-            tokenize_and_align_labels,
-            batched=True,
-            num_proc=data_args.preprocessing_num_workers,
-            load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on the calibration dataset",
-        )
 
     # Metrics
     metric = load_metric("seqeval")
@@ -534,8 +417,9 @@ def main():
                 "accuracy": results["overall_accuracy"],
             }
 
+    apply_static_quantization = optim_args.quantization_approach == "static"
+
     # Create the quantization configuration containing all the quantization parameters
-    # TODO: make the instantiation of `QuantizationConfig` easier for the user
     qconfig = QuantizationConfig(
         is_static=apply_static_quantization,
         format=QuantFormat.QDQ if apply_static_quantization else QuantFormat.QOperator,
@@ -544,14 +428,32 @@ def main():
         weights_dtype=QuantType.QInt8,
         per_channel=optim_args.per_channel,
         reduce_range=optim_args.reduce_range,
-        operators_to_quantize=[ORTQuantizableOperator.FullyConnected],
+        operators_to_quantize=["MatMul"],
     )
 
     # Create the quantizer
-    quantizer = ORTQuantizer(tokenizer, model, feature="token-classification", opset=optim_args.opset)
+    quantizer = ORTQuantizer.from_pretrained(
+        model_args.model_name_or_path, feature="token-classification", opset=optim_args.opset
+    )
 
     ranges = None
     if apply_static_quantization:
+
+        # Preprocess the calibration dataset
+        if apply_static_quantization:
+            if "train" not in raw_datasets:
+                raise ValueError("Static quantization requires a train dataset for calibration")
+            calibration_dataset = raw_datasets["train"]
+            if optim_args.num_calibration_samples is not None:
+                calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
+            calibration_dataset = calibration_dataset.map(
+                partial(tokenize_and_align_labels, tokenizer=quantizer.tokenizer),
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on the calibration dataset",
+            )
+
         # Remove the unnecessary columns of the calibration dataset before the calibration step
         calibration_dataset = quantizer.clean_calibration_dataset(calibration_dataset)
 
@@ -561,13 +463,13 @@ def main():
         elif optim_args.calibration_method == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
                 calibration_dataset,
-                percentiles=optim_args.calibration_histogram_percentiles,
+                percentile=optim_args.calibration_histogram_percentile,
             )
         else:
             calibration_config = AutoCalibrationConfig.minmax(
                 calibration_dataset,
-                optim_args.moving_average,
-                optim_args.moving_average_constant,
+                optim_args.calibration_moving_average,
+                optim_args.calibration_moving_average_constant,
             )
 
         if not 1 <= optim_args.num_calibration_shards <= len(calibration_dataset):
@@ -606,6 +508,21 @@ def main():
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
+        # Preprocess the evaluation dataset
+        if "validation" not in raw_datasets:
+            raise ValueError("--do_eval requires a validation dataset")
+        eval_dataset = raw_datasets["validation"]
+        if data_args.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+        with training_args.main_process_first(desc="validation dataset map pre-processing"):
+            eval_dataset = eval_dataset.map(
+                partial(tokenize_and_align_labels, tokenizer=quantizer.tokenizer),
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on the validation dataset",
+            )
+
         ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
         outputs = ort_model.evaluation_loop(eval_dataset)
 
@@ -616,6 +533,21 @@ def main():
     # Prediction
     if training_args.do_predict:
         logger.info("*** Predict ***")
+
+        # Preprocess the test dataset
+        if "test" not in raw_datasets:
+            raise ValueError("--do_predict requires a test dataset")
+        predict_dataset = raw_datasets["test"]
+        if data_args.max_predict_samples is not None:
+            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
+            predict_dataset = predict_dataset.map(
+                partial(tokenize_and_align_labels, tokenizer=quantizer.tokenizer),
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on the prediction dataset",
+            )
 
         ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
         outputs = ort_model.evaluation_loop(predict_dataset)

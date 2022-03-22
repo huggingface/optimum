@@ -34,9 +34,9 @@ from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, 
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTModel, ORTQuantizableOperator
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from optimum.onnxruntime import ORTModel, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
-from optimum.onnxruntime.quantization import ORTQuantizer, QuantFormat, QuantizationMode, QuantType
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -193,22 +193,23 @@ class OptimizationArguments:
         default=8,
         metadata={"help": "The batch size for the calibration step."},
     )
-    calibration_histogram_percentiles: float = field(
+    calibration_histogram_percentile: float = field(
         default=99.999,
         metadata={"help": "The percentile used for the percentile calibration method."},
     )
-    moving_average: bool = field(
+    calibration_moving_average: bool = field(
         default=False,
         metadata={
             "help": "Whether to compute the moving average of the minimum and maximum values for the minmax "
             "calibration method."
         },
     )
-    moving_average_constant: float = field(
+    calibration_moving_average_constant: float = field(
         default=0.01,
         metadata={
             "help": "Constant smoothing factor to use when computing the moving average of the minimum and maximum "
-            "values. Effective only when the selected calibration method is minmax and `moving_average` is set to True."
+            "values. Effective only when the selected calibration method is minmax and `calibration_moving_average` is "
+            "set to True."
         },
     )
 
@@ -358,19 +359,18 @@ def main():
         else:
             return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
 
-    is_static = optim_args.quantization_approach == "static"
+    apply_static_quantization = optim_args.quantization_approach == "static"
 
     # Create the quantization configuration containing all the quantization parameters
-    # TODO: make the instantiation of `QuantizationConfig` easier for the user
     qconfig = QuantizationConfig(
-        is_static=is_static,
-        format=QuantFormat.QDQ if is_static else QuantFormat.QOperator,
-        mode=QuantizationMode.QLinearOps if is_static else QuantizationMode.IntegerOps,
-        activations_dtype=QuantType.QInt8 if is_static else QuantType.QUInt8,
+        is_static=apply_static_quantization,
+        format=QuantFormat.QDQ if apply_static_quantization else QuantFormat.QOperator,
+        mode=QuantizationMode.QLinearOps if apply_static_quantization else QuantizationMode.IntegerOps,
+        activations_dtype=QuantType.QInt8 if apply_static_quantization else QuantType.QUInt8,
         weights_dtype=QuantType.QInt8,
         per_channel=optim_args.per_channel,
         reduce_range=optim_args.reduce_range,
-        operators_to_quantize=[ORTQuantizableOperator.FullyConnected],
+        operators_to_quantize=["MatMul"],
     )
 
     # Create the quantizer
@@ -402,13 +402,13 @@ def main():
         elif optim_args.calibration_method == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
                 calibration_dataset,
-                percentiles=optim_args.calibration_histogram_percentiles,
+                percentile=optim_args.calibration_histogram_percentile,
             )
         else:
             calibration_config = AutoCalibrationConfig.minmax(
                 calibration_dataset,
-                optim_args.moving_average,
-                optim_args.moving_average_constant,
+                optim_args.calibration_moving_average,
+                optim_args.calibration_moving_average_constant,
             )
 
         if not 1 <= optim_args.num_calibration_shards <= len(calibration_dataset):
