@@ -18,10 +18,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset
-from onnxruntime import GraphOptimizationLevel
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType, CalibrationMethod, CalibraterBase
-from onnxruntime.quantization.calibrate import create_calibrator
 
+from onnxruntime import GraphOptimizationLevel
+from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
+from onnxruntime.quantization.calibrate import create_calibrator
 from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORT_FULLY_CONNECTED_OPERATORS
 
 from ..configuration_utils import BaseConfig
@@ -131,10 +131,7 @@ class AutoCalibrationConfig:
 
     @staticmethod
     def percentiles(
-        dataset: Dataset,
-        num_bins: int = 2048,
-        num_quantized_bins: int = 128,
-        percentile: float = 99.999
+        dataset: Dataset, num_bins: int = 2048, num_quantized_bins: int = 128, percentile: float = 99.999
     ) -> CalibrationConfig:
         """
 
@@ -165,7 +162,7 @@ class AutoCalibrationConfig:
             method=CalibrationMethod.Percentile,
             num_bins=num_bins,
             num_quantized_bins=num_quantized_bins,
-            percentile=percentile
+            percentile=percentile,
         )
 
 
@@ -249,9 +246,7 @@ def ensure_valid_data_type_or_raise(
 
 
 def default_quantization_parameters(
-    is_static: bool,
-    format: Optional[QuantFormat] = None,
-    mode: Optional[QuantizationMode] = None
+    is_static: bool, format: Optional[QuantFormat] = None, mode: Optional[QuantizationMode] = None
 ) -> Tuple[QuantFormat, QuantizationMode]:
     if format is None:
         format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
@@ -273,7 +268,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
     ):
         """
 
@@ -315,7 +310,7 @@ class AutoQuantizationConfig:
             reduce_range=False,
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -329,7 +324,7 @@ class AutoQuantizationConfig:
         reduce_range: bool = False,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
     ) -> QuantizationConfig:
         """
 
@@ -369,7 +364,7 @@ class AutoQuantizationConfig:
             reduce_range=reduce_range,
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
-            operators_to_quantize=operators_to_quantize
+            operators_to_quantize=operators_to_quantize,
         )
 
     @staticmethod
@@ -436,7 +431,7 @@ class AutoQuantizationConfig:
         per_channel: bool = True,
         nodes_to_quantize: Optional[List[NodeName]] = None,
         nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS
+        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
     ) -> QuantizationConfig:
         """
         When targeting Intel AVX512-VNNI CPU underlying execution engine leverage the CPU instruction VPDPBUSD to
@@ -524,6 +519,7 @@ class OptimizationConfig:
     (GraphOptimizationLevel.ORT_ENABLE_EXTENDED)
     99 will enable all available optimizations including layout optimizations. (GraphOptimizationLevel.ORT_ENABLE_ALL)
     """
+
     optimization_level: Union[int, GraphOptimizationLevel] = GraphOptimizationLevel.ORT_ENABLE_BASIC
 
     """
@@ -582,4 +578,3 @@ class ORTConfig(BaseConfig):
                 v = [elem.name if isinstance(elem, Enum) else elem for elem in v]
             new_config[k] = v
         return new_config
-

@@ -19,7 +19,6 @@ from optimum.onnxruntime.preprocessors import PreprocessorPass
 
 
 class ExcludeLayerNormNodes(PreprocessorPass):
-
     def __init__(self):
         super().__init__()
 
@@ -29,7 +28,7 @@ class ExcludeLayerNormNodes(PreprocessorPass):
             layer_norm_components = model.match_parent_path(
                 add_node,
                 ["Mul", "Div", "Sqrt", "Add", "ReduceMean", "Pow", "Sub", "ReduceMean"],
-                [0, 0, 1, 0, 0, 0, 0, 1]
+                [0, 0, 1, 0, 0, 0, 0, 1],
             )
 
             if layer_norm_components is not None:

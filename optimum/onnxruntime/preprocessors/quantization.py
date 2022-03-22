@@ -11,13 +11,13 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from logging import getLogger
 from os import PathLike
 from pathlib import Path
 from typing import Optional, Set, Tuple, Union
 
-from onnx import load_model, ModelProto
+from onnx import ModelProto, load_model
 from onnxruntime.transformers.onnx_model import OnnxModel
 
 
@@ -25,7 +25,6 @@ LOGGER = getLogger("GraphWalker")
 
 
 class PreprocessorPass(ABC):
-
     def __init__(self):
         self._logger = LOGGER
 

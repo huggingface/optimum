@@ -35,7 +35,7 @@ from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTModel, ORTQuantizableOperator
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig, ORTConfig
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
 from optimum.onnxruntime.quantization import ORTQuantizer, QuantFormat, QuantizationMode, QuantType
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions

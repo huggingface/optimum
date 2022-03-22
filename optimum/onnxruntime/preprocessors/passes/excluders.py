@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from typing import Set, Tuple, Optional
+from typing import Optional, Set, Tuple
 
 from onnx import ModelProto
 from onnxruntime.transformers.onnx_model import OnnxModel
@@ -42,9 +42,7 @@ class ExcludeNodeFollowedBy(PreprocessorPass):
         # Intersection of both are the one we want to remove
         to_exclude = set(candidate_nodes_to_exclude.keys()).intersection(nodes_of_following_type.keys())
         nodes_to_exclude = {
-            candidate_nodes_to_exclude[node]
-            for node in to_exclude
-            if node in candidate_nodes_to_exclude
+            candidate_nodes_to_exclude[node] for node in to_exclude if node in candidate_nodes_to_exclude
         }
 
         return None, nodes_to_exclude
@@ -74,9 +72,7 @@ class ExcludeNodeAfter(PreprocessorPass):
         # Intersection of both are the one we want to remove
         to_exclude = set(candidate_nodes_to_exclude.keys()).intersection(parent_node.keys())
         nodes_to_exclude = {
-            candidate_nodes_to_exclude[node]
-            for node in to_exclude
-            if node in candidate_nodes_to_exclude
+            candidate_nodes_to_exclude[node] for node in to_exclude if node in candidate_nodes_to_exclude
         }
 
         return None, nodes_to_exclude

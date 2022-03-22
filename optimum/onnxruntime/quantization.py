@@ -29,8 +29,8 @@ from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantF
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
 from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
-
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class ORTQuantizer(ABC):
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
-        force_symmetric_range: bool = False
+        force_symmetric_range: bool = False,
     ) -> Dict[str, Tuple[float, float]]:
         """
 
@@ -162,7 +162,7 @@ class ORTQuantizer(ABC):
             batch_size,
             use_external_data_format,
             use_gpu,
-            force_symmetric_range
+            force_symmetric_range,
         )
         return self.compute_ranges()
 
@@ -176,7 +176,7 @@ class ORTQuantizer(ABC):
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
-        force_symmetric_range: bool = False
+        force_symmetric_range: bool = False,
     ):
         """
 
@@ -238,7 +238,7 @@ class ORTQuantizer(ABC):
         quantization_config: QuantizationConfig,
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
-        preprocessor: Optional[QuantizationPreprocessor] = None
+        preprocessor: Optional[QuantizationPreprocessor] = None,
     ) -> Path:
         """
 
@@ -307,7 +307,7 @@ class ORTQuantizer(ABC):
                 "ActivationSymmetric": quantization_config.activations_symmetric,
                 "EnableSubgraph": False,
                 "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
-            }
+            },
         )
 
         LOGGER.info("Quantizing model...")
