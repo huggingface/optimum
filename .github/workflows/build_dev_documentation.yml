@@ -48,6 +48,7 @@ jobs:
           cd ..
 
           cd optimum
+          apt install -y libopencv-dev python3-opencv
           pip install .[dev,onnxruntime,intel]
           cd ..
 
@@ -88,8 +89,6 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd doc-build-dev && git pull
-          apt install -y libopencv-dev python3-opencv
-          python -c "from optimum import intel; print(dir(intel))"
           cd ../doc-builder
           doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build-dev --clean --version pr_$PR_NUMBER --html
 
