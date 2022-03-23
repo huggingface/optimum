@@ -19,11 +19,15 @@ import unittest
 from functools import partial
 from pathlib import Path
 
-from transformers import AutoTokenizer
-from transformers.onnx import validate_model_outputs
+import numpy as np
+from datasets import Dataset
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers.file_utils import TensorType
+from transformers.onnx import export, validate_model_outputs
+from transformers.onnx.features import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTOptimizer, ORTQuantizer
+from optimum.onnxruntime import ORTModel, ORTOptimizer, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, OptimizationConfig, ORTConfig, QuantizationConfig
 
 
@@ -141,6 +145,28 @@ class TestORTQuantizer(unittest.TestCase):
                         atol=5e-1,
                     )
                     gc.collect()
+
+
+class TestORTModel(unittest.TestCase):
+    def test_evaluation(self):
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        _, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(
+            model, feature="sequence-classification"
+        )
+        onnx_config = onnx_config_factory(model.config)
+        model_inputs = onnx_config.generate_dummy_inputs(tokenizer, framework=TensorType.PYTORCH)
+        outputs = model(**model_inputs)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            model_path = output_dir.joinpath("model.onnx")
+            export(tokenizer, model, onnx_config, onnx_config.default_onnx_opset, model_path)
+            ort_model = ORTModel(model_path, onnx_config)
+            ort_model_inputs = Dataset.from_dict(model_inputs)
+            ort_outputs = ort_model.evaluation_loop(ort_model_inputs)
+            self.assertTrue(np.allclose(outputs.logits.detach().numpy(), ort_outputs.predictions, atol=1e-4))
+            gc.collect()
 
 
 if __name__ == "__main__":
