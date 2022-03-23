@@ -11,7 +11,7 @@ jobs:
   build_and_package:
     runs-on: ubuntu-latest
     container:
-      image: huggingface/transformers-doc-builder # Not sure if we can also use this image for optimum
+      image: huggingface/transformers-doc-builder
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
@@ -48,8 +48,8 @@ jobs:
           cd ..
 
           cd optimum
-          sudo apt install -y libopencv-dev python3-opencv
-          sudo pip install --upgrade protobuf
+          apt install -y libopencv-dev python3-opencv
+          pip install --upgrade protobuf
           pip install .[dev,onnxruntime,intel]
           cd ..
 
