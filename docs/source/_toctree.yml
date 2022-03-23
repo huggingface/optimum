@@ -14,15 +14,15 @@
   - local: onnxruntime/trainer
     title: Trainer
   title: ONNX Runtime
-# - sections:
-#   - local: intel/neural_compressor/configuration
-#     title: Configuration
-#   - local: intel/neural_compressor/optimization
-#     title: Optimization
-#   - local: intel/neural_compressor/quantization
-#     title: Quantization
-#   - local: intel/neural_compressor/pruning
-#     title: Pruning
-#   - local: intel/neural_compressor/trainer
-#     title: Trainer
-#   title: Intel Neural Compressor
+- sections:
+  - local: intel/configuration
+    title: Configuration
+  - local: intel/optimization
+    title: Optimization
+  - local: intel/quantization
+    title: Quantization
+  - local: intel/pruning
+    title: Pruning
+  - local: intel/trainer
+    title: Trainer
+  title: Intel Neural Compressor
