@@ -48,7 +48,7 @@ jobs:
           cd ..
 
           cd optimum
-          pip install .[dev,onnxruntime,intel]
+          pip install -e .[dev,onnxruntime,intel]
           cd ..
 
       - name: Setup git
@@ -89,9 +89,6 @@ jobs:
         run: |
           cd doc-build-dev && git pull
           cd ../doc-builder
-          git log -5
-          doc-builder build optimum ../optimum/docs/source --build_dir test-docs --clean --version pr_$PR_NUMBER --html
-          ls test-docs
           doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build-dev --clean --version pr_$PR_NUMBER --html
 
       - name: Push to repositories
