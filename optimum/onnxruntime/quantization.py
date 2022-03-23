@@ -25,7 +25,7 @@ from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
 import onnx
-from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode
+from onnxruntime.quantization import CalibrationDataReader, QDQQuantizer, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
 from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
