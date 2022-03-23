@@ -47,11 +47,12 @@ jobs:
 
       - name: Setup environment
         run: |
+          sudo apt -y update && sudo apt install -y libopencv-dev python3-opencv
+          sudo pip install --upgrade pip && sudo pip install --upgrade protobuf
           pip install git+https://github.com/huggingface/doc-builder
           cd optimum
-          sudo apt install -y libopencv-dev python3-opencv
-          sudo pip install --upgrade protobuf
           pip install .[dev,onnxruntime,intel]
+          python -c "from optimum import intel; print(dir(intel))" 
           cd ..
 
       - name: Setup git
