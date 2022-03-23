@@ -203,6 +203,7 @@ class ORTTrainer(Trainer):
                 Additional keyword arguments used to hide deprecated arguments
         """
         from torch_ort import ORTModule
+        from onnxruntime.training.ortmodule import DebugOptions as OrtDebugOptions
 
         resume_from_checkpoint = None if not resume_from_checkpoint else resume_from_checkpoint
 
@@ -328,7 +329,8 @@ class ORTTrainer(Trainer):
 
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for OnnxRuntime training.")
-        model = ORTModule(self.model)
+        debug_options = OrtDebugOptions(save_onnx=True, onnx_prefix=f'{self.model.config.name_or_path.split("/")[-1]}-DEBUG')
+        model = ORTModule(self.model)  # Add `debug_options` to check validate onnx graph   
         self.model_wrapped = model
 
         if args.deepspeed:
