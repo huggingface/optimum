@@ -48,7 +48,8 @@ jobs:
           cd ..
 
           cd optimum
-          pip install .[dev]
+          apt install -y libopencv-dev python3-opencv
+          pip install .[dev,onnxruntime,intel]
           cd ..
 
       - name: Setup git
