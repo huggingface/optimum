@@ -17,3 +17,4 @@ from .model import ORTModel
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer
 from .trainer import ORTTrainer
+from .trainer_seq2seq import Seq2SeqORTTrainer
