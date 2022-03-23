@@ -48,7 +48,7 @@ jobs:
           cd ..
 
           cd optimum
-          apt install -y libopencv-dev python3-opencv
+          sudo apt-get install -y libopencv-dev python3-opencv
           pip install .[dev,onnxruntime,intel]
           cd ..
 
