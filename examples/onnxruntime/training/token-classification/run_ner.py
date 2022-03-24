@@ -45,7 +45,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer, ORTTrainer
+from optimum.onnxruntime import ORTTrainer
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.

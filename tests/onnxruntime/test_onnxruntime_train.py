@@ -40,7 +40,7 @@ from optimum.onnxruntime import ORTTrainer
 class TestORTTrainer(unittest.TestCase):
     def test_ort_trainer(self):
 
-        model_names = {"gpt2"}
+        model_names = {"distilbert-base-uncased", "bert-base-cased", "roberta-base"}
         # "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
         dataset_names = {"sst2"}  # glue
 
@@ -115,11 +115,11 @@ class TestORTTrainer(unittest.TestCase):
                         train_result = trainer.train()
                         trainer.save_model()
                         train_metrics = train_result.metrics
-                        # ort_eval_metrics = trainer.evaluate()
-                        # ort_prediction = trainer.predict(test_dataset)
+                        ort_eval_metrics = trainer.evaluate()
+                        ort_prediction = trainer.predict(test_dataset)
                         print("Training metrics(ORT):\n", train_metrics)
-                        # print("Evaluation metrics(ORT):\n", ort_eval_metrics)
-                        # print("Prediction results(ORT):\n", ort_prediction)
+                        print("Evaluation metrics(ORT):\n", ort_eval_metrics)
+                        print("Prediction results(ORT):\n", ort_prediction)
 
 
 if __name__ == "__main__":

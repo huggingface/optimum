@@ -32,12 +32,29 @@ The following example fine-tunes a BERT on the sst-2 task.
 
 ```bash
 python run_ner.py \
-    --model_name_or_path bert-base-uncased \
+    --model_name_or_path bert-base-cased \
     --dataset_name conll2003 \
     --do_train \
     --do_eval \
     --output_dir /tmp/ort_bert_conll2003/
 ```
+
+### Performance
+
+We get the following results with the previous commands under PyTorch and ONNX Runtime backends. (a single Nvidia A100 was
+used to run 7 epochs):
+
+| Backend      | FP16 | Runtime | Train samples(/s) | 
+| ------------ | ---- | ------- | ----------------- | 
+| PyTorch      | TRUE | 711.5   | 138.149           | 
+| ONNX Runtime | TRUE | 637.2   | 154.27            |
+
+We observe the gain of ONNX Runtime compared to PyTorch as follow:
+
+|       | Latency | Throughput | 
+| ----- | ------- | ---------- | 
+| Gain  | 10.45%  | 11.67%     |
+
 
 __Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*

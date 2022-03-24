@@ -18,6 +18,7 @@ import torch
 from packaging import version
 from torch import nn
 from torch.utils.data.dataset import Dataset
+
 # from transformers.integrations import is_deepspeed_zero3_enabled
 from transformers.trainer_utils import PredictionOutput
 from transformers.utils import logging
@@ -177,9 +178,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
 
         with torch.no_grad():
             with self.autocast_smart_context_manager():
-                input_feed = dict(
-                    map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
-                )
+                input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
                 outputs = self.infer_sess.run(output_names, input_feed)
             if has_labels:
                 if self.label_smoother is not None:

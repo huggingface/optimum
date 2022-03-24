@@ -26,9 +26,8 @@ from typing import Optional
 
 import datasets
 import numpy as np
-from datasets import load_dataset, load_metric
-
 import transformers
+from datasets import load_dataset, load_metric
 from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,

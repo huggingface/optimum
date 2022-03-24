@@ -47,10 +47,30 @@ python run_translation.py \
     --source_lang en \
     --target_lang ro \
     --do_train \
+    --max_train_samples 30000 \
+    --fp16 \
     --output_dir /tmp/ort_t5_translation/
 ```
 
-__Note__   
+### Performance
+
+We get the following results with the previous commands under PyTorch and ONNX Runtime backends. (a single Nvidia A100 was
+used):
+
+| Backend      | FP16 | Runtime | Train samples(/s) | 
+| ------------ | ---- | ------- | ----------------- | 
+| PyTorch      | TRUE | 2038.8  | 44.143            | 
+| ONNX Runtime | TRUE | 1536.7  | 58.566            |
+
+We observe the gain of ONNX Runtime compared to PyTorch as follow:
+
+|       | Latency | Throughput | 
+| ----- | ------- | ---------- | 
+| Gain  | 24.63%  | 32.67%     |
+
+
+__Note__
+
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
 *[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
 *in [`torch_ort`](https://github.com/pytorch/ort/blob/main/docs/install.md).*  
