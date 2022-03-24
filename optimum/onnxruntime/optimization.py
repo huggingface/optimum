@@ -171,8 +171,8 @@ class ORTOptimizer:
         Returns:
             The number of nodes decrease resulting from optimization.
         """
-        onnx_model = BertOnnxModel(load_model(onnx_model_path, load_external_data=True))
-        onnx_optimized_model = BertOnnxModel(load_model(onnx_optimized_model_path, load_external_data=True))
+        onnx_model = BertOnnxModel(load_model(onnx_model_path))
+        onnx_optimized_model = BertOnnxModel(load_model(onnx_optimized_model_path))
 
         # Information in the number of nodes decrease resulting from optimization
         nodes_number_onnx_model = len(onnx_model.nodes())
@@ -194,7 +194,7 @@ class ORTOptimizer:
         Returns:
             The dictionary mapping the name of the fused operators to their number of apparition in the model.
         """
-        onnx_optimized_model = BertOnnxModel(load_model(onnx_model_path, load_external_data=True))
+        onnx_optimized_model = BertOnnxModel(load_model(onnx_model_path))
         fused_operator = onnx_optimized_model.get_fused_operator_statistics()
         LOGGER.info(
             f"The following operators were fused : { ', '.join([k for k,v in fused_operator.items() if v > 0])}"
@@ -216,8 +216,8 @@ class ORTOptimizer:
             The dictionary mapping the name of the operators to the number difference between the original and the
             optimized model.
         """
-        onnx_model = BertOnnxModel(load_model(onnx_model_path, load_external_data=True))
-        onnx_optimized_model = BertOnnxModel(load_model(onnx_optimized_model_path, load_external_data=True))
+        onnx_model = BertOnnxModel(load_model(onnx_model_path))
+        onnx_optimized_model = BertOnnxModel(load_model(onnx_optimized_model_path))
 
         def get_operators_difference(op_type):
             onnx_model_nodes_with_op_type = len(onnx_model.get_nodes_by_op_type(op_type))
