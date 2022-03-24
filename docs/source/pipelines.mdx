@@ -66,7 +66,7 @@ and [`AutoTokenizer'] class. For example, load the [`OnnxForQuestionAnswering`] 
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 >>> model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
 
->>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+>>> onnx_qa = optimum_pipeline("question-answering", model=model, tokenizer=tokenizer)
 >>> question = "Whats my name?"
 >>> context = "My Name is Philipp and I live in Nuremberg."
 
@@ -88,7 +88,7 @@ and [`AutoTokenizer'] class. For example, load the [`OnnxForQuestionAnswering`] 
 >>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
 >>> model = OnnxForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
 
->>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+>>> onnx_qa = optimum_pipeline("question-answering", model=model, tokenizer=tokenizer)
 >>> question = "Whats my name?"
 >>> context = "My Name is Philipp and I live in Nuremberg."
 
@@ -114,7 +114,12 @@ the `do_optimization=True` and/or `do_quantization=True` arguments:
 >>> model.optimize()
 >>> model.quantize()
 
->>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, do_optimization=True, do_quantization=True)
+>>> onnx_qa = optimum_pipeline("question-answering",
+                               model=model,
+                               tokenizer=tokenizer, 
+                               do_optimization=True, 
+                               do_quantization=True
+                               )
 >>> question = "Whats my name?"
 >>> context = "My Name is Philipp and I live in Nuremberg."
 
