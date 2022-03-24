@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from packaging import version
 from transformers import PretrainedConfig
+from transformers import __version__ as transformers_version
 from transformers.file_utils import cached_path, get_list_of_files, hf_bucket_url, is_offline_mode, is_remote_url
 
 from .utils import logging
@@ -41,7 +42,7 @@ class BaseConfig(PretrainedConfig):
 
     @classmethod
     def _re_configuration_file(cls):
-        return re.compile(rf"{cls.FULL_CONFIGURATION_FILE}\.(.*)\.json")
+        return re.compile(rf"{cls.FULL_CONFIGURATION_FILE.split('.')[0]}(.*)\.json")
 
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
         """
@@ -125,9 +126,9 @@ class BaseConfig(PretrainedConfig):
 
         # Defaults to FULL_CONFIGURATION_FILE and then try to look at some newer versions.
         configuration_file = cls.FULL_CONFIGURATION_FILE
-        transformers_version = version.parse(__version__)
+        optimum_version = version.parse(__version__)
         for v in available_versions:
-            if version.parse(v) <= transformers_version:
+            if version.parse(v) <= optimum_version:
                 configuration_file = configuration_files_map[v]
             else:
                 # No point going further since the versions are sorted.
@@ -284,6 +285,7 @@ class BaseConfig(PretrainedConfig):
             output["model_type"] = self.__class__.model_type
 
         # Transformers version when serializing the model
+        output["transformers_version"] = transformers_version
         output["optimum_version"] = __version__
 
         self.dict_torch_dtype_to_str(output)
