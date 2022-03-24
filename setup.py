@@ -12,7 +12,15 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 
-REQUIRED_PKGS = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging"]
+REQUIRED_PKGS = [
+    "coloredlogs",
+    "sympy",
+    "transformers>=4.15.0",
+    "torch>=1.9",
+    "packaging",
+    "numpy",
+    "huggingface_hub==0.4.0",
+]
 
 TESTS_REQUIRE = ["pytest"]
 
