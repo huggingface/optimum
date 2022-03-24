@@ -533,6 +533,58 @@ class OptimizationConfig:
     """
     optimize_with_onnxruntime_only: bool = False
 
+    """
+    Whether to disable the GELU fusion.
+    """
+    disable_gelu: bool = False
+
+    """
+    Whether to disable LayerNormalization fusion.
+    """
+    disable_layer_norm: bool = False
+
+    """
+    Whether to disable Attention fusion.
+    """
+    disable_attention: bool = False
+
+    """
+    Whether or not to disable SkipLayerNormalization fusion.
+    """
+    disable_skip_layer_norm: bool = False
+
+    """
+    Whether to disable Add Bias and SkipLayerNormalization fusion.
+    """
+    disable_bias_skip_layer_norm: bool = False
+
+    """
+    Whether to disable Add Bias and Gelu/FastGelu fusion.
+    """
+    disable_bias_gelu: bool = False
+
+    """
+    Whether to enable Gelu/BiasGelu to FastGelu conversion.
+    The default value is set to `False` since the approximation might slightly impact the accuracy of models.
+    """
+    enable_gelu_approximation: bool = False
+
+    """
+    Whether to use mask index instead of raw attention mask in attention operator.
+    """
+    use_mask_index: bool = False
+
+    """
+    Whether to not use attention masks. Only works for bert model type.
+    """
+    no_attention_mask: bool = False
+
+    """
+     Whether or not to disable EmbedLayerNormalization fusion.
+     The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
+    """
+    disable_embed_layer_norm: bool = True
+
 
 class ORTConfig(BaseConfig):
     """
