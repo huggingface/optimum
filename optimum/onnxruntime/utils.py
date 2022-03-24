@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, DefaultDict, Dict, List, Option
 from transformers.utils import logging
 
 import onnx
+from onnx import ModelProto
 
 
 logger = logging.get_logger(__name__)
@@ -137,13 +138,13 @@ def _create_name_sharing_dict(duplicate_weights: Dict[str, Set[str]]) -> Dict[st
     return name_sharing_dict
 
 
-def _replace_input_names(model, name_sharing_dict):
+def _replace_input_names(model: ModelProto, name_sharing_dict: Dict[str, str]):
     for node in model.graph.node:
         for i in range(len(node.input)):
             node.input[i] = name_sharing_dict.get(node.input[i], node.input[i])
 
 
-def _remove_redundant_initializers(model, name_sharing_dict):
+def _remove_redundant_initializers(model: ModelProto, name_sharing_dict: Dict[str, str]):
     to_pop = []
     for idx, initializer in enumerate(model.graph.initializer):
         if initializer.name != name_sharing_dict[initializer.name]:
@@ -152,7 +153,7 @@ def _remove_redundant_initializers(model, name_sharing_dict):
         model.graph.initializer.pop(idx - i)
 
 
-def remove_duplicate_weights(model, inplace: bool = False):
+def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
     if not inplace:
         model = copy.deepcopy(model)
     duplicates = _find_duplicate_weights(model)
