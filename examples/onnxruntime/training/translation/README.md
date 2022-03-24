@@ -40,7 +40,6 @@ The following example fine-tunes a T5 large model on the wmt16 dataset.
 ```bash
 python run_translation.py \
     --model_name_or_path t5-large \
-    --source_prefix translate English to Romanian: \
     --dataset_name wmt16 \
     --dataset_config ro-en \
     --label_smoothing 0.1 \
@@ -48,7 +47,6 @@ python run_translation.py \
     --source_lang en \
     --target_lang ro \
     --do_train \
-    --fp16 \
     --output_dir /tmp/ort_t5_translation/
 ```
 
