@@ -52,7 +52,7 @@ class BaseConfig(PretrainedConfig):
             save_directory (:obj:`str` or :obj:`os.PathLike`):
                 Directory where the configuration JSON file will be saved (will be created if it does not exist).
             push_to_hub (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether or not to push your model to the Hugging Face model hub after saving it.
+                Whether to push your model to the Hugging Face model hub after saving it.
 
                 .. warning::
 
@@ -105,7 +105,7 @@ class BaseConfig(PretrainedConfig):
                 The token to use as HTTP bearer authorization for remote files. If :obj:`True`, will use the token
                 generated when running :obj:`transformers-cli login` (stored in :obj:`~/.huggingface`).
             local_files_only (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether or not to only rely on local files and not to attempt to download any files.
+                Whether to only rely on local files and not to attempt to download any files.
 
         Returns:
             :obj:`str`: The configuration file to use.

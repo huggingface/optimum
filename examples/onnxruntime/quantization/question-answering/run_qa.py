@@ -18,33 +18,25 @@ Fine-tuning the library models for question answering.
 """
 # You can also adapt this script on your own question answering task. Pointers for this are left as comments.
 
+import json
 import logging
 import os
 import sys
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
 import datasets
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import (
-    AutoConfig,
-    AutoModelForQuestionAnswering,
-    AutoTokenizer,
-    DataCollatorWithPadding,
-    EvalPrediction,
-    HfArgumentParser,
-    PreTrainedTokenizerFast,
-    TrainingArguments,
-    default_data_collator,
-    set_seed,
-)
-from transformers.trainer_utils import get_last_checkpoint
+from transformers import AutoConfig, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizer
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from optimum.onnxruntime import ORTModel, ORTQuantizer
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
 
@@ -53,7 +45,7 @@ from utils_qa import postprocess_qa_predictions
 check_min_version("4.15.0")
 
 require_version(
-    "datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/pytorch/question-answering/requirements.txt"
+    "datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/quantization/question-answering/requirements.txt"
 )
 
 logger = logging.getLogger(__name__)
@@ -134,13 +126,6 @@ class DataTrainingArguments:
             "be faster on GPU but will be slower on TPU)."
         },
     )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
-            "value if set."
-        },
-    )
     max_eval_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -208,36 +193,13 @@ class OptimizationArguments:
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
-    optimize: bool = field(
-        default=True,
-        metadata={"help": "Whether or not to optimize the model."},
-    )
-    quantize: bool = field(
-        default=False,
-        metadata={"help": "Whether or not to apply quantization."},
-    )
     opset: Optional[int] = field(
         default=None,
         metadata={"help": "ONNX opset version to export the model with."},
     )
-    opt_level: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "Optimization level performed by ONNX Runtime of the loaded graph."
-            "0 will disable all optimizations."
-            "1 will enable basic optimizations."
-            "2 will enable basic and extended optimizations, including complex node fusions applied to the nodes "
-            "assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent."
-            "99 will enable all available optimizations including layout optimizations."
-        },
-    )
-    only_onnxruntime: bool = field(
-        default=False,
-        metadata={"help": "Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python."},
-    )
     quantization_approach: str = field(
         default="dynamic",
-        metadata={"help": "Quantization approach. Supported approach are static and dynamic."},
+        metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
     )
     per_channel: bool = field(
         default=False,
@@ -250,19 +212,6 @@ class OptimizationArguments:
             "on non-VNNI machine, especially for per-channel mode."
         },
     )
-    weight_type: str = field(
-        default="uint8",
-        metadata={"help": "The quantization data type of weights. Supported data type are uint8 and int8."},
-    )
-    quant_format: str = field(
-        default="operator",
-        metadata={
-            "help": "ONNX quantization representation format."
-            "Supported quantization representation format are operator and qdq. "
-            "operator : Operator Oriented (QOperator) : all the quantized operators have their own ONNX definitions."
-            "qdq : Tensor Oriented (QDQ) : this format quantize the model by inserting QuantizeLinear/DeQuantizeLinear "
-        },
-    )
     calibration_method: str = field(
         default="minmax",
         metadata={
@@ -270,32 +219,44 @@ class OptimizationArguments:
             "dataset. Current supported calibration methods are minmax, entropy and percentile."
         },
     )
-    calib_dataset_split: str = field(
-        default="train",
-        metadata={
-            "help": "Which split of the calibration dataset to load. "
-            "Depending on the calibration dataset to load, the possible values are train, validation and test."
-        },
-    )
-    max_calib_samples: int = field(
+    num_calibration_samples: int = field(
         default=100,
+        metadata={"help": "Number of examples to use for the calibration step resulting from static quantization."},
+    )
+    num_calibration_shards: int = field(
+        default=1,
         metadata={
-            "help": "Maximum number of examples to use for the calibration step resulting from static quantization."
+            "help": "How many shards to split the calibration dataset into. Useful for the entropy and percentile "
+            "calibration method."
         },
     )
-    metric_name: str = field(
-        default="f1",
+    calibration_batch_size: int = field(
+        default=8,
+        metadata={"help": "The batch size for the calibration step."},
+    )
+    calibration_histogram_percentile: float = field(
+        default=99.999,
+        metadata={"help": "The percentile used for the percentile calibration method."},
+    )
+    calibration_moving_average: bool = field(
+        default=False,
         metadata={
-            "help": "Metric used to compare the evaluation results between the original and the optimized models."
+            "help": "Whether to compute the moving average of the minimum and maximum values for the minmax "
+            "calibration method."
+        },
+    )
+    calibration_moving_average_constant: float = field(
+        default=0.01,
+        metadata={
+            "help": "Constant smoothing factor to use when computing the moving average of the minimum and maximum "
+            "values. Effective only when the selected calibration method is minmax and `calibration_moving_average` is "
+            "set to True."
         },
     )
 
 
 def main():
-    # See all possible arguments in src/transformers/training_args.py
-    # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
@@ -320,30 +281,17 @@ def main():
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
 
-    # Log on each process the small summary:
-    logger.warning(
-        f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
-        + f"distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
-    )
-    logger.info(f"Training/evaluation parameters {training_args}")
+    logger.info(f"Optimization with the following parameters {optim_args}")
 
-    # Detecting last checkpoint.
-    last_checkpoint = None
-    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
-            raise ValueError(
-                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-                "Use --overwrite_output_dir to overcome."
-            )
-        elif last_checkpoint is not None and training_args.resume_from_checkpoint is None:
-            logger.info(
-                f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
-                "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
-            )
+    if os.path.isdir(training_args.output_dir) and not training_args.overwrite_output_dir:
+        raise ValueError(
+            f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+            "Use --overwrite_output_dir to overcome."
+        )
 
-    # Set seed before initializing model.
-    set_seed(training_args.seed)
+    os.makedirs(training_args.output_dir, exist_ok=True)
+    model_path = os.path.join(training_args.output_dir, "model.onnx")
+    quantized_model_path = os.path.join(training_args.output_dir, "model-quantized.onnx")
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
     # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
@@ -374,69 +322,28 @@ def main():
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
-    # Load pretrained model and tokenizer
-    #
-    # Distributed training:
-    # The .from_pretrained methods guarantee that only one local process can concurrently
-    # download model & vocab.
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        use_fast=True,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-    model = AutoModelForQuestionAnswering.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-
-    # Tokenizer check: this script requires a fast tokenizer.
-    if not isinstance(tokenizer, PreTrainedTokenizerFast):
-        raise ValueError(
-            "This example script only works for models that have a fast tokenizer. Checkout the big table of models "
-            "at https://huggingface.co/transformers/index.html#supported-frameworks to find the model types that meet this "
-            "requirement"
-        )
-
     # Preprocessing the datasets.
-    # Preprocessing is slighlty different for training and evaluation.
-    if training_args.do_train:
-        column_names = raw_datasets["train"].column_names
-    elif training_args.do_eval:
+    # Preprocessing is slightly different for training and evaluation.
+    if training_args.do_eval:
         column_names = raw_datasets["validation"].column_names
-    else:
+    elif training_args.do_predict:
         column_names = raw_datasets["test"].column_names
+    else:
+        column_names = raw_datasets["train"].column_names
+
     question_column_name = "question" if "question" in column_names else column_names[0]
     context_column_name = "context" if "context" in column_names else column_names[1]
     answer_column_name = "answers" if "answers" in column_names else column_names[2]
 
-    # Padding side determines if we do (question|context) or (context|question).
-    pad_on_right = tokenizer.padding_side == "right"
-
-    if data_args.max_seq_length > tokenizer.model_max_length:
-        logger.warning(
-            f"The max_seq_length passed ({data_args.max_seq_length}) is larger than the maximum length for the"
-            f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}."
-        )
-    max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
-
     # Training preprocessing
-    def prepare_train_features(examples):
+    def prepare_train_features(examples, tokenizer: PreTrainedTokenizer):
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
         # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
         # left whitespace
         examples[question_column_name] = [q.lstrip() for q in examples[question_column_name]]
+
+        # Padding side determines if we do (question|context) or (context|question).
+        pad_on_right = tokenizer.padding_side == "right"
 
         # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
         # in one example possible giving several features when a context is long, each of those features having a
@@ -445,7 +352,7 @@ def main():
             examples[question_column_name if pad_on_right else context_column_name],
             examples[context_column_name if pad_on_right else question_column_name],
             truncation="only_second" if pad_on_right else "only_first",
-            max_length=max_seq_length,
+            max_length=min(data_args.max_seq_length, tokenizer.model_max_length),
             stride=data_args.doc_stride,
             return_overflowing_tokens=True,
             return_offsets_mapping=True,
@@ -509,33 +416,15 @@ def main():
 
         return tokenized_examples
 
-    if training_args.do_train:
-        if "train" not in raw_datasets:
-            raise ValueError("--do_train requires a train dataset")
-        train_dataset = raw_datasets["train"]
-        if data_args.max_train_samples is not None:
-            # We will select sample from whole data if argument is specified
-            train_dataset = train_dataset.select(range(data_args.max_train_samples))
-        # Create train feature from dataset
-        with training_args.main_process_first(desc="train dataset map pre-processing"):
-            train_dataset = train_dataset.map(
-                prepare_train_features,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on train dataset",
-            )
-        if data_args.max_train_samples is not None:
-            # Number of samples might increase during Feature Creation, We select only specified max samples
-            train_dataset = train_dataset.select(range(data_args.max_train_samples))
-
     # Validation preprocessing
-    def prepare_validation_features(examples):
+    def prepare_validation_features(examples, tokenizer: PreTrainedTokenizer):
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
         # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
         # left whitespace
         examples[question_column_name] = [q.lstrip() for q in examples[question_column_name]]
+
+        # Padding side determines if we do (question|context) or (context|question).
+        pad_on_right = tokenizer.padding_side == "right"
 
         # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
         # in one example possible giving several features when a context is long, each of those features having a
@@ -544,7 +433,7 @@ def main():
             examples[question_column_name if pad_on_right else context_column_name],
             examples[context_column_name if pad_on_right else question_column_name],
             truncation="only_second" if pad_on_right else "only_first",
-            max_length=max_seq_length,
+            max_length=min(data_args.max_seq_length, tokenizer.model_max_length),
             stride=data_args.doc_stride,
             return_overflowing_tokens=True,
             return_offsets_mapping=True,
@@ -577,57 +466,6 @@ def main():
 
         return tokenized_examples
 
-    if training_args.do_eval:
-        if "validation" not in raw_datasets:
-            raise ValueError("--do_eval requires a validation dataset")
-        eval_examples = raw_datasets["validation"]
-        if data_args.max_eval_samples is not None:
-            # We will select sample from whole data
-            eval_examples = eval_examples.select(range(data_args.max_eval_samples))
-        # Validation Feature Creation
-        with training_args.main_process_first(desc="validation dataset map pre-processing"):
-            eval_dataset = eval_examples.map(
-                prepare_validation_features,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on validation dataset",
-            )
-        if data_args.max_eval_samples is not None:
-            # During Feature creation dataset samples might increase, we will select required samples again
-            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-
-    if training_args.do_predict:
-        if "test" not in raw_datasets:
-            raise ValueError("--do_predict requires a test dataset")
-        predict_examples = raw_datasets["test"]
-        if data_args.max_predict_samples is not None:
-            # We will select sample from whole data
-            predict_examples = predict_examples.select(range(data_args.max_predict_samples))
-        # Predict Feature Creation
-        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-            predict_dataset = predict_examples.map(
-                prepare_validation_features,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on prediction dataset",
-            )
-        if data_args.max_predict_samples is not None:
-            # During Feature creation dataset samples might increase, we will select required samples again
-            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
-
-    # Data collator
-    # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data
-    # collator.
-    data_collator = (
-        default_data_collator
-        if data_args.pad_to_max_length
-        else DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
-    )
-
     # Post-processing:
     def post_processing_function(examples, features, predictions, stage="eval"):
         # Post-processing: we match the start logits and end logits to answers in the original context.
@@ -659,112 +497,159 @@ def main():
     def compute_metrics(p: EvalPrediction):
         return metric.compute(predictions=p.predictions, references=p.label_ids)
 
-    # Initialize our Trainer
-    # TODO : Replace Trainer by our QuestionAnsweringORTTrainer
-    trainer = QuestionAnsweringTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=eval_dataset if training_args.do_eval else None,
-        eval_examples=eval_examples if training_args.do_eval else None,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        post_process_function=post_processing_function,
-        compute_metrics=compute_metrics,
-    )
+    apply_static_quantization = optim_args.quantization_approach == "static"
 
-    ort_config = ORTConfig(
-        opset=optim_args.opset,
-        opt_level=optim_args.opt_level,
-        only_onnxruntime=optim_args.only_onnxruntime,
-        quantization_approach=optim_args.quantization_approach,
+    # Create the quantization configuration containing all the quantization parameters
+    qconfig = QuantizationConfig(
+        is_static=apply_static_quantization,
+        format=QuantFormat.QDQ if apply_static_quantization else QuantFormat.QOperator,
+        mode=QuantizationMode.QLinearOps if apply_static_quantization else QuantizationMode.IntegerOps,
+        activations_dtype=QuantType.QInt8 if apply_static_quantization else QuantType.QUInt8,
+        weights_dtype=QuantType.QInt8,
         per_channel=optim_args.per_channel,
         reduce_range=optim_args.reduce_range,
-        weight_type=optim_args.weight_type,
-        activation_type="uint8",
-        quant_format=optim_args.quant_format,
-        calibration_method=optim_args.calibration_method,
-        optimize_model=optim_args.optimize,
-        max_samples=optim_args.max_calib_samples,
-        calib_batch_size=training_args.per_device_eval_batch_size,
-        seed=training_args.seed,
-        extra_options={
-            "CalibMovingAverage": True
-        },  # activations quantization parameters will be computed using the moving average of the minimum and maximum
+        operators_to_quantize=["MatMul"],
     )
 
-    eval_dataloader = trainer.get_eval_dataloader(eval_dataset)
-    output_model = trainer.evaluation_loop(eval_dataloader, description="evaluation")
-    model_eval_preds = post_processing_function(eval_examples, eval_dataset, output_model.predictions)
-    metrics_model = compute_metrics(model_eval_preds)
-    results_model = metrics_model.get(optim_args.metric_name)
-    output_dir = Path(training_args.output_dir)
+    # Create the quantizer
+    quantizer = ORTQuantizer.from_pretrained(
+        model_args.model_name_or_path, feature="question-answering", opset=optim_args.opset
+    )
 
-    if optim_args.quantize:
-        calib_dataset = None
-        if optim_args.quantization_approach == "static":
-            if optim_args.calib_dataset_split not in raw_datasets:
-                raise ValueError(f"The split {optim_args.calib_dataset_split} is not present in the provided dataset.")
-            calib_dataset = raw_datasets[optim_args.calib_dataset_split]
-            if optim_args.max_calib_samples is not None:
-                calib_dataset = calib_dataset.select(range(optim_args.max_calib_samples))
-            calib_dataset = calib_dataset.map(
-                prepare_validation_features,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on calibration dataset",
+    # Create the calibration dataset used for the static quantization calibration step
+    if apply_static_quantization:
+        if "train" not in raw_datasets:
+            raise ValueError("Static quantization requires a train dataset for calibration")
+        calibration_dataset = raw_datasets["train"]
+        if optim_args.num_calibration_samples is not None:
+            calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
+        calibration_dataset = calibration_dataset.map(
+            partial(prepare_train_features, tokenizer=quantizer.tokenizer),
+            batched=True,
+            num_proc=data_args.preprocessing_num_workers,
+            load_from_cache_file=not data_args.overwrite_cache,
+            desc="Running tokenizer on the calibration dataset",
+        )
+        # Number of samples might increase during Feature Creation, we select the specified number of samples
+        if optim_args.num_calibration_samples is not None:
+            calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
+
+    if training_args.do_eval:
+        if "validation" not in raw_datasets:
+            raise ValueError("--do_eval requires a validation dataset")
+        eval_examples = raw_datasets["validation"]
+        if data_args.max_eval_samples is not None:
+            # We will select sample from whole data
+            eval_examples = eval_examples.select(range(data_args.max_eval_samples))
+        eval_dataset = eval_examples.map(
+            partial(prepare_validation_features, tokenizer=quantizer.tokenizer),
+            batched=True,
+            num_proc=data_args.preprocessing_num_workers,
+            remove_columns=column_names,
+            load_from_cache_file=not data_args.overwrite_cache,
+            desc="Running tokenizer on the validation dataset",
+        )
+        if data_args.max_eval_samples is not None:
+            # During Feature creation dataset samples might increase, we will select required samples again
+            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+
+    if training_args.do_predict:
+        if "test" not in raw_datasets:
+            raise ValueError("--do_predict requires a test dataset")
+        predict_examples = raw_datasets["test"]
+        if data_args.max_predict_samples is not None:
+            # We will select sample from whole data
+            predict_examples = predict_examples.select(range(data_args.max_predict_samples))
+        # Predict Feature Creation
+        predict_dataset = predict_examples.map(
+            partial(prepare_validation_features, tokenizer=quantizer.tokenizer),
+            batched=True,
+            num_proc=data_args.preprocessing_num_workers,
+            remove_columns=column_names,
+            load_from_cache_file=not data_args.overwrite_cache,
+            desc="Running tokenizer on the prediction dataset",
+        )
+        if data_args.max_predict_samples is not None:
+            # During Feature creation dataset samples might increase, we will select required samples again
+            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+
+    ranges = None
+    if apply_static_quantization:
+        # Remove the unnecessary columns of the calibration dataset before the calibration step
+        calibration_dataset = quantizer.clean_calibration_dataset(calibration_dataset)
+
+        # Create the calibration configuration given the selected calibration method
+        if optim_args.calibration_method == "entropy":
+            calibration_config = AutoCalibrationConfig.entropy(calibration_dataset)
+        elif optim_args.calibration_method == "percentile":
+            calibration_config = AutoCalibrationConfig.percentiles(
+                calibration_dataset,
+                percentile=optim_args.calibration_histogram_percentile,
+            )
+        else:
+            calibration_config = AutoCalibrationConfig.minmax(
+                calibration_dataset,
+                optim_args.calibration_moving_average,
+                optim_args.calibration_moving_average_constant,
             )
 
-        quantizer = ORTQuantizer(ort_config, calib_dataset=calib_dataset, data_collator=data_collator)
-        quantizer.fit(
-            model_args.model_name_or_path,
-            output_dir,
-            feature="question-answering",
-            cache_dir=model_args.cache_dir,
-        )
-        onnx_config = quantizer.onnx_config
-        opt_model_path = output_dir.joinpath("model-quantized.onnx")
+        if not 1 <= optim_args.num_calibration_shards <= len(calibration_dataset):
+            raise ValueError(
+                f"Invalid value of number of shards {optim_args.num_calibration_shards} chosen to split the calibration"
+                f" dataset, should be higher than 0 and lower or equal to the number of samples "
+                f"{len(calibration_dataset)}."
+            )
 
-    elif optim_args.optimize:
-        optimizer = ORTOptimizer(ort_config)
-        optimizer.fit(
-            model_args.model_name_or_path,
-            output_dir,
-            feature="question-answering",
-            cache_dir=model_args.cache_dir,
-        )
-        onnx_config = optimizer.onnx_config
-        opt_model_path = output_dir.joinpath("model-optimized.onnx")
+        for i in range(optim_args.num_calibration_shards):
+            shard = calibration_dataset.shard(optim_args.num_calibration_shards, i)
+            quantizer.partial_fit(
+                dataset=shard,
+                calibration_config=calibration_config,
+                onnx_model_path=model_path,
+                operators_to_quantize=qconfig.operators_to_quantize,
+                batch_size=optim_args.calibration_batch_size,
+                use_external_data_format=False,
+            )
+        ranges = quantizer.compute_ranges()
 
-    # Save the ONNX Runtime configuration
+    # Export the quantized model
+    quantizer.export(
+        onnx_model_path=model_path,
+        onnx_quantized_model_output_path=quantized_model_path,
+        calibration_tensors_range=ranges,
+        quantization_config=qconfig,
+    )
+
+    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
+    ort_config = ORTConfig(opset=quantizer.opset, quantization_config=qconfig)
+    # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
-        ort_model = ORTModel(opt_model_path, onnx_config, compute_metrics=compute_metrics)
-        output_opt_model = ort_model.evaluation_loop(eval_dataset)
-        predictions = post_processing_function(eval_examples, eval_dataset, output_opt_model.predictions)
-        metrics_opt_model = compute_metrics(predictions)
-        trainer.save_metrics("eval", metrics_opt_model)
-        results_opt_model = metrics_opt_model.get(optim_args.metric_name)
-        logger.info(
-            f"Optimized model with a {optim_args.metric_name} score of {results_opt_model} saved to: "
-            f"{training_args.output_dir}. Original model had a {optim_args.metric_name} score of {results_model}."
-        )
+        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
+        outputs = ort_model.evaluation_loop(eval_dataset)
+        predictions = post_processing_function(eval_examples, eval_dataset, outputs.predictions)
+        metrics = compute_metrics(predictions)
+
+        # Save metrics
+        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+            json.dump(metrics, f, indent=4, sort_keys=True)
 
     # Prediction
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        ort_model = ORTModel(opt_model_path, onnx_config)
-        output_opt_model = ort_model.evaluation_loop(predict_dataset)
-        predictions = post_processing_function(predict_examples, predict_dataset, output_opt_model.predictions)
-        metrics_opt_model = compute_metrics(predictions)
-        trainer.save_metrics("predict", metrics_opt_model)
+        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config)
+        outputs = ort_model.evaluation_loop(predict_dataset)
+        predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)
+        metrics = compute_metrics(predictions)
+
+        # Save metrics
+        with open(os.path.join(training_args.output_dir, f"predict_results.json"), "w") as f:
+            json.dump(metrics, f, indent=4, sort_keys=True)
 
 
 def _mp_fn(index):

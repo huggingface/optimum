@@ -14,23 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Token classification
+# Question answering
 
 
-The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/token-classification/run_ner.py)
+The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/question-answering/run_qa.py)
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
-optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for token classification tasks. 
+optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for question answering tasks.
 
-The following example applies post-training static quantization on a DistilBERT fine-tuned on the CoNLL-2003 task
+Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along 
+the flag `--version_2_with_negative`.
+
+The following example applies post-training static quantization on a DistilBERT fine-tuned on the SQuAD1.0 dataset.
 
 ```bash
-python run_ner.py \
-    --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english \
-    --dataset_name conll2003 \
-    --quantize \
+python run_qa.py \
+    --model_name_or_path distilbert-base-uncased-distilled-squad \
+    --dataset_name squad \
     --quantization_approach static \
     --do_eval \
-    --output_dir /tmp/quantized_distilbert_conll2003
+    --output_dir /tmp/quantized_distilbert_squad
 ```
 
 In order to apply dynamic or static quantization, `quantization_approach` must be set to  respectively `dynamic` or `static`.

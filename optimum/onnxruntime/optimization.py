@@ -27,7 +27,7 @@ import onnx
 from onnx import load_model
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import FusionOptions, get_fusion_statistics, optimize_model
-from optimum.onnxruntime.configuration import ORTConfig
+from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.utils import ORTConfigManager, generate_identified_filename
 
 
@@ -45,7 +45,7 @@ class ORTOptimizer:
     Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
     """
 
-    def __init__(self, ort_config: Union[str, ORTConfig], **kwargs):
+    def __init__(self, ort_config: ORTConfig, optimization_config: OptimizationConfig, **kwargs):
         """
         Args:
             ort_config (`Union[ORTConfig, str]`):
@@ -53,6 +53,8 @@ class ORTOptimizer:
                 Can be either:
                     - an instance of the class :class:`ORTConfig`,
                     - a string valid as input to :func:`ORTConfig.from_pretrained`.
+            optimization_config (`OptimizationConfig`):
+                The optimization configuration containing the parameters related to optimization.
             cache_dir (`str`, `optional`):
                 Path to a directory in which a downloaded configuration should be cached if the standard cache should
                 not be used.
@@ -77,6 +79,7 @@ class ORTOptimizer:
         if not isinstance(ort_config, ORTConfig):
             ort_config = ORTConfig.from_pretrained(ort_config, **config_kwargs)
         self.ort_config = ort_config
+        self.optimization_config = optimization_config
         self.onnx_config = None
         self.onnx_model_path = None
         self.optim_model_path = None
@@ -236,10 +239,10 @@ class ORTOptimizer:
             model_type,
             num_heads,
             hidden_size,
-            opt_level=self.ort_config.opt_level,
+            opt_level=self.optimization_config.optimization_level,
             optimization_options=optimization_options,
-            use_gpu=self.ort_config.use_gpu,
-            only_onnxruntime=self.ort_config.only_onnxruntime,
+            use_gpu=self.optimization_config.optimize_for_gpu,
+            only_onnxruntime=self.optimization_config.optimize_with_onnxruntime_only,
         )
         optimizer.save_model_to_file(self.optim_model_path.as_posix(), self.ort_config.use_external_data_format)
 
@@ -303,7 +306,7 @@ class ORTOptimizer:
                 f"There are {count_nodes_onnx} nodes before optimization and {count_nodes_optim} nodes after. "
                 f"The number of nodes removed is {count_nodes_onnx - count_nodes_optim}."
             )
-            if self.ort_config.opt_level and self.ort_config.opt_level > 1:
+            if self.optimization_config.optimization_level and self.optimization_config.optimization_level > 1:
                 # Extended fusion statistics
                 extended_fusion_statistic = optim_model.get_fused_operator_statistics()
                 logger.info("Complex node fusions:\n", extended_fusion_statistic)

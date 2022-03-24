@@ -14,25 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Text classification 
+# Token classification
 
-## GLUE Tasks
 
-The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/text-classification/run_glue.py)
+The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/token-classification/run_ner.py)
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
-optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as 
-the ones from the [GLUE benchmark](https://gluebenchmark.com/).
+optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for token classification tasks. 
 
-The following example applies post-training static quantization on a DistilBERT fine-tuned on the sst-2 task.
+The following example applies post-training static quantization on a DistilBERT fine-tuned on the CoNLL-2003 task
 
 ```bash
-python run_glue.py \
-    --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english \
-    --task_name sst2 \
-    --quantize \
+python run_ner.py \
+    --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english \
+    --dataset_name conll2003 \
     --quantization_approach static \
     --do_eval \
-    --output_dir /tmp/quantized_distilbert_sst2
+    --output_dir /tmp/quantized_distilbert_conll2003
 ```
 
 In order to apply dynamic or static quantization, `quantization_approach` must be set to  respectively `dynamic` or `static`.

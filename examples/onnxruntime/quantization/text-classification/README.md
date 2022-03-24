@@ -14,26 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Question answering
+# Text classification 
 
+## GLUE tasks
 
-The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/question-answering/run_qa.py)
+The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/text-classification/run_glue.py)
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
-optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for question answering tasks.
+optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as 
+the ones from the [GLUE benchmark](https://gluebenchmark.com/).
 
-Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along 
-the flag `--version_2_with_negative`.
-
-The following example applies post-training static quantization on a DistilBERT fine-tuned on the SQuAD1.0 dataset.
+The following example applies post-training static quantization on a DistilBERT fine-tuned on the sst-2 task.
 
 ```bash
-python run_qa.py \
-    --model_name_or_path distilbert-base-uncased-distilled-squad \
-    --dataset_name squad \
-    --quantize \
+python run_glue.py \
+    --model_name_or_path howey/bert-base-uncased-sst2 \
+    --task_name sst2 \
     --quantization_approach static \
     --do_eval \
-    --output_dir /tmp/quantized_distilbert_squad
+    --output_dir /tmp/quantized_distilbert_sst2
 ```
 
 In order to apply dynamic or static quantization, `quantization_approach` must be set to  respectively `dynamic` or `static`.
