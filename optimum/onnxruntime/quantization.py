@@ -282,8 +282,8 @@ class ORTQuantizer(ABC):
             nodes_to_quantize.update(quantization_config.nodes_to_quantize)
             nodes_to_exclude.update(quantization_config.nodes_to_exclude)
 
-            quantization_config.nodes_to_quantize = nodes_to_quantize
-            quantization_config.nodes_to_exclude = nodes_to_exclude
+            quantization_config.nodes_to_quantize = list(nodes_to_quantize)
+            quantization_config.nodes_to_exclude = list(nodes_to_exclude)
 
         onnx_model = onnx.load(onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer

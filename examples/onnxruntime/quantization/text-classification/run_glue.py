@@ -37,6 +37,13 @@ from transformers.utils.versions import require_version
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTModel, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
+from optimum.onnxruntime.preprocessors.passes import (
+    ExcludeGeLUNodes,
+    ExcludeLayerNormNodes,
+    ExcludeNodeAfter,
+    ExcludeNodeFollowedBy,
+)
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -359,20 +366,6 @@ def main():
         else:
             return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
 
-    apply_static_quantization = optim_args.quantization_approach == "static"
-
-    # Create the quantization configuration containing all the quantization parameters
-    qconfig = QuantizationConfig(
-        is_static=apply_static_quantization,
-        format=QuantFormat.QDQ if apply_static_quantization else QuantFormat.QOperator,
-        mode=QuantizationMode.QLinearOps if apply_static_quantization else QuantizationMode.IntegerOps,
-        activations_dtype=QuantType.QInt8 if apply_static_quantization else QuantType.QUInt8,
-        weights_dtype=QuantType.QInt8,
-        per_channel=optim_args.per_channel,
-        reduce_range=optim_args.reduce_range,
-        operators_to_quantize=["MatMul"],
-    )
-
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(
         model_args.model_name_or_path, feature="sequence-classification", opset=optim_args.opset
@@ -386,8 +379,23 @@ def main():
         desc="Running tokenizer on dataset",
     )
 
+    apply_static_quantization = optim_args.quantization_approach == "static"
+
+    # Create the quantization configuration containing all the quantization parameters
+    qconfig = QuantizationConfig(
+        is_static=apply_static_quantization,
+        format=QuantFormat.QDQ if apply_static_quantization else QuantFormat.QOperator,
+        mode=QuantizationMode.QLinearOps if apply_static_quantization else QuantizationMode.IntegerOps,
+        activations_dtype=QuantType.QInt8 if apply_static_quantization else QuantType.QUInt8,
+        weights_dtype=QuantType.QInt8,
+        per_channel=optim_args.per_channel,
+        reduce_range=optim_args.reduce_range,
+        operators_to_quantize=["MatMul", "Add"],
+    )
+
     ranges = None
-    if optim_args.quantization_approach == "static":
+    quantization_preprocessor = None
+    if apply_static_quantization:
         # Create the calibration dataset used for the calibration step
         calibration_dataset = preprocessed_datasets["train"]
         if optim_args.num_calibration_samples is not None:
@@ -430,12 +438,26 @@ def main():
             )
         ranges = quantizer.compute_ranges()
 
+        # Create a quantization preprocessor to determine the nodes to exclude when applying static quantization
+        quantization_preprocessor = QuantizationPreprocessor(model_path)
+        # Exclude the nodes constituting LayerNorm
+        quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
+        # Exclude the nodes constituting GELU
+        quantization_preprocessor.register_pass(ExcludeGeLUNodes())
+        # Exclude the residual connection Add nodes
+        quantization_preprocessor.register_pass(ExcludeNodeAfter("Add", "Add"))
+        # Exclude the Add nodes following the Gather operator
+        quantization_preprocessor.register_pass(ExcludeNodeAfter("Gather", "Add"))
+        # Exclude the Add nodes followed by the Softmax operator
+        quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
+
     # Export the quantized model
     quantizer.export(
         onnx_model_path=model_path,
         onnx_quantized_model_output_path=quantized_model_path,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
+        preprocessor=quantization_preprocessor,
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization

@@ -37,6 +37,13 @@ from transformers.utils.versions import require_version
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTModel, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
+from optimum.onnxruntime.preprocessors.passes import (
+    ExcludeGeLUNodes,
+    ExcludeLayerNormNodes,
+    ExcludeNodeAfter,
+    ExcludeNodeFollowedBy,
+)
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
 
@@ -508,7 +515,7 @@ def main():
         weights_dtype=QuantType.QInt8,
         per_channel=optim_args.per_channel,
         reduce_range=optim_args.reduce_range,
-        operators_to_quantize=["MatMul"],
+        operators_to_quantize=["MatMul", "Add"],
     )
 
     # Create the quantizer
@@ -574,6 +581,7 @@ def main():
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
     ranges = None
+    quantization_preprocessor = None
     if apply_static_quantization:
         # Remove the unnecessary columns of the calibration dataset before the calibration step
         calibration_dataset = quantizer.clean_calibration_dataset(calibration_dataset)
@@ -612,12 +620,26 @@ def main():
             )
         ranges = quantizer.compute_ranges()
 
+        # Create a quantization preprocessor to determine the nodes to exclude when applying static quantization
+        quantization_preprocessor = QuantizationPreprocessor(model_path)
+        # Exclude the nodes constituting LayerNorm
+        quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
+        # Exclude the nodes constituting GELU
+        quantization_preprocessor.register_pass(ExcludeGeLUNodes())
+        # Exclude the residual connection Add nodes
+        quantization_preprocessor.register_pass(ExcludeNodeAfter("Add", "Add"))
+        # Exclude the Add nodes following the Gather operator
+        quantization_preprocessor.register_pass(ExcludeNodeAfter("Gather", "Add"))
+        # Exclude the Add nodes followed by the Softmax operator
+        quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
+
     # Export the quantized model
     quantizer.export(
         onnx_model_path=model_path,
         onnx_quantized_model_output_path=quantized_model_path,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
+        preprocessor=quantization_preprocessor,
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
