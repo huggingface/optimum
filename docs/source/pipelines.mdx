@@ -1,0 +1,142 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Optimum Pipelines for inference
+
+The [`optimum_pipeline`] makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification.
+Even if you don't have experience with a specific modality or understand the code powering the models, you can still use them with the [`optimum_pipeline`]! This tutorial will teach you to:
+
+<Tip>
+
+You can also use the `transformers.pipeline` and provide your `OptimumModel`.
+
+</Tip>
+
+Currenlty supported tasks are:
+
+**Onnxruntime**
+
+* `feature-extraction`
+* `text-classification`
+* `token-classification`
+* `question-answering`
+* `zero-shot-classification`
+
+## Optimum Pipeline usage
+
+While each task has an associated [`optimum_pipeline`], it is simpler to use the general [`pipeline`] abstraction which contains all the specific task pipelines. 
+The [`optimum_pipeline`] automatically loads a default model and tokenizer capable of inference for your task. 
+
+1. Start by creating a [`optimum_pipeline`] and specify an inference task:
+
+```py
+>>> from optimum import optimum_pipeline
+
+>>> classifier = optimum_pipeline(task="text-classification", accelerator="onnx")
+
+```
+
+2. Pass your input text to the [`optimum_pipeline`]:
+
+```python
+>>> classifier("I like you. I love you.")
+```
+
+### Use a vanilla transformers model and convert
+
+The [`optimum_pipeline`] accepts supported model from the [Model Hub](https://huggingface.co/models). 
+There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
+Once you've picked an appropriate model, load it with the `.from_transformers` method for corresponding `OnnxFor*` 
+and [`AutoTokenizer'] class. For example, load the [`OnnxForQuestionAnswering`] class for a question answering modeling task:
+
+```py
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import OnnxForQuestionAnswering
+>>> from optimum import optimum_pipeline
+
+>>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
+>>> model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+
+>>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+>>> question = "Whats my name?"
+>>> context = "My Name is Philipp and I live in Nuremberg."
+
+>>> pred = onnx_qa(question=question, context=context)
+```
+
+### Use optimum model
+
+The [`optimum_pipeline`] is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. Onnxruntime. 
+There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
+Once you've picked an appropriate model, load it with the `.from_pretrained` method for corresponding `OnnxFor*` 
+and [`AutoTokenizer'] class. For example, load the [`OnnxForQuestionAnswering`] class for a question answering modeling task:
+
+```py
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import OnnxForQuestionAnswering
+>>> from optimum import optimum_pipeline
+
+>>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
+>>> model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+
+>>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+>>> question = "Whats my name?"
+>>> context = "My Name is Philipp and I live in Nuremberg."
+
+>>> pred = onnx_qa(question=question, context=context)
+```
+
+
+### Optimizing and Quantizing in Pipelines
+
+The [`optimum_pipeline`] can not only run inference it also provides arguments to quantize and optimize your model on the fly.
+Once you've picked an appropriate model, load it with the `.from_transformers` or `.from_pretrained` method for corresponding `OnnxFor*` 
+and [`AutoTokenizer'] class. For example, load the [`OnnxForQuestionAnswering`] class for a question answering modeling task and provide 
+the `do_optimization=True` and/or `do_quantization=True` arguments:
+
+```py
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import OnnxForQuestionAnswering
+>>> from optimum import optimum_pipeline
+
+>>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
+>>> model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+
+>>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, do_optimization=True, do_quantization=True)
+>>> question = "Whats my name?"
+>>> context = "My Name is Philipp and I live in Nuremberg."
+
+>>> pred = onnx_qa(question=question, context=context)
+```
+
+
+## Transformers pipeline usage
+
+The [`optimum_pipeline`] is just a light wrapper around the `transformers.pipeline` to enable checks for supported tasks and additional features
+, like quantization and optimization. This being said you can use the `transformers.pipeline` and just replace your `AutoFor*` with the optimum 
+ `OnnxFor*` class. 
+
+```diff
+from transformers import AutoTokenizer, pipeline
+-from transformers import AutoModelForQuestionAnswering
++ from optimum.onnxruntime import OnnxForQuestionAnswering
+
+-model = AutoModelForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
++model = OnnxForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
+tokenizer = AutoTokenizer.from_pretrained("philschmid/distilbert-onnx")
+
+onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
+
+question = "Whats my name?"
+context = "My Name is Philipp and I live in Nuremberg."
+pred = onnx_qa(question, context)
+```

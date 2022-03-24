@@ -1,0 +1,110 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Optimum Inference with Onnxrunime
+
+Optimum Inference is a utility package for building and running inference with accleratored runtime like Onnxruntime. 
+Optimum Inference can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines 
+to run acclerated inference without rewriting your APIs.
+
+## Switching from Transfromers to Optimum Inference
+
+The Optimum Inference models are API compatible with Transformers models, meaning you can just replace your `AutoFor*` with the optimum `OnnxFor*` class. 
+
+```diff
+from transformers import AutoTokenizer, pipeline
+-from transformers import AutoModelForQuestionAnswering
++ from optimum.onnxruntime import OnnxForQuestionAnswering
+
+-model = AutoModelForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
++model = OnnxForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
+tokenizer = AutoTokenizer.from_pretrained("philschmid/distilbert-onnx")
+
+onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
+
+question = "Whats my name?"
+context = "My Name is Philipp and I live in Nuremberg."
+pred = onnx_qa(question, context)
+```
+
+Optimum Inference also includes methods to convert vanilla Transformers models to optimized models (`.from_transfromers`). 
+After you have converted a model you can even `optimize` or `quantize` the model if it is supported by the runtime you use.
+
+```python
+from transformers import AutoTokenizer, pipeline
+from optimum.onnxruntime import OnnxForSequenceClassification
+
+# load model from hub and convert
+model = OnnxForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
+tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+
+# optimize model
+model.optimize()
+# quantize model
+model.quantize()
+
+# create pipeline
+onnx_clx = pipeline("text-classification",model=model,tokenizer=tokenizer)
+
+result = onnx_clx(text="This is a great model")
+```
+
+You can find a complete walkhrough optimum inference for Onnxruntime in this [notebook]().
+
+### Working with the [Hugging Face Model Hub](https://hf.co/models)
+
+The optimum model classes, e.g. [`OnnxModel`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
+load model from the Hub but also push your models to the Hub with `push_to_hub` method. Below you find an example which pulls a vanilla transformers model 
+from the Hub and converts it to an optimum model and pushes it back into a new repository.
+
+```python
+from transformers import AutoTokenizer
+from optimum.onnxruntime import OnnxForSequenceClassification
+
+# load model from hub and convert
+model = OnnxForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
+tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+
+# optimize model
+model.optimize()
+# quantize model
+model.quantize()
+
+# save converted model
+model.save_pretrained("a_local_path_for_convert_onnx_model")
+tokenizer.save_pretrained("a_local_path_for_convert_onnx_model")
+
+# push model onnx model to HF Hub
+model.push_to_hub("a_local_path_for_convert_onnx_model",
+                  repository_id="my-onnx-repo",
+                  use_auth_token=True
+```
+## OnnxModel
+
+[[autodoc]] onnxruntime.modeling_ort.OnnxModel
+
+## OnnxForFeatureExtraction
+
+[[autodoc]] onnxruntime.modeling_ort.OnnxForFeatureExtraction
+
+## OnnxForQuestionAnswering
+
+[[autodoc]] onnxruntime.modeling_ort.OnnxForQuestionAnswering
+
+## OnnxForSequenceClassification
+
+[[autodoc]] onnxruntime.modeling_ort.OnnxForSequenceClassification
+
+## OnnxForTokenClassification
+
+[[autodoc]] onnxruntime.modeling_ort.OnnxForTokenClassification
+
