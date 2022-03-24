@@ -11,8 +11,10 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import copy
+from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
 from transformers.utils import logging
 
@@ -111,3 +113,52 @@ def fix_atenops_to_gather(model_path):
 
     onnx.checker.check_model(model)
     onnx.save(model, model_path)
+
+
+def _find_duplicate_weights(model) -> DefaultDict[bytes, Set[str]]:
+    duplicates = defaultdict(set)
+    for initializer in model.graph.initializer:
+        duplicates[(initializer.data_type, initializer.raw_data)].add(initializer.name)
+    return duplicates
+
+
+def _create_name_sharing_dict_for_duplicates(duplicates: Set[str]) -> Dict[str, str]:
+    if not duplicates:
+        return {}
+    common_name = duplicates.pop()
+    duplicates.add(common_name)
+    return {k: common_name for k in duplicates}
+
+
+def _create_name_sharing_dict(duplicate_weights: Dict[str, Set[str]]) -> Dict[str, str]:
+    name_sharing_dict = {}
+    for duplicates in duplicate_weights.values():
+        name_sharing_dict.update(_create_name_sharing_dict_for_duplicates(duplicates))
+    return name_sharing_dict
+
+
+def _replace_input_names(model, name_sharing_dict):
+    for node in model.graph.node:
+        for i in range(len(node.input)):
+            node.input[i] = name_sharing_dict.get(node.input[i], node.input[i])
+
+
+def _remove_redundant_initializers(model, name_sharing_dict):
+    to_pop = []
+    for idx, initializer in enumerate(model.graph.initializer):
+        if initializer.name != name_sharing_dict[initializer.name]:
+            to_pop.append(idx)
+    for i, idx in enumerate(sorted(to_pop)):
+        model.graph.initializer.pop(idx - i)
+
+
+def remove_duplicate_weights(model, inplace: bool = False):
+    if not inplace:
+        model = copy.deepcopy(model)
+    duplicates = _find_duplicate_weights(model)
+    name_sharing_dict = _create_name_sharing_dict(duplicates)
+
+    _replace_input_names(model, name_sharing_dict)
+    _remove_redundant_initializers(model, name_sharing_dict)
+
+    return model
