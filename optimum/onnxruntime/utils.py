@@ -17,9 +17,23 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Un
 from transformers.utils import logging
 
 import onnx
-
+import onnxruntime as ort
+import torch
 
 logger = logging.get_logger(__name__)
+
+ONNX_WEIGHTS_NAME = "model.onnx"
+
+
+def _is_gpu_available():
+    """
+    checks if a gpu is available.
+    """
+    available_providers = ort.get_available_providers()
+    if "CUDAExecutionProvider" in available_providers and torch.cuda.is_available():
+        return True
+    else:
+        return False
 
 
 class ORTConfigManager:

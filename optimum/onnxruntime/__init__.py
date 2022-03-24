@@ -53,3 +53,10 @@ from .model import ORTModel
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer
 from .trainer import ORTTrainer
+from .modeling_ort import (
+    OnnxForQuestionAnswering,
+    OnnxForSequenceClassification,
+    OnnxForTokenClassification,
+    OnnxForFeatureExtraction,
+    OnnxModel,
+)

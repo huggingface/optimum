@@ -42,6 +42,9 @@ EXTRAS_REQUIRE = {
     "quality": QUALITY_REQUIRE,
 }
 
+EXTRAS_REQUIRE["dev"] = EXTRAS_REQUIRE["tests"] + EXTRAS_REQUIRE["quality"] + EXTRAS_REQUIRE["onnxruntime"]
+
+
 setup(
     name="optimum",
     version=__version__,
