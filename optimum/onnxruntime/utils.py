@@ -123,15 +123,14 @@ def _find_duplicate_weights(model) -> DefaultDict[bytes, Set[str]]:
     return duplicates
 
 
-def _create_name_sharing_dict_for_duplicates(duplicates: Set[str]) -> Dict[str, str]:
-    if not duplicates:
-        return {}
-    common_name = duplicates.pop()
-    duplicates.add(common_name)
-    return {k: common_name for k in duplicates}
-
-
 def _create_name_sharing_dict(duplicate_weights: Dict[str, Set[str]]) -> Dict[str, str]:
+    def _create_name_sharing_dict_for_duplicates(duplicates: Set[str]) -> Dict[str, str]:
+        if not duplicates:
+            return {}
+        common_name = duplicates.pop()
+        duplicates.add(common_name)
+        return {k: common_name for k in duplicates}
+
     name_sharing_dict = {}
     for duplicates in duplicate_weights.values():
         name_sharing_dict.update(_create_name_sharing_dict_for_duplicates(duplicates))
@@ -149,11 +148,25 @@ def _remove_redundant_initializers(model: ModelProto, name_sharing_dict: Dict[st
     for idx, initializer in enumerate(model.graph.initializer):
         if initializer.name != name_sharing_dict[initializer.name]:
             to_pop.append(idx)
+
+    # Because the list is being changed, we pop elements by ascending index values and we shift those values by the
+    # number of element already popped.
     for i, idx in enumerate(sorted(to_pop)):
         model.graph.initializer.pop(idx - i)
 
 
 def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
+    """
+    Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
+    to them.
+
+    Args:
+        model (`~onnx.ModelProto`): The model to remove duplicates from.
+        inplace (`bool`, defaults to False): Whether to perform this transformation inplace.
+
+    Returns:
+        `~onnx.ModelProto`: The model without duplicates.
+    """
     if not inplace:
         model = copy.deepcopy(model)
     duplicates = _find_duplicate_weights(model)
