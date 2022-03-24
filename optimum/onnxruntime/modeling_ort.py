@@ -386,7 +386,7 @@ class OnnxForFeatureExtraction(OnnxModel):
         + FEAUTRE_EXTRACTION_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="OnnxForFeatureExtraction",
-            checkpoint="philschmid/distilbert-onnx",
+            checkpoint="optimum/all-MiniLM-L6-v2",
         )
     )
     def forward(
@@ -471,7 +471,7 @@ class OnnxForQuestionAnswering(OnnxModel):
         + QUESTION_ANSWERING_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="OnnxForQuestionAnswering",
-            checkpoint="philschmid/distilbert-onnx",
+            checkpoint="optimum/roberta-base-squad2",
         )
     )
     def forward(
@@ -535,8 +535,8 @@ SEQUENCE_CLASSIFICATION_SAMPLE = r"""
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
 
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> tokenizer = {processor_class}.from_pretrained("optimum/distilbert-base-uncased-mnli")
+    >>> model = {model_class}.from_pretrained("optimum/distilbert-base-uncased-mnli")
     >>> onnx_z0 = pipeline("zero-shot-classification", model=model, tokenizer=tokenizer)
 
     >>> sequence_to_classify = "Who are you voting for in 2020?"
@@ -572,7 +572,7 @@ class OnnxForSequenceClassification(OnnxModel):
         + SEQUENCE_CLASSIFICATION_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="OnnxForSequenceClassification",
-            checkpoint="philschmid/distilbert-onnx",
+            checkpoint="optimum/distilbert-base-uncased-finetuned-sst-2-english",
         )
     )
     def forward(
@@ -656,7 +656,7 @@ class OnnxForTokenClassification(OnnxModel):
         + TOKEN_CLASSIFICATION_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="OnnxForTokenClassification",
-            checkpoint="philschmid/distilbert-onnx",
+            checkpoint="optimum/bert-base-NER",
         )
     )
     def forward(
