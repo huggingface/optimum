@@ -20,6 +20,7 @@ REQUIRED_PKGS = [
     "packaging",
     "numpy",
     "huggingface_hub==0.4.0",
+    "sentencepiece>=0.1.91,!=0.1.92",
 ]
 
 TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]

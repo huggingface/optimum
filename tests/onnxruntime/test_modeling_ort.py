@@ -324,7 +324,7 @@ class OnnxForFeatureExtractionIntergrationTest(unittest.TestCase):
         "camembert": "cmarkea/distilcamembert-base",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        # "xlm-roberta": "hf-internal-testing/tiny -xlm-roberta",
         "xlm-roberta": "xlm-roberta-base",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
