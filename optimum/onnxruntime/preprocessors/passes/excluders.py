@@ -45,7 +45,7 @@ class ExcludeNodeFollowedBy(PreprocessorPass):
             candidate_nodes_to_exclude[node] for node in to_exclude if node in candidate_nodes_to_exclude
         }
 
-        return None, nodes_to_exclude
+        return set(), nodes_to_exclude
 
 
 class ExcludeNodeAfter(PreprocessorPass):
@@ -75,4 +75,4 @@ class ExcludeNodeAfter(PreprocessorPass):
             candidate_nodes_to_exclude[node] for node in to_exclude if node in candidate_nodes_to_exclude
         }
 
-        return None, nodes_to_exclude
+        return set(), nodes_to_exclude
