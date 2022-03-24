@@ -48,7 +48,7 @@ ORT_DEFAULT_CHANNEL_FOR_OPERATORS = {"MatMul": 1}
 ORT_FULLY_CONNECTED_OPERATORS = [ORTQuantizableOperator.MatMul, ORTQuantizableOperator.Add]
 
 
-from utils import ONNX_WEIGHTS_NAME
+from .utils import ONNX_WEIGHTS_NAME
 
 from .configuration import ORTConfig
 from .model import ORTModel

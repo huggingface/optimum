@@ -15,7 +15,6 @@ from transformers import (
 
 import onnxruntime
 from optimum.onnxruntime import (
-    CONFIG_NAME,
     ONNX_WEIGHTS_NAME,
     OnnxForFeatureExtraction,
     OnnxForQuestionAnswering,
