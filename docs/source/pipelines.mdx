@@ -86,7 +86,7 @@ and [`AutoTokenizer'] class. For example, load the [`OnnxForQuestionAnswering`] 
 >>> from optimum import optimum_pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
->>> model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+>>> model = OnnxForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
 
 >>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
 >>> question = "Whats my name?"
@@ -108,8 +108,11 @@ the `do_optimization=True` and/or `do_quantization=True` arguments:
 >>> from optimum.onnxruntime import OnnxForQuestionAnswering
 >>> from optimum import optimum_pipeline
 
->>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
->>> model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+>>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
+>>> model = OnnxForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
+
+>>> model.optimize()
+>>> model.quantize()
 
 >>> onnx_qa = optimum_pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, do_optimization=True, do_quantization=True)
 >>> question = "Whats my name?"
@@ -128,11 +131,11 @@ The [`optimum_pipeline`] is just a light wrapper around the `transformers.pipeli
 ```diff
 from transformers import AutoTokenizer, pipeline
 -from transformers import AutoModelForQuestionAnswering
-+ from optimum.onnxruntime import OnnxForQuestionAnswering
++from optimum.onnxruntime import OnnxForQuestionAnswering
 
--model = AutoModelForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
-+model = OnnxForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
-tokenizer = AutoTokenizer.from_pretrained("philschmid/distilbert-onnx")
+-model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
++model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
 

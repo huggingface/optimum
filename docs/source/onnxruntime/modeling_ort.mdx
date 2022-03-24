@@ -23,11 +23,11 @@ The Optimum Inference models are API compatible with Transformers models, meanin
 ```diff
 from transformers import AutoTokenizer, pipeline
 -from transformers import AutoModelForQuestionAnswering
-+ from optimum.onnxruntime import OnnxForQuestionAnswering
++from optimum.onnxruntime import OnnxForQuestionAnswering
 
--model = AutoModelForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
-+model = OnnxForQuestionAnswering.from_pretrained("philschmid/distilbert-onnx")
-tokenizer = AutoTokenizer.from_pretrained("philschmid/distilbert-onnx")
+-model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
++model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
 
