@@ -5,10 +5,10 @@ import subprocess
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 
-from huggingface_hub import HfApi, HfFolder, hf_hub_download
 from transformers import AutoConfig
 
 import requests
+from huggingface_hub import HfApi, HfFolder, hf_hub_download
 
 from .utils import CONFIG_NAME
 

@@ -5,29 +5,25 @@ from pathlib import Path
 from typing import Optional, Union
 
 import torch
-from huggingface_hub import HfApi, hf_hub_download
 from transformers import AutoTokenizer, PretrainedConfig
-from transformers.file_utils import (
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    default_cache_path,
-)
+from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.modeling_outputs import (
+    BaseModelOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
-    BaseModelOutput,
 )
-
-from .utils import ONNX_WEIGHTS_NAME, _is_gpu_available
-from ..modeling_base import OptimizedModel
-
+from transformers.onnx import FeaturesManager, export
 
 import onnxruntime as ort
+from huggingface_hub import HfApi, hf_hub_download
 from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.transformers.optimizer import optimize_model
 from onnxruntime.transformers.quantize_helper import QuantizeHelper
-from transformers.onnx import FeaturesManager, export
+
+from ..modeling_base import OptimizedModel
+from .utils import ONNX_WEIGHTS_NAME, _is_gpu_available
+
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +190,7 @@ class OnnxModel(OptimizedModel):
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
         Save a model and its configuration file to a directory, so that it can be re-loaded using the
-        `:func:`~optimized_transformers.OnnxModel.from_pretrained`` class method. It will always save the latest_model_name.
+        `:func:`~optimum.onnxruntime.modeling_ort.OnnxModel.from_pretrained`` class method. It will always save the latest_model_name.
         Arguments:
             save_directory (:obj:`str` or :obj:`Path`):
                 Directory where to save the model file.

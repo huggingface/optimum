@@ -14,11 +14,12 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+import torch
 from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
-import torch
+
 
 logger = logging.get_logger(__name__)
 

@@ -10,63 +10,52 @@ from transformers import (
     TextClassificationPipeline,
     TokenClassificationPipeline,
     ZeroShotClassificationPipeline,
-    pipeline as transformers_pipeline,
 )
-from transformers.pipelines import TASK_ALIASES
+from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
-from optimized_transformers.models.modeling_ort import (
-    OnnxForFeatureExtraction,
-    OnnxForQuestionAnswering,
-    OnnxForSequenceClassification,
-    OnnxForTokenClassification,
-    OnnxModel,
-)
-from optimized_transformers.utils import is_onnxruntime_available
+from transformers.pipelines import TASK_ALIASES
+
+from optimum.utils import is_onnxruntime_available
 
 
-SUPPORTED_TASKS = {
-    "feature-extraction": {
-        "impl": FeatureExtractionPipeline,
-        "onnx": (OnnxForFeatureExtraction,) if is_onnxruntime_available() else (),
-        "default": {"model": {"onnx": "distilbert-base-cased"}},
-    },
-    "text-classification": {
-        "impl": TextClassificationPipeline,
-        "onnx": (OnnxForSequenceClassification,) if is_onnxruntime_available() else (),
-        "default": {
-            "model": {
-                "onnx": "distilbert-base-uncased-finetuned-sst-2-english",
-            },
+SUPPORTED_TASKS = {}
+
+if is_onnxruntime_available():
+    from optimum.onnxruntime import (
+        OnnxForFeatureExtraction,
+        OnnxForQuestionAnswering,
+        OnnxForSequenceClassification,
+        OnnxForTokenClassification,
+        OnnxModel,
+    )
+
+    SUPPORTED_TASKS = {
+        "feature-extraction": {
+            "impl": FeatureExtractionPipeline,
+            "class": (OnnxForFeatureExtraction,) if is_onnxruntime_available() else (),
+            "default": "distilbert-base-cased",
         },
-    },
-    "token-classification": {
-        "impl": TokenClassificationPipeline,
-        "onnx": (OnnxForTokenClassification,) if is_onnxruntime_available() else (),
-        "default": {
-            "model": {
-                "onnx": "dbmdz/bert-large-cased-finetuned-conll03-english",
-            },
+        "text-classification": {
+            "impl": TextClassificationPipeline,
+            "class": (OnnxForSequenceClassification,) if is_onnxruntime_available() else (),
+            "default": "distilbert-base-uncased-finetuned-sst-2-english",
         },
-    },
-    "question-answering": {
-        "impl": QuestionAnsweringPipeline,
-        "onnx": (OnnxForQuestionAnswering,) if is_onnxruntime_available() else (),
-        "default": {
-            "model": {
-                "onnx": "distilbert-base-cased-distilled-squad",
-            },
+        "token-classification": {
+            "impl": TokenClassificationPipeline,
+            "class": (OnnxForTokenClassification,) if is_onnxruntime_available() else (),
+            "default": "dbmdz/bert-large-cased-finetuned-conll03-english",
         },
-    },
-    "zero-shot-classification": {
-        "impl": ZeroShotClassificationPipeline,
-        "onnx": (OnnxForSequenceClassification,) if is_onnxruntime_available() else (),
-        "default": {
-            "model": {
-                "onnx": "facebook/bart-large-mnli",
-            },
+        "question-answering": {
+            "impl": QuestionAnsweringPipeline,
+            "class": (OnnxForQuestionAnswering,) if is_onnxruntime_available() else (),
+            "default": "distilbert-base-cased-distilled-squad",
         },
-    },
-}
+        "zero-shot-classification": {
+            "impl": ZeroShotClassificationPipeline,
+            "class": (OnnxForSequenceClassification,) if is_onnxruntime_available() else (),
+            "default": "facebook/bart-large-mnli",
+        },
+    }
 
 
 def optimum_pipeline(
@@ -85,11 +74,11 @@ def optimum_pipeline(
         raise ValueError(f"Task {task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
 
     if model is None:
-        model_id = SUPPORTED_TASKS[task]["default"]["model"]["onnx"]
-        model = SUPPORTED_TASKS[task]["onnx"][0].from_transformers(model_id)
+        model_id = SUPPORTED_TASKS[task]["default"]
+        model = SUPPORTED_TASKS[task]["class"][0].from_transformers(model_id)
     elif isinstance(model, str):
         model_id = model
-        model = SUPPORTED_TASKS[task]["onnx"][0].from_transformers(model)
+        model = SUPPORTED_TASKS[task]["class"][0].from_transformers(model)
     elif isinstance(model, OnnxModel):
         if tokenizer is None:
             raise ValueError("If you pass a model as a OnnxModel, you must pass a tokenizer as well")

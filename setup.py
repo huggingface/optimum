@@ -22,13 +22,13 @@ REQUIRED_PKGS = [
     "huggingface_hub==0.4.0",
 ]
 
-TESTS_REQUIRE = ["pytest"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
 EXTRAS_REQUIRE = {
-    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1", "transformers>4.17.0"],
-    "onnxruntime-gpu": ["onnx", "onnxruntime", "datasets>=1.2.1", "transformers>4.17.0"],
+    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],  # "transformers>4.17.0"],
+    "onnxruntime-gpu": ["onnx", "onnxruntime", "datasets>=1.2.1"],  # "transformers>4.17.0"],
     "intel": [
         "pycocotools",
         "neural_compressor>=1.9",
@@ -41,9 +41,6 @@ EXTRAS_REQUIRE = {
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
 }
-
-EXTRAS_REQUIRE["dev"] = EXTRAS_REQUIRE["tests"] + EXTRAS_REQUIRE["quality"] + EXTRAS_REQUIRE["onnxruntime"]
-
 
 setup(
     name="optimum",
