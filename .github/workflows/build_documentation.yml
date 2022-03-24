@@ -67,7 +67,7 @@ jobs:
       - name: Make documentation
         run: |
           cd doc-builder &&
-          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build --clean --version main --html &&
+          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build --clean --version v1.0.0 --html &&
           cd ..
         env:
           NODE_OPTIONS: --max-old-space-size=6656
