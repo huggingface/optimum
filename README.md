@@ -145,11 +145,10 @@ quantizer.export(
 As a final example, let's take a look at applying _graph optimizations_ techniques such as operator fusion and constant folding. As before, we load a configuration object, but this time by setting the optimization level instead of the quantization approach:
 
 ```python
-from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
+from optimum.onnxruntime.configuration import OptimizationConfig
 
 # optimization_config=99 enables all available graph optimisations
 optimization_config = OptimizationConfig(optimization_level=99)
-ort_config = ORTConfig(optimization_config=optimization_config)
 ```
 
 Next, we load an _optimizer_ to apply these optimisations to our model:
@@ -157,11 +156,27 @@ Next, we load an _optimizer_ to apply these optimisations to our model:
 ```python
 from optimum.onnxruntime import ORTOptimizer
 
-optimizer = ORTOptimizer(ort_config)
-optimizer.fit(model_checkpoint, output_dir=".", feature="sequence-classification")
+optimizer = ORTOptimizer.from_pretrained(
+    model_checkpoint,
+    feature="sequence-classification",
+)
+
+# Export the optimized model
+optimizer.export(
+    onnx_model_path="model.onnx",
+    onnx_optimized_model_output_path="model-optimized.onnx",
+    optimization_config=optimization_config,
+)
 ```
 
 And that's it - the model is now optimized and ready for inference!
+
+As you can see, the process is similar in each case:
+
+1. Define the optimization / quantization strategies via an `OptimizationConfig` / `QuantizationConfig` object
+2. Instantiate an `ORTQuantizer` or `ORTOptimizer` class
+3. Apply the `export()` method
+4. Run inference
 
 Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) directory for more sophisticated usage.
 

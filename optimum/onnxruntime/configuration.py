@@ -523,7 +523,7 @@ class OptimizationConfig:
 
     """
     Whether to optimize the model for GPU inference.
-    The optimized graph might contain operators for GPU or CPU only when opt_level > 1.
+    The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
     """
     optimize_for_gpu: bool = False
 
@@ -532,6 +532,58 @@ class OptimizationConfig:
     Graph fusion might require offline, Python scripts, to be run.
     """
     optimize_with_onnxruntime_only: bool = False
+
+    """
+    Whether to disable the Gelu fusion.
+    """
+    disable_gelu: bool = False
+
+    """
+    Whether to disable Layer Normalization fusion.
+    """
+    disable_layer_norm: bool = False
+
+    """
+    Whether to disable Attention fusion.
+    """
+    disable_attention: bool = False
+
+    """
+    Whether to disable SkipLayerNormalization fusion.
+    """
+    disable_skip_layer_norm: bool = False
+
+    """
+    Whether to disable Add Bias and SkipLayerNormalization fusion.
+    """
+    disable_bias_skip_layer_norm: bool = False
+
+    """
+    Whether to disable Add Bias and Gelu / FastGelu fusion.
+    """
+    disable_bias_gelu: bool = False
+
+    """
+    Whether to enable Gelu / BiasGelu to FastGelu conversion.
+    The default value is set to `False` since this approximation might slightly impact the model's accuracy.
+    """
+    enable_gelu_approximation: bool = False
+
+    """
+    Whether to use mask index instead of raw attention mask in the attention operator.
+    """
+    use_mask_index: bool = False
+
+    """
+    Whether to not use attention masks. Only works for bert model type.
+    """
+    no_attention_mask: bool = False
+
+    """
+     Whether to disable EmbedLayerNormalization fusion.
+     The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
+    """
+    disable_embed_layer_norm: bool = True
 
 
 class ORTConfig(BaseConfig):

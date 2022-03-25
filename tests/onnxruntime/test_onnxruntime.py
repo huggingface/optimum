@@ -23,32 +23,56 @@ from transformers import AutoTokenizer
 from transformers.onnx import validate_model_outputs
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTOptimizer, ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, OptimizationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime import ORTModel, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, OptimizationConfig, QuantizationConfig
 
 
 class TestORTOptimizer(unittest.TestCase):
     def test_optimize(self):
         model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
         optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
-        ort_config = ORTConfig(optimization_config=optimization_config)
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
-                    optim_model_path = output_dir.joinpath("model-optimized.onnx")
-                    optimizer = ORTOptimizer(ort_config, optimization_config)
-                    optimizer.fit(model_name, output_dir, feature="sequence-classification")
-                    optimizer.get_optimize_details()
+                    model_path = output_dir.joinpath("model.onnx")
+                    optimized_model_path = output_dir.joinpath("model-optimized.onnx")
+                    optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+                    optimizer.export(
+                        onnx_model_path=model_path,
+                        onnx_optimized_model_output_path=optimized_model_path,
+                        optimization_config=optimization_config,
+                    )
                     validate_model_outputs(
-                        optimizer.onnx_config,
+                        optimizer._onnx_config,
                         optimizer.tokenizer,
                         optimizer.model,
-                        optim_model_path,
-                        list(optimizer.onnx_config.outputs.keys()),
+                        optimized_model_path,
+                        list(optimizer._onnx_config.outputs.keys()),
                         atol=1e-4,
                     )
                     gc.collect()
+
+    def test_optimization_details(self):
+        model_name = "bert-base-cased"
+        optimization_config = OptimizationConfig(optimization_level=0, optimize_with_onnxruntime_only=True)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            model_path = output_dir.joinpath("model.onnx")
+            optimized_model_path = output_dir.joinpath("model-optimized.onnx")
+            optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            optimizer.export(
+                onnx_model_path=model_path,
+                onnx_optimized_model_output_path=optimized_model_path,
+                optimization_config=optimization_config,
+            )
+            difference_nodes_number = optimizer.get_nodes_number_difference(model_path, optimized_model_path)
+            fused_operator = optimizer.get_fused_operators(model_path)
+            sorted_operators_difference = optimizer.get_operators_difference(model_path, optimized_model_path)
+            self.assertEqual(difference_nodes_number, 0)
+            self.assertEqual(len(fused_operator), 0)
+            self.assertEqual(len(sorted_operators_difference), 0)
+            gc.collect()
 
 
 class TestORTQuantizer(unittest.TestCase):
