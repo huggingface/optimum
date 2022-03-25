@@ -34,9 +34,39 @@ NodeName = NodeType = str
 
 @dataclass
 class CalibrationConfig:
+    """
+    CalibrationConfig is the configuration class handling all the ONNX Runtime parameters related to the calibration
+    step of static quantization.
+
+    Args:
+        dataset_name (`str`):
+            Whether to apply static quantization or dynamic quantization.
+        dataset_config_name (`str`):
+            The name of the dataset configuration.
+        dataset_split (`str`):
+            Which split of the dataset is used to perform the calibration step.
+        dataset_num_samples (`int`):
+            The number of samples composing the calibration dataset.
+        method (`CalibrationMethod`):
+            The method chosen to calculate the activations quantization parameters using the calibration dataset.
+        num_bins (`int`, *optional*):
+            The number of bins to use when creating the histogram when performing the calibration step using the
+            Percentile or Entropy method.
+        num_quantized_bins (`int`, *optional*):
+            The number of quantized bins to use when performing the calibration step using the Entropy method.
+        percentile (`float`, *optional*):
+            The percentile to use when computing the activations quantization ranges when performing the calibration
+            step using the Percentile method.
+        moving_average (`bool`, *optional*):
+            Whether to compute the moving average of the minimum and maximum values when performing the calibration step
+            using the MinMax method.
+        averaging_constant (`float`, *optional*):
+            The constant smoothing factor to use when computing the moving average of the minimum and maximum values.
+            Effective only when the MinMax calibration method is selected and `moving_average` is set to True.
+    """
     dataset_name: str
-    dataset_config_name: Optional[str]
-    dataset_split: Optional[str]
+    dataset_config_name: str
+    dataset_split: str
     dataset_num_samples: int
     method: CalibrationMethod
     num_bins: Optional[int] = None
@@ -166,8 +196,53 @@ class AutoCalibrationConfig:
 
 @dataclass
 class QuantizationConfig:
+    """
+    QuantizationConfig is the configuration class handling all the ONNX Runtime quantization parameters.
+
+    Args:
+        is_static (`bool`):
+            Whether to apply static quantization or dynamic quantization.
+        format (`QuantFormat`):
+            Targeted ONNX Runtime quantization representation format.
+            For the Operator Oriented (QOperator) format, all the quantized operators have their own ONNX definitions.
+            For the Tensor Oriented (QDQ) format, the model is quantized by inserting QuantizeLinear / DeQuantizeLinear
+            operators.
+        mode (`QuantizationMode`, defaults to `QuantizationMode.QLinearOps`):
+            Targeted ONNX Runtime quantization mode, default is QLinearOps to match QDQ format.
+            When targeting dynamic quantization mode, the default value is `QuantizationMode.IntegerOps` whereas the
+            default value for static quantization mode is `QuantizationMode.QLinearOps`.
+        activations_dtype (`QuantType`, defaults to `QuantType.QUInt8`):
+            The quantization data types to use for the activations.
+        activations_symmetric (`bool`, defaults to `False`):
+            Whether to apply symmetric quantization on the activations.
+        weights_dtype (`QuantType`, defaults to `QuantType.QInt8`):
+            The quantization data types to use for the weights.
+        weights_symmetric (`bool`, defaults to `True`):
+            Whether to apply symmetric quantization on the weights.
+        per_channel (`bool`, defaults to `False`):
+            Whether we should quantize per-channel (also known as "per-row"). Enabling this can increase overall
+            accuracy while making the quantized model heavier.
+        reduce_range (`bool`, defaults to `False`):
+            Whether to use reduce-range 7-bits integers instead of 8-bits integers.
+        nodes_to_quantize (`list`):
+            List of the nodes names to quantize.
+        nodes_to_exclude (`list`):
+            List of the nodes names to exclude when applying quantization.
+        operators_to_quantize (`list`):
+            List of the operators types to quantize.
+        qdq_add_pair_to_weight (`bool`, defaults to `False`):
+            By default, floating-point weights are quantized and feed to solely inserted DeQuantizeLinear node.
+            If set to True, the floating-point weights will remain and both QuantizeLinear / DeQuantizeLinear nodes
+            will be inserted.
+        qdq_dedicated_pair (`bool`, defaults to `False`):
+            When inserting QDQ pair, multiple nodes can share a single QDQ pair as their inputs. If True, it will
+            create an identical and dedicated QDQ pair for each node.
+        qdq_op_type_per_channel_support_to_axis (`Dict[str, int]`):
+            Set the channel axis for a specific operator type. Effective only when per channel quantization is
+            supported and `per_channel` is set to True.
+    """
     is_static: bool
-    format: QuantFormat.QDQ
+    format: QuantFormat
     mode: QuantizationMode = QuantizationMode.QLinearOps
     activations_dtype: QuantType = QuantType.QUInt8
     activations_symmetric: bool = False
@@ -509,95 +584,74 @@ class AutoQuantizationConfig:
 @dataclass
 class OptimizationConfig:
     """
-    Optimization level performed by ONNX Runtime of the loaded graph.
-    Supported optimization level are 0, 1, 2 and 99.
-    0 will disable all optimizations (GraphOptimizationLevel.ORT_DISABLE_ALL).
-    1 will enable basic optimizations. (GraphOptimizationLevel.ORT_ENABLE_BASIC)
-    2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
-    assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
-    (GraphOptimizationLevel.ORT_ENABLE_EXTENDED)
-    99 will enable all available optimizations including layout optimizations. (GraphOptimizationLevel.ORT_ENABLE_ALL)
+    OptimizationConfig is the configuration class handling all the ONNX Runtime optimization parameters.
+
+    Args:
+        optimization_level (`int`, defaults to 1):
+            ONNX opset version to export the model with.
+            Optimization level performed by ONNX Runtime of the loaded graph.
+            Supported optimization level are 0, 1, 2 and 99.
+            0 will disable all optimizations.
+            1 will enable basic optimizations.
+            2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
+            assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
+            99 will enable all available optimizations including layout optimizations.
+        optimize_for_gpu (`bool`, defaults to `False`):
+            Whether to optimize the model for GPU inference.
+            The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
+        optimize_with_onnxruntime_only (`bool`, defaults to `False`):
+            Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python.
+        disable_gelu (`bool`, defaults to `False`):
+            Whether to disable the Gelu fusion.
+        disable_layer_norm (`bool`, defaults to `False`):
+            Whether to disable Layer Normalization fusion.
+        disable_attention (`bool`, defaults to `False`):
+            Whether to disable Attention fusion.
+        disable_skip_layer_norm (`bool`, defaults to `False`):
+            Whether to disable SkipLayerNormalization fusion.
+        disable_bias_skip_layer_norm (`bool`, defaults to `False`):
+            Whether to disable Add Bias and SkipLayerNormalization fusion.
+        disable_bias_gelu (`bool`, defaults to `False`):
+            Whether to disable Add Bias and Gelu / FastGelu fusion.
+        enable_gelu_approximation (`bool`, defaults to `False`):
+            Whether to enable Gelu / BiasGelu to FastGelu conversion.
+            The default value is set to `False` since this approximation might slightly impact the model's accuracy.
+        use_mask_index (`bool`, defaults to `False`):
+            Whether to use mask index instead of raw attention mask in the attention operator.
+        no_attention_mask (`bool`, defaults to `False`):
+            Whether to not use attention masks. Only works for bert model type.
+        disable_embed_layer_norm (`bool`, defaults to `True`):
+            Whether to disable EmbedLayerNormalization fusion.
+            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
     """
 
-    optimization_level: Union[int, GraphOptimizationLevel] = GraphOptimizationLevel.ORT_ENABLE_BASIC
-
-    """
-    Whether to optimize the model for GPU inference.
-    The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
-    """
+    optimization_level: int = 1
     optimize_for_gpu: bool = False
-
-    """
-    Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python. 
-    Graph fusion might require offline, Python scripts, to be run.
-    """
     optimize_with_onnxruntime_only: bool = False
-
-    """
-    Whether to disable the Gelu fusion.
-    """
     disable_gelu: bool = False
-
-    """
-    Whether to disable Layer Normalization fusion.
-    """
     disable_layer_norm: bool = False
-
-    """
-    Whether to disable Attention fusion.
-    """
     disable_attention: bool = False
-
-    """
-    Whether to disable SkipLayerNormalization fusion.
-    """
     disable_skip_layer_norm: bool = False
-
-    """
-    Whether to disable Add Bias and SkipLayerNormalization fusion.
-    """
     disable_bias_skip_layer_norm: bool = False
-
-    """
-    Whether to disable Add Bias and Gelu / FastGelu fusion.
-    """
     disable_bias_gelu: bool = False
-
-    """
-    Whether to enable Gelu / BiasGelu to FastGelu conversion.
-    The default value is set to `False` since this approximation might slightly impact the model's accuracy.
-    """
     enable_gelu_approximation: bool = False
-
-    """
-    Whether to use mask index instead of raw attention mask in the attention operator.
-    """
     use_mask_index: bool = False
-
-    """
-    Whether to not use attention masks. Only works for bert model type.
-    """
     no_attention_mask: bool = False
-
-    """
-     Whether to disable EmbedLayerNormalization fusion.
-     The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
-    """
     disable_embed_layer_norm: bool = True
 
 
 class ORTConfig(BaseConfig):
     """
-    ORTConfig is the configuration class handling all the ONNX Runtime optimization and quantization parameters.
+    ORTConfig is the configuration class handling all the ONNX Runtime parameters related to the ONNX IR model export, optimization and quantization parameters.
 
-    Arg:
-        opset (`int`, `optional`):
+    Args:
+        opset (`int`, *optional*):
             ONNX opset version to export the model with.
-        use_external_data_format (`bool`, `optional`, defaults to `False`):
+        use_external_data_format (`bool`, *optional*, defaults to `False`):
             Allow exporting model >= than 2Gb.
-        optimization_config (`OptimizationConfig`, `optional`, defaults to None):
+        optimization_config (`OptimizationConfig`, *optional*, defaults to None):
             Specify a configuration to optimize ONNX Runtime model
-        quantization_config (`QuantizationConfig`, `optional`, defaults to None):
+        quantization_config (`QuantizationConfig`, *optional*, defaults to None):
             Specify a configuration to quantize ONNX Runtime model
     """
 
