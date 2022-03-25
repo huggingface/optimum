@@ -64,6 +64,7 @@ class CalibrationConfig:
             The constant smoothing factor to use when computing the moving average of the minimum and maximum values.
             Effective only when the MinMax calibration method is selected and `moving_average` is set to True.
     """
+
     dataset_name: str
     dataset_config_name: str
     dataset_split: str
@@ -241,6 +242,7 @@ class QuantizationConfig:
             Set the channel axis for a specific operator type. Effective only when per channel quantization is
             supported and `per_channel` is set to True.
     """
+
     is_static: bool
     format: QuantFormat
     mode: QuantizationMode = QuantizationMode.QLinearOps
