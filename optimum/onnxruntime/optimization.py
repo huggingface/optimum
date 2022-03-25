@@ -40,6 +40,8 @@ class ORTOptimizer:
         model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
     ) -> "ORTOptimizer":
         """
+        Instantiate a `ORTOptimizer` from a pretrained pytorch model and tokenizer.
+
         Args:
             model_name_or_path (`Union[str, os.PathLike]`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
@@ -101,6 +103,8 @@ class ORTOptimizer:
         use_external_data_format: bool = False,
     ) -> Path:
         """
+        Optimize a model given the optimization specifications defined in `optimization_config`.
+
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
@@ -158,35 +162,10 @@ class ORTOptimizer:
         return Path(onnx_optimized_model_output_path)
 
     @staticmethod
-    def get_nodes_difference(
-        onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
-    ) -> int:
-        """
-        Args:
-            onnx_model_path (`Union[str, os.PathLike]`):
-                Path of the ONNX model.
-            onnx_optimized_model_path (`Union[str, os.PathLike]`):
-                Path of the corresponding optimized ONNX model.
-
-        Returns:
-            The number of nodes decrease resulting from optimization.
-        """
-        onnx_model = BertOnnxModel(load_model(onnx_model_path))
-        onnx_optimized_model = BertOnnxModel(load_model(onnx_optimized_model_path))
-
-        # Information in the number of nodes decrease resulting from optimization
-        nodes_number_onnx_model = len(onnx_model.nodes())
-        nodes_number_onnx_optimized_model = len(onnx_optimized_model.nodes())
-        difference_nodes_number = nodes_number_onnx_model - nodes_number_onnx_optimized_model
-        LOGGER.info(
-            f"There are {nodes_number_onnx_model} nodes before optimization and {nodes_number_onnx_optimized_model}"
-            f"nodes after. The number of nodes removed is {difference_nodes_number}"
-        )
-        return difference_nodes_number
-
-    @staticmethod
     def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> Dict[str, int]:
         """
+        Compute the dictionary mapping the name of the fused operators to their number of apparition in the model.
+
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
                 Path of the ONNX model.
@@ -202,24 +181,56 @@ class ORTOptimizer:
         return {k: v for k, v in fused_operator.items() if v > 0}
 
     @staticmethod
-    def get_operators_difference(
+    def get_nodes_number_difference(
         onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
-    ) -> Dict[str, int]:
+    ) -> int:
         """
+        Compute the difference in the number of nodes between the original and the optimized model.
+
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
                 Path of the ONNX model.
             onnx_optimized_model_path (`Union[str, os.PathLike]`):
-                Path of the corresponding optimized ONNX model.
+                Path of the optimized ONNX model.
 
         Returns:
-            The dictionary mapping the name of the operators to the number difference between the original and the
-            optimized model.
+            The difference in the number of nodes between the original and the optimized model.
         """
         onnx_model = BertOnnxModel(load_model(onnx_model_path))
         onnx_optimized_model = BertOnnxModel(load_model(onnx_optimized_model_path))
 
-        def get_operators_difference(op_type):
+        # Information in the number of nodes decrease resulting from optimization
+        nodes_number_onnx_model = len(onnx_model.nodes())
+        nodes_number_onnx_optimized_model = len(onnx_optimized_model.nodes())
+        difference_nodes_number = nodes_number_onnx_model - nodes_number_onnx_optimized_model
+        LOGGER.info(
+            f"There are {nodes_number_onnx_model} nodes before optimization and {nodes_number_onnx_optimized_model}"
+            f"nodes after. The number of nodes removed is {difference_nodes_number}"
+        )
+        return difference_nodes_number
+
+    @staticmethod
+    def get_operators_difference(
+        onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
+    ) -> Dict[str, int]:
+        """
+        Compute the dictionary mapping the operators name to the difference in the number of corresponding nodes between
+        the original and the optimized model.
+
+        Args:
+            onnx_model_path (`Union[str, os.PathLike]`):
+                Path of the ONNX model.
+            onnx_optimized_model_path (`Union[str, os.PathLike]`):
+                Path of the optimized ONNX model.
+
+        Returns:
+            The dictionary mapping the operators name to the difference in the number of corresponding nodes between the
+            original and the optimized model.
+        """
+        onnx_model = BertOnnxModel(load_model(onnx_model_path))
+        onnx_optimized_model = BertOnnxModel(load_model(onnx_optimized_model_path))
+
+        def nodes_difference_given_type(op_type):
             onnx_model_nodes_with_op_type = len(onnx_model.get_nodes_by_op_type(op_type))
             onnx_optimized_model_nodes_with_op_type = len(onnx_optimized_model.get_nodes_by_op_type(op_type))
             return onnx_model_nodes_with_op_type - onnx_optimized_model_nodes_with_op_type
@@ -230,5 +241,5 @@ class ORTOptimizer:
             for node in model.nodes():
                 op_types.add(node.op_type)
 
-        operators_difference = dict(map(lambda op_type: (op_type, get_operators_difference(op_type)), op_types))
+        operators_difference = dict(map(lambda op_type: (op_type, nodes_difference_given_type(op_type)), op_types))
         return {k: v for k, v in operators_difference.items() if v != 0}

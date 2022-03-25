@@ -66,7 +66,7 @@ class TestORTOptimizer(unittest.TestCase):
                 onnx_optimized_model_output_path=optimized_model_path,
                 optimization_config=optimization_config,
             )
-            difference_nodes_number = optimizer.get_nodes_difference(model_path, optimized_model_path)
+            difference_nodes_number = optimizer.get_nodes_number_difference(model_path, optimized_model_path)
             fused_operator = optimizer.get_fused_operators(model_path)
             sorted_operators_difference = optimizer.get_operators_difference(model_path, optimized_model_path)
             self.assertEqual(difference_nodes_number, 0)
