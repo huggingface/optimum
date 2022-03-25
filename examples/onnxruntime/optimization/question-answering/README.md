@@ -17,7 +17,7 @@ limitations under the License.
 # Question answering
 
 The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/optimization/question-answering/run_qa.py)
-allows us to apply dgraph optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for question answering tasks.
+allows us to apply graph optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for question answering tasks.
 
 Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along 
 the flag `--version_2_with_negative`.
