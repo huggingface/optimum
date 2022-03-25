@@ -120,7 +120,7 @@ class ORTOptimizer:
         if not isinstance(onnx_optimized_model_output_path, str):
             onnx_optimized_model_output_path = str(onnx_optimized_model_output_path)
 
-        # Export the model if it has not already been exported to ONNX IR (useful for dynamic quantization)
+        # Export the model if it has not already been exported to ONNX IR
         if not onnx_model_path.exists():
             export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
 
