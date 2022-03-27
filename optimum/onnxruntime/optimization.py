@@ -82,9 +82,6 @@ class ORTOptimizer:
                 Feature to use when exporting the model.
             opset (`int`, *optional*):
                 ONNX opset version to export the model with.
-
-        Returns:
-            An instance of `ORTOptimizer`.
         """
         super().__init__()
 
@@ -111,7 +108,7 @@ class ORTOptimizer:
             onnx_optimized_model_output_path (`Union[str, os.PathLike]`):
                 The path used to save the optimized model exported to an ONNX Intermediate Representation (IR).
             optimization_config (`OptimizationConfig`):
-                The optimization configuration containing the parameters related to optimization.
+                The configuration containing the parameters related to optimization.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether uto se external data format to store model which size is >= 2Gb.
 
