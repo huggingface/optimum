@@ -40,9 +40,9 @@ class CalibrationConfig:
 
     Args:
         dataset_name (`str`):
-            Whether to apply static quantization or dynamic quantization.
+            The name of the calibration dataset.
         dataset_config_name (`str`):
-            The name of the dataset configuration.
+            The name of the calibration dataset configuration.
         dataset_split (`str`):
             Which split of the dataset is used to perform the calibration step.
         dataset_num_samples (`int`):
@@ -108,11 +108,17 @@ class AutoCalibrationConfig:
     @staticmethod
     def minmax(dataset: Dataset, moving_average: bool = False, averaging_constant: float = 0.01) -> CalibrationConfig:
         """
+        Args:
+            dataset (`Dataset`):
+                The dataset to use when performing the calibration step.
+            moving_average (`bool`):
+                Whether to compute the moving average of the minimum and maximum values.
+            averaging_constant (`float`):
+                The constant smoothing factor to use when computing the moving average of the minimum and maximum
+                values.
 
-        :param dataset: The dataset to use to calibrate the model
-        :param moving_average:
-        :param averaging_constant:
-        :return:
+        Returns:
+            The calibration configuration.
         """
         if moving_average and parse(ort_version) < Version("1.11.0"):
             raise NotImplementedError(
@@ -139,11 +145,17 @@ class AutoCalibrationConfig:
         num_quantized_bins: int = 128,
     ) -> CalibrationConfig:
         """
+        Args:
+            dataset (`Dataset`):
+                The dataset to use when performing the calibration step.
+            num_bins (`int`):
+                The number of bins to use when creating the histogram.
+            num_quantized_bins (`int`):
+                The number of quantized bins used to find the optimal threshold when computing the activations
+                quantization ranges.
 
-        :param dataset:
-        :param num_bins:
-        :param num_quantized_bins:
-        :return:
+        Returns:
+            The calibration configuration.
         """
         if parse(ort_version) < Version("1.11.0"):
             raise NotImplementedError("Entropy calibration method is only implemented for onnxruntime >= 1.11.0")
@@ -167,11 +179,16 @@ class AutoCalibrationConfig:
     @staticmethod
     def percentiles(dataset: Dataset, num_bins: int = 2048, percentile: float = 99.999) -> CalibrationConfig:
         """
+        Args:
+            dataset (`Dataset`):
+                The dataset to use when performing the calibration step.
+            num_bins (`int`):
+                The number of bins to use when creating the histogram.
+            percentile (`float`):
+                The percentile to use when computing the activations quantization ranges.
 
-        :param dataset:
-        :param num_bins:
-        :param percentile:
-        :return:
+        Returns:
+            The calibration configuration.
         """
         if parse(ort_version) < Version("1.11.0"):
             raise NotImplementedError("Percentile calibration method is only implemented for onnxruntime >= 1.11.0")
@@ -180,7 +197,7 @@ class AutoCalibrationConfig:
             raise ValueError(f"Invalid value num_bins ({num_bins}) should be >= 1")
 
         if not 0 <= percentile <= 100:
-            raise ValueError(f"Invalid value percentile ({percentile}) should be within [0; 100.[")
+            raise ValueError(f"Invalid value percentile ({percentile}) should be within  [0, 100]")
 
         return CalibrationConfig(
             dataset_name=dataset.info.builder_name,
