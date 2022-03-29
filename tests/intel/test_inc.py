@@ -30,7 +30,7 @@ from transformers.utils.fx import symbolic_trace
 
 import yaml
 from optimum.intel.neural_compressor import IncOptimizer, IncPruner, IncQuantizer, IncTrainer
-from optimum.intel.neural_compressor.config import IncPruningConfig, IncQuantizationConfig
+from optimum.intel.neural_compressor.configuration import IncPruningConfig, IncQuantizationConfig
 from optimum.intel.neural_compressor.pruning import IncPrunerForSequenceClassification
 from optimum.intel.neural_compressor.quantization import (
     IncQuantizationMode,
@@ -38,7 +38,7 @@ from optimum.intel.neural_compressor.quantization import (
     IncQuantizer,
     IncQuantizerForSequenceClassification,
 )
-from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor.trainer import IncTrainer
 from optimum.intel.neural_compressor.utils import CONFIG_NAME
 
 

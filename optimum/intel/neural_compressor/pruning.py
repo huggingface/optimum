@@ -23,7 +23,7 @@ from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from neural_compressor.conf.config import Pruning_Conf
 from neural_compressor.experimental import Pruning, common
-from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncPruningConfig
+from optimum.intel.neural_compressor.configuration import IncOptimizedConfig, IncPruningConfig
 from optimum.intel.neural_compressor.utils import IncDataLoader
 
 

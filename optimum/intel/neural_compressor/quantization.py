@@ -32,7 +32,7 @@ import neural_compressor
 from neural_compressor.adaptor.pytorch import _cfg_to_qconfig, _propagate_qconfig
 from neural_compressor.conf.config import Quantization_Conf
 from neural_compressor.experimental import Quantization, common
-from optimum.intel.neural_compressor.config import IncOptimizedConfig, IncQuantizationConfig
+from optimum.intel.neural_compressor.configuration import IncOptimizedConfig, IncQuantizationConfig
 from optimum.intel.neural_compressor.utils import WEIGHTS_NAME, IncDataLoader, _cfgs_to_fx_cfgs
 
 
