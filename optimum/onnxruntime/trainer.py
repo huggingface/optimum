@@ -1246,7 +1246,7 @@ class ORTTrainer(Trainer):
         if unwrap_model(model) is not model:
             from torch_ort import ORTModule
 
-            if type(model) is not ORTModule:
+            if not isinstance(model, ORTModule):
                 return model
 
         # Mixed precision training with apex (torch < 1.6)

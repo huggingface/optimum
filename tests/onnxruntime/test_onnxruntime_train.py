@@ -36,8 +36,11 @@ class TestORTTrainer(unittest.TestCase):
     @unittest.skip("Skip to just test seq2seq.")
     def test_ort_trainer(self):
 
-        model_names = {"distilbert-base-uncased", "bert-base-cased", "roberta-base"}
-        # "gpt2", "distilbert-base-uncased", "bert-base-cased", "roberta-base", "facebook/bart-base"
+        model_names = {
+            "distilbert-base-uncased",
+            "bert-base-cased",
+            "roberta-base",
+        }  # "gpt2", "facebook/bart-base" in progress
         dataset_names = {"sst2"}  # glue
 
         for model_name in model_names:
@@ -112,6 +115,7 @@ class TestORTTrainer(unittest.TestCase):
                         trainer.save_model()
                         train_metrics = train_result.metrics
                         ort_eval_metrics = trainer.evaluate()
+                        self.assertGreaterEqual(ort_eval_metrics["eval_accuracy"], 0.75)
                         ort_prediction = trainer.predict(test_dataset)
                         print("Training metrics(ORT):\n", train_metrics)
                         print("Evaluation metrics(ORT):\n", ort_eval_metrics)
@@ -140,12 +144,6 @@ class TestORTTrainer(unittest.TestCase):
                         dataset = load_dataset(dataset_name)
                         metric = load_metric(metric_name)
                         label_pad_token_id = tokenizer.pad_token_id
-                        data_collator = DataCollatorForSeq2Seq(
-                            tokenizer,
-                            model=model,
-                            label_pad_token_id=label_pad_token_id,
-                            pad_to_multiple_of=8 if training_args.fp16 else None,
-                        )
 
                         if model_name in ["t5-small", "t5-base", "t5-large", "t5-3b", "t5-11b"] and dataset_name in [
                             "xsum"
@@ -172,9 +170,9 @@ class TestORTTrainer(unittest.TestCase):
                         max_train_samples = 200
                         max_valid_samples = 50
                         max_test_samples = 20
-                        train_dataset = encoded_dataset["train"].select(range(max_train_samples))
-                        valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
-                        test_dataset = encoded_dataset["test"].select(range(max_test_samples))
+                        train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
+                        valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
+                        test_dataset = encoded_dataset["test"]  # .select(range(max_test_samples))
 
                         def compute_metrics(eval_pred):
                             predictions, labels = eval_pred
@@ -212,6 +210,15 @@ class TestORTTrainer(unittest.TestCase):
                             num_train_epochs=num_train_epochs,
                             predict_with_generate=True,
                             fp16=True,
+                            do_train=True,
+                            do_eval=True,
+                        )
+
+                        data_collator = DataCollatorForSeq2Seq(
+                            tokenizer,
+                            model=model,
+                            label_pad_token_id=label_pad_token_id,
+                            pad_to_multiple_of=8 if training_args.fp16 else None,
                         )
 
                         trainer = Seq2SeqORTTrainer(
@@ -229,6 +236,7 @@ class TestORTTrainer(unittest.TestCase):
                         trainer.save_model()
                         train_metrics = train_result.metrics
                         ort_eval_metrics = trainer.evaluate()
+                        self.assertGreaterEqual(ort_eval_metrics["eval_bleu"], 30)
                         ort_prediction = trainer.predict(test_dataset)
                         print("Training metrics(ORT):\n", train_metrics)
                         print("Evaluation metrics(ORT):\n", ort_eval_metrics)

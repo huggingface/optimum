@@ -54,13 +54,13 @@ python run_translation.py \
 
 ### Performance
 
-We get the following results with the previous commands under PyTorch and ONNX Runtime backends. (a single Nvidia A100 was
-used):
+We get the following results for [t5-large](https://huggingface.co/t5-large) mixed precision training(fp16) on the previous
+task under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the experiment for 3 epochs::
 
-| Backend      | FP16 | Runtime | Train samples(/s) | 
-| ------------ | ---- | ------- | ----------------- | 
-| PyTorch      | TRUE | 2038.8  | 44.143            | 
-| ONNX Runtime | TRUE | 1536.7  | 58.566            |
+| Model    | Backend      | Runtime(s) | Train samples(/s) | 
+| -------- | ------------ | ---------- | ----------------- | 
+| t5-large | PyTorch      | 2038.8     | 44.1              | 
+| t5-large | ONNX Runtime | 1536.7     | 58.6              |
 
 We observe the gain of ONNX Runtime compared to PyTorch as follow:
 

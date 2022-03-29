@@ -42,18 +42,19 @@ python run_glue.py \
 ### Performance
 
 We get the following results for [roberta-base](https://huggingface.co/roberta-base) and [roberta-large](https://huggingface.co/roberta-large) 
-on sst2 dataset under PyTorch and ONNX Runtime backends. (a single Nvidia A100 was used):
+mixed precision training(fp16) on sst2 dataset under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the 
+experiment for 3 epochs::
 
-| Run configuration            | FP16 | Runtime | Train samples(/s) |
-| ---------------------------- | ---- | ------- | ----------------- |
-| roberta-base / PyTorch       | TRUE | 752.3   | 268.589           |
-| roberta-base / ONNX Runtime  | TRUE | 729.7   | 276.874           | 
-| roberta-large / PyTorch      | TRUE | 3523.7  | 57.339            | 
-| roberta-large / ONNX Runtime | TRUE | 2986.6  | 67.65             |
+| Model           | Backend      | Runtime(s) | Train samples(/s) |
+| --------------- |------------- | ---------- | ----------------- |
+| roberta-base    | PyTorch      | 752.3      | 268.6             |
+| roberta-base    | ONNX Runtime | 729.7      | 276.9             | 
+| roberta-large   | PyTorch      | 3523.7     | 57.3              | 
+| roberta-large   | ONNX Runtime | 2986.6     | 67.7              |
 
 We observe the gain of ONNX Runtime compared to PyTorch as follow:
 
-| Gain          | Latency | Throughput |
+| Model         | Latency | Throughput |
 | ------------- | ------- | ---------- |
 | roberta-base  | 2.99%   | 3.08%      |
 | roberta-large | 15.24%  | 17.98%     |

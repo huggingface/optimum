@@ -41,13 +41,13 @@ python run_ner.py \
 
 ### Performance
 
-We get the following results with the previous commands under PyTorch and ONNX Runtime backends. (a single Nvidia A100 was
-used to run 7 epochs):
+We get the following results for [bert-large-cased](https://huggingface.co/bert-large-cased) model mixed precision training(fp16) on the previous 
+task under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the experiment for 7 epochs:
 
-| Backend      | FP16 | Runtime | Train samples(/s) | 
-| ------------ | ---- | ------- | ----------------- | 
-| PyTorch      | TRUE | 711.5   | 138.149           | 
-| ONNX Runtime | TRUE | 637.2   | 154.27            |
+| Model            | Backend      | Runtime(s) | Train samples(/s) | 
+| ---------------- | ------------ | ---------- | ----------------- | 
+| bert-large-cased | PyTorch      | 711.5      | 138.1             | 
+| bert-large-cased | ONNX Runtime | 637.2      | 154.3             |
 
 We observe the gain of ONNX Runtime compared to PyTorch as follow:
 
