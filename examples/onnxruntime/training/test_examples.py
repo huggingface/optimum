@@ -32,6 +32,7 @@ SRC_DIRS = [
         "text-classification",
         "token-classification",
         "question-answering",
+        "translation",
     ]
 ]
 sys.path.extend(SRC_DIRS)
@@ -39,6 +40,7 @@ if SRC_DIRS is not None:
     import run_glue
     import run_ner
     import run_qa
+    import run_translation
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -140,6 +142,34 @@ class ExamplesTests(TestCasePlus):
             result = get_results(tmp_dir)
             self.assertGreaterEqual(result["eval_f1"], 30)
             self.assertGreaterEqual(result["eval_exact"], 30)
+
+    @slow
+    def test_run_translation(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_translation.py
+            --model_name_or_path t5-large
+            --source_lang en
+            --target_lang ro
+            --dataset_name wmt16
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
+            --max_steps=50
+            --warmup_steps=8
+            --do_train
+            --learning_rate=3e-3
+            --per_device_train_batch_size=2
+            --per_device_eval_batch_size=1
+            --predict_with_generate
+        """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_translation.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_bleu"], 30)
 
 
 if __name__ == "__main__":

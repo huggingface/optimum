@@ -19,7 +19,6 @@ import collections
 import math
 import os
 import sys
-import tempfile
 import time
 import warnings
 from pathlib import Path
@@ -30,16 +29,7 @@ from tqdm.auto import tqdm
 
 # Integrations must be imported before ML frameworks:
 from transformers.integrations import (  # isort: split
-    default_hp_search_backend,
-    get_reporting_integration_callbacks,
     hp_params,
-    is_fairscale_available,
-    is_optuna_available,
-    is_ray_tune_available,
-    is_sigopt_available,
-    run_hp_search_optuna,
-    run_hp_search_ray,
-    run_hp_search_sigopt,
 )
 
 import numpy as np
@@ -47,22 +37,11 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data.distributed import DistributedSampler
-from transformers import (
-    AutoConfig,
-    AutoModel,
-    AutoModelForSequenceClassification,
-    AutoTokenizer,
-    PreTrainedModel,
-    PreTrainedTokenizer,
-    TensorType,
-    __version__,
-    is_torch_available,
-)
+from transformers import PreTrainedModel, __version__
 from transformers.configuration_utils import PretrainedConfig
-from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
+from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_reinit
-from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
@@ -74,8 +53,6 @@ from transformers.file_utils import (
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.onnx import export, validate_model_outputs
-from transformers.onnx.config import OnnxConfig
-from transformers.onnx.convert import ensure_model_and_config_inputs_match
 from transformers.onnx.features import FeaturesManager
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -83,7 +60,6 @@ from transformers.trainer_callback import TrainerCallback, TrainerState
 from transformers.trainer_pt_utils import (
     DistributedTensorGatherer,
     IterableDatasetShard,
-    LabelSmoother,
     SequentialDistributedSampler,
     find_batch_size,
     nested_concat,
@@ -202,6 +178,7 @@ class ORTTrainer(Trainer):
             kwargs:
                 Additional keyword arguments used to hide deprecated arguments
         """
+        from onnxruntime.training.ortmodule import DebugOptions as OrtDebugOptions
         from torch_ort import ORTModule
 
         resume_from_checkpoint = None if not resume_from_checkpoint else resume_from_checkpoint
@@ -327,8 +304,11 @@ class ORTTrainer(Trainer):
         delay_optimizer_creation = self.sharded_ddp is not None and self.sharded_ddp != ShardedDDPOption.SIMPLE
 
         # Wrap the model with `ORTModule`
-        logger.info("Wrap ORTModule for OnnxRuntime training.")
-        model = ORTModule(self.model)
+        logger.info("Wrap ORTModule for Onnx Runtime training.")
+        debug_options = OrtDebugOptions(
+            save_onnx=True, onnx_prefix=f'{self.model.config.name_or_path.split("/")[-1]}-DEBUG'
+        )
+        model = ORTModule(self.model)  # Add `debug_options` to check validate onnx graph
         self.model_wrapped = model
 
         if args.deepspeed:
@@ -778,6 +758,8 @@ class ORTTrainer(Trainer):
                 # Convert the `PreTrainedModel` to ONNX IR
                 self._export(onnx_model_path)
                 self.onnx_model_path = onnx_model_path.as_posix()
+                # Fix exported onnx IR
+                fix_atenops_to_gather(self.onnx_model_path)
                 logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
 
         self.infer_sess = onnxruntime.InferenceSession(
@@ -984,6 +966,8 @@ class ORTTrainer(Trainer):
                 # Convert the `PreTrainedModel` to ONNX IR
                 self._export(onnx_model_path)
                 self.onnx_model_path = onnx_model_path.as_posix()
+                # Fix exported onnx IR
+                fix_atenops_to_gather(self.onnx_model_path)
                 logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
 
         # Can't infer the exported onnx models due to impatible opset
@@ -1246,3 +1230,77 @@ class ORTTrainer(Trainer):
         onnx_config = model_onnx_config(model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
         _ = export(tokenizer=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
+
+    def _wrap_model(self, model, training=True):
+        if is_sagemaker_mp_enabled():
+            # Wrapping the base model twice in a DistributedModel will raise an error.
+            if isinstance(self.model_wrapped, smp.model.DistributedModel):
+                return self.model_wrapped
+            return smp.DistributedModel(model, backward_passes_per_step=self.args.gradient_accumulation_steps)
+
+        # already initialized its own DDP and AMP
+        if self.deepspeed:
+            return self.deepspeed
+
+        # train/eval could be run multiple-times - if already wrapped, don't re-wrap it again
+        if unwrap_model(model) is not model:
+            from torch_ort import ORTModule
+
+            if not isinstance(model, ORTModule):
+                return model
+
+        # Mixed precision training with apex (torch < 1.6)
+        if self.use_apex and training:
+            model, self.optimizer = amp.initialize(model, self.optimizer, opt_level=self.args.fp16_opt_level)
+
+        # Multi-gpu training (should be after apex fp16 initialization)
+        if self.args.n_gpu > 1:
+            model = nn.DataParallel(model)
+
+        # Note: in torch.distributed mode, there's no point in wrapping the model
+        # inside a DistributedDataParallel as we'll be under `no_grad` anyways.
+        if not training:
+            return model
+
+        # Distributed training (should be after apex fp16 initialization)
+        if self.sharded_ddp is not None:
+            # Sharded DDP!
+            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+                model = ShardedDDP(model, self.optimizer)
+            else:
+                mixed_precision = self.args.fp16 or self.args.bf16
+                cpu_offload = ShardedDDPOption.OFFLOAD in self.args.sharded_ddp
+                zero_3 = self.sharded_ddp == ShardedDDPOption.ZERO_DP_3
+                # XXX: Breaking the self.model convention but I see no way around it for now.
+                if ShardedDDPOption.AUTO_WRAP in self.args.sharded_ddp:
+                    model = auto_wrap(model)
+                self.model = model = FullyShardedDDP(
+                    model,
+                    mixed_precision=mixed_precision,
+                    reshard_after_forward=zero_3,
+                    cpu_offload=cpu_offload,
+                ).to(self.args.device)
+
+        elif is_sagemaker_dp_enabled():
+            model = DDP(model, device_ids=[dist.get_local_rank()], broadcast_buffers=False)
+        elif self.args.local_rank != -1:
+            kwargs = {}
+            if self.args.ddp_find_unused_parameters is not None:
+                kwargs["find_unused_parameters"] = self.args.ddp_find_unused_parameters
+            elif isinstance(model, PreTrainedModel):
+                # find_unused_parameters breaks checkpointing as per
+                # https://github.com/huggingface/transformers/pull/4659#issuecomment-643356021
+                kwargs["find_unused_parameters"] = not model.is_gradient_checkpointing
+            else:
+                kwargs["find_unused_parameters"] = True
+
+            if self.args.ddp_bucket_cap_mb is not None:
+                kwargs["bucket_cap_mb"] = self.args.ddp_bucket_cap_mb
+            model = nn.parallel.DistributedDataParallel(
+                model,
+                device_ids=[self.args.local_rank] if self.args._n_gpu != 0 else None,
+                output_device=self.args.local_rank if self.args._n_gpu != 0 else None,
+                **kwargs,
+            )
+
+        return model
