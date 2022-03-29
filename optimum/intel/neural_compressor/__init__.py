@@ -12,8 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from .config import IncConfig, IncPruningConfig, IncQuantizationConfig
-from .optimizer import IncOptimizer
+from .configuration import IncConfig, IncPruningConfig, IncQuantizationConfig
+from .optimization import IncOptimizer
 from .pruning import IncPruner, IncPruningMode
 from .quantization import IncQuantizationMode, IncQuantizer
-from .trainer_inc import IncTrainer
+from .trainer import IncTrainer

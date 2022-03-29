@@ -18,7 +18,7 @@ A subclass of `IncTrainer` specific to Question-Answering tasks
 
 from transformers.trainer_utils import PredictionOutput
 
-from optimum.intel.neural_compressor.trainer_inc import IncTrainer
+from optimum.intel.neural_compressor.trainer import IncTrainer
 
 
 class QuestionAnsweringIncTrainer(IncTrainer):
