@@ -14,8 +14,6 @@
 
 import tempfile
 import unittest
-from enum import Enum
-from pathlib import Path
 
 import datasets
 import nltk
@@ -30,14 +28,12 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
 )
-from transformers.onnx import export, validate_model_outputs
-from transformers.onnx.features import FeaturesManager
-from transformers.trainer import Trainer
 
 from optimum.onnxruntime import ORTTrainer, Seq2SeqORTTrainer
 
 
 class TestORTTrainer(unittest.TestCase):
+    @unittest.skip("Skip to just test seq2seq.")
     def test_ort_trainer(self):
 
         model_names = {"distilbert-base-uncased", "bert-base-cased", "roberta-base"}
@@ -143,7 +139,13 @@ class TestORTTrainer(unittest.TestCase):
                         # Prepare dataset
                         dataset = load_dataset(dataset_name)
                         metric = load_metric(metric_name)
-                        data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
+                        label_pad_token_id = tokenizer.pad_token_id
+                        data_collator = DataCollatorForSeq2Seq(
+                            tokenizer,
+                            model=model,
+                            label_pad_token_id=label_pad_token_id,
+                            pad_to_multiple_of=8 if training_args.fp16 else None,
+                        )
 
                         if model_name in ["t5-small", "t5-base", "t5-large", "t5-3b", "t5-11b"] and dataset_name in [
                             "xsum"
@@ -170,11 +172,9 @@ class TestORTTrainer(unittest.TestCase):
                         max_train_samples = 200
                         max_valid_samples = 50
                         max_test_samples = 20
-                        train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
-                        valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
-                        test_dataset = encoded_dataset["test"].remove_columns(
-                            ["label"]
-                        )  # .select(range(max_test_samples))
+                        train_dataset = encoded_dataset["train"].select(range(max_train_samples))
+                        valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
+                        test_dataset = encoded_dataset["test"].select(range(max_test_samples))
 
                         def compute_metrics(eval_pred):
                             predictions, labels = eval_pred
@@ -217,8 +217,8 @@ class TestORTTrainer(unittest.TestCase):
                         trainer = Seq2SeqORTTrainer(
                             model=model,
                             args=training_args,
-                            train_dataset=train_dataset,
-                            eval_dataset=valid_dataset,
+                            train_dataset=train_dataset if training_args.do_train else None,
+                            eval_dataset=valid_dataset if training_args.do_eval else None,
                             compute_metrics=compute_metrics if training_args.predict_with_generate else None,
                             tokenizer=tokenizer,
                             data_collator=data_collator,
@@ -228,11 +228,11 @@ class TestORTTrainer(unittest.TestCase):
                         train_result = trainer.train()
                         trainer.save_model()
                         train_metrics = train_result.metrics
-                        # ort_eval_metrics = trainer.evaluate()
-                        # ort_prediction = trainer.predict(test_dataset)
+                        ort_eval_metrics = trainer.evaluate()
+                        ort_prediction = trainer.predict(test_dataset)
                         print("Training metrics(ORT):\n", train_metrics)
-                        # print("Evaluation metrics(ORT):\n", ort_eval_metrics)
-                        # print("Prediction results(ORT):\n", ort_prediction)
+                        print("Evaluation metrics(ORT):\n", ort_eval_metrics)
+                        print("Prediction results(ORT):\n", ort_prediction)
 
 
 if __name__ == "__main__":

@@ -19,7 +19,6 @@ import collections
 import math
 import os
 import sys
-import tempfile
 import time
 import warnings
 from pathlib import Path
@@ -30,16 +29,7 @@ from tqdm.auto import tqdm
 
 # Integrations must be imported before ML frameworks:
 from transformers.integrations import (  # isort: split
-    default_hp_search_backend,
-    get_reporting_integration_callbacks,
     hp_params,
-    is_fairscale_available,
-    is_optuna_available,
-    is_ray_tune_available,
-    is_sigopt_available,
-    run_hp_search_optuna,
-    run_hp_search_ray,
-    run_hp_search_sigopt,
 )
 
 import numpy as np
@@ -47,22 +37,11 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data.distributed import DistributedSampler
-from transformers import (
-    AutoConfig,
-    AutoModel,
-    AutoModelForSequenceClassification,
-    AutoTokenizer,
-    PreTrainedModel,
-    PreTrainedTokenizer,
-    TensorType,
-    __version__,
-    is_torch_available,
-)
+from transformers import PreTrainedModel, __version__
 from transformers.configuration_utils import PretrainedConfig
-from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
+from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_reinit
-from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
@@ -74,8 +53,6 @@ from transformers.file_utils import (
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.onnx import export, validate_model_outputs
-from transformers.onnx.config import OnnxConfig
-from transformers.onnx.convert import ensure_model_and_config_inputs_match
 from transformers.onnx.features import FeaturesManager
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -83,7 +60,6 @@ from transformers.trainer_callback import TrainerCallback, TrainerState
 from transformers.trainer_pt_utils import (
     DistributedTensorGatherer,
     IterableDatasetShard,
-    LabelSmoother,
     SequentialDistributedSampler,
     find_batch_size,
     nested_concat,
@@ -782,6 +758,8 @@ class ORTTrainer(Trainer):
                 # Convert the `PreTrainedModel` to ONNX IR
                 self._export(onnx_model_path)
                 self.onnx_model_path = onnx_model_path.as_posix()
+                # Fix exported onnx IR
+                fix_atenops_to_gather(self.onnx_model_path)
                 logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
 
         self.infer_sess = onnxruntime.InferenceSession(
@@ -988,6 +966,8 @@ class ORTTrainer(Trainer):
                 # Convert the `PreTrainedModel` to ONNX IR
                 self._export(onnx_model_path)
                 self.onnx_model_path = onnx_model_path.as_posix()
+                # Fix exported onnx IR
+                fix_atenops_to_gather(self.onnx_model_path)
                 logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
 
         # Can't infer the exported onnx models due to impatible opset

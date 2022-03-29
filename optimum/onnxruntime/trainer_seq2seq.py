@@ -14,6 +14,7 @@
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 from packaging import version
 from torch import nn
@@ -167,9 +168,11 @@ class Seq2SeqORTTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
+        if generation_inputs.device is not self.model.device:
+            self.model.to(generation_inputs.device)
+
         generated_tokens = self.model.generate(
-            inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
+            generation_inputs,
             **gen_kwargs,
         )
         # in case the batch is shorter than max length, the output should be padded
@@ -178,8 +181,28 @@ class Seq2SeqORTTrainer(ORTTrainer):
 
         with torch.no_grad():
             with self.autocast_smart_context_manager():
-                input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
-                outputs = self.infer_sess.run(output_names, input_feed)
+                try:
+                    available_input_names = list(set(input_names) & set(inputs.keys()))
+                    input_feed = dict(
+                        map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), available_input_names)
+                    )
+                    if ("decoder_attention_mask" in input_names) and ("decoder_attention_mask" not in inputs.keys()):
+                        decoder_input_ids = inputs["decoder_input_ids"].cpu()
+                        decoder_attention_mask = np.concatenate(
+                            [
+                                np.ones(decoder_input_ids[:, :1].shape, np.int64),
+                                np.where(decoder_input_ids[:, 1:] != self.model.config.pad_token_id, 1, 0),
+                            ],
+                            axis=-1,
+                        )
+                        input_feed["decoder_attention_mask"] = decoder_attention_mask
+                    outputs = self.infer_sess.run(output_names, input_feed)
+                except:
+                    logger.info(
+                        "ORT evaluation aborted, evaluate with pytorch. Check if you have every demanded input element."
+                    )
+                    outputs = model(**inputs)
+
             if has_labels:
                 if self.label_smoother is not None:
                     loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
