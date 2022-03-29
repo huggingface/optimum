@@ -12,10 +12,16 @@ specific language governing permissions and limitations under the License.
 
 # Quantization
 
+🤗 Optimum provides an `optimum.intel.neural_compressor` package that enables you to apply quantization on many model hosted on the 🤗 hub using the [Intel Neural Compressor](https://github.com/intel/neural-compressor) quantization API.
+
 ## IncQuantizer
+
+The [`IncQuantizer`] class allows to apply different quantization approaches such as static, dynamic and aware training quantization using pytorch eager or fx graph mode.
 
 [[autodoc]] intel.neural_compressor.quantization.IncQuantizer
 
 ## IncQuantizedModel
+
+The [`IncQuantizedModel`] class allows to load a quantized pytorch model from a given configuration file summarizing the quantization performed by Intel® Neural Compressor.
 
 [[autodoc]] intel.neural_compressor.quantization.IncQuantizedModel
