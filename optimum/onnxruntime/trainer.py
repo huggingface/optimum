@@ -648,6 +648,20 @@ class ORTTrainer(Trainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
     ) -> Dict[str, float]:
+        try:
+            return self.evaluate_ort(eval_dataset, ignore_keys, metric_key_prefix)
+        except:
+            logger.warning(
+                f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Evaluate with PyTorch backend instead."
+            )
+            return super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
+
+    def evaluate_ort(
+        self,
+        eval_dataset: Optional[Dataset] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+    ) -> Dict[str, float]:
         """
         Run evaluation within ONNX Runtime backend and returns metrics.(Overriden from `Trainer.evaluate()`)
         """
@@ -691,6 +705,17 @@ class ORTTrainer(Trainer):
         return output.metrics
 
     def predict(
+        self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
+    ) -> PredictionOutput:
+        try:
+            return self.predict_ort(test_dataset, ignore_keys, metric_key_prefix)
+        except:
+            logger.warning(
+                f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Predict with PyTorch backend instead."
+            )
+            return super().predict(test_dataset, ignore_keys, metric_key_prefix)
+
+    def predict_ort(
         self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
     ) -> PredictionOutput:
         """

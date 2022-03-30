@@ -198,6 +198,9 @@ class Seq2SeqORTTrainer(ORTTrainer):
                         input_feed["decoder_attention_mask"] = decoder_attention_mask
                     outputs = self.infer_sess.run(output_names, input_feed)
                 except:
+                    logger.warning(
+                        f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Evaluate with PyTorch backend instead."
+                    )
                     logger.info(
                         "ORT evaluation aborted, evaluate with pytorch. Check if you have every demanded input element."
                     )
@@ -207,11 +210,14 @@ class Seq2SeqORTTrainer(ORTTrainer):
                 if self.label_smoother is not None:
                     loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
                 else:
-                    try:
-                        loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
-                    except:
-                        loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean()
-                        loss = torch.tensor(loss)
+                    if isinstance(outputs, dict):
+                        loss = outputs["loss"]
+                    else:
+                        loss = (
+                            outputs[0].mean().detach()
+                            if isinstance(outputs[0].mean(), torch.Tensor)
+                            else torch.tensor(outputs[0].mean())
+                        )
             else:
                 loss = None
 

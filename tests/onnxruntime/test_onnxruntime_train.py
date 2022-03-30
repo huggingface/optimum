@@ -40,7 +40,8 @@ class TestORTTrainer(unittest.TestCase):
             "distilbert-base-uncased",
             "bert-base-cased",
             "roberta-base",
-        }  # "gpt2", "facebook/bart-base" in progress
+            "gpt2",
+        }  # "facebook/bart-base" in progress
         dataset_names = {"sst2"}  # glue
 
         for model_name in model_names:
