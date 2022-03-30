@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-from transformers import AutoConfig, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
