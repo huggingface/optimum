@@ -211,7 +211,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
                     loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
                 else:
                     if isinstance(outputs, dict):
-                        loss = outputs["loss"]
+                        loss = outputs["loss"].mean().detach()
                     else:
                         loss = (
                             outputs[0].mean().detach()
