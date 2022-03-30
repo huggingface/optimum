@@ -207,7 +207,11 @@ class Seq2SeqORTTrainer(ORTTrainer):
                 if self.label_smoother is not None:
                     loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
                 else:
-                    loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
+                    try:
+                        loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
+                    except:
+                        loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean()
+                        loss = torch.tensor(loss)
             else:
                 loss = None
 

@@ -741,6 +741,8 @@ class ORTTrainer(Trainer):
         if self.onnx_model_path:
             logger.info("------------------Evaluate with given ONNX IR----------------------")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            fix_atenops_to_gather(self.onnx_model_path)
+            logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
         else:
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
@@ -948,6 +950,8 @@ class ORTTrainer(Trainer):
         if self.onnx_model_path:
             # Evaluate an ONNX model
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            fix_atenops_to_gather(self.onnx_model_path)
+            logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
         else:
             # Export a PyTorch model for ONNNX Runtime evaluation
             onnx_model_path = Path(
