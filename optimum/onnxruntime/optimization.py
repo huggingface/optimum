@@ -54,15 +54,8 @@ class ORTOptimizer:
             An instance of `ORTOptimizer`.
         """
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-        config = AutoConfig.from_pretrained(model_name_or_path)
-
-        if getattr(config, "pad_token_id", None) is None:
-            config.pad_token_id = tokenizer.eos_token_id
-        if getattr(tokenizer, "pad_token", None) is None:
-            tokenizer.pad_token = tokenizer.eos_token
-
         model_class = FeaturesManager.get_model_class_for_feature(feature)
-        model = model_class.from_pretrained(model_name_or_path, config=config)
+        model = model_class.from_pretrained(model_name_or_path)
         return ORTOptimizer(tokenizer, model, feature, opset)
 
     def __init__(
