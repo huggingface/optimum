@@ -89,7 +89,6 @@ def generate_identified_filename(filename, identifier):
 
 
 def fix_atenops_to_gather(model_path):
-    # Fix broken ATenOp nodes back to Gather nodes.
     model = onnx.load(model_path)
     onnx.checker.check_model(model)
 
