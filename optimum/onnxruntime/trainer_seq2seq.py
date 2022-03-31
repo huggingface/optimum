@@ -1,4 +1,4 @@
-# Copyright 2020 The HuggingFace Team. All rights reserved.
+# Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import torch
 from packaging import version
 from torch import nn
 from torch.utils.data.dataset import Dataset
+from transformers.deepspeed import is_deepspeed_zero3_enabled
 
 # from transformers.integrations import is_deepspeed_zero3_enabled
 from transformers.trainer_utils import PredictionOutput
@@ -145,16 +146,18 @@ class Seq2SeqORTTrainer(ORTTrainer):
                 model, infer_sess, inputs, prediction_loss_only=prediction_loss_only, ignore_keys=ignore_keys
             )
 
+        logger.warning(
+            f"`predict_with_generate` is not available with ONNX Runtime inference for the moment. Evaluated with PyTorch backend instead."
+        )
+
         has_labels = "labels" in inputs
         inputs = self._prepare_inputs(inputs)
-        output_names = [output.name for output in infer_sess._outputs_meta]
-        input_names = [ort_input.name for ort_input in infer_sess._inputs_meta]
 
         # XXX: adapt synced_gpus for fairscale as well
         gen_kwargs = {
             "max_length": self._max_length if self._max_length is not None else self.model.config.max_length,
             "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
-            "synced_gpus": False,  # "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
+            "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
         }
 
         if "attention_mask" in inputs:
@@ -168,8 +171,8 @@ class Seq2SeqORTTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
-        if generation_inputs.device is not self.model.device:
-            self.model.to(generation_inputs.device)
+        if torch.cuda.is_available():
+            self.model.to("cuda")
 
         generated_tokens = self.model.generate(
             generation_inputs,
@@ -181,52 +184,24 @@ class Seq2SeqORTTrainer(ORTTrainer):
 
         with torch.no_grad():
             with self.autocast_smart_context_manager():
-                try:
-                    available_input_names = list(set(input_names) & set(inputs.keys()))
-                    input_feed = dict(
-                        map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), available_input_names)
-                    )
-                    if ("decoder_attention_mask" in input_names) and ("decoder_attention_mask" not in inputs.keys()):
-                        decoder_input_ids = inputs["decoder_input_ids"].cpu()
-                        decoder_attention_mask = np.concatenate(
-                            [
-                                np.ones(decoder_input_ids[:, :1].shape, np.int64),
-                                np.where(decoder_input_ids[:, 1:] != self.model.config.pad_token_id, 1, 0),
-                            ],
-                            axis=-1,
-                        )
-                        input_feed["decoder_attention_mask"] = decoder_attention_mask
-                    outputs = self.infer_sess.run(output_names, input_feed)
-                except:
-                    logger.warning(
-                        f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Evaluate with PyTorch backend instead."
-                    )
-                    logger.info(
-                        "ORT evaluation aborted, evaluate with pytorch. Check if you have every demanded input element."
-                    )
-                    outputs = model(**inputs)
-
+                outputs = model(**inputs)
             if has_labels:
                 if self.label_smoother is not None:
                     loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
                 else:
-                    if isinstance(outputs, dict):
-                        loss = outputs["loss"].mean().detach()
-                    else:
-                        loss = (
-                            outputs[0].mean().detach()
-                            if isinstance(outputs[0].mean(), torch.Tensor)
-                            else torch.tensor(outputs[0].mean())
-                        )
+                    loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
             else:
                 loss = None
 
         if self.args.prediction_loss_only:
             return (loss, None, None)
 
-        labels = inputs["labels"]
-        if labels.shape[-1] < gen_kwargs["max_length"]:
-            labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+        if has_labels:
+            labels = inputs["labels"]
+            if labels.shape[-1] < gen_kwargs["max_length"]:
+                labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+        else:
+            labels = None
 
         return (loss, generated_tokens, labels)
 

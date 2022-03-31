@@ -1,4 +1,4 @@
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -648,20 +648,6 @@ class ORTTrainer(Trainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
     ) -> Dict[str, float]:
-        try:
-            return self.evaluate_ort(eval_dataset, ignore_keys, metric_key_prefix)
-        except:
-            logger.warning(
-                f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Evaluate with PyTorch backend instead."
-            )
-            return super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
-
-    def evaluate_ort(
-        self,
-        eval_dataset: Optional[Dataset] = None,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "eval",
-    ) -> Dict[str, float]:
         """
         Run evaluation within ONNX Runtime backend and returns metrics.(Overriden from `Trainer.evaluate()`)
         """
@@ -671,16 +657,34 @@ class ORTTrainer(Trainer):
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
         start_time = time.time()
 
-        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-        output = eval_loop(
-            eval_dataloader,
-            description="Evaluation",
-            # No point gathering the predictions if there are no metrics, otherwise we defer to
-            # self.args.prediction_loss_only
-            prediction_loss_only=True if self.compute_metrics is None else None,
-            ignore_keys=ignore_keys,
-            metric_key_prefix=metric_key_prefix,
-        )
+        try:
+            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+            output = eval_loop(
+                eval_dataloader,
+                description="Evaluation",
+                # No point gathering the predictions if there are no metrics, otherwise we defer to
+                # self.args.prediction_loss_only
+                prediction_loss_only=True if self.compute_metrics is None else None,
+                ignore_keys=ignore_keys,
+                metric_key_prefix=metric_key_prefix,
+            )
+        except:
+            logger.warning(
+                f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Evaluated with PyTorch backend instead."
+            )
+            # Correct device changed by the try
+            if torch.cuda.is_available():
+                self.model.to("cuda")
+            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+            output = eval_loop(
+                eval_dataloader,
+                description="Evaluation",
+                # No point gathering the predictions if there are no metrics, otherwise we defer to
+                # self.args.prediction_loss_only
+                prediction_loss_only=True if self.compute_metrics is None else None,
+                ignore_keys=ignore_keys,
+                metric_key_prefix=metric_key_prefix,
+            )
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
@@ -707,17 +711,6 @@ class ORTTrainer(Trainer):
     def predict(
         self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
     ) -> PredictionOutput:
-        try:
-            return self.predict_ort(test_dataset, ignore_keys, metric_key_prefix)
-        except:
-            logger.warning(
-                f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Predict with PyTorch backend instead."
-            )
-            return super().predict(test_dataset, ignore_keys, metric_key_prefix)
-
-    def predict_ort(
-        self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
-    ) -> PredictionOutput:
         """
         Run prediction within ONNX Runtime backend and returns predictions and potential metrics.
         (Overriden from `Trainer.predict()`)
@@ -728,10 +721,23 @@ class ORTTrainer(Trainer):
         test_dataloader = self.get_test_dataloader(test_dataset)
         start_time = time.time()
 
-        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-        output = eval_loop(
-            test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
-        )
+        try:
+            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+            output = eval_loop(
+                test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
+            )
+        except:
+            logger.warning(
+                f"Unable to do inference within ONNX Runtime for {self.model.config.name_or_path} model. Predicted with PyTorch backend instead."
+            )
+            # Correct device changed by the try
+            if torch.cuda.is_available():
+                self.model.to("cuda")
+            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+            output = eval_loop(
+                test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
+            )
+
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
             speed_metrics(
@@ -1223,7 +1229,7 @@ class ORTTrainer(Trainer):
 
         input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
         outputs = self.infer_sess.run(output_names, input_feed)
-        outputs[0] = torch.Tensor(outputs[0])  # logits: `numpy.ndarray` -> tensor
+        outputs[0] = torch.Tensor(outputs[0])
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
