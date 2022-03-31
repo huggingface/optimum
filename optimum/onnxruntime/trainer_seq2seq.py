@@ -45,6 +45,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
         metric_key_prefix: str = "eval",
         max_length: Optional[int] = None,
         num_beams: Optional[int] = None,
+        inference_with_ort: bool = False,
     ) -> Dict[str, float]:
         """
         Run evaluation and returns metrics.
@@ -73,7 +74,12 @@ class Seq2SeqORTTrainer(ORTTrainer):
         """
         self._max_length = max_length
         self._num_beams = num_beams
-        return super().evaluate(eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+        return super().evaluate(
+            eval_dataset,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+            inference_with_ort=inference_with_ort,
+        )
 
     def predict(
         self,
@@ -82,6 +88,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
         metric_key_prefix: str = "eval",
         max_length: Optional[int] = None,
         num_beams: Optional[int] = None,
+        inference_with_ort: bool = False,
     ) -> PredictionOutput:
         """
         Run prediction and returns predictions and potential metrics.
@@ -114,7 +121,17 @@ class Seq2SeqORTTrainer(ORTTrainer):
         """
         self._max_length = max_length
         self._num_beams = num_beams
-        return super().predict(test_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+        if self.args.predict_with_generate and inference_with_ort:
+            logger.error(
+                f"[ERROR!] Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
+            )
+            raise
+        return super().predict(
+            test_dataset,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+            inference_with_ort=inference_with_ort,
+        )
 
     def prediction_step_ort(
         self,
