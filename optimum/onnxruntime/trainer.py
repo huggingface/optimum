@@ -678,12 +678,9 @@ class ORTTrainer(Trainer):
                 logger.error(error)
                 raise
         else:
-            logger.info(
-                f"Evaluating with PyTorch backend. If you want to use ONNX Runtime for the evaluation, set `trainer.evaluate(inference_with_ort=True)`."
+            logger.warning(
+                "[INFO] Evaluating with PyTorch backend. If you want to use ONNX Runtime for the evaluation, set `trainer.evaluate(inference_with_ort=True)`."
             )
-            # Correct device changed by the try
-            # if torch.cuda.is_available():
-            #     self.model.to("cuda")
             eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
             output = eval_loop(
                 eval_dataloader,
@@ -751,8 +748,8 @@ class ORTTrainer(Trainer):
                 logger.error(error)
                 raise
         else:
-            logger.info(
-                f"Predicting with PyTorch backend. If you want to use ONNX Runtime for the prediction, set `trainer.predict(inference_with_ort=True)`."
+            logger.warning(
+                "[INFO] Predicting with PyTorch backend. If you want to use ONNX Runtime for the prediction, set `trainer.predict(inference_with_ort=True)`."
             )
             # Correct device changed by the try
             # if torch.cuda.is_available():
