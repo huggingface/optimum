@@ -1222,7 +1222,6 @@ class ORTTrainer(Trainer):
 
         input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
         outputs = self.infer_sess.run(output_names, input_feed)
-        # outputs[0] = torch.Tensor(outputs[0])
         loss = None
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
