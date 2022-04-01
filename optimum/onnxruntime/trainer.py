@@ -1,4 +1,4 @@
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -647,9 +647,10 @@ class ORTTrainer(Trainer):
         eval_dataset: Optional[Dataset] = None,
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
+        inference_with_ort: bool = False,
     ) -> Dict[str, float]:
         """
-        Run evaluation within ONNX Runtime backend and returns metrics.(Overriden from `Trainer.evaluate()`)
+        Run evaluation within ONNX Runtime or PyTorch backend and returns metrics.(Overriden from `Trainer.evaluate()`)
         """
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
@@ -657,16 +658,39 @@ class ORTTrainer(Trainer):
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
         start_time = time.time()
 
-        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-        output = eval_loop(
-            eval_dataloader,
-            description="Evaluation",
-            # No point gathering the predictions if there are no metrics, otherwise we defer to
-            # self.args.prediction_loss_only
-            prediction_loss_only=True if self.compute_metrics is None else None,
-            ignore_keys=ignore_keys,
-            metric_key_prefix=metric_key_prefix,
-        )
+        if inference_with_ort:
+            logger.warning("Evaluating with ONNX Runtime backend. The loss will be `None` in this case.")
+            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+            try:
+                output = eval_loop(
+                    eval_dataloader,
+                    description="Evaluation",
+                    # No point gathering the predictions if there are no metrics, otherwise we defer to
+                    # self.args.prediction_loss_only
+                    prediction_loss_only=True if self.compute_metrics is None else None,
+                    ignore_keys=ignore_keys,
+                    metric_key_prefix=metric_key_prefix,
+                )
+            except Exception as error:
+                logger.error(error)
+                logger.warning(
+                    f"[ERROR!] Evaluation with ONNX Runtime is not available for {self.model.config.name_or_path} model. Remove `inference_with_ort` to evaluate within PyTorch."
+                )
+                raise
+        else:
+            logger.warning(
+                "[INFO] Evaluating with PyTorch backend. If you want to use ONNX Runtime for the evaluation, set `trainer.evaluate(inference_with_ort=True)`."
+            )
+            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+            output = eval_loop(
+                eval_dataloader,
+                description="Evaluation",
+                # No point gathering the predictions if there are no metrics, otherwise we defer to
+                # self.args.prediction_loss_only
+                prediction_loss_only=True if self.compute_metrics is None else None,
+                ignore_keys=ignore_keys,
+                metric_key_prefix=metric_key_prefix,
+            )
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
@@ -691,10 +715,14 @@ class ORTTrainer(Trainer):
         return output.metrics
 
     def predict(
-        self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
+        self,
+        test_dataset: Dataset,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "test",
+        inference_with_ort: bool = False,
     ) -> PredictionOutput:
         """
-        Run prediction within ONNX Runtime backend and returns predictions and potential metrics.
+        Run prediction within ONNX Runtime or PyTorch backend and returns predictions and potential metrics.
         (Overriden from `Trainer.predict()`)
         """
         # memory metrics - must set up as early as possible
@@ -703,10 +731,31 @@ class ORTTrainer(Trainer):
         test_dataloader = self.get_test_dataloader(test_dataset)
         start_time = time.time()
 
-        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-        output = eval_loop(
-            test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
-        )
+        if inference_with_ort:
+            logger.warning("Predicting with ONNX Runtime backend. The loss will be `None` in this case.")
+            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+            try:
+                output = eval_loop(
+                    test_dataloader,
+                    description="Prediction",
+                    ignore_keys=ignore_keys,
+                    metric_key_prefix=metric_key_prefix,
+                )
+            except Exception as error:
+                logger.error(error)
+                logger.warning(
+                    f"[ERROR!] Prediction with ONNX Runtime is not available with {self.model.config.name_or_path} model. Remove `inference_with_ort` to predict within PyTorch."
+                )
+                raise
+        else:
+            logger.warning(
+                "[INFO] Predicting with PyTorch backend. If you want to use ONNX Runtime for the prediction, set `trainer.predict(inference_with_ort=True)`."
+            )
+            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+            output = eval_loop(
+                test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
+            )
+
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
             speed_metrics(
@@ -741,26 +790,17 @@ class ORTTrainer(Trainer):
         if self.onnx_model_path:
             logger.info("------------------Evaluate with given ONNX IR----------------------")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            fix_atenops_to_gather(self.onnx_model_path)
         else:
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
-
-            if self.trained_with_ort:
-                # `self.model` is an ONNX Runtime trained PyTorch model.
-                logger.info("------------------Exporting ORT trained model to ONNX IR----------------------")
-                self._export(onnx_model_path)
-                self.onnx_model_path = onnx_model_path.as_posix()
-                # Fix exported onnx IR
-                fix_atenops_to_gather(self.onnx_model_path)
-                logger.info("The fine-tuned ONNX IR is store in:\n", self.onnx_model_path)
-            else:
-                # Convert the `PreTrainedModel` to ONNX IR
-                self._export(onnx_model_path)
-                self.onnx_model_path = onnx_model_path.as_posix()
-                # Fix exported onnx IR
-                fix_atenops_to_gather(self.onnx_model_path)
-                logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
+            logger.info("------------------Exporting ORT model to ONNX IR----------------------")
+            self._export(onnx_model_path)
+            self.onnx_model_path = onnx_model_path.as_posix()
+            # Fix exported onnx IR
+            fix_atenops_to_gather(self.onnx_model_path)
+            logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
 
         self.infer_sess = onnxruntime.InferenceSession(
             self.onnx_model_path,
@@ -946,29 +986,18 @@ class ORTTrainer(Trainer):
         self.infer_sess = None
 
         if self.onnx_model_path:
-            # Evaluate an ONNX model
+            logger.info("------------------Predict with given ONNX IR----------------------")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            fix_atenops_to_gather(self.onnx_model_path)
         else:
-            # Export a PyTorch model for ONNNX Runtime evaluation
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
-
-            if self.trained_with_ort:
-                # `self.model` is an ONNX Runtime trained PyTorch model.
-                logger.info("------------------Exporting ORT trained model to ONNX IR----------------------")
-                self._export(onnx_model_path)
-                self.onnx_model_path = onnx_model_path.as_posix()
-                # Fix exported onnx IR
-                fix_atenops_to_gather(self.onnx_model_path)
-                logger.info("The fine-tuned ONNX IR is store in:\n", self.onnx_model_path)
-            else:
-                # Convert the `PreTrainedModel` to ONNX IR
-                self._export(onnx_model_path)
-                self.onnx_model_path = onnx_model_path.as_posix()
-                # Fix exported onnx IR
-                fix_atenops_to_gather(self.onnx_model_path)
-                logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
+            logger.info("------------------Exporting ORT model to ONNX IR----------------------")
+            self._export(onnx_model_path)
+            self.onnx_model_path = onnx_model_path.as_posix()
+            fix_atenops_to_gather(self.onnx_model_path)
+            logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
 
         # Can't infer the exported onnx models due to impatible opset
         self.infer_sess = onnxruntime.InferenceSession(
@@ -1133,7 +1162,7 @@ class ORTTrainer(Trainer):
                         loss_mb = raw_outputs[0]
                         logits_mb = raw_outputs[1:]
 
-                    loss = loss_mb.reduce_mean().detach().cpu()
+                    loss = None
                     logits = smp_nested_concat(logits_mb)
                 else:
                     loss = None
@@ -1148,7 +1177,6 @@ class ORTTrainer(Trainer):
                         loss, outputs = self.compute_loss_ort(
                             model, inputs, input_names, output_names, return_outputs=True
                         )
-                    loss = loss.mean().detach()
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
@@ -1194,17 +1222,11 @@ class ORTTrainer(Trainer):
 
         input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
         outputs = self.infer_sess.run(output_names, input_feed)
-        outputs[0] = torch.Tensor(outputs[0])  # logits: `numpy.ndarray` -> tensor
+        loss = None
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
-
-        if labels is not None:
-            loss = self.label_smoother(outputs, labels)
-        else:
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
-            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
 

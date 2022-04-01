@@ -1,4 +1,4 @@
-# Copyright 2020 The HuggingFace Team. All rights reserved.
+# Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import torch
 from packaging import version
 from torch import nn
 from torch.utils.data.dataset import Dataset
+from transformers.deepspeed import is_deepspeed_zero3_enabled
 
 # from transformers.integrations import is_deepspeed_zero3_enabled
 from transformers.trainer_utils import PredictionOutput
@@ -44,6 +45,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
         metric_key_prefix: str = "eval",
         max_length: Optional[int] = None,
         num_beams: Optional[int] = None,
+        inference_with_ort: bool = False,
     ) -> Dict[str, float]:
         """
         Run evaluation and returns metrics.
@@ -66,13 +68,24 @@ class Seq2SeqORTTrainer(ORTTrainer):
             num_beams (:obj:`int`, `optional`):
                 Number of beams for beam search that will be used when predicting with the generate method. 1 means no
                 beam search.
+            inference_with_ort (:obj:`bool`, `optional`):
+                Whether enable inference within ONNX Runtime backend. The inference will be done within PyTorch by default.
         Returns:
-            A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
+            A dictionary containing the evaluation loss(only within PyTorch) and the potential metrics computed from the predictions. The
             dictionary also contains the epoch number which comes from the training state.
         """
         self._max_length = max_length
         self._num_beams = num_beams
-        return super().evaluate(eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+        if self.args.predict_with_generate and inference_with_ort:
+            raise NotImplementedError(
+                "Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
+            )
+        return super().evaluate(
+            eval_dataset,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+            inference_with_ort=inference_with_ort,
+        )
 
     def predict(
         self,
@@ -81,6 +94,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
         metric_key_prefix: str = "eval",
         max_length: Optional[int] = None,
         num_beams: Optional[int] = None,
+        inference_with_ort: bool = False,
     ) -> PredictionOutput:
         """
         Run prediction and returns predictions and potential metrics.
@@ -101,6 +115,8 @@ class Seq2SeqORTTrainer(ORTTrainer):
             num_beams (:obj:`int`, `optional`):
                 Number of beams for beam search that will be used when predicting with the generate method. 1 means no
                 beam search.
+            inference_with_ort (:obj:`bool`, `optional`):
+                Whether enable inference within ONNX Runtime backend. The inference will be done within PyTorch by default.
         .. note::
             If your predictions or labels have different sequence lengths (for instance because you're doing dynamic
             padding in a token classification task) the predictions will be padded (on the right) to allow for
@@ -113,7 +129,16 @@ class Seq2SeqORTTrainer(ORTTrainer):
         """
         self._max_length = max_length
         self._num_beams = num_beams
-        return super().predict(test_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+        if self.args.predict_with_generate and inference_with_ort:
+            raise NotImplementedError(
+                "Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
+            )
+        return super().predict(
+            test_dataset,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+            inference_with_ort=inference_with_ort,
+        )
 
     def prediction_step_ort(
         self,
@@ -129,6 +154,8 @@ class Seq2SeqORTTrainer(ORTTrainer):
         Args:
             model (:obj:`nn.Module`):
                 The model to evaluate.
+            infer_sess (:obj:`onnxruntime.InferenceSession`):
+                The inference session of ONNX Runtime.
             inputs (:obj:`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.
                 The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
@@ -136,7 +163,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
             prediction_loss_only (:obj:`bool`):
                 Whether or not to return the loss only.
         Return:
-            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, logits and
+            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss=None, logits and
             labels (each being optional).
         """
 
@@ -145,16 +172,18 @@ class Seq2SeqORTTrainer(ORTTrainer):
                 model, infer_sess, inputs, prediction_loss_only=prediction_loss_only, ignore_keys=ignore_keys
             )
 
+        logger.warning(
+            "`predict_with_generate` is not available with ONNX Runtime inference for the moment. Evaluated with PyTorch backend instead."
+        )
+
         has_labels = "labels" in inputs
         inputs = self._prepare_inputs(inputs)
-        output_names = [output.name for output in infer_sess._outputs_meta]
-        input_names = [ort_input.name for ort_input in infer_sess._inputs_meta]
 
         # XXX: adapt synced_gpus for fairscale as well
         gen_kwargs = {
             "max_length": self._max_length if self._max_length is not None else self.model.config.max_length,
             "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
-            "synced_gpus": False,  # "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
+            "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
         }
 
         if "attention_mask" in inputs:
@@ -168,8 +197,8 @@ class Seq2SeqORTTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
-        if generation_inputs.device is not self.model.device:
-            self.model.to(generation_inputs.device)
+        if torch.cuda.is_available():
+            self.model.to("cuda")
 
         generated_tokens = self.model.generate(
             generation_inputs,
@@ -181,28 +210,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
 
         with torch.no_grad():
             with self.autocast_smart_context_manager():
-                try:
-                    available_input_names = list(set(input_names) & set(inputs.keys()))
-                    input_feed = dict(
-                        map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), available_input_names)
-                    )
-                    if ("decoder_attention_mask" in input_names) and ("decoder_attention_mask" not in inputs.keys()):
-                        decoder_input_ids = inputs["decoder_input_ids"].cpu()
-                        decoder_attention_mask = np.concatenate(
-                            [
-                                np.ones(decoder_input_ids[:, :1].shape, np.int64),
-                                np.where(decoder_input_ids[:, 1:] != self.model.config.pad_token_id, 1, 0),
-                            ],
-                            axis=-1,
-                        )
-                        input_feed["decoder_attention_mask"] = decoder_attention_mask
-                    outputs = self.infer_sess.run(output_names, input_feed)
-                except:
-                    logger.info(
-                        "ORT evaluation aborted, evaluate with pytorch. Check if you have every demanded input element."
-                    )
-                    outputs = model(**inputs)
-
+                outputs = model(**inputs)
             if has_labels:
                 if self.label_smoother is not None:
                     loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
@@ -214,9 +222,93 @@ class Seq2SeqORTTrainer(ORTTrainer):
         if self.args.prediction_loss_only:
             return (loss, None, None)
 
-        labels = inputs["labels"]
-        if labels.shape[-1] < gen_kwargs["max_length"]:
-            labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+        if has_labels:
+            labels = inputs["labels"]
+            if labels.shape[-1] < gen_kwargs["max_length"]:
+                labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+        else:
+            labels = None
+
+        return (loss, generated_tokens, labels)
+
+    def prediction_step(
+        self,
+        model: nn.Module,
+        inputs: Dict[str, Union[torch.Tensor, Any]],
+        prediction_loss_only: bool,
+        ignore_keys: Optional[List[str]] = None,
+    ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """
+        Perform an evaluation step on `model` using `inputs`.
+        Subclass and override to inject custom behavior.
+        Args:
+            model (`nn.Module`):
+                The model to evaluate.
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
+                The inputs and targets of the model.
+                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
+                argument `labels`. Check your model's documentation for all accepted arguments.
+            prediction_loss_only (`bool`):
+                Whether or not to return the loss only.
+        Return:
+            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, logits and
+            labels (each being optional).
+        """
+
+        if not self.args.predict_with_generate or prediction_loss_only:
+            return super().prediction_step(
+                model, inputs, prediction_loss_only=prediction_loss_only, ignore_keys=ignore_keys
+            )
+
+        has_labels = "labels" in inputs
+        inputs = self._prepare_inputs(inputs)
+
+        # XXX: adapt synced_gpus for fairscale as well
+        gen_kwargs = {
+            "max_length": self._max_length if self._max_length is not None else self.model.config.max_length,
+            "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
+            "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
+        }
+
+        if "attention_mask" in inputs:
+            gen_kwargs["attention_mask"] = inputs.get("attention_mask", None)
+
+        # prepare generation inputs
+        # some encoder-decoder models can have varying encder's and thus
+        # varying model input names
+        if hasattr(self.model, "encoder") and self.model.encoder.main_input_name != self.model.main_input_name:
+            generation_inputs = inputs[self.model.encoder.main_input_name]
+        else:
+            generation_inputs = inputs[self.model.main_input_name]
+
+        generated_tokens = self.model.generate(
+            generation_inputs,
+            **gen_kwargs,
+        )
+        # in case the batch is shorter than max length, the output should be padded
+        if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
+            generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
+
+        with torch.no_grad():
+            with self.autocast_smart_context_manager():
+                outputs = model(**inputs)
+            if has_labels:
+                if self.label_smoother is not None:
+                    loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
+                else:
+                    loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
+            else:
+                loss = None
+
+        if self.args.prediction_loss_only:
+            return (loss, None, None)
+
+        if has_labels:
+            labels = inputs["labels"]
+            if labels.shape[-1] < gen_kwargs["max_length"]:
+                labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+        else:
+            labels = None
 
         return (loss, generated_tokens, labels)
 
