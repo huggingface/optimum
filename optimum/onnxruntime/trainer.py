@@ -650,7 +650,7 @@ class ORTTrainer(Trainer):
         inference_with_ort: bool = False,
     ) -> Dict[str, float]:
         """
-        Run evaluation within ONNX Runtime backend and returns metrics.(Overriden from `Trainer.evaluate()`)
+        Run evaluation within ONNX Runtime or PyTorch backend and returns metrics.(Overriden from `Trainer.evaluate()`)
         """
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
@@ -659,7 +659,7 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
-            logger.warning(f"Evaluating with ONNX Runtime backend. The loss will be `None` in this case.")
+            logger.warning("Evaluating with ONNX Runtime backend. The loss will be `None` in this case.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
             try:
                 output = eval_loop(
@@ -672,10 +672,10 @@ class ORTTrainer(Trainer):
                     metric_key_prefix=metric_key_prefix,
                 )
             except Exception as error:
+                logger.error(error)
                 logger.warning(
                     f"[ERROR!] Evaluation with ONNX Runtime is not available for {self.model.config.name_or_path} model. Remove `inference_with_ort` to evaluate within PyTorch."
                 )
-                logger.error(error)
                 raise
         else:
             logger.warning(
@@ -722,7 +722,7 @@ class ORTTrainer(Trainer):
         inference_with_ort: bool = False,
     ) -> PredictionOutput:
         """
-        Run prediction within ONNX Runtime backend and returns predictions and potential metrics.
+        Run prediction within ONNX Runtime or PyTorch backend and returns predictions and potential metrics.
         (Overriden from `Trainer.predict()`)
         """
         # memory metrics - must set up as early as possible
@@ -742,18 +742,15 @@ class ORTTrainer(Trainer):
                     metric_key_prefix=metric_key_prefix,
                 )
             except Exception as error:
+                logger.error(error)
                 logger.warning(
                     f"[ERROR!] Prediction with ONNX Runtime is not available with {self.model.config.name_or_path} model. Remove `inference_with_ort` to predict within PyTorch."
                 )
-                logger.error(error)
                 raise
         else:
             logger.warning(
                 "[INFO] Predicting with PyTorch backend. If you want to use ONNX Runtime for the prediction, set `trainer.predict(inference_with_ort=True)`."
             )
-            # Correct device changed by the try
-            # if torch.cuda.is_available():
-            #     self.model.to("cuda")
             eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
             output = eval_loop(
                 test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
@@ -1165,7 +1162,7 @@ class ORTTrainer(Trainer):
                         loss_mb = raw_outputs[0]
                         logits_mb = raw_outputs[1:]
 
-                    loss = loss_mb.reduce_mean().detach().cpu()
+                    loss = None
                     logits = smp_nested_concat(logits_mb)
                 else:
                     loss = None
@@ -1180,7 +1177,6 @@ class ORTTrainer(Trainer):
                         loss, outputs = self.compute_loss_ort(
                             model, inputs, input_names, output_names, return_outputs=True
                         )
-                    loss = loss.mean().detach()
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
@@ -1226,18 +1222,12 @@ class ORTTrainer(Trainer):
 
         input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
         outputs = self.infer_sess.run(output_names, input_feed)
-        outputs[0] = torch.Tensor(outputs[0])
+        # outputs[0] = torch.Tensor(outputs[0])
+        loss = None
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
-
-        if labels is not None:
-            loss = self.label_smoother(outputs, labels)
-        else:
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
-            # loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
-            loss = outputs[0]
 
         return (loss, outputs) if return_outputs else loss
 

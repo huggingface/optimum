@@ -68,17 +68,18 @@ class Seq2SeqORTTrainer(ORTTrainer):
             num_beams (:obj:`int`, `optional`):
                 Number of beams for beam search that will be used when predicting with the generate method. 1 means no
                 beam search.
+            inference_with_ort (:obj:`bool`, `optional`):
+                Whether enable inference within ONNX Runtime backend. The inference will be done within PyTorch by default.
         Returns:
-            A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
+            A dictionary containing the evaluation loss(only within PyTorch) and the potential metrics computed from the predictions. The
             dictionary also contains the epoch number which comes from the training state.
         """
         self._max_length = max_length
         self._num_beams = num_beams
         if self.args.predict_with_generate and inference_with_ort:
-            logger.error(
-                f"[ERROR!] Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
+            raise NotImplementedError(
+                "Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
             )
-            raise
         return super().evaluate(
             eval_dataset,
             ignore_keys=ignore_keys,
@@ -114,6 +115,8 @@ class Seq2SeqORTTrainer(ORTTrainer):
             num_beams (:obj:`int`, `optional`):
                 Number of beams for beam search that will be used when predicting with the generate method. 1 means no
                 beam search.
+            inference_with_ort (:obj:`bool`, `optional`):
+                Whether enable inference within ONNX Runtime backend. The inference will be done within PyTorch by default.
         .. note::
             If your predictions or labels have different sequence lengths (for instance because you're doing dynamic
             padding in a token classification task) the predictions will be padded (on the right) to allow for
@@ -127,10 +130,9 @@ class Seq2SeqORTTrainer(ORTTrainer):
         self._max_length = max_length
         self._num_beams = num_beams
         if self.args.predict_with_generate and inference_with_ort:
-            logger.error(
-                f"[ERROR!] Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
+            raise NotImplementedError(
+                "Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
             )
-            raise NotImplementedError("Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`.")
         return super().predict(
             test_dataset,
             ignore_keys=ignore_keys,
@@ -152,6 +154,8 @@ class Seq2SeqORTTrainer(ORTTrainer):
         Args:
             model (:obj:`nn.Module`):
                 The model to evaluate.
+            infer_sess (:obj:`onnxruntime.InferenceSession`):
+                The inference session of ONNX Runtime.
             inputs (:obj:`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.
                 The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
@@ -159,7 +163,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
             prediction_loss_only (:obj:`bool`):
                 Whether or not to return the loss only.
         Return:
-            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, logits and
+            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss=None, logits and
             labels (each being optional).
         """
 
@@ -169,7 +173,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
             )
 
         logger.warning(
-            f"`predict_with_generate` is not available with ONNX Runtime inference for the moment. Evaluated with PyTorch backend instead."
+            "`predict_with_generate` is not available with ONNX Runtime inference for the moment. Evaluated with PyTorch backend instead."
         )
 
         has_labels = "labels" in inputs
