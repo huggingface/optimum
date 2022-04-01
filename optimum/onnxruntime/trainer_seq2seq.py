@@ -130,7 +130,7 @@ class Seq2SeqORTTrainer(ORTTrainer):
             logger.error(
                 f"[ERROR!] Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
             )
-            raise
+            raise NotImplementedError("Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`.")
         return super().predict(
             test_dataset,
             ignore_keys=ignore_keys,
