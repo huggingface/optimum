@@ -36,7 +36,7 @@ jobs:
         with:
           mode: start
           # github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           ec2-image-id: ${{ env.EC2_AMI_ID }}
           ec2-instance-type: ${{ env.EC2_INSTANCE_TYPE }}
           subnet-id: ${{ env.EC2_SUBNET_ID }}
@@ -89,7 +89,7 @@ jobs:
         with:
           mode: stop
           # github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           label: ${{ needs.start-runner.outputs.label }}
           ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
           
