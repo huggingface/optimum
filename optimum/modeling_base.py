@@ -22,8 +22,10 @@ class OptimizedModel(ABC):
     base_model_prefix = "optimized_model"
 
     def __init__(self, model=None, config=None, **kwargs):
+        super().__init__()
         self.model = model
         self.config = config
+
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -43,21 +45,24 @@ class OptimizedModel(ABC):
     ):
         """
         Save a model and its configuration file to a directory, so that it can be re-loaded using the
-        `:func:`~optimized_pipelines.NeuronModel.from_pretrained`` class method.
+        `[`~OptimizedModel.from_pretrained`]` class method.
         Arguments:
-            save_directory (:obj:`str` or :obj:`os.PathLike`):
+            save_directory (`str` or `os.PathLike`):
                 Directory to which to save. Will be created if it doesn't exist.
-            save_config (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            save_config (`bool`, `optional`, defaults to `True`):
                 Whether or not to save the config of the model. Useful when in distributed training like TPUs and need
                 to call this function on all processes. In this case, set :obj:`save_config=True` only on the main
                 process to avoid race conditions.
-            push_to_hub (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            push_to_hub (`bool`, *optional*, defaults to `False`):
                 Whether or not to push your model to the Hugging Face model hub after saving it.
-                .. warning::
-                    Using :obj:`push_to_hub=True` will synchronize the repository you are pushing to with
-                    :obj:`save_directory`, which requires :obj:`save_directory` to be a local clone of the repo you are
-                    pushing to if it's an existing folder. Pass along :obj:`temp_dir=True` to use a temporary directory
-                    instead.
+                
+                <Tip warning={true}>
+                
+                Using `push_to_hub=True` will synchronize the repository you are pushing to with `save_directory`,
+                which requires `save_directory` to be a local clone of the repo you are pushing to if it's an existing
+                folder. Pass along `temp_dir=True` to use a temporary directory instead.
+                
+                </Tip>
         """
         if os.path.isfile(save_directory):
             logger.error(f"Provided path ({save_directory}) should be a directory, not a file")
@@ -78,7 +83,7 @@ class OptimizedModel(ABC):
     def _save_pretrained(self, save_directory, **kwargs):
         """
         Save a model weights into a directory, so that it can be re-loaded using the
-        `:func:`~optimized_pipelines.OptimizedModel.from_pretrained`` class method.
+        `[`~OptimizedModel.from_pretrained`]` class method.
         """
         pass
 
@@ -126,7 +131,7 @@ class OptimizedModel(ABC):
 
     def git_config_username_and_email(self, git_user: str = None, git_email: str = None):
         """
-        sets git user name and email (only in the current repo)
+        Set git user name and email (only in the current repo)
         """
         try:
             if git_user is not None:

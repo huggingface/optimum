@@ -10,15 +10,15 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-# Optimum Inference with Onnxrunime
+# Optimum Inference with ONNX Runtime
 
-Optimum Inference is a utility package for building and running inference with accleratored runtime like Onnxruntime. 
+Optimum Inference is a utility package for building and running inference with accelerated runtime like ONNX Runtime. 
 Optimum Inference can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines 
-to run acclerated inference without rewriting your APIs.
+to run accelerated inference without rewriting your APIs.
 
-## Switching from Transfromers to Optimum Inference
+## Switching from Transformers to Optimum Inference
 
-The Optimum Inference models are API compatible with Transformers models, meaning you can just replace your `AutoFor*` with the optimum `OnnxFor*` class. 
+The Optimum Inference models are API compatible with Hugging Face Transformers models. This means you can just replace your `AutoModelForXxx` class with the corresponding `OnnxForXxx` class in `optimum`. For example, this is how you can use a question answering model in `optimum`: 
 
 ```diff
 from transformers import AutoTokenizer, pipeline
@@ -31,12 +31,12 @@ tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
 
-question = "Whats my name?"
-context = "My Name is Philipp and I live in Nuremberg."
+question = "What's my name?"
+context = "My name is Philipp and I live in Nuremberg."
 pred = onnx_qa(question, context)
 ```
 
-Optimum Inference also includes methods to convert vanilla Transformers models to optimized models (`.from_transfromers`). 
+Optimum Inference also includes methods to convert vanilla Transformers models to optimized ones via the `from_transformers()` method.
 After you have converted a model you can even `optimize` or `quantize` the model if it is supported by the runtime you use.
 
 ```python
@@ -58,12 +58,12 @@ onnx_clx = pipeline("text-classification",model=model,tokenizer=tokenizer)
 result = onnx_clx(text="This is a great model")
 ```
 
-You can find a complete walkhrough optimum inference for Onnxruntime in this [notebook](xx).
+You can find a complete walkhrough Optimum Inference for ONNX Runtime in this [notebook](xx).
 
 ### Working with the [Hugging Face Model Hub](https://hf.co/models)
 
-The optimum model classes, e.g. [`OnnxModel`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
-load model from the Hub but also push your models to the Hub with `push_to_hub` method. Below you find an example which pulls a vanilla transformers model 
+The Optimum model classes, e.g. [`OnnxModel`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
+load model from the Hub but also push your models to the Hub with `push_to_hub()` method. Below you find an example which pulls a vanilla transformers model 
 from the Hub and converts it to an optimum model and pushes it back into a new repository.
 
 ```python

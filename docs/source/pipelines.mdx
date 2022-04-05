@@ -10,7 +10,7 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-# Optimum Pipelines for inference
+# Optimum pipelines for inference
 
 The [`optimum_pipeline`] makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification.
 Even if you don't have experience with a specific modality or understand the code powering the models, you can still use them with the [`optimum_pipeline`]! This tutorial will teach you to:
@@ -31,7 +31,7 @@ Currenlty supported tasks are:
 * `question-answering`
 * `zero-shot-classification`
 
-## Optimum Pipeline usage
+## Optimum pipeline usage
 
 While each task has an associated [`optimum_pipeline`], it is simpler to use the general [`pipeline`] abstraction which contains all the specific task pipelines. 
 The [`optimum_pipeline`] automatically loads a default model and tokenizer capable of inference for your task. 
@@ -55,7 +55,7 @@ The [`optimum_pipeline`] automatically loads a default model and tokenizer capab
 
 The [`optimum_pipeline`] accepts supported model from the [Model Hub](https://huggingface.co/models). 
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
-Once you've picked an appropriate model, load it with the `.from_transformers` method for corresponding `OnnxFor*` 
+Once you've picked an appropriate model, load it with the `from_transformers()` method for corresponding `OnnxFor*` 
 and [`AutoTokenizer'] class. For example, load the [`OnnxForQuestionAnswering`] class for a question answering modeling task:
 
 ```py

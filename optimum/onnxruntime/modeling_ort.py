@@ -320,7 +320,7 @@ class OnnxModel(OptimizedModel):
             preprocessor=tokenizer,
             model=model,
             config=onnx_config,
-            opset=13,
+            opset=onnx_config.default_onnx_opset,
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
         kwargs["config"] = model.config.__dict__
