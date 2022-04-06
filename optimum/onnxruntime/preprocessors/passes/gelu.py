@@ -31,5 +31,5 @@ class ExcludeGeLUNodes(PreprocessorPass):
                 gelu_components.append(mul_node)
                 gelu_subgraphs.append(gelu_components)
 
-        ln_components = (node.name for ln in gelu_subgraphs for node in ln)
-        return set(), set(ln_components)
+        gl_components = (node.name for gl in gelu_subgraphs for node in gl)
+        return set(), set(gl_components)
