@@ -84,7 +84,8 @@ from transformers.utils import logging
 
 import onnx
 import onnxruntime
-from optimum.onnxruntime.utils import fix_atenops_to_gather
+
+from .utils import fix_atenops_to_gather  # , _is_gpu_available # wait for the merge of ORTMoel
 
 
 if is_apex_available():
@@ -805,8 +806,9 @@ class ORTTrainer(Trainer):
         self.infer_sess = onnxruntime.InferenceSession(
             self.onnx_model_path,
             session_options=self.session_options,
-            providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
-        )  # TODO: Eable users to specify execution providers in the args
+            providers="CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider",
+            # providers="CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider",  # wait for the merge of ORTMoel
+        )
 
         args = self.args
 
@@ -1003,8 +1005,9 @@ class ORTTrainer(Trainer):
         self.infer_sess = onnxruntime.InferenceSession(
             self.onnx_model_path,
             session_options=self.session_options,
-            providers=["CPUExecutionProvider", "CUDAExecutionProvider"],
-        )  # TODO: Eable users to specify execution providers in the args / Add forced onnx re-export
+            providers="CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider",
+            # providers="CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider",  # wait for the merge of ORTMoel
+        )
 
         args = self.args
 

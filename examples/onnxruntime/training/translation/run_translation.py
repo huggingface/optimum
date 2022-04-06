@@ -47,7 +47,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import Seq2SeqORTTrainer
+from optimum.onnxruntime import ORTSeq2SeqTrainer
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -521,7 +521,7 @@ def main():
         return result
 
     # Initialize our Trainer
-    trainer = Seq2SeqORTTrainer(
+    trainer = ORTSeq2SeqTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
