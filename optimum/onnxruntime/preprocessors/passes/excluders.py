@@ -41,9 +41,7 @@ class ExcludeNodeFollowedBy(PreprocessorPass):
 
         # Intersection of both are the one we want to remove
         to_exclude = set(candidate_nodes_to_exclude.keys()).intersection(nodes_of_following_type.keys())
-        nodes_to_exclude = {
-            candidate_nodes_to_exclude[node] for node in to_exclude if node in candidate_nodes_to_exclude
-        }
+        nodes_to_exclude = {candidate_nodes_to_exclude[node] for node in to_exclude}
 
         return set(), nodes_to_exclude
 
@@ -71,8 +69,6 @@ class ExcludeNodeAfter(PreprocessorPass):
 
         # Intersection of both are the one we want to remove
         to_exclude = set(candidate_nodes_to_exclude.keys()).intersection(parent_node.keys())
-        nodes_to_exclude = {
-            candidate_nodes_to_exclude[node] for node in to_exclude if node in candidate_nodes_to_exclude
-        }
+        nodes_to_exclude = {candidate_nodes_to_exclude[node] for node in to_exclude}
 
         return set(), nodes_to_exclude
