@@ -1,8 +1,6 @@
 # Use nvidia/cuda image
-FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04 as builder
+FROM nvidia/cuda:11.1.1-cudnn8-devel-ubuntu18.04 as builder
 CMD nvidia-smi
-COPY run.sh /run.sh
-RUN chmod +x /run.sh
 
 # Bash shell
 RUN chsh -s /bin/bash
@@ -26,8 +24,8 @@ RUN pip install --upgrade pip
 
 # Install onnxruntime-training dependencies
 RUN pip install onnx==1.9.0 ninja
-RUN pip install torch==1.9.0+cu102 torchvision==0.10.0+cu102 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip install onnxruntime-training==1.9.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu102.html
+RUN pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install onnxruntime-training==1.9.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu111.html
 RUN pip install torch-ort
 RUN python -m torch_ort.configure
 

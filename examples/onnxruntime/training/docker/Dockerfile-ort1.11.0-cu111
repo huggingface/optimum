@@ -28,8 +28,7 @@ RUN pip install --upgrade pip
 # Install onnxruntime-training dependencies
 RUN pip install onnx==1.11.0 ninja
 RUN pip install torch==1.10.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip install https://download.onnxruntime.ai/onnxruntime_training-1.11.0%2Bcu111-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-# RUN pip install onnxruntime-training==1.11.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu111.html
+RUN pip install onnxruntime-training==1.11.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu111.html
 RUN pip install torch-ort
 # RUN python -m torch_ort.configure
 
