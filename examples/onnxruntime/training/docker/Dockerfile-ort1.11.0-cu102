@@ -16,14 +16,6 @@ RUN apt-get install -y software-properties-common wget apt-utils patchelf git li
 RUN unattended-upgrade
 RUN apt-get autoremove -y
 
-# # Install Pythyon 3.8
-# RUN apt-get update && apt-get install -y \
-#     python3.8
-# RUN apt-get update && apt-get install -y python3-pip
-# RUN python3.8 -m pip --no-cache-dir install --upgrade \
-#     pip \
-#     setuptools
-
 # Install conda 
 RUN apt-get update
 RUN apt-get install -y wget bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 git mercurial subversion && \
