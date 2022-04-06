@@ -178,8 +178,35 @@ As you can see, the process is similar in each case:
 3. Apply the `export()` method
 4. Run inference
 
+
+Besides the inference with ONNX Runtime, Optimum also supports training with ONNX Runtime backend, optimizing the memory and computations required for training. It can be done by applying the class `ORTTrainer`, which is similar to the `Trainer` API in the transformers library:
+
+```diff
+-from transformers import Trainer
++from optimum.onnxruntime import ORTTrainer
+
+# Step 1: Create your ONNX Runtime Trainer
+-trainer = Trainer( 
++trainer = ORTTrainer(
+              model=model,
+              args=training_args,
+              train_dataset=train_dataset,
+              eval_dataset=eval_dataset,
+              compute_metrics=compute_metrics,
+              tokenizer=tokenizer,
+              data_collator=default_data_collator,
+              feature="sequence-classification",
+          )
+
+# Step 2: Use ONNX Runtime for training and evalution!🤗
+train_result = trainer.train()
+eval_metrics = trainer.evaluate()
+```
+
+By changing `Trainer` to `ORTTrainer`, you will be able to leverage ONNX Runtime for fine-tuning tasks.
+
 Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) directory for more sophisticated usage.
 
-Happy optimising 🤗!
+Happy optimizing 🤗!
 
 
