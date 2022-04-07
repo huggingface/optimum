@@ -45,7 +45,7 @@ AUTO_MINIMUM_SUPPORTED_ONNX_OPSET = None
 
 # This value is used to indicate ORT which axis it should use to quantize an operator "per-channel"
 ORT_DEFAULT_CHANNEL_FOR_OPERATORS = {"MatMul": 1}
-ORT_FULLY_CONNECTED_OPERATORS = [ORTQuantizableOperator.MatMul, ORTQuantizableOperator.Add]
+ORT_FULLY_CONNECTED_OPERATORS = ["MatMul", "Add"]
 
 
 from .configuration import ORTConfig
