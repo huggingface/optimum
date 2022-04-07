@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from typing import Optional, Set, Tuple
+from typing import Set, Tuple
 
 from onnx import ModelProto
 from onnxruntime.transformers.onnx_model import OnnxModel
@@ -22,7 +22,7 @@ class ExcludeLayerNormNodes(PreprocessorPass):
     def __init__(self):
         super().__init__()
 
-    def __call__(self, graph: ModelProto, model: OnnxModel) -> Tuple[Optional[Set[str]], Optional[Set[str]]]:
+    def __call__(self, graph: ModelProto, model: OnnxModel) -> Tuple[Set[str], Set[str]]:
         layer_norm_subgraphs = []
         for add_node in model.get_nodes_by_op_type("Add"):
             layer_norm_components = model.match_parent_path(

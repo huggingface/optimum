@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from typing import Optional, Set, Tuple
+from typing import Set, Tuple
 
 from onnx import ModelProto
 from onnxruntime.transformers.onnx_model import OnnxModel
@@ -25,7 +25,7 @@ class ExcludeNodeFollowedBy(PreprocessorPass):
         self.operator_type_to_exclude = operator_type_to_exclude
         self.following_operator_type = following_operator_type
 
-    def __call__(self, _: ModelProto, model: OnnxModel) -> Tuple[Optional[Set[str]], Optional[Set[str]]]:
+    def __call__(self, _: ModelProto, model: OnnxModel) -> Tuple[Set[str], Set[str]]:
         # Find out the nodes to exclude in the graph
         candidate_nodes_to_exclude = {
             candidate_output: candidate.name
@@ -53,7 +53,7 @@ class ExcludeNodeAfter(PreprocessorPass):
         self.parent_operator_type = parent_operator_type
         self.operator_type_to_exclude = operator_type_to_exclude
 
-    def __call__(self, graph: ModelProto, model: OnnxModel) -> Tuple[Optional[Set[str]], Optional[Set[str]]]:
+    def __call__(self, graph: ModelProto, model: OnnxModel) -> Tuple[Set[str], Set[str]]:
         # Find out the nodes to exclude in the graph
         candidate_nodes_to_exclude = {
             candidate_input: candidate.name
