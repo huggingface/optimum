@@ -27,7 +27,7 @@ RUN pip install --upgrade pip
 
 # Install onnxruntime-training dependencies
 # Temporary workaround, wait for a more stable version on the next release of onnxruntime-training 
-# (unable to run gpt2 with fp16 for now due to symbolic shape infer error)
+# (unable to run gpt2 with fp16 for now)
 RUN pip install onnx==1.10.2 ninja
 RUN pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install onnxruntime-training==1.11.0+cu113 -f https://download.onnxruntime.ai/onnxruntime_stable_cu113.html
