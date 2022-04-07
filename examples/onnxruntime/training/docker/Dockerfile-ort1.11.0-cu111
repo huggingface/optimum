@@ -1,5 +1,5 @@
 # Use nvidia/cuda image
-FROM nvidia/cuda:11.1.1-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
 CMD nvidia-smi
 
 # Ignore interactive questions during `docker build`
@@ -26,11 +26,14 @@ RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 RUN pip install --upgrade pip
 
 # Install onnxruntime-training dependencies
-RUN pip install onnx==1.11.0 ninja
-RUN pip install torch==1.10.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip install onnxruntime-training==1.11.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu111.html
+# Temporary workaround, wait for a more stable version on the next release of onnxruntime-training 
+# (unable to run gpt2 with fp16 for now due to symbolic shape infer error)
+RUN pip install onnx==1.10.2 ninja
+RUN pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install onnxruntime-training==1.11.0+cu113 -f https://download.onnxruntime.ai/onnxruntime_stable_cu113.html
 RUN pip install torch-ort
 # RUN python -m torch_ort.configure
+# RUN pip install coloredlogs seqeval scipy transformers datasets sacrebleu
 
 WORKDIR .
 
