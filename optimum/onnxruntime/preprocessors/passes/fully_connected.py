@@ -24,10 +24,10 @@ class IncludeFullyConnectedNodes(PreprocessorPass):
 
     def __call__(self, graph: ModelProto, model: OnnxModel) -> Tuple[Optional[Set[str]], Optional[Set[str]]]:
         fc_subgraphs = []
-        for matmul_node in model.get_nodes_by_op_type("Add"):
-            fc_components = model.match_parent_path(matmul_node, ["MatMul"], [1])
+        for add_node in model.get_nodes_by_op_type("Add"):
+            fc_components = model.match_parent_path(add_node, ["MatMul"], [1])
             if fc_components is not None:
-                fc_components.append(matmul_node)
+                fc_components.append(add_node)
                 fc_subgraphs.append(fc_components)
         fc_components = {node.name for fc in fc_subgraphs for node in fc}
         return fc_components, set()
