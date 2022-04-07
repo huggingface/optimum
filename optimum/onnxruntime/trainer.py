@@ -1253,6 +1253,10 @@ class ORTTrainer(Trainer):
             model = self.model
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
         onnx_config = model_onnx_config(model.config)
+        print("=================================================================")
+        print("The onnx config is:\r", onnx_config)
+        print("The output keys are:\r", onnx_config.outputs.keys())
+
         opset = onnx_config.default_onnx_opset if opset is None else opset
         _ = export(tokenizer=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
 
