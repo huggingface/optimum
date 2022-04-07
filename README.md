@@ -64,9 +64,11 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 ## Quickstart
 
+At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_.
+
 ### Quantization 
 
-At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_. For example, here's how you can apply dynamic quantization with ONNX Runtime:
+For example, here's how you can apply dynamic quantization with ONNX Runtime:
 
 ```python
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
@@ -193,15 +195,15 @@ Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runti
 # Step 1: Create your ONNX Runtime Trainer
 -trainer = Trainer( 
 +trainer = ORTTrainer(
-              model=model,
-              args=training_args,
-              train_dataset=train_dataset,
-              eval_dataset=eval_dataset,
-              compute_metrics=compute_metrics,
-              tokenizer=tokenizer,
-              data_collator=default_data_collator,
-              feature="sequence-classification",
-          )
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    compute_metrics=compute_metrics,
+    tokenizer=tokenizer,
+    data_collator=default_data_collator,
+    feature="sequence-classification",
+)
 
 # Step 2: Use ONNX Runtime for training and evalution!🤗
 train_result = trainer.train()
