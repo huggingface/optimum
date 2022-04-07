@@ -179,7 +179,7 @@ As you can see, the process is similar in each case:
 4. Run inference
 
 
-Besides the inference with ONNX Runtime, Optimum also supports training with ONNX Runtime backend, optimizing the memory and computations required for training. It can be done by applying the class `ORTTrainer`, which is similar to the `Trainer` API in the transformers library:
+Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runtime training, reducing the memory and computations needed during training. This can be achieved by using the class `ORTTrainer`, which possess a similar behavior than the `Trainer` of 🤗 Transformers:
 
 ```diff
 -from transformers import Trainer
