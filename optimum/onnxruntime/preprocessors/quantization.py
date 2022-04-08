@@ -60,4 +60,7 @@ class QuantizationPreprocessor:
             if nodes_to_exclude is not None:
                 global_nodes_to_exclude.update(nodes_to_exclude)
 
+        # Exclude the nodes from quantization when present in both sets
+        global_nodes_to_quantize = global_nodes_to_quantize - global_nodes_to_exclude
+
         return global_nodes_to_quantize, global_nodes_to_exclude

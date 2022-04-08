@@ -39,14 +39,30 @@ python run_glue.py \
     --output_dir /tmp/ort-bert-sst2/
 ```
 
+### Performance
+
+We get the following results for [roberta-base](https://huggingface.co/roberta-base) and [roberta-large](https://huggingface.co/roberta-large) 
+mixed precision training(fp16) on sst2 dataset under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the 
+experiment for 3 epochs::
+
+| Model           | Backend      | Runtime(s) | Train samples(/s) |
+| --------------- |------------- | ---------- | ----------------- |
+| roberta-base    | PyTorch      | 752.3      | 268.6             |
+| roberta-base    | ONNX Runtime | 729.7      | 276.9             | 
+| roberta-large   | PyTorch      | 3523.7     | 57.3              | 
+| roberta-large   | ONNX Runtime | 2986.6     | 67.7              |
+
+We observe the gain of ONNX Runtime compared to PyTorch as follow:
+
+| Model         | Latency | Throughput |
+| ------------- | ------- | ---------- |
+| roberta-base  | 2.99%   | 3.08%      |
+| roberta-large | 15.24%  | 17.98%     |
+
+
 __Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
 *[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
 *in [`torch_ort`](https://github.com/pytorch/ort/blob/main/docs/install.md).*
 
 ---
-
-## Benchmark
-
-GLUE has 9 different tasks: cola, sst2, mrpc, stsb, qqp, mnli, qnli, rte, wnli. Here are the results and performances 
-of fine-tuning with `bert-base-uncased` by ONNX Runtime compared with PyTorch. (Work in progress...)

@@ -32,12 +32,29 @@ The following example fine-tunes a BERT on the sst-2 task.
 
 ```bash
 python run_ner.py \
-    --model_name_or_path bert-base-uncased \
+    --model_name_or_path bert-base-cased \
     --dataset_name conll2003 \
     --do_train \
     --do_eval \
     --output_dir /tmp/ort_bert_conll2003/
 ```
+
+### Performance
+
+We get the following results for [bert-large-cased](https://huggingface.co/bert-large-cased) model mixed precision training(fp16) on the previous 
+task under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the experiment for 7 epochs:
+
+| Model            | Backend      | Runtime(s) | Train samples(/s) | 
+| ---------------- | ------------ | ---------- | ----------------- | 
+| bert-large-cased | PyTorch      | 711.5      | 138.1             | 
+| bert-large-cased | ONNX Runtime | 637.2      | 154.3             |
+
+We observe the gain of ONNX Runtime compared to PyTorch as follow:
+
+|       | Latency | Throughput | 
+| ----- | ------- | ---------- | 
+| Gain  | 10.45%  | 11.67%     |
+
 
 __Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*

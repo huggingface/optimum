@@ -14,7 +14,7 @@ As such, Optimum enables users to efficiently use any of these platforms with th
 🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
 
 To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
-- [GraphCore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu)
+- [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu)
 - More to come soon! :star:
 
 ## Optimizing models towards inference
@@ -64,7 +64,11 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 ## Quickstart
 
-At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_. For example, here's how you can apply dynamic quantization with ONNX Runtime:
+At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_.
+
+### Quantization 
+
+For example, here's how you can apply dynamic quantization with ONNX Runtime:
 
 ```python
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
@@ -142,14 +146,15 @@ quantizer.export(
 )
 ```
 
-As a final example, let's take a look at applying _graph optimizations_ techniques such as operator fusion and constant folding. As before, we load a configuration object, but this time by setting the optimization level instead of the quantization approach:
+### Graph optimization
+
+Then let's take a look at applying _graph optimizations_ techniques such as operator fusion and constant folding. As before, we load a configuration object, but this time by setting the optimization level instead of the quantization approach:
 
 ```python
-from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
+from optimum.onnxruntime.configuration import OptimizationConfig
 
 # optimization_config=99 enables all available graph optimisations
 optimization_config = OptimizationConfig(optimization_level=99)
-ort_config = ORTConfig(optimization_config=optimization_config)
 ```
 
 Next, we load an _optimizer_ to apply these optimisations to our model:
@@ -157,14 +162,58 @@ Next, we load an _optimizer_ to apply these optimisations to our model:
 ```python
 from optimum.onnxruntime import ORTOptimizer
 
-optimizer = ORTOptimizer(ort_config)
-optimizer.fit(model_checkpoint, output_dir=".", feature="sequence-classification")
+optimizer = ORTOptimizer.from_pretrained(
+    model_checkpoint,
+    feature="sequence-classification",
+)
+
+# Export the optimized model
+optimizer.export(
+    onnx_model_path="model.onnx",
+    onnx_optimized_model_output_path="model-optimized.onnx",
+    optimization_config=optimization_config,
+)
 ```
 
 And that's it - the model is now optimized and ready for inference!
 
+As you can see, the process is similar in each case:
+
+1. Define the optimization / quantization strategies via an `OptimizationConfig` / `QuantizationConfig` object
+2. Instantiate an `ORTQuantizer` or `ORTOptimizer` class
+3. Apply the `export()` method
+4. Run inference
+
+### Training
+
+Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runtime training, reducing the memory and computations needed during training. This can be achieved by using the class `ORTTrainer`, which possess a similar behavior than the `Trainer` of 🤗 Transformers:
+
+```diff
+-from transformers import Trainer
++from optimum.onnxruntime import ORTTrainer
+
+# Step 1: Create your ONNX Runtime Trainer
+-trainer = Trainer( 
++trainer = ORTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    compute_metrics=compute_metrics,
+    tokenizer=tokenizer,
+    data_collator=default_data_collator,
+    feature="sequence-classification",
+)
+
+# Step 2: Use ONNX Runtime for training and evalution!🤗
+train_result = trainer.train()
+eval_metrics = trainer.evaluate()
+```
+
+By replacing `Trainer` by `ORTTrainer`, you will be able to leverage ONNX Runtime for fine-tuning tasks.
+
 Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) directory for more sophisticated usage.
 
-Happy optimising 🤗!
+Happy optimizing 🤗!
 
 

@@ -111,7 +111,7 @@ def fix_atenops_to_gather(model_path):
     nodes = model.graph.node
 
     for node in nodes:
-        if node.op_type == "ATenOp":
+        if node.op_type in ["ATenOp", "ATen"]:
             logger.info(f"----Start fixing node: {node.name}----")
             op_num = node.name.split("_")[-1]
             new_node = onnx.helper.make_node(

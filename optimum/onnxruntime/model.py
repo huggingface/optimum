@@ -90,7 +90,7 @@ class ORTModel:
                     labels = labels[0]
             else:
                 labels = None
-            onnx_inputs = {key: np.array([inputs[key]]) for key in self.onnx_config.inputs}
+            onnx_inputs = {key: np.array([inputs[key]]) for key in self.onnx_config.inputs if key in inputs}
             preds = session.run(self.onnx_named_outputs, onnx_inputs)
             if len(preds) == 1:
                 preds = preds[0]

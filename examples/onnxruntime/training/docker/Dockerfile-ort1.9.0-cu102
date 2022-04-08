@@ -1,5 +1,5 @@
 # Use nvidia/cuda image
-FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04 as builder
+FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
 CMD nvidia-smi
 COPY run.sh /run.sh
 RUN chmod +x /run.sh

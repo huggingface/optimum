@@ -16,12 +16,11 @@
 A subclass of `IncTrainer` specific to Question-Answering tasks
 """
 
+from transformers import Trainer
 from transformers.trainer_utils import PredictionOutput
 
-from optimum.intel.neural_compressor.trainer import IncTrainer
 
-
-class QuestionAnsweringIncTrainer(IncTrainer):
+class QuestionAnsweringTrainer(Trainer):
     def __init__(self, *args, eval_examples=None, post_process_function=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.eval_examples = eval_examples
