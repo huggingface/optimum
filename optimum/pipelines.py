@@ -22,11 +22,11 @@ SUPPORTED_TASKS = {}
 
 if is_onnxruntime_available():
     from optimum.onnxruntime import (
+        ORTModel,
         ORTModelForFeatureExtraction,
         ORTModelForQuestionAnswering,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
-        ORTModel,
     )
 
     SUPPORTED_TASKS = {

@@ -51,14 +51,14 @@ ORT_FULLY_CONNECTED_OPERATORS = ["MatMul", "Add"]
 from .configuration import ORTConfig
 from .model import ORTModel
 from .modeling_ort import (
+    ORTModel,
     ORTModelForFeatureExtraction,
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
-    ORTModel,
 )
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer
-from .utils import ONNX_WEIGHTS_NAME
-from .trainer_seq2seq import Seq2SeqORTTrainer
 from .trainer import ORTTrainer
+from .trainer_seq2seq import Seq2SeqORTTrainer
+from .utils import ONNX_WEIGHTS_NAME
