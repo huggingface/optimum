@@ -90,12 +90,12 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ):
         """
-        optimizes the mode using onnxruntime.tools.transformers.optimize
+        optimizes the model using onnxruntime.tools.transformers.optimize
         Arguments:
             input_path (:obj:`str` or :obj:`Path`):
                 Directory from which to load
             output_path(:obj:`str`):
-                Directory where to save the quantized model should be saved, default to
+                Directory where the quantized model should be saved, default to
                 `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
         """
         _input_path = None
@@ -145,7 +145,7 @@ class ORTModel(OptimizedModel):
             input_path (:obj:`str` or :obj:`Path`):
                 Directory from which to load
             output_path(:obj:`str`):
-                Directory where to save the quantized model should be saved, default to
+                Directory where the quantized model should be saved, default to
                 `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
         """
         if _is_gpu_available():
