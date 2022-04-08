@@ -812,7 +812,7 @@ class ORTTrainer(Trainer):
                 else "CPUExecutionProvider"
             ],
             # TODO: wait for the merge of ORTMoel
-            # providers="CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider",
+            # providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
@@ -1016,7 +1016,7 @@ class ORTTrainer(Trainer):
                 else "CPUExecutionProvider"
             ],
             # TODO: wait for the merge of ORTMoel
-            # providers="CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider",
+            # providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
