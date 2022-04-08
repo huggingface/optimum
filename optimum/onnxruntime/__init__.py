@@ -61,3 +61,4 @@ from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer
 from .utils import ONNX_WEIGHTS_NAME
 from .trainer_seq2seq import Seq2SeqORTTrainer
+from .trainer import ORTTrainer

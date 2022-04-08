@@ -75,10 +75,10 @@ def optimum_pipeline(
 
     if model is None:
         model_id = SUPPORTED_TASKS[task]["default"]
-        model = SUPPORTED_TASKS[task]["class"][0].from_transformers(model_id)
+        model = SUPPORTED_TASKS[task]["class"][0].from_pretrained(model_id, from_transformers=True)
     elif isinstance(model, str):
         model_id = model
-        model = SUPPORTED_TASKS[task]["class"][0].from_transformers(model)
+        model = SUPPORTED_TASKS[task]["class"][0].from_pretrained(model, from_transformers=True)
     elif isinstance(model, ORTModel):
         if tokenizer is None:
             raise ValueError("If you pass a model as a ORTModel, you must pass a tokenizer as well")

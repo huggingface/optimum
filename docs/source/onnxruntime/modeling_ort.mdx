@@ -26,7 +26,7 @@ from transformers import AutoTokenizer, pipeline
 +from optimum.onnxruntime import ORTModelForQuestionAnswering
 
 -model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
-+model = ORTModelForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
++model = ORTModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2",from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
@@ -36,7 +36,7 @@ context = "My name is Philipp and I live in Nuremberg."
 pred = onnx_qa(question, context)
 ```
 
-Optimum Inference also includes methods to convert vanilla Transformers models to optimized ones via the `from_transformers()` method.
+Optimum Inference also includes methods to convert vanilla Transformers models to optimized ones via the `from_pretrained("{model_id}",from_transformers=True)` method.
 After you have converted a model you can even `optimize` or `quantize` the model if it is supported by the runtime you use.
 
 ```python
@@ -44,7 +44,7 @@ from transformers import AutoTokenizer, pipeline
 from optimum.onnxruntime import ORTModelForSequenceClassification
 
 # load model from hub and convert
-model = ORTModelForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
+model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english",from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
 # optimize model
@@ -71,7 +71,7 @@ from transformers import AutoTokenizer
 from optimum.onnxruntime import ORTModelForSequenceClassification
 
 # load model from hub and convert
-model = ORTModelForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
+model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english",from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
 # optimize model

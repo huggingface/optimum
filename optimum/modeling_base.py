@@ -26,7 +26,6 @@ class OptimizedModel(ABC):
         self.model = model
         self.config = config
 
-
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
@@ -55,13 +54,13 @@ class OptimizedModel(ABC):
                 process to avoid race conditions.
             push_to_hub (`bool`, *optional*, defaults to `False`):
                 Whether or not to push your model to the Hugging Face model hub after saving it.
-                
+
                 <Tip warning={true}>
-                
+
                 Using `push_to_hub=True` will synchronize the repository you are pushing to with `save_directory`,
                 which requires `save_directory` to be a local clone of the repo you are pushing to if it's an existing
                 folder. Pass along `temp_dir=True` to use a temporary directory instead.
-                
+
                 </Tip>
         """
         if os.path.isfile(save_directory):
@@ -170,6 +169,7 @@ class OptimizedModel(ABC):
     def from_pretrained(
         cls,
         model_id: Optional[str],
+        from_transformers: bool = False,
         force_download: bool = True,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
@@ -200,17 +200,27 @@ class OptimizedModel(ABC):
                 config = json.load(f)
             model_kwargs.update({"config": config})
 
-        return cls._from_pretrained(
-            model_id=model_id,
-            revision=revision,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            use_auth_token=use_auth_token,
-            **model_kwargs,
-        )
+        if from_transformers:
+            return cls._from_transformers(
+                model_id=model_id,
+                revision=revision,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                use_auth_token=use_auth_token,
+                **model_kwargs,
+            )
+        else:
+            return cls._from_pretrained(
+                model_id=model_id,
+                revision=revision,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                use_auth_token=use_auth_token,
+                **model_kwargs,
+            )
 
     @classmethod
-    def from_transformers(
+    def _from_transformers(
         cls,
         model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,

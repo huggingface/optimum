@@ -262,7 +262,7 @@ class ORTModel(OptimizedModel):
         return cls(model=model, config=config, **kwargs)
 
     @classmethod
-    def from_transformers(
+    def _from_transformers(
         cls,
         model_id: str,
         save_dir: Union[str, Path] = default_cache_path,

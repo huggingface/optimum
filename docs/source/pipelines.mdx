@@ -55,7 +55,7 @@ The [`optimum_pipeline`] automatically loads a default model and tokenizer capab
 
 The [`optimum_pipeline`] accepts supported model from the [Model Hub](https://huggingface.co/models). 
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
-Once you've picked an appropriate model, load it with the `from_transformers()` method for corresponding `ORTModelFor*` 
+Once you've picked an appropriate model, load it with the `from_pretrained("{model_id}",from_transformers=True)` method for corresponding `ORTModelFor*` 
 and [`AutoTokenizer'] class. For example, load the [`ORTModelForQuestionAnswering`] class for a question answering modeling task:
 
 ```py
@@ -64,7 +64,7 @@ and [`AutoTokenizer'] class. For example, load the [`ORTModelForQuestionAnswerin
 >>> from optimum import optimum_pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
->>> model = ORTModelForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
+>>> model = ORTModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2",from_transformers=True)
 
 >>> onnx_qa = optimum_pipeline("question-answering", model=model, tokenizer=tokenizer)
 >>> question = "Whats my name?"
@@ -99,7 +99,7 @@ and [`AutoTokenizer'] class. For example, load the [`ORTModelForQuestionAnswerin
 ### Optimizing and Quantizing in Pipelines
 
 The [`optimum_pipeline`] can not only run inference it also provides arguments to quantize and optimize your model on the fly.
-Once you've picked an appropriate model, load it with the `.from_transformers` or `.from_pretrained` method for corresponding `ORTModelFor*` 
+Once you've picked an appropriate model, load it with the `.from_pretrained` method for corresponding `ORTModelFor*` 
 and [`AutoTokenizer'] class. For example, load the [`ORTModelForQuestionAnswering`] class for a question answering modeling task and provide 
 the `do_optimization=True` and/or `do_quantization=True` arguments:
 
