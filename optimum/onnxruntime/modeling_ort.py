@@ -31,13 +31,13 @@ logger = logging.getLogger(__name__)
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 
 ONNX_MODEL_START_DOCSTRING = r"""
-    This model inherits from [`OnnxModel`]. Check the superclass documentation for the generic methods the
+    This model inherits from [`ORTModel`]. Check the superclass documentation for the generic methods the
     library implements for all its model (such as downloading or saving)
     Parameters:
         config ([`PretrainedConfig`](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig)): Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the
-            configuration. Check out the [`~OnnxModel.from_pretrained`] method to load the model weights.
-        model ([`onnxruntime.InferenceSession`](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession)): This is the main class used to run a model. Check out the [`~OnnxModel.load_model`]
+            configuration. Check out the [`~ORTModel.from_pretrained`] method to load the model weights.
+        model ([`onnxruntime.InferenceSession`](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession)): This is the main class used to run a model. Check out the [`~ORTModel.load_model`]
         for more information.
 """
 
@@ -64,12 +64,12 @@ ONNX_INPUTS_DOCSTRING = r"""
 
 @add_start_docstrings(
     """
-    Base OnnxModel class for implementing models using ONNX Runtime. The OnnxModel implements generic methods for interacting
+    Base ORTModel class for implementing models using ONNX Runtime. The ORTModel implements generic methods for interacting
     with the Hugging Face Hub as well as exporting vanilla transformers models to ONNX using `transformers.onnx` toolchain.
-    The OnnxModel implements additionally generic methods for optimizing and quantizing Onnx models.
+    The ORTModel implements additionally generic methods for optimizing and quantizing Onnx models.
     """,
 )
-class OnnxModel(OptimizedModel):
+class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -128,7 +128,7 @@ class OnnxModel(OptimizedModel):
         # save optimized model
         optimized_model.save_model_to_file(output_path.as_posix())
         # load optimized model as class instance and updates current instance
-        self.model = OnnxModel.load_model(output_path.as_posix())
+        self.model = ORTModel.load_model(output_path.as_posix())
         self.model_save_dir = output_path.parent
         self.latest_model_name = output_path.name
 
@@ -165,7 +165,7 @@ class OnnxModel(OptimizedModel):
             _input_path.as_posix(),
             output_path.as_posix(),
         )
-        self.model = OnnxModel.load_model(output_path.as_posix())
+        self.model = ORTModel.load_model(output_path.as_posix())
         self.model_save_dir = output_path.parent
         self.latest_model_name = output_path.name
 
@@ -190,7 +190,7 @@ class OnnxModel(OptimizedModel):
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
         Save a model and its configuration file to a directory, so that it can be re-loaded using the
-        `:func:`~optimum.onnxruntime.modeling_ort.OnnxModel.from_pretrained`` class method. It will always save the latest_model_name.
+        `:func:`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`` class method. It will always save the latest_model_name.
         Arguments:
             save_directory (:obj:`str` or :obj:`Path`):
                 Directory where to save the model file.
@@ -242,7 +242,7 @@ class OnnxModel(OptimizedModel):
         # load model from local directory
         if os.path.isdir(model_id):
             config = PretrainedConfig.from_dict(config_dict)
-            model = OnnxModel.load_model(os.path.join(model_id, model_file_name))
+            model = ORTModel.load_model(os.path.join(model_id, model_file_name))
             kwargs["model_save_dir"] = Path(model_id)
         # load model from hub
         else:
@@ -257,7 +257,7 @@ class OnnxModel(OptimizedModel):
             )
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
-            model = OnnxModel.load_model(model_cache_path)
+            model = ORTModel.load_model(model_cache_path)
             config = PretrainedConfig.from_dict(config_dict)
         return cls(model=model, config=config, **kwargs)
 
@@ -299,7 +299,7 @@ class OnnxModel(OptimizedModel):
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
 
-        # reads pipeline task from OnnxForXXX class if available else tries to extract from hub
+        # reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
         if cls.pipeline_task is not None:
             task = cls.pipeline_task
         else:
@@ -368,7 +368,7 @@ FEAUTRE_EXTRACTION_SAMPLE = r"""
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
-class OnnxForFeatureExtraction(OnnxModel):
+class ORTModelForFeatureExtraction(ORTModel):
     """
     Feature Extraction model for ONNX.
     """
@@ -385,7 +385,7 @@ class OnnxForFeatureExtraction(OnnxModel):
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + FEAUTRE_EXTRACTION_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
-            model_class="OnnxForFeatureExtraction",
+            model_class="ORTModelForFeatureExtraction",
             checkpoint="optimum/all-MiniLM-L6-v2",
         )
     )
@@ -453,7 +453,7 @@ QUESTION_ANSWERING_SAMPLE = r"""
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
-class OnnxForQuestionAnswering(OnnxModel):
+class ORTModelForQuestionAnswering(ORTModel):
     """
     Question Answering model for ONNX.
     """
@@ -470,7 +470,7 @@ class OnnxForQuestionAnswering(OnnxModel):
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + QUESTION_ANSWERING_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
-            model_class="OnnxForQuestionAnswering",
+            model_class="ORTModelForQuestionAnswering",
             checkpoint="optimum/roberta-base-squad2",
         )
     )
@@ -553,7 +553,7 @@ SEQUENCE_CLASSIFICATION_SAMPLE = r"""
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
-class OnnxForSequenceClassification(OnnxModel):
+class ORTModelForSequenceClassification(ORTModel):
     """
     Sequence Classification model for ONNX.
     """
@@ -571,7 +571,7 @@ class OnnxForSequenceClassification(OnnxModel):
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + SEQUENCE_CLASSIFICATION_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
-            model_class="OnnxForSequenceClassification",
+            model_class="ORTModelForSequenceClassification",
             checkpoint="optimum/distilbert-base-uncased-finetuned-sst-2-english",
         )
     )
@@ -638,7 +638,7 @@ TOKEN_CLASSIFICATION_SAMPLE = r"""
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
-class OnnxForTokenClassification(OnnxModel):
+class ORTModelForTokenClassification(ORTModel):
     """
     Sequence Classification model for ONNX.
     """
@@ -655,7 +655,7 @@ class OnnxForTokenClassification(OnnxModel):
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + TOKEN_CLASSIFICATION_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
-            model_class="OnnxForTokenClassification",
+            model_class="ORTModelForTokenClassification",
             checkpoint="optimum/bert-base-NER",
         )
     )

@@ -51,11 +51,11 @@ ORT_FULLY_CONNECTED_OPERATORS = [ORTQuantizableOperator.MatMul, ORTQuantizableOp
 from .configuration import ORTConfig
 from .model import ORTModel
 from .modeling_ort import (
-    OnnxForFeatureExtraction,
-    OnnxForQuestionAnswering,
-    OnnxForSequenceClassification,
-    OnnxForTokenClassification,
-    OnnxModel,
+    ORTModelForFeatureExtraction,
+    ORTModelForQuestionAnswering,
+    ORTModelForSequenceClassification,
+    ORTModelForTokenClassification,
+    ORTModel,
 )
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer

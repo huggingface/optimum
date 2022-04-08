@@ -18,15 +18,15 @@ to run accelerated inference without rewriting your APIs.
 
 ## Switching from Transformers to Optimum Inference
 
-The Optimum Inference models are API compatible with Hugging Face Transformers models. This means you can just replace your `AutoModelForXxx` class with the corresponding `OnnxForXxx` class in `optimum`. For example, this is how you can use a question answering model in `optimum`: 
+The Optimum Inference models are API compatible with Hugging Face Transformers models. This means you can just replace your `AutoModelForXxx` class with the corresponding `ORTModelForXxx` class in `optimum`. For example, this is how you can use a question answering model in `optimum`: 
 
 ```diff
 from transformers import AutoTokenizer, pipeline
 -from transformers import AutoModelForQuestionAnswering
-+from optimum.onnxruntime import OnnxForQuestionAnswering
++from optimum.onnxruntime import ORTModelForQuestionAnswering
 
 -model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
-+model = OnnxForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
++model = ORTModelForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
 tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
@@ -41,10 +41,10 @@ After you have converted a model you can even `optimize` or `quantize` the model
 
 ```python
 from transformers import AutoTokenizer, pipeline
-from optimum.onnxruntime import OnnxForSequenceClassification
+from optimum.onnxruntime import ORTModelForSequenceClassification
 
 # load model from hub and convert
-model = OnnxForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
+model = ORTModelForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
 # optimize model
@@ -62,16 +62,16 @@ You can find a complete walkhrough Optimum Inference for ONNX Runtime in this [n
 
 ### Working with the [Hugging Face Model Hub](https://hf.co/models)
 
-The Optimum model classes, e.g. [`OnnxModel`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
+The Optimum model classes, e.g. [`ORTModel`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
 load model from the Hub but also push your models to the Hub with `push_to_hub()` method. Below you find an example which pulls a vanilla transformers model 
 from the Hub and converts it to an optimum model and pushes it back into a new repository.
 
 ```python
 from transformers import AutoTokenizer
-from optimum.onnxruntime import OnnxForSequenceClassification
+from optimum.onnxruntime import ORTModelForSequenceClassification
 
 # load model from hub and convert
-model = OnnxForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
+model = ORTModelForSequenceClassification.from_transformers("distilbert-base-uncased-finetuned-sst-2-english")
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
 # optimize model
@@ -90,23 +90,23 @@ model.push_to_hub("a_local_path_for_convert_onnx_model",
                   )
 ```
 
-## OnnxModel
+## ORTModel
 
-[[autodoc]] onnxruntime.modeling_ort.OnnxModel
+[[autodoc]] onnxruntime.modeling_ort.ORTModel
 
-## OnnxForFeatureExtraction
+## ORTModelForFeatureExtraction
 
-[[autodoc]] onnxruntime.modeling_ort.OnnxForFeatureExtraction
+[[autodoc]] onnxruntime.modeling_ort.ORTModelForFeatureExtraction
 
-## OnnxForQuestionAnswering
+## ORTModelForQuestionAnswering
 
-[[autodoc]] onnxruntime.modeling_ort.OnnxForQuestionAnswering
+[[autodoc]] onnxruntime.modeling_ort.ORTModelForQuestionAnswering
 
-## OnnxForSequenceClassification
+## ORTModelForSequenceClassification
 
-[[autodoc]] onnxruntime.modeling_ort.OnnxForSequenceClassification
+[[autodoc]] onnxruntime.modeling_ort.ORTModelForSequenceClassification
 
-## OnnxForTokenClassification
+## ORTModelForTokenClassification
 
-[[autodoc]] onnxruntime.modeling_ort.OnnxForTokenClassification
+[[autodoc]] onnxruntime.modeling_ort.ORTModelForTokenClassification
 

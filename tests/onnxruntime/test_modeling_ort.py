@@ -16,18 +16,18 @@ from transformers import (
 import onnxruntime
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
-    OnnxForFeatureExtraction,
-    OnnxForQuestionAnswering,
-    OnnxForSequenceClassification,
-    OnnxForTokenClassification,
-    OnnxModel,
+    ORTModelForFeatureExtraction,
+    ORTModelForQuestionAnswering,
+    ORTModelForSequenceClassification,
+    ORTModelForTokenClassification,
+    ORTModel,
 )
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
 
 
-class OnnxModelIntergrationTest(unittest.TestCase):
+class ORTModelIntergrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
@@ -36,29 +36,29 @@ class OnnxModelIntergrationTest(unittest.TestCase):
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
 
     def test_load_model_from_local_path(self):
-        model = OnnxModel.from_pretrained(self.LOCAL_MODEL_PATH)
+        model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub(self):
-        model = OnnxModel.from_pretrained(self.ONNX_MODEL_ID)
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_without_onnx_model(self):
         with self.assertRaises(Exception) as context:
-            OnnxModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
+            ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
         self.assertEqual("Not Found", context.exception.response.reason)
 
     @require_hf_token
     def test_load_model_from_hub_private(self):
-        model = OnnxModel.from_pretrained(self.ONNX_MODEL_ID, use_auth_token=os.environ.get("HF_AUTH_TOKEN", None))
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, use_auth_token=os.environ.get("HF_AUTH_TOKEN", None))
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_save_model(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model = OnnxModel.from_pretrained(self.LOCAL_MODEL_PATH)
+            model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
             model.save_pretrained(tmpdirname)
             # folder contains all config files and pytorch_model.bin
             folder_contents = os.listdir(tmpdirname)
@@ -68,7 +68,7 @@ class OnnxModelIntergrationTest(unittest.TestCase):
     @require_hf_token
     def test_save_model_from_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model = OnnxModel.from_pretrained(self.LOCAL_MODEL_PATH)
+            model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
             model.save_pretrained(
                 tmpdirname,
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
@@ -78,7 +78,7 @@ class OnnxModelIntergrationTest(unittest.TestCase):
             )
 
 
-class OnnxForQuestionAnsweringIntergrationTest(unittest.TestCase):
+class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -98,20 +98,20 @@ class OnnxForQuestionAnsweringIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_supported_transformers_architectures(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForQuestionAnswering.from_transformers(model_id)
+        model = ORTModelForQuestionAnswering.from_transformers(model_id)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = OnnxForQuestionAnswering.from_transformers("t5-small")
+            model = ORTModelForQuestionAnswering.from_transformers("t5-small")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForQuestionAnswering.from_transformers(model_id)
+        model = ORTModelForQuestionAnswering.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -127,7 +127,7 @@ class OnnxForQuestionAnsweringIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForQuestionAnswering.from_transformers(model_id)
+        onnx_model = ORTModelForQuestionAnswering.from_transformers(model_id)
         trfs_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
@@ -145,7 +145,7 @@ class OnnxForQuestionAnsweringIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForQuestionAnswering.from_transformers(model_id)
+        onnx_model = ORTModelForQuestionAnswering.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
         question = "Whats my name?"
@@ -157,7 +157,7 @@ class OnnxForQuestionAnsweringIntergrationTest(unittest.TestCase):
         self.assertTrue(isinstance(outputs["answer"], str))
 
 
-class OnnxForSequenceClassificationIntergrationTest(unittest.TestCase):
+class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -177,20 +177,20 @@ class OnnxForSequenceClassificationIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_supported_transformers_architectures(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForSequenceClassification.from_transformers(model_id)
+        model = ORTModelForSequenceClassification.from_transformers(model_id)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = OnnxForSequenceClassification.from_transformers("t5-small")
+            model = ORTModelForSequenceClassification.from_transformers("t5-small")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_forward_call(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForSequenceClassification.from_transformers(model_id)
+        model = ORTModelForSequenceClassification.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -203,7 +203,7 @@ class OnnxForSequenceClassificationIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForSequenceClassification.from_transformers(model_id)
+        onnx_model = ORTModelForSequenceClassification.from_transformers(model_id)
         trfs_model = AutoModelForSequenceClassification.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
@@ -220,7 +220,7 @@ class OnnxForSequenceClassificationIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForSequenceClassification.from_transformers(model_id)
+        onnx_model = ORTModelForSequenceClassification.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         pp = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
@@ -231,7 +231,7 @@ class OnnxForSequenceClassificationIntergrationTest(unittest.TestCase):
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
     def test_pipeline_zero_shot_classification(self):
-        onnx_model = OnnxForSequenceClassification.from_transformers("typeform/distilbert-base-uncased-mnli")
+        onnx_model = ORTModelForSequenceClassification.from_transformers("typeform/distilbert-base-uncased-mnli")
         tokenizer = AutoTokenizer.from_pretrained("typeform/distilbert-base-uncased-mnli")
         pp = pipeline("zero-shot-classification", model=onnx_model, tokenizer=tokenizer)
         sequence_to_classify = "Who are you voting for in 2020?"
@@ -244,7 +244,7 @@ class OnnxForSequenceClassificationIntergrationTest(unittest.TestCase):
         self.assertTrue(any(isinstance(label, str) for label in outputs["labels"]))
 
 
-class OnnxForTokenClassificationIntergrationTest(unittest.TestCase):
+class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -262,20 +262,20 @@ class OnnxForTokenClassificationIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_supported_transformers_architectures(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForTokenClassification.from_transformers(model_id)
+        model = ORTModelForTokenClassification.from_transformers(model_id)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = OnnxForTokenClassification.from_transformers("t5-small")
+            model = ORTModelForTokenClassification.from_transformers("t5-small")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForTokenClassification.from_transformers(model_id)
+        model = ORTModelForTokenClassification.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -288,7 +288,7 @@ class OnnxForTokenClassificationIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForTokenClassification.from_transformers(model_id)
+        onnx_model = ORTModelForTokenClassification.from_transformers(model_id)
         trfs_model = AutoModelForTokenClassification.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
@@ -305,7 +305,7 @@ class OnnxForTokenClassificationIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForTokenClassification.from_transformers(model_id)
+        onnx_model = ORTModelForTokenClassification.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         pp = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
@@ -315,7 +315,7 @@ class OnnxForTokenClassificationIntergrationTest(unittest.TestCase):
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
 
 
-class OnnxForFeatureExtractionIntergrationTest(unittest.TestCase):
+class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -333,20 +333,20 @@ class OnnxForFeatureExtractionIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_supported_transformers_architectures(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForFeatureExtraction.from_transformers(model_id)
+        model = ORTModelForFeatureExtraction.from_transformers(model_id)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = OnnxForFeatureExtraction.from_transformers("google/vit-base-patch16-224")
+            model = ORTModelForFeatureExtraction.from_transformers("google/vit-base-patch16-224")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
         model_arch, model_id = args
-        model = OnnxForFeatureExtraction.from_transformers(model_id)
+        model = ORTModelForFeatureExtraction.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -359,7 +359,7 @@ class OnnxForFeatureExtractionIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForFeatureExtraction.from_transformers(model_id)
+        onnx_model = ORTModelForFeatureExtraction.from_transformers(model_id)
         trfs_model = AutoModel.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
@@ -376,7 +376,7 @@ class OnnxForFeatureExtractionIntergrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = OnnxForFeatureExtraction.from_transformers(model_id)
+        onnx_model = ORTModelForFeatureExtraction.from_transformers(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         pp = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."

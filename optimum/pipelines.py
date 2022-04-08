@@ -22,37 +22,37 @@ SUPPORTED_TASKS = {}
 
 if is_onnxruntime_available():
     from optimum.onnxruntime import (
-        OnnxForFeatureExtraction,
-        OnnxForQuestionAnswering,
-        OnnxForSequenceClassification,
-        OnnxForTokenClassification,
-        OnnxModel,
+        ORTModelForFeatureExtraction,
+        ORTModelForQuestionAnswering,
+        ORTModelForSequenceClassification,
+        ORTModelForTokenClassification,
+        ORTModel,
     )
 
     SUPPORTED_TASKS = {
         "feature-extraction": {
             "impl": FeatureExtractionPipeline,
-            "class": (OnnxForFeatureExtraction,) if is_onnxruntime_available() else (),
+            "class": (ORTModelForFeatureExtraction,) if is_onnxruntime_available() else (),
             "default": "distilbert-base-cased",
         },
         "text-classification": {
             "impl": TextClassificationPipeline,
-            "class": (OnnxForSequenceClassification,) if is_onnxruntime_available() else (),
+            "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
             "default": "distilbert-base-uncased-finetuned-sst-2-english",
         },
         "token-classification": {
             "impl": TokenClassificationPipeline,
-            "class": (OnnxForTokenClassification,) if is_onnxruntime_available() else (),
+            "class": (ORTModelForTokenClassification,) if is_onnxruntime_available() else (),
             "default": "dbmdz/bert-large-cased-finetuned-conll03-english",
         },
         "question-answering": {
             "impl": QuestionAnsweringPipeline,
-            "class": (OnnxForQuestionAnswering,) if is_onnxruntime_available() else (),
+            "class": (ORTModelForQuestionAnswering,) if is_onnxruntime_available() else (),
             "default": "distilbert-base-cased-distilled-squad",
         },
         "zero-shot-classification": {
             "impl": ZeroShotClassificationPipeline,
-            "class": (OnnxForSequenceClassification,) if is_onnxruntime_available() else (),
+            "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
             "default": "facebook/bart-large-mnli",
         },
     }
@@ -79,12 +79,12 @@ def optimum_pipeline(
     elif isinstance(model, str):
         model_id = model
         model = SUPPORTED_TASKS[task]["class"][0].from_transformers(model)
-    elif isinstance(model, OnnxModel):
+    elif isinstance(model, ORTModel):
         if tokenizer is None:
-            raise ValueError("If you pass a model as a OnnxModel, you must pass a tokenizer as well")
+            raise ValueError("If you pass a model as a ORTModel, you must pass a tokenizer as well")
     else:
         raise ValueError(
-            f"""Model {model} is not supported. Please provide a valid model either as string or OnnxModel.
+            f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
             You can also provide non model then a default one will be used"""
         )
     if tokenizer is None:
