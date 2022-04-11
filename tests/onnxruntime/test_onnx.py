@@ -18,16 +18,16 @@ from unittest import TestCase
 
 import numpy as np
 import torch
-from onnxruntime import InferenceSession
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel, AutoTokenizer
 from transformers.models.albert import AlbertOnnxConfig
 from transformers.onnx import export
+
 from onnx import load as onnx_load
+from onnxruntime import InferenceSession
 from optimum.onnxruntime.utils import remove_duplicate_weights
 
 
 class WeightSharingTestCase(TestCase):
-
     def test_weight_sharing_output_match(self):
         with torch.no_grad():
             for model in {"albert-base-v1", "albert-base-v2"}:
@@ -41,8 +41,7 @@ class WeightSharingTestCase(TestCase):
                     original_albert_ir = onnx_load(original_onnx_f)
                     compressed_albert_ir = remove_duplicate_weights(original_albert_ir, inplace=False)
                     compressed_albert_session = InferenceSession(
-                        compressed_albert_ir.SerializeToString(),
-                        providers=["CPUExecutionProvider"]
+                        compressed_albert_ir.SerializeToString(), providers=["CPUExecutionProvider"]
                     )
 
                 original_outputs = model(**tokenizer("Hello from Hugging Face", return_tensors="pt"))
@@ -50,8 +49,12 @@ class WeightSharingTestCase(TestCase):
                     None, dict(tokenizer("Hello from Hugging Face", return_tensors="np"))
                 )
 
-            self.assertTrue(np.allclose(original_outputs.last_hidden_state.cpu().numpy(), compressed_outputs[0], atol=1e-4))
-            self.assertTrue(np.allclose(original_outputs.pooler_output.cpu().numpy(), compressed_outputs[1], atol=1e-4))
+            self.assertTrue(
+                np.allclose(original_outputs.last_hidden_state.cpu().numpy(), compressed_outputs[0], atol=1e-4)
+            )
+            self.assertTrue(
+                np.allclose(original_outputs.pooler_output.cpu().numpy(), compressed_outputs[1], atol=1e-4)
+            )
 
 
 if __name__ == "__main__":
