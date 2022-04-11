@@ -130,6 +130,10 @@ class ModelArguments:
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
+    ort_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 @dataclass
@@ -166,10 +170,6 @@ class OptimizationArguments:
             "help": "Whether to optimize the model for GPU inference. The optimized graph might contain operators for "
             "GPU or CPU only when optimization_level > 1."
         },
-    )
-    ort_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -360,7 +360,7 @@ def main():
         ort_model = ORTModel(
             optimized_model_path,
             optimizer._onnx_config,
-            ort_provider=optim_args.ort_provider,
+            ort_provider=model_args.ort_provider,
             compute_metrics=compute_metrics,
             label_names=["label"],
         )
@@ -386,7 +386,7 @@ def main():
             desc="Running tokenizer on the test dataset",
         )
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider)
+        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=model_args.ort_provider)
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
 

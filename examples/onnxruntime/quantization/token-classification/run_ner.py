@@ -87,6 +87,10 @@ class ModelArguments:
             "with private models)."
         },
     )
+    ort_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 @dataclass
@@ -237,10 +241,6 @@ class OptimizationArguments:
             "values. Effective only when the selected calibration method is minmax and `calibration_moving_average` is "
             "set to True."
         },
-    )
-    ort_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -549,7 +549,7 @@ def main():
         ort_model = ORTModel(
             quantized_model_path,
             quantizer._onnx_config,
-            ort_provider=optim_args.ort_provider,
+            ort_provider=model_args.ort_provider,
             compute_metrics=compute_metrics,
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
@@ -580,7 +580,7 @@ def main():
         ort_model = ORTModel(
             quantized_model_path,
             quantizer._onnx_config,
-            ort_provider=optim_args.ort_provider,
+            ort_provider=model_args.ort_provider,
             compute_metrics=compute_metrics,
         )
         outputs = ort_model.evaluation_loop(predict_dataset)
