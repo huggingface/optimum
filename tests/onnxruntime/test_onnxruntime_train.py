@@ -29,7 +29,7 @@ from transformers import (
     default_data_collator,
 )
 
-from optimum.onnxruntime import ORTTrainer, Seq2SeqORTTrainer
+from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
 
 
 class TestORTTrainer(unittest.TestCase):
@@ -225,7 +225,7 @@ class TestORTTrainer(unittest.TestCase):
                         pad_to_multiple_of=8 if training_args.fp16 else None,
                     )
 
-                    trainer = Seq2SeqORTTrainer(
+                    trainer = ORTSeq2SeqTrainer(
                         model=model,
                         args=training_args,
                         train_dataset=train_dataset if training_args.do_train else None,
