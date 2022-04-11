@@ -14,7 +14,7 @@ except Exception as error:
 
 REQUIRED_PKGS = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging"]
 
-TESTS_REQUIRE = ["pytest"]
+TESTS_REQUIRE = ["pytest", "nltk"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
