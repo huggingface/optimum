@@ -231,9 +231,7 @@ class OptimizationArguments:
     )
     ort_provider: str = field(
         default="CPUExecutionProvider",
-        metadata={
-            "help": "ONNX Runtime execution provider to use for inference."
-        },
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -447,7 +445,12 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            optimized_model_path,
+            optimizer._onnx_config,
+            ort_provider=optim_args.ort_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(eval_dataset)
         predictions = post_processing_function(eval_examples, eval_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)

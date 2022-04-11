@@ -200,9 +200,7 @@ class OptimizationArguments:
     )
     ort_provider: str = field(
         default="CPUExecutionProvider",
-        metadata={
-            "help": "ONNX Runtime execution provider to use for inference."
-        },
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -431,7 +429,12 @@ def main():
             desc="Running tokenizer on the validation dataset",
         )
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            optimized_model_path,
+            optimizer._onnx_config,
+            ort_provider=optim_args.ort_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
@@ -456,7 +459,12 @@ def main():
             desc="Running tokenizer on the prediction dataset",
         )
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            optimized_model_path,
+            optimizer._onnx_config,
+            ort_provider=optim_args.ort_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(outputs.predictions, axis=2)
 

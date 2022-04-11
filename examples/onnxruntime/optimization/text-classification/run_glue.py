@@ -169,9 +169,7 @@ class OptimizationArguments:
     )
     ort_provider: str = field(
         default="CPUExecutionProvider",
-        metadata={
-            "help": "ONNX Runtime execution provider to use for inference."
-        },
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -360,7 +358,11 @@ def main():
         )
 
         ort_model = ORTModel(
-            optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics, label_names=["label"]
+            optimized_model_path,
+            optimizer._onnx_config,
+            ort_provider=optim_args.ort_provider,
+            compute_metrics=compute_metrics,
+            label_names=["label"],
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics
