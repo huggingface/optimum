@@ -229,6 +229,12 @@ class OptimizationArguments:
             "GPU or CPU only when optimization_level > 1."
         },
     )
+    ort_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={
+            "help": "ONNX Runtime execution provider to use for inference."
+        },
+    )
 
 
 def main():
@@ -441,7 +447,7 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics)
         outputs = ort_model.evaluation_loop(eval_dataset)
         predictions = post_processing_function(eval_examples, eval_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)
@@ -472,7 +478,7 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config)
+        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider)
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)

@@ -175,7 +175,7 @@ class DataTrainingArguments:
 @dataclass
 class OptimizationArguments:
     """
-    Arguments pertaining to what type of optimization we are going to apply on the model.
+    Arguments pertaining to what type of optimization we are going to apply on the model and for inference.
     """
 
     opset: Optional[int] = field(
@@ -236,6 +236,12 @@ class OptimizationArguments:
             "help": "Constant smoothing factor to use when computing the moving average of the minimum and maximum "
             "values. Effective only when the selected calibration method is minmax and `calibration_moving_average` is "
             "set to True."
+        },
+    )
+    ort_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={
+            "help": "ONNX Runtime execution provider to use for inference."
         },
     )
 
@@ -542,7 +548,7 @@ def main():
                 desc="Running tokenizer on the validation dataset",
             )
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics)
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
@@ -568,7 +574,7 @@ def main():
                 desc="Running tokenizer on the prediction dataset",
             )
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics)
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(outputs.predictions, axis=2)
 

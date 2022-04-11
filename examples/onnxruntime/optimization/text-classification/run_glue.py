@@ -167,6 +167,12 @@ class OptimizationArguments:
             "GPU or CPU only when optimization_level > 1."
         },
     )
+    ort_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={
+            "help": "ONNX Runtime execution provider to use for inference."
+        },
+    )
 
 
 def main():
@@ -354,7 +360,7 @@ def main():
         )
 
         ort_model = ORTModel(
-            optimized_model_path, optimizer._onnx_config, compute_metrics=compute_metrics, label_names=["label"]
+            optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider, compute_metrics=compute_metrics, label_names=["label"]
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics
@@ -378,7 +384,7 @@ def main():
             desc="Running tokenizer on the test dataset",
         )
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config)
+        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, ort_provider=optim_args.ort_provider)
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
 
