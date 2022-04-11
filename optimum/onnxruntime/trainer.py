@@ -811,8 +811,6 @@ class ORTTrainer(Trainer):
                 if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
                 else "CPUExecutionProvider"
             ],
-            # TODO: wait for the merge of ORTMoel
-            # providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
@@ -1015,8 +1013,6 @@ class ORTTrainer(Trainer):
                 if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
                 else "CPUExecutionProvider"
             ],
-            # TODO: wait for the merge of ORTMoel
-            # providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
