@@ -24,6 +24,7 @@ import onnxruntime as ort
 logger = logging.get_logger(__name__)
 
 ONNX_WEIGHTS_NAME = "model.onnx"
+OPTIMIZED_ONNX_WEIGHTS_NAME = "optimized_model.onnx"
 
 
 def _is_gpu_available():
@@ -49,7 +50,7 @@ class ORTConfigManager:
 
     _conf = {
         "bert": ("num_attention_heads", "hidden_size", "bert"),
-        "distilbert": ("n_heads", "hidden_size", "bert"),
+        "distilbert": ("n_heads", "dim", "bert"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),

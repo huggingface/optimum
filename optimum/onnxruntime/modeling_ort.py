@@ -3,6 +3,8 @@ import os
 import shutil
 from pathlib import Path
 from typing import Optional, Union, Dict, Any
+from optimum.onnxruntime.configuration import OptimizationConfig
+from optimum.onnxruntime.utils import ORTConfigManager
 
 import torch
 from transformers import AutoTokenizer, PretrainedConfig
@@ -24,7 +26,7 @@ from onnxruntime.transformers.optimizer import optimize_model
 from onnxruntime.transformers.quantize_helper import QuantizeHelper
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, _is_gpu_available
+from .utils import ONNX_WEIGHTS_NAME, OPTIMIZED_ONNX_WEIGHTS_NAME, _is_gpu_available
 
 
 logger = logging.getLogger(__name__)
@@ -85,47 +87,49 @@ class ORTModel(OptimizedModel):
 
     def optimize(
         self,
-        input_path: Union[str, Path] = None,
-        model_type: str = "bert",
+        optimization_config: Optional[OptimizationConfig] = OptimizationConfig(optimization_level=99),
         output_path: Union[str, Path] = default_cache_path,
-        opt_level: int = 1,
         **kwargs,
     ):
         """
         optimizes the model using onnxruntime.tools.transformers.optimize
         Arguments:
-            input_path (:obj:`str` or :obj:`Path`):
-                Directory from which to load
-            output_path(:obj:`str`):
-                Directory where the quantized model should be saved, default to
-                `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
+            optimization_config (:obj:`OptimizationConfig`, `optional`):
+                [`~OptimizationConfig`] is the configuration class handling all the ONNX Runtime optimization parameters.
         """
-        _input_path = None
-        output_path = Path(output_path).joinpath("optimized_model.onnx")
+        _input_path = self.model_save_dir.joinpath(self.latest_model_name)
+        output_path = Path(default_cache_path).joinpath(OPTIMIZED_ONNX_WEIGHTS_NAME)
 
-        if input_path is None and self.model_save_dir is None:
-            raise ValueError("Need to provide input_path wer model is stored. Couldn't find cached model file")
-        elif input_path is None and self.model_save_dir is not None:
-            _input_path = self.model_save_dir.joinpath(self.latest_model_name)
-        else:
-            _input_path = Path(input_path)
+        ORTConfigManager.check_supported_model_or_raise(self.config.model_type)
+        num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(self.config.model_type))
+        hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
+        optimization_model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
+        optimization_config.model_type = optimization_model_type
+        optimization_options = FusionOptions.parse(optimization_config)
 
-        # TODO: Reenable when fixed: https://github.com/microsoft/onnxruntime/issues/9573
-        optimization_options = FusionOptions(model_type)
-        optimization_options.enable_embed_layer_norm = False
+        logger.info(f"Creating optimizer: {optimization_config}")
 
         # optimize onnx model using onnxruntime.tools.transformers.optimize
         optimized_model = optimize_model(
             input=_input_path.as_posix(),
-            model_type=model_type,
-            num_heads=self.config.n_heads,
-            hidden_size=self.config.dim,
-            opt_level=opt_level,
+            model_type=optimization_model_type,
+            num_heads=num_heads,
+            hidden_size=hidden_size,
+            opt_level=optimization_config.optimization_level,
+            use_gpu=optimization_config.optimize_for_gpu,
             optimization_options=optimization_options,
+            only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
         )
         # converts float32 to float16 for GPU models
         if _is_gpu_available():
             optimized_model.convert_float_to_float16()
+
+        if optimized_model.is_fully_optimized():
+            msg = "The model has been fully optimized"
+        else:
+            msg = "The model has been optimized"
+
+        logger.info(msg)
 
         # save optimized model
         optimized_model.save_model_to_file(output_path.as_posix())
