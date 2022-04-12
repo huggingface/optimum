@@ -48,6 +48,8 @@ class ORTModel:
             onnx_config (`OnnxConfig`):
                 An ONNX configuration associated to the ONNX model describing metadata on how to export the model
                 through the ONNX format.
+            ort_provider (:obj:`str`, `optional`):
+                ONNX Runtime execution provider to use.
             compute_metrics (`Callable[[EvalPrediction], Dict]`, `optional`):
                 The function that will be used to compute metrics at evaluation. Must take an `EvalPrediction` and
                 return a dictionary string to metric values.
