@@ -2,16 +2,18 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 
 import torch
 from transformers import AutoTokenizer, PretrainedConfig
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
+from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import (
     BaseModelOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
+    CausalLMOutputWithCrossAttentions,
 )
 from transformers.onnx import FeaturesManager, export
 
@@ -587,6 +589,7 @@ class ORTModelForSequenceClassification(ORTModel):
             "input_ids": input_ids.cpu().detach().numpy(),
             "attention_mask": attention_mask.cpu().detach().numpy(),
         }
+
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
@@ -677,5 +680,103 @@ class ORTModelForTokenClassification(ORTModel):
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
         return TokenClassifierOutput(
+            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+        )
+
+
+TEXT_GENERATION_SAMPLE = r"""
+    Example of token classification:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> import torch
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = tokenizer("My Name is Philipp and i live in Germany.", return_tensors="pt")
+
+    >>> gen_tokens = model.generate(**inputs,do_sample=True,temperature=0.9, min_length=20,max_length=20)
+    >>> tokenizer.batch_decode(gen_tokens)
+    ```
+
+    Example using `transformers.pipelines`:
+
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_gen = pipeline("text-generation", model=model, tokenizer=tokenizer)
+
+    >>> text = "My Name is Philipp and i live in Germany."
+    >>> gen = onnx_gen(text)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model with a language modeling head on top (linear layer with weights tied to the input
+    embeddings).
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForCausalLM(ORTModel, GenerationMixin):
+    """
+    Causal LM model for ONNX.
+    """
+
+    # used in from_transformers to export model to onnx
+    pipeline_task = "causal-lm"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # create {name:idx} dict for model outputs
+        self.main_input_name = "input_ids"
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+
+    @property
+    def device(self) -> torch.device:
+        """
+        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
+        device).
+        """
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
+        """
+        Implement in subclasses of [`PreTrainedModel`] for custom behavior to prepare inputs in the generate method.
+        """
+        inputs = {"input_ids": input_ids}
+        if kwargs.get("attention_mask", None) is not None:
+            inputs["attention_mask"] = kwargs["attention_mask"]
+        return inputs
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + TOKEN_CLASSIFICATION_SAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForCausalLM",
+            checkpoint="optimum/gpt2",
+        )
+    )
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        # converts pytorch inputs into numpy inputs for onnx
+        onnx_inputs = {
+            "input_ids": input_ids.cpu().detach().numpy(),
+            "attention_mask": attention_mask.cpu().detach().numpy(),
+        }
+        # run inference
+        outputs = self.model.run(None, onnx_inputs)
+        # converts output to namedtuple for pipelines post-processing
+        return CausalLMOutputWithCrossAttentions(
             logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
         )

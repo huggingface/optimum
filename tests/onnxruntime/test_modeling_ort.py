@@ -11,6 +11,7 @@ from transformers import (
     AutoTokenizer,
     PretrainedConfig,
     pipeline,
+    AutoModelForCausalLM,
 )
 
 import onnxruntime
@@ -22,6 +23,7 @@ from optimum.onnxruntime import (
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
 )
+from optimum.onnxruntime.modeling_ort import ORTModelForCausalLM
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
@@ -386,3 +388,80 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
 
         # compare model output class
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+
+class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    }
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_supported_transformers_architectures(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
+
+        self.assertTrue("Unrecognized configuration class", context.exception)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_model_call(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokens = tokenizer(
+            "This is a sample output",
+            return_tensors="pt",
+        )
+        outputs = model(**tokens)
+        self.assertTrue("logits" in outputs)
+        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_generate_utils(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        text = "This is a sample output"
+        tokens = tokenizer(
+            text,
+            return_tensors="pt",
+        )
+        outputs = model.generate(**tokens)
+        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertTrue(isinstance(res[0], str))
+        self.assertTrue(len(res[0]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_compare_to_transformers(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        trfs_model = AutoModelForCausalLM.from_pretrained(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokens = tokenizer(
+            "This is a sample output",
+            return_tensors="pt",
+        )
+        onnx_outputs = onnx_model(**tokens)
+        with torch.no_grad():
+            trtfs_outputs = trfs_model(**tokens)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live"
+        outputs = pp(text)
+
+        # compare model output class
+        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
+        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))

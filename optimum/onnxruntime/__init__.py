@@ -56,6 +56,7 @@ from .modeling_ort import (
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
+    ORTModelForCausalLM
 )
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer
