@@ -11,14 +11,17 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import copy
+from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
+from onnx import ModelProto
 
 
 logger = logging.get_logger(__name__)
@@ -128,3 +131,66 @@ def fix_atenops_to_gather(model_path):
 
     onnx.checker.check_model(model)
     onnx.save(model, model_path)
+
+
+def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
+    duplicates = defaultdict(set)
+    for initializer in model.graph.initializer:
+        for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
+            tensor_data = getattr(initializer, data_attr)
+            if tensor_data:
+                tensor_data = tuple(tensor_data)
+                break
+        duplicates[(initializer.data_type, tensor_data)].add(initializer.name)
+    return duplicates
+
+
+def _create_name_sharing_dict(duplicate_weights: DefaultDict[Tuple[int, bytes], Set[str]]) -> Dict[str, str]:
+    def _create_name_sharing_dict_for_duplicates(duplicates: Set[str]) -> Dict[str, str]:
+        common_name = duplicates.pop()
+        duplicates.add(common_name)
+        return {k: common_name for k in duplicates}
+
+    name_sharing_dict = {}
+    for duplicates in duplicate_weights.values():
+        name_sharing_dict.update(_create_name_sharing_dict_for_duplicates(duplicates))
+    return name_sharing_dict
+
+
+def _replace_input_names(model: ModelProto, name_sharing_dict: Dict[str, str]):
+    for node in model.graph.node:
+        for i in range(len(node.input)):
+            node.input[i] = name_sharing_dict.get(node.input[i], node.input[i])
+
+
+def _remove_redundant_initializers(model: ModelProto, name_sharing_dict: Dict[str, str]):
+    to_pop = []
+    for idx, initializer in enumerate(model.graph.initializer):
+        if initializer.name != name_sharing_dict[initializer.name]:
+            to_pop.append(idx)
+
+    for idx in sorted(to_pop, reverse=True):
+        model.graph.initializer.pop(idx)
+
+
+def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
+    """
+    Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
+    to them.
+
+    Args:
+        model (`~onnx.ModelProto`): The model to remove duplicates from.
+        inplace (`bool`, defaults to False): Whether to perform this transformation inplace.
+
+    Returns:
+        `~onnx.ModelProto`: The model without duplicates.
+    """
+    if not inplace:
+        model = copy.deepcopy(model)
+    duplicates = _find_duplicate_weights(model)
+    name_sharing_dict = _create_name_sharing_dict(duplicates)
+
+    _replace_input_names(model, name_sharing_dict)
+    _remove_redundant_initializers(model, name_sharing_dict)
+
+    return model

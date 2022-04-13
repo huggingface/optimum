@@ -37,7 +37,7 @@ if version.parse(torch.__version__) >= version.parse("1.8"):
 logger = logging.get_logger(__name__)
 
 
-class Seq2SeqORTTrainer(ORTTrainer):
+class ORTSeq2SeqTrainer(ORTTrainer):
     def evaluate(
         self,
         eval_dataset: Optional[Dataset] = None,
