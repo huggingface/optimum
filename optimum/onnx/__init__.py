@@ -13,4 +13,4 @@
 #  limitations under the License.
 from enum import Enum
 
-from .configuration import OnnxConfigWithLoss
+from .configuration import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
