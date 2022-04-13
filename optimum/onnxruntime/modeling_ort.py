@@ -2,9 +2,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Optional, Union, Dict, Any
-from optimum.onnxruntime.configuration import OptimizationConfig
-from optimum.onnxruntime.utils import ORTConfigManager
+from typing import Any, Dict, Optional, Union
 
 import torch
 from transformers import AutoTokenizer, PretrainedConfig
@@ -12,21 +10,26 @@ from transformers.file_utils import add_start_docstrings, add_start_docstrings_t
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import (
     BaseModelOutput,
+    CausalLMOutputWithCrossAttentions,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
-    CausalLMOutputWithCrossAttentions,
 )
 from transformers.onnx import FeaturesManager, export
 
+import onnx
 import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
+from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.transformers.optimizer import optimize_model
 from onnxruntime.transformers.quantize_helper import QuantizeHelper
+from optimum.onnxruntime import ORTQuantizableOperator
+from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig, QuantizationConfig
+from optimum.onnxruntime.utils import ORTConfigManager
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, OPTIMIZED_ONNX_WEIGHTS_NAME, _is_gpu_available
+from .utils import ONNX_WEIGHTS_NAME, OPTIMIZED_ONNX_WEIGHTS_NAME, QUANTIZED_ONNX_WEIGHTS_NAME, _is_gpu_available
 
 
 logger = logging.getLogger(__name__)
@@ -142,7 +145,7 @@ class ORTModel(OptimizedModel):
 
     def quantize(
         self,
-        input_path: Union[str, Path] = None,
+        quantization_config: QuantizationConfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=False),
         output_path: Union[str, Path] = default_cache_path,
     ):
         """
@@ -154,23 +157,44 @@ class ORTModel(OptimizedModel):
                 Directory where the quantized model should be saved, default to
                 `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
         """
+        if quantization_config.is_static:
+            raise ValueError("Static Quantization is not yet supported, please us ORTQuantizer.")
+
         if _is_gpu_available():
             raise ValueError("GPU is not supported for quantization")
 
-        _input_path = None
-        output_path = Path(output_path).joinpath("q8_model.onnx")
+        _input_path = self.model_save_dir.joinpath(self.latest_model_name)
+        output_path = Path(default_cache_path).joinpath(QUANTIZED_ONNX_WEIGHTS_NAME)
+        onnx_model = onnx.load(_input_path)
 
-        if input_path is None and self.model_save_dir is None:
-            raise ValueError("Need to provide input_path wer model is stored. Couldn't find cached model file")
-        elif input_path is None and self.model_save_dir is not None:
-            _input_path = self.model_save_dir.joinpath(self.latest_model_name)
-        else:
-            _input_path = Path(input_path)
-
-        QuantizeHelper.quantize_onnx_model(
-            _input_path.as_posix(),
-            output_path.as_posix(),
+        quantizer = ONNXQuantizer(
+            model=onnx_model,
+            static=quantization_config.is_static,
+            per_channel=quantization_config.per_channel,
+            mode=quantization_config.mode,
+            weight_qType=quantization_config.weights_dtype,
+            input_qType=quantization_config.activations_dtype,
+            tensors_range=None,  # not needed for dynamic quantization
+            reduce_range=quantization_config.reduce_range,
+            nodes_to_quantize=quantization_config.nodes_to_quantize,
+            nodes_to_exclude=quantization_config.nodes_to_exclude,
+            op_types_to_quantize=[
+                operator.value if isinstance(operator, ORTQuantizableOperator) else operator
+                for operator in quantization_config.operators_to_quantize
+            ],
+            extra_options={
+                "WeightSymmetric": quantization_config.weights_symmetric,
+                "ActivationSymmetric": quantization_config.activations_symmetric,
+                "EnableSubgraph": False,
+                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
+            },
         )
+
+        logger.info("Quantizing model...")
+        quantizer.quantize_model()
+
+        quantizer.model.save_model_to_file(output_path.as_posix())
+
         self.model = ORTModel.load_model(output_path.as_posix())
         self.model_save_dir = output_path.parent
         self.latest_model_name = output_path.name

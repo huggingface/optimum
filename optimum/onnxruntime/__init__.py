@@ -52,11 +52,11 @@ from .configuration import ORTConfig
 from .model import ORTModel
 from .modeling_ort import (
     ORTModel,
+    ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
-    ORTModelForCausalLM,
 )
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer

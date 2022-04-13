@@ -5,13 +5,13 @@ import unittest
 import torch
 from transformers import (
     AutoModel,
+    AutoModelForCausalLM,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
     AutoTokenizer,
     PretrainedConfig,
     pipeline,
-    AutoModelForCausalLM,
 )
 
 import onnxruntime
