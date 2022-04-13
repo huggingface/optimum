@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from datasets import load_dataset, load_metric
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoModelForSequenceClassification, AutoTokenizer
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 from transformers.utils import TensorType
@@ -32,6 +32,7 @@ from optimum.onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2
 
 
 class TestOnnxConfigWithLoss(unittest.TestCase):
+    @unittest.skip("Skip OnnxConfigWithLoss test.")
     def test_onnx_config_with_loss(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Prepare model and dataset
@@ -47,7 +48,6 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
 
             # Export model from PyTorch to ONNX
-            model_inputs = wrapped_onnx_config.generate_dummy_inputs(tokenizer, framework=TensorType.PYTORCH)
             onnx_model_path = Path(os.path.join(tmp_dir, f"{model_checkpoint}.onnx"))
             opset = max(onnx_config.default_onnx_opset, 12)
             _ = export(
@@ -86,7 +86,127 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             pt_outputs = model(**inputs)
 
             # Checkers
-            assert len(ort_outputs) > 1, "No loss in outputs"
+            assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
+            self.assertAlmostEqual(
+                float(ort_outputs[0]),
+                float(pt_outputs["loss"]),
+                2,
+                "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+            )
+            gc.collect()
+
+    @unittest.skip("Skip OnnxConfigWithPastAndLoss test.")
+    def test_onnx_config_with_past_and_loss(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Prepare model and dataset
+            model_checkpoint = "gpt2"
+            model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint)
+            tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+
+            # Wrap OnnxConfig
+            _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
+                model, feature="sequence-classification"
+            )
+            onnx_config = model_onnx_config(model.config)
+            wrapped_onnx_config = OnnxConfigWithPastAndLoss(onnx_config)
+
+            # Export model from PyTorch to ONNX
+            onnx_model_path = Path(os.path.join(tmp_dir, f"{model_checkpoint}.onnx"))
+            opset = max(onnx_config.default_onnx_opset, 12)
+            _ = export(
+                preprocessor=tokenizer, model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path
+            )
+
+            # ONNX Runtime Inference
+            ort_sess = onnxruntime.InferenceSession(
+                onnx_model_path.as_posix(),
+                providers=[
+                    "CUDAExecutionProvider"
+                    if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                    else "CPUExecutionProvider"
+                ],
+            )
+            inputs = {
+                "input_ids": torch.tensor(
+                    [
+                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
+                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
+                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
+                    ]
+                ),
+                "attention_mask": torch.tensor(
+                    [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
+                ),
+                "labels": torch.LongTensor([0, 0, 0]),
+            }
+            input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
+            output_names = [output.name for output in ort_sess._outputs_meta]
+            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+            ort_outputs = ort_sess.run(output_names, input_feed)
+            pt_outputs = model(**inputs)
+
+            # Checkers
+            assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
+            self.assertAlmostEqual(
+                float(ort_outputs[0]),
+                float(pt_outputs["loss"]),
+                2,
+                "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+            )
+            gc.collect()
+
+    # @unittest.skip("Skip OnnxSeq2SeqConfigWithPastAndLoss test.")
+    def test_onnx_seq2seq_config_with_past_and_loss(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Prepare model and dataset
+            model_checkpoint = "t5-small"
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_checkpoint)
+            tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+
+            # Wrap OnnxConfig
+            _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature="seq2seq-lm")
+            onnx_config = model_onnx_config(model.config)
+            wrapped_onnx_config = OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
+
+            # Export model from PyTorch to ONNX
+            model_inputs = wrapped_onnx_config.generate_dummy_inputs(tokenizer, framework=TensorType.PYTORCH)
+            # onnx_model_path = Path(os.path.join(tmp_dir, f"{model_checkpoint}.onnx"))
+            onnx_model_path = Path(os.path.join("./test_result", f"{model_checkpoint}.onnx"))
+            opset = max(onnx_config.default_onnx_opset, 12)
+            _ = export(
+                preprocessor=tokenizer, model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path
+            )
+
+            # ONNX Runtime Inference
+            ort_sess = onnxruntime.InferenceSession(
+                onnx_model_path.as_posix(),
+                providers=[
+                    "CUDAExecutionProvider"
+                    if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                    else "CPUExecutionProvider"
+                ],
+            )
+            inputs = {
+                "input_ids": torch.tensor(
+                    [
+                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
+                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
+                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
+                    ]
+                ),
+                "attention_mask": torch.tensor(
+                    [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
+                ),
+                "labels": torch.LongTensor([0, 0, 0]),
+            }
+            input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
+            output_names = [output.name for output in ort_sess._outputs_meta]
+            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+            ort_outputs = ort_sess.run(output_names, input_feed)
+            pt_outputs = model(**inputs)
+
+            # # Checkers
+            assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
             self.assertAlmostEqual(
                 float(ort_outputs[0]),
                 float(pt_outputs["loss"]),
