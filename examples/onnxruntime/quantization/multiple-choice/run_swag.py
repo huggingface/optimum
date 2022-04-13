@@ -22,17 +22,16 @@ import json
 import logging
 import os
 import sys
-from functools import partial
 from dataclasses import dataclass, field
+from functools import partial
 from itertools import chain
 from typing import Optional, Union
 
 import datasets
 import numpy as np
 import torch
-from datasets import load_dataset
-
 import transformers
+from datasets import load_dataset
 from transformers import HfArgumentParser, TrainingArguments
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint
@@ -48,6 +47,7 @@ from optimum.onnxruntime.preprocessors.passes import (
     ExcludeNodeAfter,
     ExcludeNodeFollowedBy,
 )
+
 
 # Will error if the minimal version of Transformers is not installed. The version of transformers must be >= 4.19.0
 # as the export to onnx of multiple choice topologies was added in this release. Remove at your own risks.
@@ -426,7 +426,9 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
             )
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics, label_names=["label"])
+        ort_model = ORTModel(
+            quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics, label_names=["label"]
+        )
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
