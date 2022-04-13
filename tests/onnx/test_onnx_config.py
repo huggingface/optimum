@@ -17,13 +17,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import numpy as np
 import torch
-from datasets import load_dataset, load_metric
 from transformers import AutoModelForSeq2SeqLM, AutoModelForSequenceClassification, AutoTokenizer
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
-from transformers.utils import TensorType
 
 import onnxruntime
 
@@ -32,7 +29,7 @@ from optimum.onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2
 
 
 class TestOnnxConfigWithLoss(unittest.TestCase):
-    @unittest.skip("Skip OnnxConfigWithLoss test.")
+    # @unittest.skip("Skip OnnxConfigWithLoss test.")
     def test_onnx_config_with_loss(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Prepare model and dataset
@@ -90,12 +87,12 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             self.assertAlmostEqual(
                 float(ort_outputs[0]),
                 float(pt_outputs["loss"]),
-                2,
+                3,
                 "The losses of ONNX Runtime and PyTorch inference are not close enough!",
             )
             gc.collect()
 
-    @unittest.skip("Skip OnnxConfigWithPastAndLoss test.")
+    # @unittest.skip("Skip OnnxConfigWithPastAndLoss test.")
     def test_onnx_config_with_past_and_loss(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Prepare model and dataset
@@ -150,7 +147,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             self.assertAlmostEqual(
                 float(ort_outputs[0]),
                 float(pt_outputs["loss"]),
-                2,
+                3,
                 "The losses of ONNX Runtime and PyTorch inference are not close enough!",
             )
             gc.collect()
@@ -169,10 +166,9 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             wrapped_onnx_config = OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
 
             # Export model from PyTorch to ONNX
-            model_inputs = wrapped_onnx_config.generate_dummy_inputs(tokenizer, framework=TensorType.PYTORCH)
-            # onnx_model_path = Path(os.path.join(tmp_dir, f"{model_checkpoint}.onnx"))
-            onnx_model_path = Path(os.path.join("./test_result", f"{model_checkpoint}.onnx"))
+            onnx_model_path = Path(os.path.join(tmp_dir, f"{model_checkpoint}.onnx"))
             opset = max(onnx_config.default_onnx_opset, 12)
+
             _ = export(
                 preprocessor=tokenizer, model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path
             )
@@ -189,15 +185,35 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             inputs = {
                 "input_ids": torch.tensor(
                     [
-                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
-                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
-                        [50256, 50256, 50256, 50256, 50256, 50256, 50256, 50256],
+                        [2, 2, 2, 2, 2, 2, 2, 1],
+                        [2, 2, 2, 2, 2, 2, 2, 1],
+                        [2, 2, 2, 2, 2, 2, 2, 1],
                     ]
                 ),
                 "attention_mask": torch.tensor(
                     [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
                 ),
-                "labels": torch.LongTensor([0, 0, 0]),
+                "decoder_input_ids": torch.tensor(
+                    [
+                        [2, 2, 2, 2, 2, 2, 2, 1],
+                        [2, 2, 2, 2, 2, 2, 2, 1],
+                        [2, 2, 2, 2, 2, 2, 2, 1],
+                    ]
+                ),
+                "decoder_attention_mask": torch.tensor(
+                    [
+                        [1, 1, 1, 1, 1, 1, 1, 1],
+                        [1, 1, 1, 1, 1, 1, 1, 1],
+                        [1, 1, 1, 1, 1, 1, 1, 1],
+                    ]
+                ),
+                "labels": torch.LongTensor(
+                    [
+                        [0, 0, 0, 0, 0, 0, 0, 0],
+                        [0, 0, 0, 0, 0, 0, 0, 0],
+                        [0, 0, 0, 0, 0, 0, 0, 0],
+                    ]
+                ),
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
@@ -205,12 +221,12 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             ort_outputs = ort_sess.run(output_names, input_feed)
             pt_outputs = model(**inputs)
 
-            # # Checkers
+            # Checkers
             assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
             self.assertAlmostEqual(
                 float(ort_outputs[0]),
                 float(pt_outputs["loss"]),
-                2,
+                3,
                 "The losses of ONNX Runtime and PyTorch inference are not close enough",
             )
             gc.collect()

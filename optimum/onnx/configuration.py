@@ -88,7 +88,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         """
-        Mapping containing the axis definition of the input tensors to provide to the model
+        Mapping containing the axis definition of the input tensors(including labels) to provide to the model
         Returns:
             For each input: its name associated to the axes symbolic name and the axis position within the tensor
         """
@@ -99,11 +99,11 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         """
-        Mapping containing the axis definition of the output tensors to provide to the model
+        Mapping containing the axis definition of the output tensors(including loss) to provide to the model
         Returns:
             For each output: its name associated to the axes symbolic name and the axis position within the tensor
         """
-        common_outputs = self._tasks_to_common_outputs[self.task]
+        common_outputs = self._onnx_config.outputs
         common_outputs.update(self._tasks_to_extra_outputs["default"])
         if "loss" in common_outputs.keys():
             common_outputs.move_to_end("loss", last=False)
@@ -156,7 +156,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             tokenizer,
         )
         for label, input in self._tasks_to_extra_inputs[self.task].items():
-            if "sequence" in input.keys():
+            if "sequence" in input.values():
                 dummy_inputs[label] = torch.zeros(
                     self.default_fixed_batch, self.default_fixed_sequence, dtype=torch.long
                 )
@@ -177,11 +177,11 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
     @classmethod
     def with_past(cls, config: OnnxConfigWithPast) -> "OnnxConfigWithPast":
         """
-        Instantiate a OnnxConfigWithPast with `use_past` attribute set to True
+        Instantiate a OnnxConfigWithPastAndLoss with `use_past` attribute set to True
         Args:
             config: The underlying model's config to use when exporting to ONNX
         Returns:
-            OnnxConfigWithPast with `.use_past = True`
+            OnnxConfigWithPastAndLoss with `.use_past = True`
         """
         return cls(config, use_past=True)
 
@@ -189,40 +189,9 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super().outputs
         if self.use_past:
-            self.fill_with_past_key_values_(common_outputs, direction="outputs")
+            self._onnx_config.fill_with_past_key_values_(common_outputs, direction="outputs")
 
         return common_outputs
-
-    @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
-        if hasattr(self._config, "use_cache"):
-            return {"use_cache": self.use_past}
-
-        return None
-
-    @property
-    def num_layers(self) -> int:
-        """
-        The number of layers attribute retrieved from the model config. Override this for model configs where the
-        number of layers attribute is not called `num_layers`.
-        """
-        if not hasattr(self._onnx_config, "num_layers"):
-            raise AttributeError(
-                "could not find the number of layers attribute in the model configuration, override the num_layers property of the model OnnxConfig to solve this"
-            )
-        return self._onnx_config.num_layers
-
-    @property
-    def num_attention_heads(self) -> int:
-        """
-        The number of attention heads attribute retrieved from the model config. Override this for model configs where
-        the number of attention heads attribute is not called `num_attention_heads`.
-        """
-        if not hasattr(self._onnx_config, "num_attention_heads"):
-            raise AttributeError(
-                "could not find the number of attention heads attribute in the model configuration, override the num_attention_heads property of the model OnnxConfig to solve this"
-            )
-        return self._onnx_config.num_attention_heads
 
     def generate_dummy_inputs(
         self,
@@ -241,7 +210,7 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
             framework,
         )
         for label, input in self._tasks_to_extra_inputs[self.task].items():
-            if "sequence" in input.keys():
+            if "sequence" in input.values():
                 dummy_inputs[label] = torch.zeros(
                     self.default_fixed_batch, self.default_fixed_sequence, dtype=torch.long
                 )
@@ -249,20 +218,12 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
                 dummy_inputs[label] = torch.zeros(self.default_fixed_batch, dtype=torch.long)
         return dummy_inputs
 
-    def _flatten_past_key_values_(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.key"] = t[0]
-        flattened_output[f"{name}.{idx}.value"] = t[1]
 
-    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
-        flattened_output = {}
-        if name in ["present", "past_key_values"]:
-            for idx, t in enumerate(field):
-                self._flatten_past_key_values_(flattened_output, name, idx, t)
-        else:
-            flattened_output = super().flatten_output_collection_property(name, field)
-
-        return flattened_output
-
-
-class OnnxSeq2SeqConfigWithPastAndLoss(OnnxSeq2SeqConfigWithPast, ABC):
-    pass
+class OnnxSeq2SeqConfigWithPastAndLoss(OnnxConfigWithPastAndLoss):
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = self._onnx_config.outputs
+        common_outputs.update(self._tasks_to_extra_outputs["default"])
+        if "loss" in common_outputs.keys():
+            common_outputs.move_to_end("loss", last=False)
+        return copy.deepcopy(common_outputs)
