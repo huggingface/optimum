@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from transformers.feature_extraction_utils import FeatureExtractionMixin
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
+import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
@@ -45,55 +46,35 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     Wrapper for the childern classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format with loss in outputs.
     """
 
-    default_fixed_batch = 2
-    default_fixed_sequence = 8
-    torch_onnx_minimum_version = version.parse("1.8")
-    _tasks_to_common_inputs_to_add = {
-        "default": ("labels", {0: "batch"}),
-    }
-    _tasks_to_common_outputs_with_loss = {
-        "default": OrderedDict({"last_hidden_state": {0: "batch", 1: "sequence"}}),
-        "masked-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
-        "causal-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
-        "seq2seq-lm": OrderedDict({"logits": {0: "batch", 1: "decoder_sequence"}}),
-        "sequence-classification": OrderedDict({"logits": {0: "batch"}}),
-        "token-classification": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
-        "multiple-choice": OrderedDict({"logits": {0: "batch"}}),
+    _tasks_to_extra_inputs = {
+        "default": OrderedDict({"labels": {0: "batch"}}),
+        "masked-lm": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "causal-lm": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "seq2seq-lm": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "sequence-classification": OrderedDict({"labels": {0: "batch"}}),
+        "token-classification": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "multiple-choice": OrderedDict({"labels": {0: "batch"}}),
         "question-answering": OrderedDict(
             {
-                "start_logits": {0: "batch", 1: "sequence"},
-                "end_logits": {0: "batch", 1: "sequence"},
+                "start_positions": {0: "batch"},
+                "end_positions": {0: "batch"},
             }
         ),
-        "image-classification": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
+        "image-classification": OrderedDict({"labels": {0: "batch"}}),
+    }
+    _tasks_to_extra_outputs = {
+        "default": OrderedDict({"loss": {}}),
     }
 
     def __init__(self, config: OnnxConfig):
-        self._config = config
-
-        if self._config.task not in self._tasks_to_common_outputs_with_loss:
+        self._config = config._config
+        self._onnx_config = config
+        if self._onnx_config.task not in self._tasks_to_extra_inputs:
             raise ValueError(
-                f"{self._config.task} is not a supported task, supported tasks: {self._tasks_to_common_outputs_with_loss.keys()}"
+                f"{self._onnx_config.task} is not a supported task, supported tasks: {self._tasks_to_extra_inputs.keys()}"
             )
-        self.task = self._config.task
-
-        self._patching_specs = []
-        for spec in self._config.patching_specs if self._config.patching_specs is not None else []:
-            final_spec = spec
-            if spec.orig_op is None:
-                final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
-            self._patching_specs.append(final_spec)
-
-    @classmethod
-    def from_model_config(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfig":
-        """
-        Instantiate a OnnxConfig for a specific model
-        Args:
-            config: The model's configuration to use when exporting to ONNX
-        Returns:
-            OnnxConfig for this model
-        """
-        return cls(config, task=task)
+        self.task = self._onnx_config.task
+        self._patching_specs = self._onnx_config._patching_specs
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -102,7 +83,9 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         Returns:
             For each input: its name associated to the axes symbolic name and the axis position within the tensor
         """
-        raise NotImplementedError()
+        inputs = self._onnx_config.inputs
+        inputs.update(self._tasks_to_extra_inputs[self.task])
+        return inputs
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -112,33 +95,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             For each output: its name associated to the axes symbolic name and the axis position within the tensor
         """
         common_outputs = self._tasks_to_common_outputs[self.task]
+        common_outputs.update(self._tasks_to_extra_outputs["default"])
+        if "loss" in common_outputs.keys():
+            common_outputs.move_to_end("loss", last=False)
         return copy.deepcopy(common_outputs)
-
-    @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
-        """
-        Dictionary of keys to override in the model's config before exporting
-        Returns:
-            Dictionary with the keys (and their corresponding values) to override
-        """
-        if hasattr(self._config, "use_cache"):
-            return {"use_cache": False}
-
-        return None
-
-    @property
-    def is_torch_support_available(self) -> bool:
-        """
-        The minimum PyTorch version required to export the model.
-        Returns:
-            `bool`: Whether the installed version of PyTorch is compatible with the model.
-        """
-        if is_torch_available():
-            from transformers.utils import torch_version
-
-            return torch_version >= self.torch_onnx_minimum_version
-        else:
-            return False
 
     def generate_dummy_inputs(
         self,
@@ -198,41 +158,34 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             )
             # Generate dummy inputs according to compute batch and sequence
             dummy_input = [" ".join([preprocessor.unk_token]) * seq_length] * batch_size
-            return dict(preprocessor(dummy_input, return_tensors=framework))
+            dummy_dict = dict(preprocessor(dummy_input, return_tensors=framework))
+            # Generate dummy labels
+            for label, input in self._tasks_to_extra_inputs[self.task].items():
+                if "sequence" in input.keys():
+                    dummy_dict[label] = torch.zeros(
+                        self.default_fixed_batch, self.default_fixed_sequence, dtype=torch.long
+                    )
+                else:
+                    dummy_dict[label] = torch.zeros(self.default_fixed_batch, dtype=torch.long)
+            return dummy_dict
         elif isinstance(preprocessor, FeatureExtractionMixin) and preprocessor.model_input_names[0] == "pixel_values":
             # If dynamic axis (-1) we forward with a fixed dimension of 2 samples to avoid optimizations made by ONNX
             batch_size = compute_effective_axis_dimension(batch_size, fixed_dimension=OnnxConfig.default_fixed_batch)
             dummy_input = self._generate_dummy_images(batch_size, num_channels, image_height, image_width)
-            return dict(preprocessor(images=dummy_input, return_tensors=framework))
+            dummy_dict = dict(preprocessor(dummy_input, return_tensors=framework))
+            # Generate dummy labels
+            for label, input in self._tasks_to_extra_inputs[self.task].items():
+                if "sequence" in input.keys():
+                    dummy_dict[label] = torch.zeros(
+                        self.default_fixed_batch, self.default_fixed_sequence, dtype=torch.long
+                    )
+                else:
+                    dummy_dict[label] = torch.zeros(self.default_fixed_batch, dtype=torch.long)
+            return dummy_dict
         else:
             raise ValueError(
                 "Unable to generate dummy inputs for the model. Please provide a tokenizer or a preprocessor."
             )
-
-    def patch_ops(self):
-        for spec in self._patching_specs:
-            custom_op = spec.custom_op if spec.op_wrapper is None else spec.op_wrapper(spec.custom_op)
-            setattr(spec.o, spec.name, custom_op)
-
-    def restore_ops(self):
-        for spec in self._patching_specs:
-            orig_op = spec.orig_op if spec.op_wrapper is None else spec.op_wrapper(spec.orig_op)
-            setattr(spec.o, spec.name, orig_op)
-
-    @classmethod
-    def flatten_output_collection_property(cls, name: str, field: Iterable[Any]) -> Dict[str, Any]:
-        """
-        Flatten any potential nested structure expanding the name of the field with the index of the element within the
-        structure.
-        Args:
-            name: The name of the nested structure
-            field: The structure to, potentially, be flattened
-        Returns:
-            (Dict[str, Any]): Outputs with flattened structure and key mapping this new structure.
-        """
-        from itertools import chain
-
-        return {f"{name}.{idx}": item for idx, item in enumerate(chain.from_iterable(field))}
 
 
 class OnnxConfigWithPastAndLoss(OnnxConfigWithPast, ABC):
