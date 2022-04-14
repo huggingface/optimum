@@ -1,0 +1,225 @@
+hydra:
+  run:
+    dir: results/${now:%m%d-h%Hm%Ms%S_${hydra:job.config_name}}
+  sweep:
+    dir: results
+    subdir: ${now:%m%d-h%Hm%Ms%S_${hydra:job.config_name}_${hydra.job.override_dirname}}
+  launcher:
+    _target_: hydra._internal.core_plugins.basic_launcher.BasicLauncher
+  sweeper:
+    _target_: hydra._internal.core_plugins.basic_sweeper.BasicSweeper
+    max_batch_size: null
+  help:
+    app_name: ${hydra.job.name}
+    header: '${hydra.help.app_name} is powered by Hydra.
+
+      '
+    footer: 'Powered by Hydra (https://hydra.cc)
+
+      Use --hydra-help to view Hydra specific help
+
+      '
+    template: '${hydra.help.header}
+
+      == Configuration groups ==
+
+      Compose your configuration from those groups (group=option)
+
+
+      $APP_CONFIG_GROUPS
+
+
+      == Config ==
+
+      Override anything in the config (foo.bar=value)
+
+
+      $CONFIG
+
+
+      ${hydra.help.footer}
+
+      '
+  hydra_help:
+    template: 'Hydra (${hydra.runtime.version})
+
+      See https://hydra.cc for more info.
+
+
+      == Flags ==
+
+      $FLAGS_HELP
+
+
+      == Configuration groups ==
+
+      Compose your configuration from those groups (For example, append hydra/job_logging=disabled
+      to command line)
+
+
+      $HYDRA_CONFIG_GROUPS
+
+
+      Use ''--cfg hydra'' to Show the Hydra config.
+
+      '
+    hydra_help: ???
+  hydra_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(asctime)s][HYDRA] %(message)s'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: simple
+        stream: ext://sys.stdout
+    root:
+      level: INFO
+      handlers:
+      - console
+    loggers:
+      logging_example:
+        level: DEBUG
+    disable_existing_loggers: false
+  job_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: simple
+        stream: ext://sys.stdout
+      file:
+        class: logging.FileHandler
+        formatter: simple
+        filename: ${hydra.job.name}.log
+    root:
+      level: INFO
+      handlers:
+      - console
+      - file
+    disable_existing_loggers: false
+  env: {}
+  searchpath: []
+  callbacks: {}
+  output_subdir: hydra
+  overrides:
+    hydra: []
+    task:
+    - model.ops_to_quantize=[MatMul, Add],                                              [MatMul,
+      Add, Gather],                                              [MatMul, Add, Gather,
+      Transpose],                                              [MatMul, Add, Gather,
+      Transpose, Reshape],                                              [MatMul, Add,
+      Gather, Transpose, Reshape],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul, Div],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul, Div, Sqrt],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul, Div, Sqrt, Concat]
+  job:
+    name: run_glue
+    override_dirname: model.ops_to_quantize=[MatMul, Add],                                              [MatMul,
+      Add, Gather],                                              [MatMul, Add, Gather,
+      Transpose],                                              [MatMul, Add, Gather,
+      Transpose, Reshape],                                              [MatMul, Add,
+      Gather, Transpose, Reshape],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul, Div],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul, Div, Sqrt],                                              [MatMul,
+      Add, Gather, Transpose, Reshape, Mul, Div, Sqrt, Concat]
+    id: ???
+    num: ???
+    config_name: sst2_distilbert_static
+    env_set: {}
+    env_copy: []
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: []
+  runtime:
+    version: 1.1.2
+    cwd: /home/fxmarty/hf_internship/optimum/examples/onnxruntime/benchmarking_yaml
+    config_sources:
+    - path: hydra.conf
+      schema: pkg
+      provider: hydra
+    - path: /home/fxmarty/hf_internship/optimum/examples/onnxruntime/benchmarking_yaml/configs
+      schema: file
+      provider: main
+    - path: ''
+      schema: structured
+      provider: schema
+    choices:
+      hydra/env: default
+      hydra/callbacks: null
+      hydra/job_logging: default
+      hydra/hydra_logging: default
+      hydra/hydra_help: default
+      hydra/help: default
+      hydra/sweeper: basic
+      hydra/launcher: basic
+      hydra/output: default
+  verbose: false
+model:
+  model_name_or_path: distilbert-base-uncased-finetuned-sst-2-english
+  config_name: null
+  cache_dir: null
+  ort_provider: CPUExecutionProvider
+  eval_unquantized: false
+  ops_to_quantize:
+  - MatMul
+  - Add
+  node_exclusion:
+  - class: ExcludeLayerNormNodes
+    args: []
+  - class: ExcludeGeLUNodes
+    args: []
+  - class: ExcludeNodeAfter
+    args:
+    - Add
+    - Add
+  - class: ExcludeNodeAfter
+    args:
+    - Gather
+    - Add
+  - class: ExcludeNodeFollowedBy
+    args:
+    - Add
+    - Softmax
+data:
+  task_name: sst2
+  dataset_name: null
+  dataset_config_name: null
+  train_file: null
+  validation_file: null
+  test_file: null
+  overwrite_cache: false
+  preprocessing_num_workers: null
+  max_seq_length: 128
+  max_eval_samples: null
+  max_predict_samples: null
+  version_2_with_negative: false
+  null_score_diff_threshold: 0.0
+  doc_stride: 128
+  n_best_size: 20
+  max_answer_length: 30
+  label_all_tokens: false
+  return_entity_level_metrics: false
+training:
+  log_level: INFO
+  do_eval: true
+optim:
+  opset: null
+  quantization_approach: static
+  per_channel: false
+  reduce_range: false
+  calibration_method: minmax
+  num_calibration_samples: 128
+  num_calibration_shards: 1
+  calibration_batch_size: 8
+  calibration_histogram_percentile: 99.999
+  calibration_moving_average: false
+  calibration_moving_average_constant: 0.01
