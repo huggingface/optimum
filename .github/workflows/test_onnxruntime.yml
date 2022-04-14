@@ -26,7 +26,12 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[onnxruntime]
-    - name: Test with unittest
+    - name: Test with unittest - onnxruntime
       working-directory: tests/onnxruntime
       run: |
-        python -m unittest test_onnxruntime test_onnx_config
+        python -m unittest test_onnxruntime
+    - name: Test with unittest - onnxruntime
+      working-directory: tests/onnxruntime - onnx
+      run: |
+        pip install tensorflow &&
+        python -m unittest test_onnx_config
