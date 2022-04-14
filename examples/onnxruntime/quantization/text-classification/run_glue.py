@@ -501,7 +501,9 @@ def main():
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, execution_provider=model_args.execution_provider)
+        ort_model = ORTModel(
+            quantized_model_path, quantizer._onnx_config, execution_provider=model_args.execution_provider
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
 

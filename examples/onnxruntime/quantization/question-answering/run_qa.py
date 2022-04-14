@@ -673,7 +673,9 @@ def main():
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, execution_provider=model_args.execution_provider)
+        ort_model = ORTModel(
+            quantized_model_path, quantizer._onnx_config, execution_provider=model_args.execution_provider
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)

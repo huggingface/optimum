@@ -481,7 +481,9 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, execution_provider=model_args.execution_provider)
+        ort_model = ORTModel(
+            optimized_model_path, optimizer._onnx_config, execution_provider=model_args.execution_provider
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)

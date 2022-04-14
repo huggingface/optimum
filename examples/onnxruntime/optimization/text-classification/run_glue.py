@@ -386,7 +386,9 @@ def main():
             desc="Running tokenizer on the test dataset",
         )
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, execution_provider=model_args.execution_provider)
+        ort_model = ORTModel(
+            optimized_model_path, optimizer._onnx_config, execution_provider=model_args.execution_provider
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
 
