@@ -30,8 +30,8 @@ jobs:
       working-directory: tests/onnxruntime
       run: |
         python -m unittest test_onnxruntime
-    - name: Test with unittest - onnxruntime
-      working-directory: tests/onnxruntime - onnx
+    - name: Test with unittest - onnx
+      working-directory: tests/onnxruntime
       run: |
         pip install tensorflow &&
         python -m unittest test_onnx_config
