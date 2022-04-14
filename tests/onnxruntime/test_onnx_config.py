@@ -17,10 +17,19 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import tensorflow as tf
 import torch
-from transformers import AutoModelForSeq2SeqLM, AutoModelForSequenceClassification, AutoTokenizer
+from transformers import (
+    AutoModelForSeq2SeqLM,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    TFAutoModelForSequenceClassification,
+)
+from transformers.modeling_tf_utils import TFPreTrainedModel
+from transformers.modeling_utils import PreTrainedModel
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
+from transformers.utils import TensorType
 
 import onnxruntime
 
@@ -31,66 +40,98 @@ from optimum.onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2
 class TestOnnxConfigWithLoss(unittest.TestCase):
     # @unittest.skip("Skip OnnxConfigWithLoss test.")
     def test_onnx_config_with_loss(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Prepare model and dataset
-            model_checkpoint = "bert-base-uncased"
-            model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint)
-            tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+        # Prepare model and dataset
+        model_checkpoint = "bert-base-uncased"
+        models = {
+            AutoModelForSequenceClassification.from_pretrained(model_checkpoint),
+            TFAutoModelForSequenceClassification.from_pretrained(model_checkpoint),
+        }
+        tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
-            # Wrap OnnxConfig
-            _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
-                model, feature="sequence-classification"
-            )
-            onnx_config = model_onnx_config(model.config)
-            wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
+        for model in models:
+            with self.subTest(model=model):
+                with tempfile.TemporaryDirectory() as tmp_dir:
 
-            # Export model from PyTorch to ONNX
-            onnx_model_path = Path(os.path.join(tmp_dir, f"{model_checkpoint}.onnx"))
-            opset = max(onnx_config.default_onnx_opset, 12)
-            _ = export(
-                preprocessor=tokenizer, model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path
-            )
+                    # Wrap OnnxConfig
+                    _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
+                        model, feature="sequence-classification"
+                    )
+                    onnx_config = model_onnx_config(model.config)
+                    wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
 
-            # ONNX Runtime Inference
-            ort_sess = onnxruntime.InferenceSession(
-                onnx_model_path.as_posix(),
-                providers=[
-                    "CUDAExecutionProvider"
-                    if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                    else "CPUExecutionProvider"
-                ],
-            )
-            inputs = {
-                "input_ids": torch.tensor(
-                    [
-                        [101, 100, 100, 100, 100, 100, 100, 102],
-                        [101, 100, 100, 100, 100, 100, 100, 102],
-                        [101, 100, 100, 100, 100, 100, 100, 102],
-                    ]
-                ),
-                "token_type_ids": torch.tensor(
-                    [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
-                ),
-                "attention_mask": torch.tensor(
-                    [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
-                ),
-                "labels": torch.LongTensor([0, 0, 0]),
-            }
-            input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
-            output_names = [output.name for output in ort_sess._outputs_meta]
-            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
-            ort_outputs = ort_sess.run(output_names, input_feed)
-            pt_outputs = model(**inputs)
+                    # Export model from PyTorch to ONNX
+                    onnx_model_path = Path(os.path.join(tmp_dir, f"{model_checkpoint}.onnx"))
+                    opset = max(onnx_config.default_onnx_opset, 12)
+                    _ = export(
+                        preprocessor=tokenizer,
+                        model=model,
+                        config=wrapped_onnx_config,
+                        opset=opset,
+                        output=onnx_model_path,
+                    )
 
-            # Checkers
-            assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
-            self.assertAlmostEqual(
-                float(ort_outputs[0]),
-                float(pt_outputs["loss"]),
-                3,
-                "The losses of ONNX Runtime and PyTorch inference are not close enough!",
-            )
-            gc.collect()
+                    # ONNX Runtime Inference
+                    ort_sess = onnxruntime.InferenceSession(
+                        onnx_model_path.as_posix(),
+                        providers=[
+                            "CUDAExecutionProvider"
+                            if torch.cuda.is_available()
+                            and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                            else "CPUExecutionProvider"
+                        ],
+                    )
+                    if issubclass(type(model), PreTrainedModel):
+                        inputs = {
+                            "input_ids": torch.tensor(
+                                [
+                                    [101, 100, 100, 100, 100, 100, 100, 102],
+                                    [101, 100, 100, 100, 100, 100, 100, 102],
+                                    [101, 100, 100, 100, 100, 100, 100, 102],
+                                ]
+                            ),
+                            "token_type_ids": torch.tensor(
+                                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
+                            ),
+                            "attention_mask": torch.tensor(
+                                [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
+                            ),
+                            "labels": torch.LongTensor([0, 0, 0]),
+                        }
+                    elif issubclass(type(model), TFPreTrainedModel):
+                        inputs = {
+                            "input_ids": tf.constant(
+                                [[101, 100, 100, 100, 100, 100, 100, 102], [101, 100, 100, 100, 100, 100, 100, 102]]
+                            ),
+                            "token_type_ids": tf.constant([[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]),
+                            "attention_mask": tf.constant([[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]),
+                            "labels": tf.constant([0, 0], dtype=tf.int64),
+                        }
+                    input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
+                    output_names = [output.name for output in ort_sess._outputs_meta]
+                    input_feed = dict(
+                        map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
+                    )
+                    ort_outputs = ort_sess.run(output_names, input_feed)
+                    pt_outputs = model(**inputs)
+
+                    # Checkers
+                    assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
+                    if issubclass(type(model), PreTrainedModel):
+                        self.assertAlmostEqual(
+                            float(ort_outputs[0]),
+                            float(pt_outputs["loss"]),
+                            3,
+                            "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+                        )
+                    elif issubclass(type(model), TFPreTrainedModel):
+                        for ort_loss, pt_loss in zip(ort_outputs[-1], pt_outputs["loss"]):
+                            self.assertAlmostEqual(
+                                float(ort_loss),
+                                float(pt_loss),
+                                3,
+                                "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+                            )
+                    gc.collect()
 
     # @unittest.skip("Skip OnnxConfigWithPastAndLoss test.")
     def test_onnx_config_with_past_and_loss(self):

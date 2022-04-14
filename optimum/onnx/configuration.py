@@ -13,20 +13,12 @@
 #  limitations under the License.
 
 import copy
-import dataclasses
-import warnings
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
-import numpy as np
-from packaging import version
-from transformers.onnx.utils import (
-    ParameterFormat,
-    compute_effective_axis_dimension,
-    compute_serialized_parameters_size,
-)
-from transformers.utils import TensorType, is_torch_available, is_vision_available, logging
+from transformers.onnx.utils import compute_effective_axis_dimension
+from transformers.utils import TensorType, logging
 
 
 if TYPE_CHECKING:
@@ -34,7 +26,6 @@ if TYPE_CHECKING:
     from transformers.feature_extraction_utils import FeatureExtractionMixin
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
@@ -43,7 +34,7 @@ logger = logging.get_logger(__name__)
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
     """
-    Wrapper for the childern classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format with loss in outputs.
+    Wrapper for the children classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format with loss in outputs.
     """
 
     _tasks_to_extra_inputs = {
@@ -156,12 +147,30 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             tokenizer,
         )
         for label, input in self._tasks_to_extra_inputs[self.task].items():
+            batch_size = compute_effective_axis_dimension(
+                batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
+            )
             if "sequence" in input.values():
-                dummy_inputs[label] = torch.zeros(
-                    self.default_fixed_batch, self.default_fixed_sequence, dtype=torch.long
+                seq_length = compute_effective_axis_dimension(
+                    seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
                 )
+                if framework == TensorType.PYTORCH:
+                    import torch
+
+                    dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    import tensorflow as tf
+
+                    dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
             else:
-                dummy_inputs[label] = torch.zeros(self.default_fixed_batch, dtype=torch.long)
+                if framework == TensorType.PYTORCH:
+                    import torch
+
+                    dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    import tensorflow as tf
+
+                    dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
         return dummy_inputs
 
 
@@ -210,12 +219,30 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
             framework,
         )
         for label, input in self._tasks_to_extra_inputs[self.task].items():
+            batch_size = compute_effective_axis_dimension(
+                batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
+            )
             if "sequence" in input.values():
-                dummy_inputs[label] = torch.zeros(
-                    self.default_fixed_batch, self.default_fixed_sequence, dtype=torch.long
+                seq_length = compute_effective_axis_dimension(
+                    seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
                 )
+                if framework == TensorType.PYTORCH:
+                    import torch
+
+                    dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    import tensorflow as tf
+
+                    dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
             else:
-                dummy_inputs[label] = torch.zeros(self.default_fixed_batch, dtype=torch.long)
+                if framework == TensorType.PYTORCH:
+                    import torch
+
+                    dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    import tensorflow as tf
+
+                    dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
         return dummy_inputs
 
 

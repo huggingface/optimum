@@ -1,6 +1,6 @@
 import re
 
-from setuptools import find_namespace_packages, setup
+from setuptools import setup, find_namespace_packages
 
 
 # Ensure we match the version set in src/optimum/version.py
@@ -12,7 +12,7 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 
-REQUIRED_PKGS = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging"]
+REQUIRED_PKGS = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging", "tensorflow"]
 
 TESTS_REQUIRE = ["pytest"]
 
