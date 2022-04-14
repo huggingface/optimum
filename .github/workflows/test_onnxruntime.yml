@@ -33,5 +33,5 @@ jobs:
     - name: Test with unittest - onnx
       working-directory: tests/onnxruntime
       run: |
-        pip install tensorflow &&
+        pip install tensorflow tf2onnx &&
         python -m unittest test_onnx_config
