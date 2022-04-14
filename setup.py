@@ -1,6 +1,6 @@
 import re
 
-from setuptools import setup, find_namespace_packages
+from setuptools import find_namespace_packages, setup
 
 
 # Ensure we match the version set in src/optimum/version.py
