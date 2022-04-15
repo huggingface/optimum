@@ -21,6 +21,7 @@ import os
 import sys
 import time
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -35,6 +36,7 @@ from transformers.integrations import (  # isort: split
 
 import numpy as np
 import torch
+import torch.distributed as dist
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data.distributed import DistributedSampler
@@ -43,6 +45,7 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_reinit, is_deepspeed_zero3_enabled
+from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
@@ -57,7 +60,15 @@ from transformers.onnx import export, validate_model_outputs
 from transformers.onnx.features import FeaturesManager
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
-from transformers.trainer_callback import TrainerCallback, TrainerState
+from transformers.trainer_callback import (
+    CallbackHandler,
+    DefaultFlowCallback,
+    PrinterCallback,
+    ProgressCallback,
+    TrainerCallback,
+    TrainerControl,
+    TrainerState,
+)
 from transformers.trainer_pt_utils import (
     DistributedTensorGatherer,
     IterableDatasetShard,
@@ -81,13 +92,21 @@ from transformers.trainer_utils import (
     speed_metrics,
 )
 from transformers.training_args import TrainingArguments
-from transformers.utils import logging
+from transformers.utils import is_in_notebook, logging
 
 import onnx
 import onnxruntime
 
-from .utils import fix_atenops_to_gather  # , _is_gpu_available # wait for the merge of ORTMoel
+from .utils import fix_atenops_to_gather  # , _is_gpu_available # wait for the merge of ORTModel
 
+
+DEFAULT_CALLBACKS = [DefaultFlowCallback]
+DEFAULT_PROGRESS_CALLBACK = ProgressCallback
+
+if is_in_notebook():
+    from transformers.utils.notebook import NotebookProgressCallback
+
+    DEFAULT_PROGRESS_CALLBACK = NotebookProgressCallback
 
 if is_apex_available():
     from apex import amp
@@ -103,16 +122,11 @@ if is_fairscale_available():
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.nn.wrap import auto_wrap
 
-if is_sagemaker_dp_enabled():
-    import smdistributed.dataparallel.torch.distributed as dist
-    from smdistributed.dataparallel.torch.parallel.distributed import DistributedDataParallel as DDP
-else:
-    import torch.distributed as dist
-
 if is_sagemaker_mp_enabled():
     from transformers.trainer_pt_utils import smp_forward_backward, smp_forward_only, smp_gather, smp_nested_concat
 
     import smdistributed.modelparallel.torch as smp
+
 
 if TYPE_CHECKING:
     import optuna
@@ -1320,7 +1334,9 @@ class ORTTrainer(Trainer):
                 ).to(self.args.device)
 
         elif is_sagemaker_dp_enabled():
-            model = DDP(model, device_ids=[dist.get_local_rank()], broadcast_buffers=False)
+            model = nn.parallel.DistributedDataParallel(
+                model, device_ids=[int(os.getenv("SMDATAPARALLEL_LOCAL_RANK"))]
+            )
         elif self.args.local_rank != -1:
             kwargs = {}
             if self.args.ddp_find_unused_parameters is not None:
