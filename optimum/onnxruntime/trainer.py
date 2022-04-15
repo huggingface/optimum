@@ -30,6 +30,7 @@ from tqdm.auto import tqdm
 # Integrations must be imported before ML frameworks:
 from transformers.integrations import (  # isort: split
     hp_params,
+    is_fairscale_available,
 )
 
 import numpy as np
