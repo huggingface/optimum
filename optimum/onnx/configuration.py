@@ -18,7 +18,7 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
 from transformers.onnx.utils import compute_effective_axis_dimension
-from transformers.utils import TensorType, logging
+from transformers.utils import TensorType, is_tf_available, is_torch_available, logging
 
 
 if TYPE_CHECKING:
@@ -58,7 +58,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     }
 
     def __init__(self, config: OnnxConfig):
-        self.__dict__ = config.__dict__
+        self.__dict__ = copy.deepcopy(config.__dict__)
         self._onnx_config = config
         if self.task not in self._tasks_to_extra_inputs:
             raise ValueError(
@@ -95,9 +95,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             For each output: its name associated to the axes symbolic name and the axis position within the tensor
         """
         common_outputs = self._onnx_config.outputs
-        common_outputs.update(self._tasks_to_extra_outputs["default"])
-        if "loss" in common_outputs.keys():
-            common_outputs.move_to_end("loss", last=False)
+        extra_outputs = self._tasks_to_extra_outputs["default"]
+        common_outputs.update(extra_outputs)
+        for key in reversed(extra_outputs.keys()):
+            common_outputs.move_to_end(key, last=False)
         return copy.deepcopy(common_outputs)
 
     def generate_dummy_inputs(
@@ -155,22 +156,42 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
                     seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
                 )
                 if framework == TensorType.PYTORCH:
-                    import torch
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
 
-                    dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+                        dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
                 elif framework == TensorType.TENSORFLOW:
-                    import tensorflow as tf
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
 
-                    dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
+                        dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
             else:
                 if framework == TensorType.PYTORCH:
-                    import torch
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
 
-                    dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+                        dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
                 elif framework == TensorType.TENSORFLOW:
-                    import tensorflow as tf
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
 
-                    dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
+                        dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
         return dummy_inputs
 
 
@@ -227,22 +248,42 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
                     seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
                 )
                 if framework == TensorType.PYTORCH:
-                    import torch
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
 
-                    dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+                        dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
                 elif framework == TensorType.TENSORFLOW:
-                    import tensorflow as tf
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
 
-                    dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
+                        dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
             else:
                 if framework == TensorType.PYTORCH:
-                    import torch
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
 
-                    dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+                        dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
                 elif framework == TensorType.TENSORFLOW:
-                    import tensorflow as tf
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
 
-                    dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
+                        dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
         return dummy_inputs
 
 
@@ -250,7 +291,8 @@ class OnnxSeq2SeqConfigWithPastAndLoss(OnnxConfigWithPastAndLoss):
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = self._onnx_config.outputs
-        common_outputs.update(self._tasks_to_extra_outputs["default"])
-        if "loss" in common_outputs.keys():
-            common_outputs.move_to_end("loss", last=False)
+        extra_outputs = self._tasks_to_extra_outputs["default"]
+        common_outputs.update(extra_outputs)
+        for key in reversed(extra_outputs.keys()):
+            common_outputs.move_to_end(key, last=False)
         return copy.deepcopy(common_outputs)
