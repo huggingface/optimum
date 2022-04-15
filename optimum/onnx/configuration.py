@@ -1,0 +1,298 @@
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+import copy
+from abc import ABC
+from collections import OrderedDict
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
+
+from transformers.onnx.utils import compute_effective_axis_dimension
+from transformers.utils import TensorType, is_tf_available, is_torch_available, logging
+
+
+if TYPE_CHECKING:
+    from transformers.configuration_utils import PretrainedConfig
+    from transformers.feature_extraction_utils import FeatureExtractionMixin
+    from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+
+
+logger = logging.get_logger(__name__)
+
+
+class OnnxConfigWithLoss(OnnxConfig, ABC):
+    """
+    Wrapper for the children classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format with loss in outputs.
+    """
+
+    _tasks_to_extra_inputs = {
+        "default": OrderedDict({"labels": {0: "batch"}}),
+        "masked-lm": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "causal-lm": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "seq2seq-lm": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "sequence-classification": OrderedDict({"labels": {0: "batch"}}),
+        "token-classification": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "multiple-choice": OrderedDict({"labels": {0: "batch"}}),
+        "question-answering": OrderedDict(
+            {
+                "start_positions": {0: "batch"},
+                "end_positions": {0: "batch"},
+            }
+        ),
+        "image-classification": OrderedDict({"labels": {0: "batch"}}),
+    }
+    _tasks_to_extra_outputs = {
+        "default": OrderedDict({"loss": {}}),
+    }
+
+    def __init__(self, config: OnnxConfig):
+        self.__dict__ = copy.deepcopy(config.__dict__)
+        self._onnx_config = config
+        if self.task not in self._tasks_to_extra_inputs:
+            raise ValueError(
+                f"{self.task} is not a supported task, supported tasks: {self._tasks_to_extra_inputs.keys()}"
+            )
+
+    @classmethod
+    def from_model_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
+        """
+        Instantiate a OnnxConfigWithLoss for a specific model
+        Args:
+            config: The model's configuration to use when exporting to ONNX
+        Returns:
+            OnnxConfigWithLoss for this model
+        """
+        return cls(config)
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        """
+        Mapping containing the axis definition of the input tensors(including labels) to provide to the model
+        Returns:
+            For each input: its name associated to the axes symbolic name and the axis position within the tensor
+        """
+        inputs = self._onnx_config.inputs
+        inputs.update(self._tasks_to_extra_inputs[self.task])
+        return inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        """
+        Mapping containing the axis definition of the output tensors(including loss) to provide to the model
+        Returns:
+            For each output: its name associated to the axes symbolic name and the axis position within the tensor
+        """
+        common_outputs = self._onnx_config.outputs
+        extra_outputs = self._tasks_to_extra_outputs["default"]
+        common_outputs.update(extra_outputs)
+        for key in reversed(extra_outputs.keys()):
+            common_outputs.move_to_end(key, last=False)
+        return copy.deepcopy(common_outputs)
+
+    def generate_dummy_inputs(
+        self,
+        preprocessor: Union["PreTrainedTokenizerBase", "FeatureExtractionMixin"],
+        batch_size: int = -1,
+        seq_length: int = -1,
+        is_pair: bool = False,
+        framework: Optional[TensorType] = None,
+        num_channels: int = 3,
+        image_width: int = 40,
+        image_height: int = 40,
+        tokenizer: "PreTrainedTokenizerBase" = None,
+    ) -> Mapping[str, Any]:
+        """
+        Generate inputs to provide to the ONNX exporter for the specific framework
+        Args:
+            preprocessor: ([`PreTrainedTokenizerBase`] or [`FeatureExtractionMixin`]):
+                The preprocessor associated with this model configuration.
+            batch_size (`int`, *optional*, defaults to -1):
+                The batch size to export the model for (-1 means dynamic axis).
+            seq_length (`int`, *optional*, defaults to -1):
+                The sequence length to export the model for (-1 means dynamic axis).
+            is_pair (`bool`, *optional*, defaults to `False`):
+                Indicate if the input is a pair (sentence 1, sentence 2)
+            framework (`TensorType`, *optional*, defaults to `None`):
+                The framework (PyTorch or TensorFlow) that the tokenizer will generate tensors for.
+            num_channels (`int`, *optional*, defaults to 3):
+                The number of channels of the generated images.
+            image_width (`int`, *optional*, defaults to 40):
+                The width of the generated images.
+            image_height (`int`, *optional*, defaults to 40):
+                The height of the generated images.
+        Returns:
+            Mapping[str, Tensor] holding the kwargs to provide to the model's forward function
+        """
+        # Generate dummy labels
+        dummy_inputs = super().generate_dummy_inputs(
+            preprocessor,
+            batch_size,
+            seq_length,
+            is_pair,
+            framework,
+            num_channels,
+            image_width,
+            image_height,
+            tokenizer,
+        )
+        for label, input in self._tasks_to_extra_inputs[self.task].items():
+            batch_size = compute_effective_axis_dimension(
+                batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
+            )
+            if "sequence" in input.values():
+                seq_length = compute_effective_axis_dimension(
+                    seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
+                )
+                if framework == TensorType.PYTORCH:
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
+
+                        dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
+
+                        dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
+            else:
+                if framework == TensorType.PYTORCH:
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
+
+                        dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
+
+                        dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
+        return dummy_inputs
+
+
+class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
+    def __init__(
+        self,
+        config: OnnxConfigWithPast,
+        use_past: bool = False,
+    ):
+        super().__init__(config)
+        self.use_past = use_past
+
+    @classmethod
+    def with_past(cls, config: OnnxConfigWithPast) -> "OnnxConfigWithPast":
+        """
+        Instantiate a OnnxConfigWithPastAndLoss with `use_past` attribute set to True
+        Args:
+            config: The underlying model's config to use when exporting to ONNX
+        Returns:
+            OnnxConfigWithPastAndLoss with `.use_past = True`
+        """
+        return cls(config, use_past=True)
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self.use_past:
+            self._onnx_config.fill_with_past_key_values_(common_outputs, direction="outputs")
+
+        return common_outputs
+
+    def generate_dummy_inputs(
+        self,
+        tokenizer: "PreTrainedTokenizerBase",
+        batch_size: int = -1,
+        seq_length: int = -1,
+        is_pair: bool = False,
+        framework: Optional[TensorType] = None,
+    ) -> Mapping[str, Any]:
+
+        dummy_inputs = self._onnx_config.generate_dummy_inputs(
+            tokenizer,
+            batch_size,
+            seq_length,
+            is_pair,
+            framework,
+        )
+        for label, input in self._tasks_to_extra_inputs[self.task].items():
+            batch_size = compute_effective_axis_dimension(
+                batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
+            )
+            if "sequence" in input.values():
+                seq_length = compute_effective_axis_dimension(
+                    seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
+                )
+                if framework == TensorType.PYTORCH:
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
+
+                        dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
+
+                        dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
+            else:
+                if framework == TensorType.PYTORCH:
+                    if not is_torch_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
+                        )
+                    else:
+                        import torch
+
+                        dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+                elif framework == TensorType.TENSORFLOW:
+                    if not is_tf_available():
+                        raise ValueError(
+                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
+                        )
+                    else:
+                        import tensorflow as tf
+
+                        dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
+        return dummy_inputs
+
+
+class OnnxSeq2SeqConfigWithPastAndLoss(OnnxConfigWithPastAndLoss):
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = self._onnx_config.outputs
+        extra_outputs = self._tasks_to_extra_outputs["default"]
+        common_outputs.update(extra_outputs)
+        for key in reversed(extra_outputs.keys()):
+            common_outputs.move_to_end(key, last=False)
+        return copy.deepcopy(common_outputs)
