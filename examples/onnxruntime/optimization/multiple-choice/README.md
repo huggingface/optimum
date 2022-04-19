@@ -16,16 +16,13 @@ limitations under the License.
 
 # Multiple choice
 
-The script [`run_swag.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/quantization/multiple-choice/run_swag.py) allows us to apply different quantization approaches (such as dynamic and static quantization) using the [ONNX Runtime](https://github.com/microsoft/onnxruntime) quantization tool for multiple choice tasks.
+The script [`run_swag.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/quantization/multiple-choice/run_swag.py) allows us to apply graph optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for multiple choice tasks.
 
-The following example applies post-training dynamic quantization on a BERT fine-tuned on the SWAG dataset.
+The following example applies graph optimizations on a BERT fine-tuned on the SWAG dataset.
 
 ```bash
 python run_swag.py \
     --model_name_or_path ehdwns1516/bert-base-uncased_SWAG \
-    --quantization_approach dynamic \
     --do_eval \
-    --output_dir /tmp/quantized_bert_swag
+    --output_dir /tmp/optimized_bert_swag
 ```
-
-In order to apply dynamic or static quantization, `quantization_approach` must be set to  respectively `dynamic` or `static`.
