@@ -283,7 +283,7 @@ def main():
                 padding="max_length",
             )
             # Un-flatten
-            return {k: [v[i: i + 4] for i in range(0, len(v), 4)] for k, v in tokenized_examples.items()}
+            return {k: [v[i : i + 4] for i in range(0, len(v), 4)] for k, v in tokenized_examples.items()}
 
         # Preprocess the evaluation dataset
         with training_args.main_process_first(desc="Running tokenizer on the validation dataset"):
