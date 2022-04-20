@@ -29,7 +29,14 @@ from optimum.onnxruntime.configuration import AutoCalibrationConfig, Optimizatio
 
 class TestORTOptimizer(unittest.TestCase):
     def test_optimize(self):
-        model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
+        model_names = {
+            "bert-base-cased",
+            "distilbert-base-uncased",
+            "facebook/bart-base",
+            "gpt2",
+            "roberta-base",
+            "google/electra-small-discriminator",
+        }
         optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
         for model_name in model_names:
             with self.subTest(model_name=model_name):
