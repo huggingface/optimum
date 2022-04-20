@@ -81,6 +81,10 @@ class ModelArguments:
             "with private models)."
         },
     )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 @dataclass
@@ -256,6 +260,28 @@ def main():
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
+
+    if (
+        optim_args.optimization_level > 1
+        and optim_args.optimize_for_gpu
+        and model_args.execution_provider == "CPUExecutionProvider"
+    ):
+        raise ValueError(
+            f"Optimization level is set at {optim_args.optimization_level} and "
+            f"GPU optimization will be done, although the CPU execution provider "
+            f"was selected. Use --execution_provider CUDAExecutionProvider."
+        )
+
+    if (
+        optim_args.optimization_level > 1
+        and not optim_args.optimize_for_gpu
+        and model_args.execution_provider == "CUDAExecutionProvider"
+    ):
+        raise ValueError(
+            f"Optimization level is set at {optim_args.optimization_level} and "
+            f"CPU optimization will be done, although the GPU execution provider "
+            f"was selected. Remove the argument --execution_provider CUDAExecutionProvider."
+        )
 
     logger.info(f"Optimization with the following parameters {optim_args}")
 
@@ -441,7 +467,12 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            optimized_model_path,
+            optimizer._onnx_config,
+            execution_provider=model_args.execution_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(eval_dataset)
         predictions = post_processing_function(eval_examples, eval_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)
@@ -472,7 +503,9 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config)
+        ort_model = ORTModel(
+            optimized_model_path, optimizer._onnx_config, execution_provider=model_args.execution_provider
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)

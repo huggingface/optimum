@@ -37,6 +37,7 @@ class ORTModel:
         self,
         model_path: Union[str, os.PathLike],
         onnx_config: OnnxConfig,
+        execution_provider: Optional[str] = "CPUExecutionProvider",
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         label_names: Optional[List[str]] = None,
     ):
@@ -47,6 +48,8 @@ class ORTModel:
             onnx_config (`OnnxConfig`):
                 An ONNX configuration associated to the ONNX model describing metadata on how to export the model
                 through the ONNX format.
+            execution_provider (:obj:`str`, `optional`):
+                ONNX Runtime execution provider to use.
             compute_metrics (`Callable[[EvalPrediction], Dict]`, `optional`):
                 The function that will be used to compute metrics at evaluation. Must take an `EvalPrediction` and
                 return a dictionary string to metric values.
@@ -62,6 +65,7 @@ class ORTModel:
         self.onnx_named_inputs = list(onnx_config.inputs.keys())
         self.onnx_named_outputs = list(onnx_config.outputs.keys())
         self.onnx_config = onnx_config
+        self.execution_provider = execution_provider
         self.model_path = Path(model_path)
         self.compute_metrics = compute_metrics
         default_label_names = (
@@ -81,7 +85,7 @@ class ORTModel:
         all_preds = None
         all_labels = None
         options = SessionOptions()
-        session = InferenceSession(self.model_path.as_posix(), options)
+        session = InferenceSession(self.model_path.as_posix(), options, providers=[self.execution_provider])
         for step, inputs in enumerate(dataset):
             has_labels = all(inputs.get(k) is not None for k in self.label_names)
             if has_labels:

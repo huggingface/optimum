@@ -87,6 +87,10 @@ class ModelArguments:
             "with private models)."
         },
     )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 @dataclass
@@ -542,7 +546,12 @@ def main():
                 desc="Running tokenizer on the validation dataset",
             )
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            quantized_model_path,
+            quantizer._onnx_config,
+            execution_provider=model_args.execution_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
@@ -568,7 +577,12 @@ def main():
                 desc="Running tokenizer on the prediction dataset",
             )
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            quantized_model_path,
+            quantizer._onnx_config,
+            execution_provider=model_args.execution_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(outputs.predictions, axis=2)
 
