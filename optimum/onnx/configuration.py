@@ -101,6 +101,36 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             common_outputs.move_to_end(key, last=False)
         return copy.deepcopy(common_outputs)
 
+    def _generate_extra_dummy_inputs_pt(
+        self,
+        dummy_inputs,
+        batch_size,
+        seq_length,
+    ) -> Mapping[str, Any]:
+        import torch
+
+        for label, input in self._tasks_to_extra_inputs[self.task].items():
+            if "sequence" in input.values():
+                dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+            else:
+                dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+        return dummy_inputs
+
+    def _generate_extra_dummy_inputs_tf(
+        self,
+        dummy_inputs,
+        batch_size,
+        seq_length,
+    ) -> Mapping[str, Any]:
+        import tensorflow as tf
+
+        for label, input in self._tasks_to_extra_inputs[self.task].items():
+            if "sequence" in input.values():
+                dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
+            else:
+                dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
+        return dummy_inputs
+
     def generate_dummy_inputs(
         self,
         preprocessor: Union["PreTrainedTokenizerBase", "FeatureExtractionMixin"],
@@ -147,52 +177,27 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             image_height,
             tokenizer,
         )
-        for label, input in self._tasks_to_extra_inputs[self.task].items():
-            batch_size = compute_effective_axis_dimension(
-                batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
-            )
-            if "sequence" in input.values():
-                seq_length = compute_effective_axis_dimension(
-                    seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
-                )
-                if framework == TensorType.PYTORCH:
-                    if not is_torch_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
-                        )
-                    else:
-                        import torch
+        label_batch_size = compute_effective_axis_dimension(
+            batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
+        )
+        label_seq_length = compute_effective_axis_dimension(
+            seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
+        )
 
-                        dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
-                elif framework == TensorType.TENSORFLOW:
-                    if not is_tf_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
-                        )
-                    else:
-                        import tensorflow as tf
-
-                        dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
+        if framework == TensorType.PYTORCH:
+            if is_torch_available():
+                return self._generate_extra_dummy_inputs_pt(dummy_inputs, label_batch_size, label_seq_length)
             else:
-                if framework == TensorType.PYTORCH:
-                    if not is_torch_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
-                        )
-                    else:
-                        import torch
-
-                        dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
-                elif framework == TensorType.TENSORFLOW:
-                    if not is_tf_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
-                        )
-                    else:
-                        import tensorflow as tf
-
-                        dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
-        return dummy_inputs
+                raise RuntimeError(f"Could not generate dummy inputs because no PyTorch installation was found.")
+        elif framework == TensorType.TENSORFLOW:
+            if is_tf_available():
+                return self._generate_extra_dummy_inputs_tf(dummy_inputs, label_batch_size, label_seq_length)
+            else:
+                raise RuntimeError(f"Could not generate dummy inputs because no TensorFlow installation was found.")
+        else:
+            raise ValueError(
+                f"Only two frameworks are supported for ONNX export: PyTorch or TensorFlow, but {framework} was provided."
+            )
 
 
 class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
@@ -239,52 +244,27 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
             is_pair,
             framework,
         )
-        for label, input in self._tasks_to_extra_inputs[self.task].items():
-            batch_size = compute_effective_axis_dimension(
-                batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
-            )
-            if "sequence" in input.values():
-                seq_length = compute_effective_axis_dimension(
-                    seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
-                )
-                if framework == TensorType.PYTORCH:
-                    if not is_torch_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
-                        )
-                    else:
-                        import torch
+        label_batch_size = compute_effective_axis_dimension(
+            batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
+        )
+        label_seq_length = compute_effective_axis_dimension(
+            seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
+        )
 
-                        dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
-                elif framework == TensorType.TENSORFLOW:
-                    if not is_tf_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
-                        )
-                    else:
-                        import tensorflow as tf
-
-                        dummy_inputs[label] = tf.zeros(batch_size, seq_length, dtype=tf.int64)
+        if framework == TensorType.PYTORCH:
+            if is_torch_available():
+                return self._generate_extra_dummy_inputs_pt(dummy_inputs, label_batch_size, label_seq_length)
             else:
-                if framework == TensorType.PYTORCH:
-                    if not is_torch_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through PyTorch because not installation was found."
-                        )
-                    else:
-                        import torch
-
-                        dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
-                elif framework == TensorType.TENSORFLOW:
-                    if not is_tf_available():
-                        raise ValueError(
-                            "Could not generate dummy inputs to perform the ONNX export through TensorFlow because not installation was found."
-                        )
-                    else:
-                        import tensorflow as tf
-
-                        dummy_inputs[label] = tf.zeros(batch_size, dtype=tf.int64)
-        return dummy_inputs
+                raise RuntimeError(f"Could not generate dummy inputs because no PyTorch installation was found.")
+        elif framework == TensorType.TENSORFLOW:
+            if is_tf_available():
+                return self._generate_extra_dummy_inputs_tf(dummy_inputs, label_batch_size, label_seq_length)
+            else:
+                raise RuntimeError(f"Could not generate dummy inputs because no TensorFlow installation was found.")
+        else:
+            raise ValueError(
+                f"Only two frameworks are supported for ONNX export: PyTorch or TensorFlow, but {framework} was provided."
+            )
 
 
 class OnnxSeq2SeqConfigWithPastAndLoss(OnnxConfigWithPastAndLoss):
