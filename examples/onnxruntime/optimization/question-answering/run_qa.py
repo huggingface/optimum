@@ -274,7 +274,7 @@ def main():
 
     if (
         optim_args.optimization_level > 1
-        and optim_args.optimize_for_gpu is False
+        and not optim_args.optimize_for_gpu
         and model_args.execution_provider == "CUDAExecutionProvider"
     ):
         raise ValueError(
