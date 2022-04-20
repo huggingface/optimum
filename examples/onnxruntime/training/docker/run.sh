@@ -15,3 +15,11 @@ GPU_DEVICES=${2:-"all"}
 pip install coloredlogs transformers>=4.15.0 datasets>=1.8.0
 pip install scipy sklearn
 python -m unittest tests/onnxruntime/test_onnxruntime_train.py
+
+# Install apex
+git clone https://github.com/NVIDIA/apex \
+    && cd apex \
+    && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+
+# Install fairscale 
+pip install fairscale

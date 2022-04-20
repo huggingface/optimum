@@ -657,6 +657,9 @@ class ORTTrainer(Trainer):
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
         # Update the `session_options` for inference
+        while hasattr(model, "module") and not isinstance(model, ORTModule):
+            model = model.module
+
         inference_manager = model._torch_module._execution_manager._inference_manager
         self.session_options, providers, provider_options = inference_manager._get_session_config()
 
@@ -1277,11 +1280,12 @@ class ORTTrainer(Trainer):
             model = model
         else:
             self.model.to("cpu")
-            model = self.model
+            model = unwrap_model(self.model)
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
         onnx_config = model_onnx_config(model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
-        _ = export(tokenizer=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
+        # TODO Re-consider whether recover zero(fp16) to fp32 which will take a million years
+        _ = export(preprocessor=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
 
     def _wrap_model(self, model, training=True):
         if is_sagemaker_mp_enabled():
