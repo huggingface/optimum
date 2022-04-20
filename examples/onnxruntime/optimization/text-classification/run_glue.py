@@ -139,7 +139,7 @@ class ModelArguments:
 @dataclass
 class OptimizationArguments:
     """
-    Arguments pertaining to what type of optimization we are going to apply on the model and for inference.
+    Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
     opset: Optional[int] = field(
@@ -198,6 +198,28 @@ def main():
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
+
+    if (
+        optim_args.optimization_level > 1
+        and optim_args.optimize_for_gpu
+        and model_args.execution_provider == "CPUExecutionProvider"
+    ):
+        raise ValueError(
+            f"Optimization level is set at {optim_args.optimization_level} and "
+            f"GPU optimization will be done, although the CPU execution provider "
+            f"was selected. Use --execution_provider CUDAExecutionProvider."
+        )
+
+    if (
+        optim_args.optimization_level > 1
+        and optim_args.optimize_for_gpu is False
+        and model_args.execution_provider == "CPUExecutionProvider"
+    ):
+        raise ValueError(
+            f"Optimization level is set at {optim_args.optimization_level} and "
+            f"CPU optimization will be done, although the GPU execution provider "
+            f"was selected. Remove the argument --execution_provider CUDAExecutionProvider."
+        )
 
     logger.info(f"Optimization with the following parameters {optim_args}")
 

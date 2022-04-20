@@ -201,7 +201,7 @@ class DataTrainingArguments:
 @dataclass
 class OptimizationArguments:
     """
-    Arguments pertaining to what type of optimization we are going to apply on the model and for inference.
+    Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
     opset: Optional[int] = field(
