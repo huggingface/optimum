@@ -101,7 +101,7 @@ class TestORTTrainer(unittest.TestCase):
                                 weight_decay=0.01,
                                 logging_dir=tmp_dir,
                                 fp16=True,
-                                deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
+                                # deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
                             )
 
                             trainer = ORTTrainer(
