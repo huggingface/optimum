@@ -16,10 +16,13 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
+from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
 import onnx
 from onnx import ModelProto
+
+from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
 
 
 logger = logging.get_logger(__name__)
@@ -115,6 +118,15 @@ def fix_atenops_to_gather(model_path):
 
     onnx.checker.check_model(model)
     onnx.save(model, model_path)
+
+
+def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
+    if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
+        return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
+    elif isinstance(onnx_config, OnnxConfigWithPast):
+        return OnnxConfigWithPastAndLoss(onnx_config)
+    else:
+        return OnnxConfigWithLoss(onnx_config)
 
 
 def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:

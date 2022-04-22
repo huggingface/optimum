@@ -4,14 +4,15 @@ CMD=${1:-/bin/bash}
 GPU_DEVICES=${2:-"all"}
 
 # Build Image
-# docker build -f Dockerfile-cu10  -t ort/cu10 .
-# docker build -f Dockerfile-cu11  -t ort/cu11 .
+# docker build -f Dockerfile-ort1.9.0-cu102  -t ort9/cu10 .
+# docker build -f Dockerfile-ort1.9.0-cu111  -t ort9/cu11 .
 
 # Run Image
-# docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort/cu10:latest $CMD
-# docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort/cu11:latest $CMD
+# docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu10:latest $CMD
+# docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu11:latest $CMD
 
 # Install dependencies
-pip install coloredlogs transformers>=4.15.0 datasets>=1.8.0
-pip install scipy sklearn
+pip install transformers datasets
+pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu transformers datasets nltk sklearn
+pip install deepspeed mpi4py
 python -m unittest tests/onnxruntime/test_onnxruntime_train.py
