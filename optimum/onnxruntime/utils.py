@@ -54,10 +54,11 @@ class ORTConfigManager:
 
     _conf = {
         "bert": ("num_attention_heads", "hidden_size", "bert"),
-        "distilbert": ("n_heads", "dim", "bert"),
-        "roberta": ("num_attention_heads", "hidden_size", "bert"),
-        "camembert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),
+        "camembert": ("num_attention_heads", "hidden_size", "bert"),
+        "distilbert": ("n_heads", "dim", "bert"),
+        "electra": ("num_attention_heads", "hidden_size", "bert"),
+        "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "bart": ("encoder_attention_heads", "d_model", "bart"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),

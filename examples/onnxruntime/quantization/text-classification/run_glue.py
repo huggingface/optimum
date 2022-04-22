@@ -151,6 +151,10 @@ class ModelArguments:
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 @dataclass
@@ -476,7 +480,11 @@ def main():
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
         ort_model = ORTModel(
-            quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics, label_names=["label"]
+            quantized_model_path,
+            quantizer._onnx_config,
+            execution_provider=model_args.execution_provider,
+            compute_metrics=compute_metrics,
+            label_names=["label"],
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics
@@ -493,7 +501,9 @@ def main():
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config)
+        ort_model = ORTModel(
+            quantized_model_path, quantizer._onnx_config, execution_provider=model_args.execution_provider
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
 
