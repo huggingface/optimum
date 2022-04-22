@@ -30,6 +30,7 @@ Currenlty supported tasks are:
 * `token-classification`
 * `question-answering`
 * `zero-shot-classification`
+* `text-generation`
 
 ## Optimum pipeline usage
 
@@ -41,7 +42,7 @@ The [`optimum_pipeline`] automatically loads a default model and tokenizer capab
 ```py
 >>> from optimum import optimum_pipeline
 
->>> classifier = optimum_pipeline(task="text-classification", accelerator="onnx")
+>>> classifier = optimum_pipeline(task="text-classification", accelerator="ort")
 
 ```
 
@@ -98,34 +99,98 @@ and [`AutoTokenizer'] class. For example, load the [`ORTModelForQuestionAnswerin
 
 ### Optimizing and Quantizing in Pipelines
 
-The [`optimum_pipeline`] can not only run inference it also provides arguments to quantize and optimize your model on the fly.
-Once you've picked an appropriate model, load it with the `.from_pretrained` method for corresponding `ORTModelFor*` 
-and [`AutoTokenizer'] class. For example, load the [`ORTModelForQuestionAnswering`] class for a question answering modeling task and provide 
-the `do_optimization=True` and/or `do_quantization=True` arguments:
+_TODO: Rework this is not valid anymore_
 
-```py
+The [`optimum_pipeline`] can not only run inference on vanilla Onnxruntime checkpoints you can also use checkpoints optimized with `ORTQuantizer` and `ORTOptimizer`
+Below you can find two examples on how you could [~`ORTOptimizer`] and [~`ORTQuantizer`] to optimize/quantize your model and use it for inference afterwards.
+
+### Quantizing with [~`ORTQuantizer`]
+
+```python
+>>> from pathlib import Path
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTQuantizer
+>>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
+>>> from optimum.pipelines import optimum_pipeline
 >>> from transformers import AutoTokenizer
->>> from optimum.onnxruntime import ORTModelForQuestionAnswering
->>> from optimum import optimum_pipeline
 
->>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
->>> model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
+# define model_id and load tokenizer
+>>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> tokenizer = AutoTokenizer.from_pretrained(model_id)
+>>> save_path = Path("optimum_model")
+>>> save_path.mkdir(exist_ok=True)
 
->>> model.optimize()
->>> model.quantize()
+# use ORTQuantizer to export the model and define quantization configuration
+>>> quantizer = ORTQuantizer.from_pretrained(model_id, feature="sequence-classification")
+>>> qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=True)
 
->>> onnx_qa = optimum_pipeline("question-answering",
-                               model=model,
-                               tokenizer=tokenizer, 
-                               do_optimization=True, 
-                               do_quantization=True
-                               )
->>> question = "Whats my name?"
->>> context = "My Name is Philipp and I live in Nuremberg."
+# apply the quantization configuration to the model
+>>> quantizer.export(
+    onnx_model_path=save_path / "model.onnx",
+    onnx_quantized_model_output_path=save_path / "model-quantized.onnx",
+    quantization_config=qconfig,
+    )
+>>> quantizer.model.config.save_pretrained(save_path) # saves config.json 
 
->>> pred = onnx_qa(question=question, context=context)
+# load optimized model from local path or repository
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_path,file_name="model-quantized.onnx")
+
+# create transformers pipeline
+>>> onnx_clx = optimum_pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> text = "I like the new ORT pipeline"
+>>> pred = onnx_clx(text)
+>>> print(pred)
+
+# save model & push model to the hub
+>>> tokenizer.save_pretrained("new_path_for_directory")
+>>> model.save_pretrained("new_path_for_directory")
+>>> model.push_to_hub("new_path_for_directory",
+                  repository_id="my-onnx-repo",
+                  use_auth_token=True
+                  )
 ```
 
+### Optimizing with [~`ORTOptimizer`]
+
+```python
+>>> from pathlib import Path
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
+>>> from optimum.onnxruntime.configuration import OptimizationConfig
+>>> from optimum.pipelines import optimum_pipeline
+
+# define model_id and load tokenizer
+>>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> tokenizer = AutoTokenizer.from_pretrained(model_id)
+>>> save_path = Path("optimum_model")
+>>> save_path.mkdir(exist_ok=True)
+
+# use ORTOptimizer to export the model and define quantization configuration
+>>> optimizer = ORTOptimizer.from_pretrained(model_id, feature="sequence-classification")
+>>> optimization_config = OptimizationConfig(optimization_level=2)
+
+# apply the optimization configuration to the model
+>>> optimizer.export(
+    onnx_model_path=save_path / "model.onnx",
+    onnx_optimized_model_output_path=save_path / "model-optimized.onnx",
+    optimization_config=optimization_config,
+)
+>>> optimizer.model.config.save_pretrained(save_path) # saves config.json 
+
+# load optimized model from local path or repository
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_path,file_name="model-optimized.onnx")
+
+# create transformers pipeline
+>>> onnx_clx = optimum_pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> text = "I like the new ORT pipeline"
+>>> pred = onnx_clx(text)
+>>> print(pred)
+
+# save model & push model to the hub
+>>> tokenizer.save_pretrained("new_path_for_directory")
+>>> model.save_pretrained("new_path_for_directory")
+>>> model.push_to_hub("new_path_for_directory",
+                  repository_id="my-onnx-repo",
+                  use_auth_token=True)
+```
 
 ## Transformers pipeline usage
 
@@ -139,7 +204,7 @@ from transformers import AutoTokenizer, pipeline
 +from optimum.onnxruntime import ORTModelForQuestionAnswering
 
 -model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
-+model = ORTModelForQuestionAnswering.from_transformers("deepset/roberta-base-squad2")
++model = ORTModelForQuestionAnswering.from_transformers("optimum/roberta-base-squad2")
 tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)

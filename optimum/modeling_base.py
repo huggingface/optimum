@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Optional, Union
 
 from transformers import AutoConfig
@@ -164,7 +165,7 @@ class OptimizedModel(ABC):
     @classmethod
     def from_pretrained(
         cls,
-        model_id: Optional[str],
+        model_id: Union[str, Path],
         from_transformers: bool = False,
         force_download: bool = True,
         use_auth_token: Optional[str] = None,
@@ -172,7 +173,7 @@ class OptimizedModel(ABC):
         **model_kwargs,
     ):
         revision = None
-        if len(model_id.split("@")) == 2:
+        if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
 
         if os.path.isdir(model_id) and CONFIG_NAME in os.listdir(model_id):

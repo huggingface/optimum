@@ -26,7 +26,7 @@ from transformers import AutoTokenizer, pipeline
 +from optimum.onnxruntime import ORTModelForQuestionAnswering
 
 -model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
-+model = ORTModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2",from_transformers=True)
++model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
 tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
@@ -37,7 +37,6 @@ pred = onnx_qa(question, context)
 ```
 
 Optimum Inference also includes methods to convert vanilla Transformers models to optimized ones via the `from_pretrained("{model_id}",from_transformers=True)` method.
-After you have converted a model you can even `optimize` or `quantize` the model if it is supported by the runtime you use.
 
 ```python
 from transformers import AutoTokenizer, pipeline
@@ -46,11 +45,6 @@ from optimum.onnxruntime import ORTModelForSequenceClassification
 # load model from hub and convert
 model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english",from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
-
-# optimize model
-model.optimize()
-# quantize model
-model.quantize()
 
 # create pipeline
 onnx_clx = pipeline("text-classification",model=model,tokenizer=tokenizer)
@@ -62,9 +56,9 @@ You can find a complete walkhrough Optimum Inference for ONNX Runtime in this [n
 
 ### Working with the [Hugging Face Model Hub](https://hf.co/models)
 
-The Optimum model classes, e.g. [`ORTModel`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
+The Optimum model classes, e.g. [`~ORTModelForSequenceClassification`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
 load model from the Hub but also push your models to the Hub with `push_to_hub()` method. Below you find an example which pulls a vanilla transformers model 
-from the Hub and converts it to an optimum model and pushes it back into a new repository.
+from the Hub and converts it to an optimum model uses the `[~ORTQuantizer]` to quantize the model and pushes it back into a new repository.
 
 ```python
 from transformers import AutoTokenizer
@@ -73,11 +67,6 @@ from optimum.onnxruntime import ORTModelForSequenceClassification
 # load model from hub and convert
 model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english",from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
-
-# optimize model
-model.optimize()
-# quantize model
-model.quantize()
 
 # save converted model
 model.save_pretrained("a_local_path_for_convert_onnx_model")

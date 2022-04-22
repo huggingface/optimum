@@ -17,19 +17,11 @@ from transformers.modeling_outputs import (
 )
 from transformers.onnx import FeaturesManager, export
 
-import onnx
 import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
-from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
-from onnxruntime.transformers.fusion_options import FusionOptions
-from onnxruntime.transformers.optimizer import optimize_model
-from onnxruntime.transformers.quantize_helper import QuantizeHelper
-from optimum.onnxruntime import ORTQuantizableOperator
-from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig, QuantizationConfig
-from optimum.onnxruntime.utils import ORTConfigManager
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, OPTIMIZED_ONNX_WEIGHTS_NAME, QUANTIZED_ONNX_WEIGHTS_NAME, _is_gpu_available
+from .utils import ONNX_WEIGHTS_NAME, _is_gpu_available
 
 
 logger = logging.getLogger(__name__)
@@ -87,119 +79,6 @@ class ORTModel(OptimizedModel):
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError
-
-    def optimize(
-        self,
-        optimization_config: Optional[OptimizationConfig] = OptimizationConfig(optimization_level=99),
-        output_path: Union[str, Path] = default_cache_path,
-        **kwargs,
-    ):
-        """
-        optimizes the model using onnxruntime.tools.transformers.optimize
-        Arguments:
-            optimization_config (:obj:`OptimizationConfig`, `optional`):
-                [`~OptimizationConfig`] is the configuration class handling all the ONNX Runtime optimization parameters.
-        """
-        _input_path = self.model_save_dir.joinpath(self.latest_model_name)
-        output_path = Path(default_cache_path).joinpath(OPTIMIZED_ONNX_WEIGHTS_NAME)
-
-        ORTConfigManager.check_supported_model_or_raise(self.config.model_type)
-        num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(self.config.model_type))
-        hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
-        optimization_model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
-        optimization_config.model_type = optimization_model_type
-        optimization_options = FusionOptions.parse(optimization_config)
-
-        logger.info(f"Creating optimizer: {optimization_config}")
-
-        # optimize onnx model using onnxruntime.tools.transformers.optimize
-        optimized_model = optimize_model(
-            input=_input_path.as_posix(),
-            model_type=optimization_model_type,
-            num_heads=num_heads,
-            hidden_size=hidden_size,
-            opt_level=optimization_config.optimization_level,
-            use_gpu=optimization_config.optimize_for_gpu,
-            optimization_options=optimization_options,
-            only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
-        )
-        # converts float32 to float16 for GPU models
-        if _is_gpu_available():
-            optimized_model.convert_float_to_float16()
-
-        if optimized_model.is_fully_optimized():
-            msg = "The model has been fully optimized"
-        else:
-            msg = "The model has been optimized"
-
-        logger.info(msg)
-
-        # save optimized model
-        optimized_model.save_model_to_file(output_path.as_posix())
-        # load optimized model as class instance and updates current instance
-        self.model = ORTModel.load_model(output_path.as_posix())
-        self.model_save_dir = output_path.parent
-        self.latest_model_name = output_path.name
-
-        return self
-
-    def quantize(
-        self,
-        quantization_config: QuantizationConfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=False),
-        output_path: Union[str, Path] = default_cache_path,
-    ):
-        """
-        quantizes the mode using onnxruntime.tools.transformers.optimize
-        Arguments:
-            input_path (:obj:`str` or :obj:`Path`):
-                Directory from which to load
-            output_path(:obj:`str`):
-                Directory where the quantized model should be saved, default to
-                `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
-        """
-        if quantization_config.is_static:
-            raise ValueError("Static Quantization is not yet supported, please us ORTQuantizer.")
-
-        if _is_gpu_available():
-            raise ValueError("GPU is not supported for quantization")
-
-        _input_path = self.model_save_dir.joinpath(self.latest_model_name)
-        output_path = Path(default_cache_path).joinpath(QUANTIZED_ONNX_WEIGHTS_NAME)
-        onnx_model = onnx.load(_input_path)
-
-        quantizer = ONNXQuantizer(
-            model=onnx_model,
-            static=quantization_config.is_static,
-            per_channel=quantization_config.per_channel,
-            mode=quantization_config.mode,
-            weight_qType=quantization_config.weights_dtype,
-            input_qType=quantization_config.activations_dtype,
-            tensors_range=None,  # not needed for dynamic quantization
-            reduce_range=quantization_config.reduce_range,
-            nodes_to_quantize=quantization_config.nodes_to_quantize,
-            nodes_to_exclude=quantization_config.nodes_to_exclude,
-            op_types_to_quantize=[
-                operator.value if isinstance(operator, ORTQuantizableOperator) else operator
-                for operator in quantization_config.operators_to_quantize
-            ],
-            extra_options={
-                "WeightSymmetric": quantization_config.weights_symmetric,
-                "ActivationSymmetric": quantization_config.activations_symmetric,
-                "EnableSubgraph": False,
-                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
-            },
-        )
-
-        logger.info("Quantizing model...")
-        quantizer.quantize_model()
-
-        quantizer.model.save_model_to_file(output_path.as_posix())
-
-        self.model = ORTModel.load_model(output_path.as_posix())
-        self.model_save_dir = output_path.parent
-        self.latest_model_name = output_path.name
-
-        return self
 
     @staticmethod
     def load_model(path: Union[str, Path], provider=None):
