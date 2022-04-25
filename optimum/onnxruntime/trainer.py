@@ -1183,9 +1183,7 @@ class ORTTrainer(Trainer):
             else:
                 if has_labels:
                     with self.autocast_smart_context_manager():
-                        loss, outputs = self.compute_loss_ort(
-                            model, inputs, input_names, output_names, return_outputs=True
-                        )
+                        loss, outputs = self.compute_loss_ort(inputs, input_names, output_names, return_outputs=True)
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
@@ -1219,7 +1217,7 @@ class ORTTrainer(Trainer):
 
         return (loss, logits, labels)
 
-    def compute_loss_ort(self, model, inputs, input_names, output_names, return_outputs=False):
+    def compute_loss_ort(self, inputs, input_names, output_names, return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
