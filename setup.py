@@ -28,6 +28,7 @@ EXTRAS_REQUIRE = {
         "transformers >= 4.15.0, < 4.17.0",
     ],
     "graphcore": "optimum-graphcore",
+    "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
