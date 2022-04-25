@@ -53,8 +53,8 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    keywords="transformers, quantization, pruning, optimization, training, inference, onnx, onnx runtime, "
-    "intel neural compressor, intel habana, graphcore, ipu, hpu",
+    keywords="transformers, quantization, pruning, optimization, training, inference, onnx, onnx runtime, intel, "
+    "habana, graphcore, neural compressor, ipu, hpu",
     url="https://github.com/huggingface/optimum",
     author="HuggingFace Inc. Special Ops Team",
     author_email="hardware@huggingface.co",
