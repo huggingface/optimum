@@ -209,7 +209,7 @@ class OptimizationArguments:
         metadata={"help": "ONNX opset version to export the model with."},
     )
     optimization_level: Optional[int] = field(
-        default=None,
+        default=1,
         metadata={
             "help": "Optimization level performed by ONNX Runtime of the loaded graph."
             "0 will disable all optimizations."
@@ -315,7 +315,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(opset=optimizer.opset, optimization_config=optimization_config)
+    ort_config = ORTConfig(opset=optimizer.opset, optimization=optimization_config)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
