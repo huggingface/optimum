@@ -14,7 +14,8 @@ As such, Optimum enables users to efficiently use any of these platforms with th
 🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
 
 To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
-- [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu)
+- [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here.](https://www.graphcore.ai/products/ipu)
+- [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - HPUs are designed to maximize training throughput and efficiency. [More information here.](https://habana.ai/training/)
 - More to come soon! :star:
 
 ## Optimizing models towards inference
@@ -48,6 +49,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [ONNX runtime](https://github.com/microsoft/onnxruntime)                    | `python -m pip install optimum[onnxruntime]` |
 | [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) | `python -m pip install optimum[intel]`       |
 | [Graphcore IPU](https://www.graphcore.ai/products/ipu)                      | `python -m pip install optimum[graphcore]`   |
+| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                 | `python -m pip install optimum[habana]`      |
 
 
 If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
@@ -66,7 +68,7 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_.
 
-### Quantization 
+### Quantization
 
 For example, here's how you can apply dynamic quantization with ONNX Runtime:
 
@@ -193,7 +195,7 @@ Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runti
 +from optimum.onnxruntime import ORTTrainer
 
 # Step 1: Create your ONNX Runtime Trainer
--trainer = Trainer( 
+-trainer = Trainer(
 +trainer = ORTTrainer(
     model=model,
     args=training_args,
