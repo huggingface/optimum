@@ -148,17 +148,13 @@ class TestORTTrainer(unittest.TestCase):
                     metric = load_metric(metric_name)
                     label_pad_token_id = tokenizer.pad_token_id
 
-                    if (
-                        model_name
-                        in [
-                            "t5-small",
-                            "t5-base",
-                            "t5-large",
-                            "t5-3b",
-                            "t5-11b",
-                        ]
-                        and dataset_name in ["xsum"]
-                    ):
+                    if model_name in [
+                        "t5-small",
+                        "t5-base",
+                        "t5-large",
+                        "t5-3b",
+                        "t5-11b",
+                    ] and dataset_name in ["xsum"]:
                         prefix = "summarize: "
                     else:
                         prefix = ""
