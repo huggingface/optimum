@@ -1,5 +1,4 @@
-from sre_constants import ANY
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 from transformers import (
     AutoTokenizer,
@@ -14,9 +13,8 @@ from transformers import (
 )
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
-from transformers.pipelines import TASK_ALIASES
-from optimum.onnxruntime.modeling_ort import ORTModelForCausalLM
 
+from optimum.onnxruntime.modeling_ort import ORTModelForCausalLM
 from optimum.utils import is_onnxruntime_available
 
 
