@@ -19,15 +19,16 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
 import transformers
 from packaging.version import parse
+
+# Workaround until the doc builder support subpackages doc building
+# if parse(transformers.__version__) < parse("4.17.0"):
+from transformers.file_utils import TensorType
 from transformers.onnx.utils import compute_effective_axis_dimension
 from transformers.utils import is_tf_available, is_torch_available, logging
 
 
-# Workaround until the doc builder support subpackages doc building
-if parse(transformers.__version__) < parse("4.17.0"):
-    from transformers.file_utils import TensorType
-else:
-    from transformers.utils import TensorType
+# else:
+#     from transformers.utils import TensorType
 
 
 if TYPE_CHECKING:
