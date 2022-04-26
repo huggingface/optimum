@@ -523,7 +523,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization_config=qconfig)
+    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
