@@ -248,14 +248,14 @@ FEAUTRE_EXTRACTION_SAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("My Name is Philipp and i live in Germany.", return_tensors="pt")
+    >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
     ```
 
-    Example using `transformers.pipelines`:
+    Example using `transformers.pipeline`:
 
     ```python
     >>> from transformers import {processor_class}, pipeline
@@ -263,10 +263,10 @@ FEAUTRE_EXTRACTION_SAMPLE = r"""
 
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_ner = pipeline("feature-extraction", model=model, tokenizer=tokenizer)
+    >>> onnx_extractor = pipeline("feature-extraction", model=model, tokenizer=tokenizer)
 
-    >>> text = "My Name is Philipp and i live in Germany."
-    >>> pred = onnx_ner(text)
+    >>> text = "My name is Philipp and I live in Germany."
+    >>> pred = onnx_extractor(text)
     ```
 """
 
@@ -340,7 +340,7 @@ QUESTION_ANSWERING_SAMPLE = r"""
     >>> start_scores = outputs.start_logits
     >>> end_scores = outputs.end_logits
     ```
-    Example using `transformers.pipelines`:
+    Example using `transformers.pipeline`:
 
     ```python
     >>> from transformers import {processor_class}, pipeline
@@ -432,10 +432,10 @@ SEQUENCE_CLASSIFICATION_SAMPLE = r"""
 
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_clx = pipeline("text-classification", model=model, tokenizer=tokenizer)
+    >>> onnx_classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
 
     >>> text = "Hello, my dog is cute"
-    >>> pred = onnx_clx(text)
+    >>> pred = onnx_classifier(text)
     ```
 
     Example using zero-shot-classification `transformers.pipelines`:
@@ -518,7 +518,7 @@ TOKEN_CLASSIFICATION_SAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("My Name is Philipp and i live in Germany.", return_tensors="pt")
+    >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -535,7 +535,7 @@ TOKEN_CLASSIFICATION_SAMPLE = r"""
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_ner = pipeline("token-classification", model=model, tokenizer=tokenizer)
 
-    >>> text = "My Name is Philipp and i live in Germany."
+    >>> text = "My name is Philipp and I live in Germany."
     >>> pred = onnx_ner(text)
     ```
 """
@@ -550,7 +550,7 @@ TOKEN_CLASSIFICATION_SAMPLE = r"""
 )
 class ORTModelForTokenClassification(ORTModel):
     """
-    Sequence Classification model for ONNX.
+    Token Classification model for ONNX.
     """
 
     # used in from_transformers to export model to onnx
@@ -592,7 +592,7 @@ class ORTModelForTokenClassification(ORTModel):
 
 
 TEXT_GENERATION_SAMPLE = r"""
-    Example of token classification:
+    Example of text generation:
 
     ```python
     >>> from transformers import {processor_class}
@@ -602,7 +602,7 @@ TEXT_GENERATION_SAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("My Name is Philipp and i live in Germany.", return_tensors="pt")
+    >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
 
     >>> gen_tokens = model.generate(**inputs,do_sample=True,temperature=0.9, min_length=20,max_length=20)
     >>> tokenizer.batch_decode(gen_tokens)
@@ -618,7 +618,7 @@ TEXT_GENERATION_SAMPLE = r"""
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_gen = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
-    >>> text = "My Name is Philipp and i live in Germany."
+    >>> text = "My name is Philipp and I live in Germany."
     >>> gen = onnx_gen(text)
     ```
 """
@@ -626,7 +626,7 @@ TEXT_GENERATION_SAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model with a language modeling head on top (linear layer with weights tied to the input
+    Onnx Model with a causal language modeling head on top (linear layer with weights tied to the input
     embeddings).
     """,
     ONNX_MODEL_START_DOCSTRING,

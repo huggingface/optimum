@@ -25,8 +25,8 @@ from transformers import AutoTokenizer, pipeline
 -from transformers import AutoModelForQuestionAnswering
 +from optimum.onnxruntime import ORTModelForQuestionAnswering
 
--model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
-+model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
+-model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2") # pytorch checkpoint
++model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2") # onnx checkpoint
 tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
@@ -36,7 +36,7 @@ context = "My name is Philipp and I live in Nuremberg."
 pred = onnx_qa(question, context)
 ```
 
-Optimum Inference also includes methods to convert vanilla Transformers models to optimized ones via the `from_pretrained("{model_id}",from_transformers=True)` method.
+Optimum Inference also includes methods to convert vanilla Transformers models to optimized ones. Simply pass `from_transformers=True` to the `from_pretrained()` method, and your model will be loaded and converted to ONNX on-the-fly:
 
 ```python
 from transformers import AutoTokenizer, pipeline
@@ -47,19 +47,21 @@ model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncas
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
 # create pipeline
-onnx_clx = pipeline("text-classification",model=model,tokenizer=tokenizer)
+onnx_classifier = pipeline("text-classification",model=model,tokenizer=tokenizer)
 
-result = onnx_clx(text="This is a great model")
+result = onnx_classifier(text="This is a great model")
+
 ```
 
 You can find a complete walkhrough Optimum Inference for ONNX Runtime in this [notebook](xx).
 
 ### Working with the [Hugging Face Model Hub](https://hf.co/models)
 
-The Optimum model classes, e.g. [`~ORTModelForSequenceClassification`] are directly integrated with the [Hugging Face Model Hub](https://hf.co/models)) meaning you can not only 
-load model from the Hub but also push your models to the Hub with `push_to_hub()` method. Below you find an example which pulls a vanilla transformers model 
-from the Hub and converts it to an optimum model uses the `[~ORTQuantizer]` to quantize the model and pushes it back into a new repository.
+The Optimum model classes like [`~ORTModelForSequenceClassification`] are integrated with the [Hugging Face Model Hub](https://hf.co/models)), which means you can not only 
+load model from the Hub, but also push your models to the Hub with `push_to_hub()` method. Below is an example which downloads a vanilla Transformers model 
+from the Hub and converts it to an optimum model and pushes it back into a new repository.
 
+<!-- TODO: Add Quantizer into example when UX improved -->
 ```python
 from transformers import AutoTokenizer
 from optimum.onnxruntime import ORTModelForSequenceClassification

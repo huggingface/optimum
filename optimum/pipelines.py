@@ -8,12 +8,14 @@ from transformers import (
     PreTrainedTokenizer,
     QuestionAnsweringPipeline,
     TextClassificationPipeline,
+    TextGenerationPipeline,
     TokenClassificationPipeline,
     ZeroShotClassificationPipeline,
 )
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 from transformers.pipelines import TASK_ALIASES
+from optimum.onnxruntime.modeling_ort import ORTModelForCausalLM
 
 from optimum.utils import is_onnxruntime_available
 
@@ -55,6 +57,11 @@ if is_onnxruntime_available():
             "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
             "default": "facebook/bart-large-mnli",
         },
+        "text-generation": {
+            "impl": TextGenerationPipeline,
+            "class": (ORTModelForCausalLM,) if is_onnxruntime_available() else (),
+            "default": "distilgpt2",
+        },
     }
 
 
@@ -65,13 +72,15 @@ def optimum_pipeline(
     feature_extractor: Optional[Union[str, PreTrainedFeatureExtractor]] = None,
     use_fast: bool = True,
     use_auth_token: Optional[Union[str, bool]] = None,
-    do_optimization: Optional[bool] = False,
-    do_quantization: Optional[bool] = False,
+    accelerator: Optional[str] = "ort",
     **kwargs,
 ) -> Pipeline:
 
     if task not in list(SUPPORTED_TASKS.keys()):
         raise ValueError(f"Task {task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
+
+    if accelerator != "ort":
+        raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are ort")
 
     if model is None:
         model_id = SUPPORTED_TASKS[task]["default"]
@@ -89,11 +98,6 @@ def optimum_pipeline(
         )
     if tokenizer is None:
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-    if do_optimization:
-        model = model.optimize()
-    if do_quantization:
-        model = model.quantize()
 
     return transformers_pipeline(
         task,
