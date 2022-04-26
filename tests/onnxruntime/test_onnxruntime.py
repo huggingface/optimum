@@ -23,8 +23,24 @@ from transformers import AutoTokenizer
 from transformers.onnx import validate_model_outputs
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTModel, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, OptimizationConfig, QuantizationConfig
+from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
+from optimum.onnxruntime.configuration import (
+    AutoCalibrationConfig,
+    AutoQuantizationConfig,
+    OptimizationConfig,
+    QuantizationConfig,
+)
+
+
+class TestORTConfig(unittest.TestCase):
+    def test_save_and_load(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            quantization_config = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
+            optimization_config = OptimizationConfig(optimization_level=2)
+            ort_config = ORTConfig(opset=11, quantization=quantization_config, optimization=optimization_config)
+            ort_config.save_pretrained(tmp_dir)
+            loaded_ort_config = ORTConfig.from_pretrained(tmp_dir)
+            self.assertEqual(ort_config.to_dict(), loaded_ort_config.to_dict())
 
 
 class TestORTOptimizer(unittest.TestCase):
