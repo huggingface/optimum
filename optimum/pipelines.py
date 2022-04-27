@@ -63,7 +63,7 @@ if is_onnxruntime_available():
     }
 
 
-def optimum_pipeline(
+def pipeline(
     task: str = None,
     model: Optional[Any] = None,
     tokenizer: Optional[Union[str, PreTrainedTokenizer]] = None,

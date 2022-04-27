@@ -83,7 +83,7 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def load_model(path: Union[str, Path], provider=None):
         """
-        loads ONNX Inference session with Provider. Default Provider is if GPU available else `CPUExecutionProvider`
+        loads ONNX Inference session with Provider. Default Provider is if CUDAExecutionProvider GPU available else `CPUExecutionProvider`
         Arguments:
             path (:obj:`str` or :obj:`Path`):
                 Directory from which to load
@@ -125,7 +125,7 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ):
         """
-        load a model and its configuration file from a directory or the HF Hub.
+        Load a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
         Arguments:
             model_id (:obj:`str` or :obj:`Path`):

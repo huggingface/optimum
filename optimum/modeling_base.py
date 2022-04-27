@@ -160,7 +160,7 @@ class OptimizedModel(ABC):
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from pretrained"""
-        raise NotImplementedError
+        raise NotImplementedError("Overwrite this method in subclass to define how to load your model from pretrained")
 
     @classmethod
     def from_pretrained(
@@ -227,4 +227,6 @@ class OptimizedModel(ABC):
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
-        raise NotImplementedError
+        raise NotImplementedError(
+            "Overwrite this method in subclass to define how to load your model from vanilla transformers model"
+        )

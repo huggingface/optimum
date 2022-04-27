@@ -12,8 +12,8 @@ specific language governing permissions and limitations under the License.
 
 # Optimum Inference with ONNX Runtime
 
-Optimum Inference is a utility package for building and running inference with accelerated runtime like ONNX Runtime. 
-Optimum Inference can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines 
+Optimum is a utility package for building and running inference with accelerated runtime like ONNX Runtime. 
+Optimum can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines 
 to run accelerated inference without rewriting your APIs.
 
 ## Switching from Transformers to Optimum Inference
@@ -59,7 +59,7 @@ You can find a complete walkhrough Optimum Inference for ONNX Runtime in this [n
 
 The Optimum model classes like [`~ORTModelForSequenceClassification`] are integrated with the [Hugging Face Model Hub](https://hf.co/models)), which means you can not only 
 load model from the Hub, but also push your models to the Hub with `push_to_hub()` method. Below is an example which downloads a vanilla Transformers model 
-from the Hub and converts it to an optimum model and pushes it back into a new repository.
+from the Hub and converts it to an optimum onnxruntime model and pushes it back into a new repository.
 
 <!-- TODO: Add Quantizer into example when UX improved -->
 ```python
