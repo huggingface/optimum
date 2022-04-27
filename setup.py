@@ -28,6 +28,7 @@ EXTRAS_REQUIRE = {
         "transformers >= 4.15.0, < 4.17.0",
     ],
     "graphcore": "optimum-graphcore",
+    "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
@@ -42,7 +43,7 @@ setup(
     long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: Apache Software License",
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
@@ -52,8 +53,9 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    keywords="transformers, quantization, pruning, training, ipu",
-    url="https://huggingface.co/hardware",
+    keywords="transformers, quantization, pruning, optimization, training, inference, onnx, onnx runtime, intel, "
+    "habana, graphcore, neural compressor, ipu, hpu",
+    url="https://github.com/huggingface/optimum",
     author="HuggingFace Inc. Special Ops Team",
     author_email="hardware@huggingface.co",
     license="Apache",
