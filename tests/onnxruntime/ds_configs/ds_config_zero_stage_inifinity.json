@@ -3,14 +3,14 @@
         "stage": 3,
         "offload_optimizer": {
             "device": "nvme",
-            "nvme_path": "/local_nvme",
+            "nvme_path": "/dev/nvme1n1",
             "pin_memory": true,
             "buffer_count": 4,
             "fast_init": false
         },
         "offload_param": {
             "device": "nvme",
-            "nvme_path": "/local_nvme",
+            "nvme_path": "/dev/nvme1n1",
             "pin_memory": true,
             "buffer_count": 5,
             "buffer_size": 1e8,

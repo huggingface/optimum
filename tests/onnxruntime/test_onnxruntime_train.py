@@ -101,6 +101,7 @@ class TestORTTrainer(unittest.TestCase):
                                 weight_decay=0.01,
                                 logging_dir=tmp_dir,
                                 fp16=True,
+                                bf16=True,
                                 # deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
                             )
 
@@ -218,8 +219,6 @@ class TestORTTrainer(unittest.TestCase):
                         predict_with_generate=predict_with_generate,
                         fp16=True,
                         deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
-                        do_train=True,
-                        do_eval=True,
                         label_smoothing_factor=0.1,
                     )
 
@@ -233,8 +232,8 @@ class TestORTTrainer(unittest.TestCase):
                     trainer = ORTSeq2SeqTrainer(
                         model=model,
                         args=training_args,
-                        train_dataset=train_dataset if training_args.do_train else None,
-                        eval_dataset=valid_dataset if training_args.do_eval else None,
+                        train_dataset=train_dataset,
+                        eval_dataset=valid_dataset,
                         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
                         tokenizer=tokenizer,
                         data_collator=data_collator,

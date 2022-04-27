@@ -16,3 +16,11 @@ pip install transformers datasets
 pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu transformers datasets nltk sklearn
 pip install deepspeed mpi4py
 python -m unittest tests/onnxruntime/test_onnxruntime_train.py
+
+# Install apex
+git clone https://github.com/NVIDIA/apex \
+    && cd apex \
+    && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+
+# Install fairscale
+pip install fairscale
