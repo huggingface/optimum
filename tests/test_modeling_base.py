@@ -31,6 +31,9 @@ class DummyModel(OptimizedModel):
 
 class TestOptimizedModel(unittest.TestCase):
     def test_load_model_from_hub(self):
+        # TODO: figure out how to create repos and push stuff to staging
+        if os.getenv("HUGGINGFACE_CO_STAGING", False):
+            self.skipTest("Skip test on staging")
 
         dummy_model = DummyModel.from_pretrained(TEST_HUB_PATH)
         assert dummy_model.config.remote is True
