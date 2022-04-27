@@ -36,7 +36,7 @@ class TestOptimizedModel(unittest.TestCase):
             self.skipTest("Skip test on staging")
 
         dummy_model = DummyModel.from_pretrained(TEST_HUB_PATH)
-        assert dummy_model.config.remote is True
+        self.assertTrue(dummy_model.config.remote)
 
     @require_hf_token
     def test_push_to_hub(self):
@@ -56,4 +56,4 @@ class TestOptimizedModel(unittest.TestCase):
             # folder contains all config files and pytorch_model.bin
             url = f"https://huggingface.co/philschmid/unit_test_save_model/raw/main/config.json"
             response = r.get(url)
-            assert remote_hash == response.json()["from_local"]
+            self.assertEqual(remote_hash, response.json()["from_local"])
