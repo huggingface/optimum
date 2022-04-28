@@ -34,8 +34,8 @@ from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, 
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTModel
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
+from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.optimization import ORTOptimizer
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
