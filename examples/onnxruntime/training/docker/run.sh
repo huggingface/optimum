@@ -12,10 +12,9 @@ GPU_DEVICES=${2:-"all"}
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu11:latest $CMD
 
 # Install dependencies
-pip install transformers datasets
+pip install transformers>=4.15.0 datasets>=1.8.0
 pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu transformers datasets nltk sklearn
 pip install deepspeed mpi4py
-python -m unittest tests/onnxruntime/test_onnxruntime_train.py
 
 # Install apex
 git clone https://github.com/NVIDIA/apex \
@@ -24,3 +23,5 @@ git clone https://github.com/NVIDIA/apex \
 
 # Install fairscale
 pip install fairscale
+
+python -m unittest tests/onnxruntime/nightly_test_onnxruntime.py
