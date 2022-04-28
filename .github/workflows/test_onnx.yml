@@ -1,6 +1,6 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-name: ONNX CONFIG / Python - Test
+name: ONNX / Python - Test
 
 on:
   push:
@@ -27,6 +27,6 @@ jobs:
       run: |
         pip install .[onnxruntime] tensorflow tf2onnx
     - name: Test with unittest
-      working-directory: tests/onnxruntime
+      working-directory: tests
       run: |
-        python -m unittest test_onnx_config
+        python -m unittest discover -s onnx -p 'test_*.py'

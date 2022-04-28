@@ -14,4 +14,4 @@ GPU_DEVICES=${2:-"all"}
 # Install dependencies
 pip install coloredlogs transformers>=4.15.0 datasets>=1.8.0
 pip install scipy sklearn
-python -m unittest tests/onnxruntime/test_onnxruntime_train.py
+python -m unittest tests/onnxruntime/nightly_test_onnxruntime.py
