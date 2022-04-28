@@ -14,7 +14,7 @@ specific language governing permissions and limitations under the License.
 
 At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_. For example, here's how you can apply dynamic quantization with ONNX Runtime:
 
-```py
+```python
 >>> from optimum.onnxruntime import ORTConfig, ORTQuantizer
 
 >>> # The model we wish to quantize
@@ -32,7 +32,7 @@ At its core, 🤗 Optimum uses _configuration objects_ to define parameters for 
 ```
 
 In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The `feature` argument in the `from_pretrained()` method corresponds to the type of task that we wish to quantize the model for. The result from applying the `export()` method is a `model-quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
-```py
+```python
 >>> from functools import partial
 >>> from datasets import Dataset
 >>> from optimum.onnxruntime import ORTModel
@@ -55,13 +55,13 @@ In this example, we've quantized a model from the Hugging Face Hub, but it could
 
 Similarly, you can apply static quantization by simply setting `is_static` to `True` when instantiating the `QuantizationConfig` object:
 
-```py
+```python
 >>> qconfig = AutoQuantizationConfig.arm64(is_static=True, per_channel=False)
 ```
 
 Static quantization relies on feeding batches of data through the model to estimate the activation quantization parameters ahead of inference time. To support this, 🤗 Optimum allows you to provide a _calibration dataset_. The calibration dataset can be a simple `Dataset` object from the 🤗 Datasets library, or any dataset that's hosted on the Hugging Face Hub. For this example, we'll pick the [`sst2`](https://huggingface.co/datasets/glue/viewer/sst2/test) dataset that the model was originally trained on:
 
-```py
+```python
 >>> from optimum.onnxruntime.configuration import AutoCalibrationConfig
 
 >>> # Create the calibration dataset
@@ -92,7 +92,7 @@ Static quantization relies on feeding batches of data through the model to estim
 
 As a final example, let's take a look at applying _graph optimizations_ techniques such as operator fusion and constant folding. As before, we load a configuration object, but this time by setting the optimization level instead of the quantization approach:
 
-```py
+```python
 >>> from optimum.onnxruntime.configuration import OptimizationConfig
 
 >>> # optimization_config=99 enables all available graph optimisations
@@ -101,7 +101,7 @@ As a final example, let's take a look at applying _graph optimizations_ techniqu
 
 Next, we load an _optimizer_ to apply these optimisations to our model:
 
-```py
+```python
 >>> from optimum.onnxruntime import ORTOptimizer
 
 >>> optimizer = ORTOptimizer.from_pretrained(

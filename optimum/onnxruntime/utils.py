@@ -14,12 +14,29 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+import torch
 from transformers.utils import logging
 
 import onnx
+import onnxruntime as ort
 
 
 logger = logging.get_logger(__name__)
+
+ONNX_WEIGHTS_NAME = "model.onnx"
+OPTIMIZED_ONNX_WEIGHTS_NAME = "optimized_model.onnx"
+QUANTIZED_ONNX_WEIGHTS_NAME = "q8_model.onnx"
+
+
+def _is_gpu_available():
+    """
+    checks if a gpu is available.
+    """
+    available_providers = ort.get_available_providers()
+    if "CUDAExecutionProvider" in available_providers and torch.cuda.is_available():
+        return True
+    else:
+        return False
 
 
 class ORTConfigManager:
@@ -36,7 +53,7 @@ class ORTConfigManager:
         "bert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
-        "distilbert": ("n_heads", "hidden_size", "bert"),
+        "distilbert": ("n_heads", "dim", "bert"),
         "electra": ("num_attention_heads", "hidden_size", "bert"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "bart": ("encoder_attention_heads", "d_model", "bart"),
