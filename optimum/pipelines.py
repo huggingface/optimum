@@ -14,7 +14,6 @@ from transformers import (
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 
-from optimum.onnxruntime.modeling_ort import ORTModelForCausalLM
 from optimum.utils import is_onnxruntime_available
 
 
@@ -26,6 +25,7 @@ if is_onnxruntime_available():
         ORTModelForQuestionAnswering,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
+        ORTModelForCausalLM,
     )
     from optimum.onnxruntime.modeling_ort import ORTModel
 
