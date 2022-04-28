@@ -17,13 +17,13 @@ from transformers import (
 import onnxruntime
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
-    ORTModel,
     ORTModelForFeatureExtraction,
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
+    ORTModelForCausalLM
 )
-from optimum.onnxruntime.modeling_ort import ORTModelForCausalLM
+from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized

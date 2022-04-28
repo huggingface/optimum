@@ -51,7 +51,6 @@ ORT_FULLY_CONNECTED_OPERATORS = ["MatMul", "Add"]
 from .configuration import ORTConfig
 from .model import ORTModel
 from .modeling_ort import (
-    ORTModel,
     ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
     ORTModelForQuestionAnswering,
