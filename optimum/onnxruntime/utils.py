@@ -13,7 +13,9 @@
 #  limitations under the License.
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
 from transformers.utils import logging
+
 import onnx
 
 
@@ -110,4 +112,3 @@ def fix_atenops_to_gather(model_path):
 
     onnx.checker.check_model(model)
     onnx.save(model, model_path)
-
