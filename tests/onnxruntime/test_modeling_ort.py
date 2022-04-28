@@ -17,11 +17,11 @@ from transformers import (
 import onnxruntime
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
+    ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
-    ORTModelForCausalLM
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.utils import CONFIG_NAME
