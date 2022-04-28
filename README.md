@@ -95,7 +95,7 @@ In this example, we've quantized a model from the Hugging Face Hub, but it could
 ```python
 from functools import partial
 from datasets import Dataset
-from optimum.onnxruntime import ORTModel
+from optimum.onnxruntime.model import ORTModel
 
 # Load quantized model
 ort_model = ORTModel("model-quantized.onnx", quantizer._onnx_config)

@@ -23,7 +23,7 @@ from transformers import AutoTokenizer
 from transformers.onnx import validate_model_outputs
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTConfig, ORTModel, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
+from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
 from optimum.onnxruntime.configuration import (
     AutoCalibrationConfig,
     AutoQuantizationConfig,
