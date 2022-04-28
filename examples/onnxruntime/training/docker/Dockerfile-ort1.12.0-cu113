@@ -1,0 +1,40 @@
+# Use nvidia/cuda image
+FROM nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
+CMD nvidia-smi
+
+# Ignore interactive questions during `docker build`
+ENV DEBIAN_FRONTEND noninteractive
+
+# Bash shell
+RUN chsh -s /bin/bash
+SHELL ["/bin/bash", "-c"]
+
+RUN apt-get update && apt-get install -y --no-install-recommends apt-utils
+
+# Install and update tools to minimize security vulnerabilities
+RUN apt-get update
+RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
+    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev && \
+    apt-get clean
+RUN unattended-upgrade
+RUN apt-get autoremove -y
+
+# Install Pythyon (3.8 as default)
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+RUN apt-get install -y python3-pip
+RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+RUN pip install --upgrade pip
+
+# Install onnxruntime-training dependencies
+# Temporary workaround, wait for a more stable version on the next release of onnxruntime-training
+# (unable to run gpt2 with fp16 for now)
+RUN pip install onnx==1.11.0 ninja
+RUN pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install onnxruntime-training==1.12.0+cu113 -f https://download.onnxruntime.ai/onnxruntime_stable_cu113.html
+RUN pip install torch-ort
+# RUN python -m torch_ort.configure
+# RUN pip install coloredlogs seqeval scipy transformers datasets sacrebleu
+
+WORKDIR .
+
+CMD ["/bin/bash"]
