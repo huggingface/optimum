@@ -19,13 +19,15 @@ from optimum.utils import is_onnxruntime_available
 
 SUPPORTED_TASKS = {}
 
+print("****************")
+print(is_onnxruntime_available())
 if is_onnxruntime_available():
     from optimum.onnxruntime import (
+        ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForQuestionAnswering,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
-        ORTModelForCausalLM,
     )
     from optimum.onnxruntime.modeling_ort import ORTModel
 
