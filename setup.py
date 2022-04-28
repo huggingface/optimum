@@ -12,14 +12,24 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 
-REQUIRED_PKGS = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging"]
+REQUIRED_PKGS = [
+    "coloredlogs",
+    "sympy",
+    "transformers[sentencepiece]>=4.15.0",
+    "torch>=1.9",
+    "packaging",
+    "numpy",
+    "huggingface_hub==0.4.0",
+]
 
-TESTS_REQUIRE = ["pytest"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
 EXTRAS_REQUIRE = {
-    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
+    #  pip install -e ".[onnxruntime,dev,intel]"  git+https://github.com/huggingface/transformers.git@main --upgrade
+    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
+    "onnxruntime-gpu": ["onnx", "onnxruntime-gpu", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
     "intel": [
         "pycocotools",
         "neural_compressor>=1.9",
@@ -62,6 +72,7 @@ setup(
     packages=find_namespace_packages(include=["optimum*"]),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
+    python_requires=">=3.8.0",
     include_package_data=True,
     zip_safe=False,
 )
