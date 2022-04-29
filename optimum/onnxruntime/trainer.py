@@ -766,7 +766,7 @@ class ORTTrainer(Trainer):
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
             logger.info("[INFO] Exporting the model to ONNX...")
-            if has_labels:
+            if has_labels and not self.label_smoother:
                 self._export(onnx_model_path)
                 self.exported_with_loss = True
             else:
@@ -1147,7 +1147,7 @@ class ORTTrainer(Trainer):
                         loss, outputs = self.compute_loss_ort(
                             model, inputs, input_names, output_names, return_outputs=True
                         )
-                        loss = torch.tensor(loss).mean().detach()
+                        loss = torch.tensor(loss).mean()  # .detach()
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
@@ -1193,6 +1193,11 @@ class ORTTrainer(Trainer):
 
         input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
         outputs = self.infer_sess.run(output_names, input_feed)
+
+        if self.label_smoother:
+            # With label smoother, loss will be calculated out of box
+            # So the outputs of InferenceSession need to be converted to tensor and sent to the same device
+            outputs = torch.tensor(outputs).to(labels.device)
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
