@@ -40,7 +40,7 @@ The [~`pipeline`] automatically loads a default model and tokenizer capable of i
 1. Start by creating a [~`pipeline`] and specify an inference task:
 
 ```python
->>> from optimum import pipeline
+>>> from optimum.pipelines import pipeline
 
 >>> classifier = pipeline(task="text-classification", accelerator="ort")
 
@@ -65,7 +65,7 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForQuestionAnswering
->>> from optimum import pipeline
+>>> from optimum.pipelines import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 >>> # loading the pytorch checkpoint and converting to ORT format by providing the from_transformers=True parameter
@@ -88,7 +88,7 @@ and [`AutoTokenizer'] class. For example, here's how you can load an optimized m
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForQuestionAnswering
->>> from optimum import pipeline
+>>> from optimum.pipelines import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
 >>> # loading already converted and optimized ORT checkpoint for inference
