@@ -24,7 +24,7 @@ from transformers.onnx import export
 
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
-from optimum.onnxruntime.utils import remove_duplicate_weights
+from optimum.onnx.graph_transformations import remove_duplicate_weights
 
 
 class WeightSharingTestCase(TestCase):

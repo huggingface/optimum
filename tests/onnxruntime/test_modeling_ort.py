@@ -33,7 +33,7 @@ class ORTModelIntergrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
-        self.LOCAL_MODEL_PATH = "tests/assets/onnx"
+        self.LOCAL_MODEL_PATH = "assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
 
