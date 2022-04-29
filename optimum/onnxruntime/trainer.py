@@ -86,10 +86,7 @@ from transformers.utils import logging
 import onnx
 import onnxruntime
 
-from .utils import (  # , _is_gpu_available # wait for the merge of ORTMoel
-    fix_atenops_to_gather,
-    wrap_onnx_config_for_loss,
-)
+from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_for_loss
 
 
 if is_apex_available():
@@ -417,19 +414,17 @@ class ORTTrainer(Trainer):
             elif isinstance(train_dataloader.dataset, IterableDatasetShard):
                 train_dataloader.dataset.set_epoch(epoch)
 
-            epoch_iterator = train_dataloader
-
             # Reset the past mems state at the beginning of each epoch if necessary.
             if args.past_index >= 0:
                 self._past = None
 
             steps_in_epoch = (
-                len(epoch_iterator) if train_dataset_is_sized else args.max_steps * args.gradient_accumulation_steps
+                len(train_dataloader) if train_dataset_is_sized else args.max_steps * args.gradient_accumulation_steps
             )
             self.control = self.callback_handler.on_epoch_begin(args, self.state, self.control)
 
             step = -1
-            for step, inputs in enumerate(epoch_iterator):
+            for step, inputs in enumerate(train_dataloader):
 
                 # Skip past any already trained steps if resuming training
                 if steps_trained_in_current_epoch > 0:
@@ -532,7 +527,7 @@ class ORTTrainer(Trainer):
                     break
             if step < 0:
                 logger.warning(
-                    f"There seems to be not a single sample in your epoch_iterator, stopping training at step"
+                    f"There seems to be not a single sample in your train dataloader, stopping training at step"
                     f" {self.state.global_step}! This is expected if you're using an IterableDataset and set"
                     f" num_steps ({max_steps}) higher than the number of available samples."
                 )
@@ -765,13 +760,11 @@ class ORTTrainer(Trainer):
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
+
             logger.info("[INFO] Exporting the model to ONNX...")
-            if has_labels and not self.label_smoother:
-                self._export(onnx_model_path)
-                self.exported_with_loss = True
-            else:
-                self._export(onnx_model_path, with_loss=False)
-                self.exported_with_loss = False
+            with_loss = has_labels and not self.label_smoother
+            self._export(onnx_model_path, with_loss=with_loss)
+            self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
             fix_atenops_to_gather(self.onnx_model_path)
@@ -780,11 +773,7 @@ class ORTTrainer(Trainer):
         self.infer_sess = onnxruntime.InferenceSession(
             self.onnx_model_path,
             session_options=self.session_options,
-            providers=[
-                "CUDAExecutionProvider"
-                if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                else "CPUExecutionProvider"
-            ],
+            providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
@@ -987,11 +976,7 @@ class ORTTrainer(Trainer):
         self.infer_sess = onnxruntime.InferenceSession(
             self.onnx_model_path,
             session_options=self.session_options,
-            providers=[
-                "CUDAExecutionProvider"
-                if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                else "CPUExecutionProvider"
-            ],
+            providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
@@ -1139,7 +1124,7 @@ class ORTTrainer(Trainer):
         with torch.no_grad():
             if is_sagemaker_mp_enabled():
                 raise NotImplementedError(
-                    "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
+                    "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
                 )
             else:
                 if has_labels:
@@ -1147,7 +1132,7 @@ class ORTTrainer(Trainer):
                         loss, outputs = self.compute_loss_ort(
                             model, inputs, input_names, output_names, return_outputs=True
                         )
-                        loss = torch.tensor(loss).mean()  # .detach()
+                        loss = torch.tensor(loss).mean()
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
@@ -1276,7 +1261,7 @@ class ORTTrainer(Trainer):
         # Distributed training (should be after apex fp16 initialization)
         if self.sharded_ddp is not None:
             raise NotImplementedError(
-                "Fairscale's distrubuted data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
+                "Fairscale's distributed data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
             )
         elif is_sagemaker_dp_enabled():
             model = nn.parallel.DistributedDataParallel(
