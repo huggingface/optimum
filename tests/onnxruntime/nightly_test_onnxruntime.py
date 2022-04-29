@@ -36,11 +36,9 @@ class TestORTTrainer(unittest.TestCase):
     # @unittest.skip("Skip ORTTrainer test.")
     def test_ort_trainer(self):
 
-        model_names = {
-            "distilbert-base-uncased"
-        }  # "distilbert-base-uncased", "bert-base-cased", "roberta-base", "gpt2", "facebook/bart-base"
-        dataset_names = {"sst2"}  # glue
-        if_inference_with_ort = {True}  # , False
+        model_names = {"distilbert-base-uncased", "bert-base-cased", "roberta-base", "gpt2"}
+        dataset_names = {"sst2"}
+        if_inference_with_ort = {True}
 
         for model_name in model_names:
             for dataset_name in dataset_names:
@@ -73,11 +71,11 @@ class TestORTTrainer(unittest.TestCase):
                             max_train_samples = 200
                             max_valid_samples = 50
                             max_test_samples = 20
-                            train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
-                            valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
-                            test_dataset = encoded_dataset["test"].remove_columns(
-                                ["label"]
-                            )  # .select(range(max_test_samples))
+                            train_dataset = encoded_dataset["train"].select(range(max_train_samples))
+                            valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
+                            test_dataset = (
+                                encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
+                            )
 
                             def compute_metrics(eval_pred):
                                 predictions = (
@@ -85,7 +83,6 @@ class TestORTTrainer(unittest.TestCase):
                                     if isinstance(eval_pred.predictions, tuple)
                                     else eval_pred.predictions
                                 )
-                                print(predictions)
                                 if dataset_name != "stsb":
                                     predictions = np.argmax(predictions, axis=1)
                                 else:
@@ -101,7 +98,6 @@ class TestORTTrainer(unittest.TestCase):
                                 weight_decay=0.01,
                                 logging_dir=tmp_dir,
                                 fp16=True,
-                                # deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
                             )
 
                             trainer = ORTTrainer(
@@ -129,7 +125,7 @@ class TestORTTrainer(unittest.TestCase):
     # @unittest.skip("Skip ORTSeq2SeqTrainer test.")
     def test_ort_seq2seq_trainer(self):
 
-        model_names = {"facebook/bart-base"}  # "t5-small", "facebook/bart-base"
+        model_names = {"t5-small", "facebook/bart-base"}
         dataset_name = "xsum"
         metric_name = "rouge"
         batch_size = 8
@@ -181,9 +177,9 @@ class TestORTTrainer(unittest.TestCase):
                     max_train_samples = 100
                     max_valid_samples = 30
                     max_test_samples = 10
-                    train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
-                    valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
-                    test_dataset = encoded_dataset["test"]  # .select(range(max_test_samples))
+                    train_dataset = encoded_dataset["train"].select(range(max_train_samples))
+                    valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
+                    test_dataset = encoded_dataset["test"].select(range(max_test_samples))
 
                     def compute_metrics(eval_pred):
                         predictions, labels = eval_pred
@@ -217,7 +213,6 @@ class TestORTTrainer(unittest.TestCase):
                         num_train_epochs=num_train_epochs,
                         predict_with_generate=predict_with_generate,
                         fp16=True,
-                        deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
                         label_smoothing_factor=0.1,
                     )
 
