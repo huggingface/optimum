@@ -17,8 +17,9 @@ from abc import ABC
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
+from transformers.file_utils import TensorType, is_tf_available, is_torch_available
 from transformers.onnx.utils import compute_effective_axis_dimension
-from transformers.utils import TensorType, is_tf_available, is_torch_available, logging
+from transformers.utils import logging
 
 
 if TYPE_CHECKING:

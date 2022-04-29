@@ -15,10 +15,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
+from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
+
+from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
 
 
 logger = logging.get_logger(__name__)
@@ -129,3 +132,12 @@ def fix_atenops_to_gather(model_path):
 
     onnx.checker.check_model(model)
     onnx.save(model, model_path)
+
+
+def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
+    if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
+        return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
+    elif isinstance(onnx_config, OnnxConfigWithPast):
+        return OnnxConfigWithPastAndLoss(onnx_config)
+    else:
+        return OnnxConfigWithLoss(onnx_config)

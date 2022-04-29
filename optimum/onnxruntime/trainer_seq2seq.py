@@ -20,8 +20,6 @@ from packaging import version
 from torch import nn
 from torch.utils.data.dataset import Dataset
 from transformers.deepspeed import is_deepspeed_zero3_enabled
-
-# from transformers.integrations import is_deepspeed_zero3_enabled
 from transformers.trainer_utils import PredictionOutput
 from transformers.utils import logging
 

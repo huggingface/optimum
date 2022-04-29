@@ -34,6 +34,7 @@ from transformers.integrations import (  # isort: split
 
 import numpy as np
 import torch
+import torch.distributed as dist
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data.distributed import DistributedSampler
@@ -41,14 +42,14 @@ from transformers import PreTrainedModel, __version__
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, deepspeed_reinit
+from transformers.deepspeed import deepspeed_init, deepspeed_reinit, is_deepspeed_zero3_enabled
+from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
     is_apex_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
-    is_torch_onnx_dict_inputs_support_available,
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
@@ -85,27 +86,12 @@ from transformers.utils import logging
 import onnx
 import onnxruntime
 
-from .utils import fix_atenops_to_gather  # , _is_gpu_available # wait for the merge of ORTMoel
+from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_for_loss
 
 
 if is_apex_available():
     from apex import amp
 
-if is_torch_tpu_available():
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.metrics as met
-    import torch_xla.distributed.parallel_loader as pl
-
-if is_sagemaker_dp_enabled():
-    import smdistributed.dataparallel.torch.distributed as dist
-    from smdistributed.dataparallel.torch.parallel.distributed import DistributedDataParallel as DDP
-else:
-    import torch.distributed as dist
-
-if is_sagemaker_mp_enabled():
-    from transformers.trainer_pt_utils import smp_forward_backward, smp_forward_only, smp_gather, smp_nested_concat
-
-    import smdistributed.modelparallel.torch as smp
 
 if TYPE_CHECKING:
     import optuna
@@ -150,10 +136,10 @@ class ORTTrainer(Trainer):
             optimizers=optimizers,
         )
 
-        self.trained_with_ort = False
         self.feature = feature
         self.onnx_model_path = onnx_model_path
         self.session_options = None
+        self.exported_with_loss = False
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
 
@@ -179,7 +165,6 @@ class ORTTrainer(Trainer):
             kwargs:
                 Additional keyword arguments used to hide deprecated arguments
         """
-        from onnxruntime.training.ortmodule import DebugOptions as OrtDebugOptions
         from torch_ort import ORTModule
 
         resume_from_checkpoint = None if not resume_from_checkpoint else resume_from_checkpoint
@@ -305,11 +290,8 @@ class ORTTrainer(Trainer):
         delay_optimizer_creation = self.sharded_ddp is not None and self.sharded_ddp != ShardedDDPOption.SIMPLE
 
         # Wrap the model with `ORTModule`
-        logger.info("Wrap ORTModule for Onnx Runtime training.")
-        debug_options = OrtDebugOptions(
-            save_onnx=True, onnx_prefix=f'{self.model.config.name_or_path.split("/")[-1]}-DEBUG'
-        )
-        model = ORTModule(self.model)  # Add `debug_options` to check validate onnx graph
+        logger.info("Wrap ORTModule for ONNX Runtime training.")
+        model = ORTModule(self.model)
         self.model_wrapped = model
 
         if args.deepspeed:
@@ -344,9 +326,9 @@ class ORTTrainer(Trainer):
         # Check if saved optimizer or scheduler states exist
         self._load_optimizer_and_scheduler(resume_from_checkpoint)
 
-        # important: at this point:
-        # self.model         is the Transformers Model
-        # self.model_wrapped is DDP(Transformers Model), Deepspeed(Transformers Model), etc.
+        # Important: at this point if enabled distributed training features:
+        # self.model         is the ORTModule(Transformers Model)
+        # self.model_wrapped is DDP(ORTModule(Transformers Model)), Deepspeed(ORTModule(Transformers Model)), etc.
 
         # Train!
         num_examples = (
@@ -432,23 +414,17 @@ class ORTTrainer(Trainer):
             elif isinstance(train_dataloader.dataset, IterableDatasetShard):
                 train_dataloader.dataset.set_epoch(epoch)
 
-            if is_torch_tpu_available():
-                parallel_loader = pl.ParallelLoader(train_dataloader, [args.device]).per_device_loader(args.device)
-                epoch_iterator = parallel_loader
-            else:
-                epoch_iterator = train_dataloader
-
             # Reset the past mems state at the beginning of each epoch if necessary.
             if args.past_index >= 0:
                 self._past = None
 
             steps_in_epoch = (
-                len(epoch_iterator) if train_dataset_is_sized else args.max_steps * args.gradient_accumulation_steps
+                len(train_dataloader) if train_dataset_is_sized else args.max_steps * args.gradient_accumulation_steps
             )
             self.control = self.callback_handler.on_epoch_begin(args, self.state, self.control)
 
             step = -1
-            for step, inputs in enumerate(epoch_iterator):
+            for step, inputs in enumerate(train_dataloader):
 
                 # Skip past any already trained steps if resuming training
                 if steps_trained_in_current_epoch > 0:
@@ -502,10 +478,6 @@ class ORTTrainer(Trainer):
                         # deepspeed does its own clipping
 
                         if self.do_grad_scaling:
-                            # Reduce gradients first for XLA
-                            if is_torch_tpu_available():
-                                gradients = xm._fetch_gradients(self.optimizer)
-                                xm.all_reduce("sum", gradients, scale=1.0 / xm.xrt_world_size())
                             # AMP: gradients need unscaling
                             self.scaler.unscale_(self.optimizer)
 
@@ -530,8 +502,6 @@ class ORTTrainer(Trainer):
                         if self.do_grad_scaling:
                             self.scaler.step(self.optimizer)
                             self.scaler.update()
-                        else:
-                            xm.optimizer_step(self.optimizer)
                     elif self.do_grad_scaling:
                         scale_before = self.scaler.get_scale()
                         self.scaler.step(self.optimizer)
@@ -557,7 +527,7 @@ class ORTTrainer(Trainer):
                     break
             if step < 0:
                 logger.warning(
-                    f"There seems to be not a single sample in your epoch_iterator, stopping training at step"
+                    f"There seems to be not a single sample in your train dataloader, stopping training at step"
                     f" {self.state.global_step}! This is expected if you're using an IterableDataset and set"
                     f" num_steps ({max_steps}) higher than the number of available samples."
                 )
@@ -567,14 +537,10 @@ class ORTTrainer(Trainer):
             self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
-                if is_torch_tpu_available():
-                    # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
-                    xm.master_print(met.metrics_report())
-                else:
-                    logger.warning(
-                        "You enabled PyTorch/XLA debug metrics but you don't have a TPU "
-                        "configured. Check your training configuration if this is unexpected."
-                    )
+                logger.warning(
+                    "You enabled PyTorch/XLA debug metrics which is not supported by ONNX "
+                    "Runtime. Check your training configuration if this is unexpected."
+                )
             if self.control.should_training_stop:
                 break
 
@@ -585,9 +551,7 @@ class ORTTrainer(Trainer):
         logger.info("\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n")
         if args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
             # Wait for everyone to get here so we are sur the model has been saved by process 0.
-            if is_torch_tpu_available():
-                xm.rendezvous("load_best_model_at_end")
-            elif args.local_rank != -1:
+            if args.local_rank != -1:
                 dist.barrier()
 
             logger.info(
@@ -636,10 +600,10 @@ class ORTTrainer(Trainer):
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
         # Update the `session_options` for inference
+        while hasattr(model, "module") and not isinstance(model, ORTModule):
+            model = model.module
         inference_manager = model._torch_module._execution_manager._inference_manager
         self.session_options, providers, provider_options = inference_manager._get_session_config()
-
-        self.trained_with_ort = True
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
@@ -704,10 +668,6 @@ class ORTTrainer(Trainer):
         )
 
         self.log(output.metrics)
-
-        if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
-            # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
-            xm.master_print(met.metrics_report())
 
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
 
@@ -784,33 +744,36 @@ class ORTTrainer(Trainer):
         Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
         Works both with or without labels.
         """
-        logger.info("------------------ONNX Runtime Evaluation/Prediction Starts----------------------")
-        # Create onnxruntime inference session & export onnx IR
+        logger.info("[INFO] ONNX Runtime inference starts...")
         self.infer_sess = None
 
-        if self.onnx_model_path:
-            logger.info("------------------Evaluate with given ONNX IR----------------------")
+        # Check if there are labels in the dataset
+        dummy_inputs = next(iter(dataloader))
+        has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
+
+        if self.onnx_model_path and (has_labels == self.exported_with_loss):
+            logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            # Fix exported ONNX IR
             fix_atenops_to_gather(self.onnx_model_path)
         else:
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
-            logger.info("------------------Exporting ORT model to ONNX IR----------------------")
-            self._export(onnx_model_path)
+
+            logger.info("[INFO] Exporting the model to ONNX...")
+            with_loss = has_labels and not self.label_smoother
+            self._export(onnx_model_path, with_loss=with_loss)
+            self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
-            # Fix exported onnx IR
+            # Fix exported ONNX IR
             fix_atenops_to_gather(self.onnx_model_path)
-            logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
+            logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         self.infer_sess = onnxruntime.InferenceSession(
             self.onnx_model_path,
             session_options=self.session_options,
-            providers=[
-                "CUDAExecutionProvider"
-                if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                else "CPUExecutionProvider"
-            ],
+            providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
@@ -854,9 +817,6 @@ class ORTTrainer(Trainer):
         # Do this before wrapping.
         eval_dataset = dataloader.dataset
 
-        if is_torch_tpu_available():
-            dataloader = pl.ParallelLoader(dataloader, [args.device]).per_device_loader(args.device)
-
         if args.past_index >= 0:
             self._past = None
 
@@ -886,9 +846,6 @@ class ORTTrainer(Trainer):
             loss, logits, labels = self.prediction_step_ort(
                 model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
-
-            if is_torch_tpu_available():
-                xm.mark_step()
 
             # Update containers on host
             if loss is not None:
@@ -986,33 +943,40 @@ class ORTTrainer(Trainer):
         Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
         Works both with or without labels.
         """
-        logger.info("------------------ONNX Runtime Evaluation/Prediction Starts----------------------")
+        logger.info("[INFO] ONNX Runtime inference starts...")
         # Create onnxruntime inference session & export onnx IR
         self.infer_sess = None
 
-        if self.onnx_model_path:
-            logger.info("------------------Predict with given ONNX IR----------------------")
+        # Check if there are labels in the dataset
+        dummy_inputs = next(iter(dataloader))
+        has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
+
+        if self.onnx_model_path and (has_labels == self.exported_with_loss):
+            logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            # Fix exported ONNX IR
             fix_atenops_to_gather(self.onnx_model_path)
         else:
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
-            logger.info("------------------Exporting ORT model to ONNX IR----------------------")
-            self._export(onnx_model_path)
+            logger.info("[INFO] Exporting the model to ONNX...")
+            if has_labels:
+                self._export(onnx_model_path)
+                self.exported_with_loss = True
+            else:
+                self._export(onnx_model_path, with_loss=False)
+                self.exported_with_loss = False
             self.onnx_model_path = onnx_model_path.as_posix()
+            # Fix exported ONNX IR
             fix_atenops_to_gather(self.onnx_model_path)
-            logger.info("The ONNX IR is store in:\n", self.onnx_model_path)
+            logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Can't infer the exported onnx models due to impatible opset
         self.infer_sess = onnxruntime.InferenceSession(
             self.onnx_model_path,
             session_options=self.session_options,
-            providers=[
-                "CUDAExecutionProvider"
-                if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                else "CPUExecutionProvider"
-            ],
+            providers=["CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"],
         )
 
         args = self.args
@@ -1068,9 +1032,6 @@ class ORTTrainer(Trainer):
             labels_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
 
         model.eval()
-
-        if is_torch_tpu_available():
-            dataloader = pl.ParallelLoader(dataloader, [args.device]).per_device_loader(args.device)
 
         if args.past_index >= 0:
             self._past = None
@@ -1162,35 +1123,21 @@ class ORTTrainer(Trainer):
 
         with torch.no_grad():
             if is_sagemaker_mp_enabled():
-                raw_outputs = smp_forward_only(model, inputs)
-                if has_labels:
-                    if isinstance(raw_outputs, dict):
-                        loss_mb = raw_outputs["loss"]
-                        logits_mb = tuple(v for k, v in raw_outputs.items() if k not in ignore_keys + ["loss"])
-                    else:
-                        loss_mb = raw_outputs[0]
-                        logits_mb = raw_outputs[1:]
-
-                    loss = None
-                    logits = smp_nested_concat(logits_mb)
-                else:
-                    loss = None
-                    if isinstance(raw_outputs, dict):
-                        logits_mb = tuple(v for k, v in raw_outputs.items() if k not in ignore_keys)
-                    else:
-                        logits_mb = raw_outputs
-                    logits = smp_nested_concat(logits_mb)
+                raise NotImplementedError(
+                    "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
+                )
             else:
                 if has_labels:
                     with self.autocast_smart_context_manager():
                         loss, outputs = self.compute_loss_ort(
                             model, inputs, input_names, output_names, return_outputs=True
                         )
+                        loss = torch.tensor(loss).mean()
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
                     else:
-                        logits = outputs  # outputs[1:]
+                        logits = outputs[1:]
                 else:
                     loss = None
                     with self.autocast_smart_context_manager():
@@ -1231,11 +1178,21 @@ class ORTTrainer(Trainer):
 
         input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
         outputs = self.infer_sess.run(output_names, input_feed)
-        loss = None
+
+        if self.label_smoother:
+            # With label smoother, loss will be calculated out of box
+            # So the outputs of InferenceSession need to be converted to tensor and sent to the same device
+            outputs = torch.tensor(outputs).to(labels.device)
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
+
+        if labels is not None:
+            loss = self.label_smoother(outputs, labels)
+        else:
+            # Loss is by default the first element in the outputs
+            loss = outputs[0]
 
         return (loss, outputs) if return_outputs else loss
 
@@ -1244,30 +1201,38 @@ class ORTTrainer(Trainer):
         model_path: os.PathLike,
         model: Optional[PreTrainedModel] = None,
         opset: Optional[int] = None,
+        with_loss: bool = True,
     ) -> None:
         """
         Load and export a model to an ONNX Intermediate Representation (IR).
 
-        Param:
-            model_path (:obj:`os.PathLike`):
+        Args:
+            onnx_model_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            with_loss (`bool`, defaults to `True`):
+                Whether to export ONNX model with the loss in outputs.
         """
         if model:
             model = model
         else:
             self.model.to("cpu")
-            model = self.model
+            model = unwrap_model(self.model)
+
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
         onnx_config = model_onnx_config(model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
-        _ = export(tokenizer=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
+
+        if with_loss:
+            onnx_config = wrap_onnx_config_for_loss(onnx_config)
+            opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
+
+        _ = export(preprocessor=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
 
     def _wrap_model(self, model, training=True):
         if is_sagemaker_mp_enabled():
-            # Wrapping the base model twice in a DistributedModel will raise an error.
-            if isinstance(self.model_wrapped, smp.model.DistributedModel):
-                return self.model_wrapped
-            return smp.DistributedModel(model, backward_passes_per_step=self.args.gradient_accumulation_steps)
+            raise NotImplementedError(
+                "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
+            )
 
         # already initialized its own DDP and AMP
         if self.deepspeed:
@@ -1295,25 +1260,13 @@ class ORTTrainer(Trainer):
 
         # Distributed training (should be after apex fp16 initialization)
         if self.sharded_ddp is not None:
-            # Sharded DDP!
-            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                model = ShardedDDP(model, self.optimizer)
-            else:
-                mixed_precision = self.args.fp16 or self.args.bf16
-                cpu_offload = ShardedDDPOption.OFFLOAD in self.args.sharded_ddp
-                zero_3 = self.sharded_ddp == ShardedDDPOption.ZERO_DP_3
-                # XXX: Breaking the self.model convention but I see no way around it for now.
-                if ShardedDDPOption.AUTO_WRAP in self.args.sharded_ddp:
-                    model = auto_wrap(model)
-                self.model = model = FullyShardedDDP(
-                    model,
-                    mixed_precision=mixed_precision,
-                    reshard_after_forward=zero_3,
-                    cpu_offload=cpu_offload,
-                ).to(self.args.device)
-
+            raise NotImplementedError(
+                "Fairscale's distributed data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
+            )
         elif is_sagemaker_dp_enabled():
-            model = DDP(model, device_ids=[dist.get_local_rank()], broadcast_buffers=False)
+            model = nn.parallel.DistributedDataParallel(
+                model, device_ids=[int(os.getenv("SMDATAPARALLEL_LOCAL_RANK"))]
+            )
         elif self.args.local_rank != -1:
             kwargs = {}
             if self.args.ddp_find_unused_parameters is not None:
