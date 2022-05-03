@@ -98,6 +98,7 @@ import onnxruntime
 
 from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_for_loss
 
+
 DEFAULT_CALLBACKS = [DefaultFlowCallback]
 DEFAULT_PROGRESS_CALLBACK = ProgressCallback
 
