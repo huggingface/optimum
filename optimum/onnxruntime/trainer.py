@@ -59,15 +59,7 @@ from transformers.onnx import export, validate_model_outputs
 from transformers.onnx.features import FeaturesManager
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
-from transformers.trainer_callback import (
-    CallbackHandler,
-    DefaultFlowCallback,
-    PrinterCallback,
-    ProgressCallback,
-    TrainerCallback,
-    TrainerControl,
-    TrainerState,
-)
+from transformers.trainer_callback import TrainerCallback, TrainerState
 from transformers.trainer_pt_utils import (
     DistributedTensorGatherer,
     IterableDatasetShard,
@@ -91,21 +83,13 @@ from transformers.trainer_utils import (
     speed_metrics,
 )
 from transformers.training_args import TrainingArguments
-from transformers.utils import is_in_notebook, logging
+from transformers.utils import logging
 
 import onnx
 import onnxruntime
 
 from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_for_loss
 
-
-DEFAULT_CALLBACKS = [DefaultFlowCallback]
-DEFAULT_PROGRESS_CALLBACK = ProgressCallback
-
-if is_in_notebook():
-    from transformers.utils.notebook import NotebookProgressCallback
-
-    DEFAULT_PROGRESS_CALLBACK = NotebookProgressCallback
 
 if is_apex_available():
     from apex import amp
