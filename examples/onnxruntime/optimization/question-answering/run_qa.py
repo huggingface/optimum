@@ -34,8 +34,8 @@ from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, 
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from optimum.onnxruntime import ORTModel
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
+from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.optimization import ORTOptimizer
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
@@ -80,6 +80,10 @@ class ModelArguments:
             "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
             "with private models)."
         },
+    )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -205,7 +209,7 @@ class OptimizationArguments:
         metadata={"help": "ONNX opset version to export the model with."},
     )
     optimization_level: Optional[int] = field(
-        default=None,
+        default=1,
         metadata={
             "help": "Optimization level performed by ONNX Runtime of the loaded graph."
             "0 will disable all optimizations."
@@ -257,6 +261,28 @@ def main():
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
 
+    if (
+        optim_args.optimization_level > 1
+        and optim_args.optimize_for_gpu
+        and model_args.execution_provider == "CPUExecutionProvider"
+    ):
+        raise ValueError(
+            f"Optimization level is set at {optim_args.optimization_level} and "
+            f"GPU optimization will be done, although the CPU execution provider "
+            f"was selected. Use --execution_provider CUDAExecutionProvider."
+        )
+
+    if (
+        optim_args.optimization_level > 1
+        and not optim_args.optimize_for_gpu
+        and model_args.execution_provider == "CUDAExecutionProvider"
+    ):
+        raise ValueError(
+            f"Optimization level is set at {optim_args.optimization_level} and "
+            f"CPU optimization will be done, although the GPU execution provider "
+            f"was selected. Remove the argument --execution_provider CUDAExecutionProvider."
+        )
+
     logger.info(f"Optimization with the following parameters {optim_args}")
 
     if os.path.isdir(training_args.output_dir) and not training_args.overwrite_output_dir:
@@ -289,7 +315,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(opset=optimizer.opset, optimization_config=optimization_config)
+    ort_config = ORTConfig(opset=optimizer.opset, optimization=optimization_config)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -441,7 +467,12 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            optimized_model_path,
+            optimizer._onnx_config,
+            execution_provider=model_args.execution_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(eval_dataset)
         predictions = post_processing_function(eval_examples, eval_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)
@@ -472,7 +503,9 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
-        ort_model = ORTModel(optimized_model_path, optimizer._onnx_config)
+        ort_model = ORTModel(
+            optimized_model_path, optimizer._onnx_config, execution_provider=model_args.execution_provider
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)

@@ -12,14 +12,24 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 
-REQUIRED_PKGS = ["coloredlogs", "sympy", "transformers>=4.15.0", "torch>=1.9", "packaging"]
+REQUIRED_PKGS = [
+    "coloredlogs",
+    "sympy",
+    "transformers[sentencepiece]>=4.15.0",
+    "torch>=1.9",
+    "packaging",
+    "numpy",
+    "huggingface_hub==0.4.0",
+]
 
-TESTS_REQUIRE = ["pytest"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
 EXTRAS_REQUIRE = {
-    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],
+    #  pip install -e ".[onnxruntime,dev,intel]"  git+https://github.com/huggingface/transformers.git@main --upgrade
+    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
+    "onnxruntime-gpu": ["onnx", "onnxruntime-gpu", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
     "intel": [
         "pycocotools",
         "neural_compressor>=1.9",
@@ -28,6 +38,7 @@ EXTRAS_REQUIRE = {
         "transformers >= 4.15.0, < 4.17.0",
     ],
     "graphcore": "optimum-graphcore",
+    "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
@@ -42,7 +53,7 @@ setup(
     long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: Apache Software License",
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
@@ -52,14 +63,16 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    keywords="transformers, quantization, pruning, training, ipu",
-    url="https://huggingface.co/hardware",
+    keywords="transformers, quantization, pruning, optimization, training, inference, onnx, onnx runtime, intel, "
+    "habana, graphcore, neural compressor, ipu, hpu",
+    url="https://github.com/huggingface/optimum",
     author="HuggingFace Inc. Special Ops Team",
     author_email="hardware@huggingface.co",
     license="Apache",
     packages=find_namespace_packages(include=["optimum*"]),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
+    python_requires=">=3.8.0",
     include_package_data=True,
     zip_safe=False,
 )

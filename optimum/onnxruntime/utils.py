@@ -11,18 +11,35 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-import copy
-from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+import torch
+from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
 import onnx
-from onnx import ModelProto
+import onnxruntime as ort
+
+from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
 
 
 logger = logging.get_logger(__name__)
+
+ONNX_WEIGHTS_NAME = "model.onnx"
+OPTIMIZED_ONNX_WEIGHTS_NAME = "optimized_model.onnx"
+QUANTIZED_ONNX_WEIGHTS_NAME = "q8_model.onnx"
+
+
+def _is_gpu_available():
+    """
+    checks if a gpu is available.
+    """
+    available_providers = ort.get_available_providers()
+    if "CUDAExecutionProvider" in available_providers and torch.cuda.is_available():
+        return True
+    else:
+        return False
 
 
 class ORTConfigManager:
@@ -37,10 +54,11 @@ class ORTConfigManager:
 
     _conf = {
         "bert": ("num_attention_heads", "hidden_size", "bert"),
-        "distilbert": ("n_heads", "hidden_size", "bert"),
-        "roberta": ("num_attention_heads", "hidden_size", "bert"),
-        "camembert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),
+        "camembert": ("num_attention_heads", "hidden_size", "bert"),
+        "distilbert": ("n_heads", "dim", "bert"),
+        "electra": ("num_attention_heads", "hidden_size", "bert"),
+        "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "bart": ("encoder_attention_heads", "d_model", "bart"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
@@ -116,64 +134,10 @@ def fix_atenops_to_gather(model_path):
     onnx.save(model, model_path)
 
 
-def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
-    duplicates = defaultdict(set)
-    for initializer in model.graph.initializer:
-        for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
-            tensor_data = getattr(initializer, data_attr)
-            if tensor_data:
-                tensor_data = tuple(tensor_data)
-                break
-        duplicates[(initializer.data_type, tensor_data)].add(initializer.name)
-    return duplicates
-
-
-def _create_name_sharing_dict(duplicate_weights: DefaultDict[Tuple[int, bytes], Set[str]]) -> Dict[str, str]:
-    def _create_name_sharing_dict_for_duplicates(duplicates: Set[str]) -> Dict[str, str]:
-        common_name = duplicates.pop()
-        duplicates.add(common_name)
-        return {k: common_name for k in duplicates}
-
-    name_sharing_dict = {}
-    for duplicates in duplicate_weights.values():
-        name_sharing_dict.update(_create_name_sharing_dict_for_duplicates(duplicates))
-    return name_sharing_dict
-
-
-def _replace_input_names(model: ModelProto, name_sharing_dict: Dict[str, str]):
-    for node in model.graph.node:
-        for i in range(len(node.input)):
-            node.input[i] = name_sharing_dict.get(node.input[i], node.input[i])
-
-
-def _remove_redundant_initializers(model: ModelProto, name_sharing_dict: Dict[str, str]):
-    to_pop = []
-    for idx, initializer in enumerate(model.graph.initializer):
-        if initializer.name != name_sharing_dict[initializer.name]:
-            to_pop.append(idx)
-
-    for idx in sorted(to_pop, reverse=True):
-        model.graph.initializer.pop(idx)
-
-
-def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
-    """
-    Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
-    to them.
-
-    Args:
-        model (`~onnx.ModelProto`): The model to remove duplicates from.
-        inplace (`bool`, defaults to False): Whether to perform this transformation inplace.
-
-    Returns:
-        `~onnx.ModelProto`: The model without duplicates.
-    """
-    if not inplace:
-        model = copy.deepcopy(model)
-    duplicates = _find_duplicate_weights(model)
-    name_sharing_dict = _create_name_sharing_dict(duplicates)
-
-    _replace_input_names(model, name_sharing_dict)
-    _remove_redundant_initializers(model, name_sharing_dict)
-
-    return model
+def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
+    if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
+        return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
+    elif isinstance(onnx_config, OnnxConfigWithPast):
+        return OnnxConfigWithPastAndLoss(onnx_config)
+    else:
+        return OnnxConfigWithLoss(onnx_config)

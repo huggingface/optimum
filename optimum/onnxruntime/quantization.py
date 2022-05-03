@@ -294,7 +294,7 @@ class ORTQuantizer(ABC):
                 The dictionary mapping the nodes name to their quantization ranges, used and required only when applying
                 static quantization.
             use_external_data_format (`bool`, defaults to `False`):
-                Whether uto se external data format to store model which size is >= 2Gb.
+                Whether to use external data format to store model which size is >= 2Gb.
             preprocessor (`QuantizationPreprocessor`, *optional*):
                 The preprocessor to use to collect the nodes to include or exclude from quantization.
 
