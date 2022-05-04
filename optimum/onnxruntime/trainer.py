@@ -94,6 +94,15 @@ from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_fo
 if is_apex_available():
     from apex import amp
 
+if is_fairscale_available():
+    dep_version_check("fairscale")
+    import fairscale
+    from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
+    from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
+    from fairscale.nn.wrap import auto_wrap
+    from fairscale.optim import OSS
+    from fairscale.optim.grad_scaler import ShardedGradScaler
+
 if TYPE_CHECKING:
     import optuna
 
@@ -500,9 +509,7 @@ class ORTTrainer(Trainer):
                     if self.deepspeed:
                         pass  # called outside the loop
                     elif is_torch_tpu_available():
-                        if self.do_grad_scaling:
-                            self.scaler.step(self.optimizer)
-                            self.scaler.update()
+                        raise NotImplementedError("`ORTTrainer` is not supported by TPU!")
                     elif self.do_grad_scaling:
                         scale_before = self.scaler.get_scale()
                         self.scaler.step(self.optimizer)
@@ -625,7 +632,6 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
-            logger.warning("Evaluating with ONNX Runtime backend. The loss will be `None` in this case.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
             try:
                 output = eval_loop(
@@ -694,7 +700,6 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
-            logger.warning("Predicting with ONNX Runtime backend. The loss will be `None` in this case.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
             try:
                 output = eval_loop(
@@ -850,13 +855,19 @@ class ORTTrainer(Trainer):
 
             # Update containers on host
             if loss is not None:
+                if self.args.local_rank != -1:
+                    loss = loss.to("cuda")
                 losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
+                if self.args.local_rank != -1:
+                    logits = logits.to("cuda")
                 logits = self._pad_across_processes(logits)
                 logits = self._nested_gather(logits)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
+                if self.args.local_rank != -1:
+                    labels = labels.to("cuda")
                 labels = self._pad_across_processes(labels)
                 labels = self._nested_gather(labels)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
@@ -1261,9 +1272,15 @@ class ORTTrainer(Trainer):
 
         # Distributed training (should be after apex fp16 initialization)
         if self.sharded_ddp is not None:
-            raise NotImplementedError(
-                "Fairscale's distributed data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
-            )
+            # Sharded DDP!
+            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+                model = ShardedDDP(model, self.optimizer)
+            else:
+                raise NotImplementedError(
+                    "Fairscale's zero_dp_2 and zero_dp_3 are not compatible with `torch_ort.ORTModule`"
+                    " used in `ORTTrainer`. Use `--sharded_ddp simpe` or deepspeed stage 2 if you want"
+                    "the gradient to be sharded."
+                )
         elif is_sagemaker_dp_enabled():
             model = nn.parallel.DistributedDataParallel(
                 model, device_ids=[int(os.getenv("SMDATAPARALLEL_LOCAL_RANK"))]
