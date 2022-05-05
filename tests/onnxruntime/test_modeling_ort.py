@@ -438,7 +438,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         self.assertTrue(len(res[0]) > len(text))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_generate_utils_with_inputids(self, *args, **kwargs):
+    def test_generate_utils_with_input_ids(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
