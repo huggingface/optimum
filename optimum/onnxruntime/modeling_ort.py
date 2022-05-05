@@ -688,6 +688,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
         )
 
+    # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(
         self,
         inputs: torch.Tensor,
