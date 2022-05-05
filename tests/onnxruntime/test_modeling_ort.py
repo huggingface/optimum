@@ -393,6 +393,7 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
 class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "gpt2": "hf-internal-testing/tiny-random-gpt2",
+        "distilgpt2": "distilgpt2",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
@@ -432,6 +433,21 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
             return_tensors="pt",
         )
         outputs = model.generate(**tokens)
+        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertTrue(isinstance(res[0], str))
+        self.assertTrue(len(res[0]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_generate_utils_with_inputids(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        text = "This is a sample output"
+        tokens = tokenizer(
+            text,
+            return_tensors="pt",
+        )
+        outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertTrue(isinstance(res[0], str))
         self.assertTrue(len(res[0]) > len(text))
