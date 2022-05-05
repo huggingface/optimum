@@ -687,3 +687,26 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         return CausalLMOutputWithCrossAttentions(
             logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
         )
+
+    # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
+    def _prepare_attention_mask_for_generation(
+        self,
+        inputs: torch.Tensor,
+        pad_token_id: int,
+        eos_token_id: int,
+    ) -> torch.LongTensor:
+        """
+        Overrides the base method of `GenerationMixin` to ensure input IDs and
+        attention mask are on the same device.
+        """
+        is_input_ids = len(inputs.shape) == 2 and inputs.dtype in [torch.int, torch.long]
+        is_pad_token_in_inputs = (pad_token_id is not None) and (pad_token_id in inputs)
+        is_pad_token_not_equal_to_eos_token_id = (eos_token_id is None) or (
+            (eos_token_id is not None) and (pad_token_id != eos_token_id)
+        )
+        # Check if input is input_ids and padded -> only then is attention_mask defined
+        if is_input_ids and is_pad_token_in_inputs and is_pad_token_not_equal_to_eos_token_id:
+            return inputs.ne(pad_token_id).long()
+        else:
+            # Ensure attention mask is on the same device as the input IDs
+            return torch.ones(inputs.shape[:2], dtype=torch.long, device=inputs.device)
