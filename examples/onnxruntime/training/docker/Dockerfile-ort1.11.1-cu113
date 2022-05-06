@@ -9,6 +9,8 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN chsh -s /bin/bash
 SHELL ["/bin/bash", "-c"]
 
+# Temporary fix until NVDIA finish the update of its docker images
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils
 
 # Install and update tools to minimize security vulnerabilities
@@ -26,13 +28,12 @@ RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 RUN pip install --upgrade pip
 
 # Install onnxruntime-training dependencies
-# This version doesn't support running gpt2 with fp16
+# This version doesn't support training gpt2 with fp16
 RUN pip install onnx==1.11.0 ninja
 RUN pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install onnxruntime-training==1.11.1+cu113 -f https://download.onnxruntime.ai/onnxruntime_stable_cu113.html
 RUN pip install torch-ort
 # RUN python -m torch_ort.configure
-# RUN pip install coloredlogs seqeval scipy transformers datasets sacrebleu
 
 WORKDIR .
 
