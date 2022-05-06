@@ -21,6 +21,7 @@ import os
 import sys
 import time
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -30,6 +31,7 @@ from tqdm.auto import tqdm
 # Integrations must be imported before ML frameworks:
 from transformers.integrations import (  # isort: split
     hp_params,
+    is_fairscale_available,
 )
 
 import numpy as np
@@ -91,7 +93,6 @@ from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_fo
 
 if is_apex_available():
     from apex import amp
-
 
 if TYPE_CHECKING:
     import optuna
