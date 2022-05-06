@@ -71,11 +71,11 @@ class TestORTTrainer(unittest.TestCase):
                             max_train_samples = 200
                             max_valid_samples = 50
                             max_test_samples = 20
-                            train_dataset = encoded_dataset["train"].select(range(max_train_samples))
-                            valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
-                            test_dataset = (
-                                encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
-                            )
+                            train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
+                            valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
+                            test_dataset = encoded_dataset["test"].remove_columns(
+                                ["label"]
+                            )  # .select(range(max_test_samples))
 
                             def compute_metrics(eval_pred):
                                 predictions = (
@@ -114,7 +114,7 @@ class TestORTTrainer(unittest.TestCase):
                             trainer.save_model()
                             train_metrics = train_result.metrics
                             ort_eval_metrics = trainer.evaluate(inference_with_ort=inference_with_ort)
-                            # self.assertGreaterEqual(ort_eval_metrics["eval_accuracy"], 0.75)
+                            self.assertGreaterEqual(ort_eval_metrics["eval_accuracy"], 0.75)
                             ort_prediction = trainer.predict(test_dataset, inference_with_ort=inference_with_ort)
                             print("Training metrics(ORT):\n", train_metrics)
                             print("Evaluation metrics:\n", ort_eval_metrics)
@@ -176,9 +176,9 @@ class TestORTTrainer(unittest.TestCase):
                     max_train_samples = 100
                     max_valid_samples = 30
                     max_test_samples = 10
-                    train_dataset = encoded_dataset["train"].select(range(max_train_samples))
-                    valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
-                    test_dataset = encoded_dataset["test"].select(range(max_test_samples))
+                    train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
+                    valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
+                    test_dataset = encoded_dataset["test"]  # .select(range(max_test_samples))
 
                     def compute_metrics(eval_pred):
                         predictions, labels = eval_pred
@@ -237,10 +237,10 @@ class TestORTTrainer(unittest.TestCase):
                     trainer.save_model()
                     train_metrics = train_result.metrics
                     ort_eval_metrics = trainer.evaluate(inference_with_ort=inference_with_ort)
-                    # self.assertGreaterEqual(ort_eval_metrics["eval_rouge1"], 10)
-                    # self.assertGreaterEqual(ort_eval_metrics["eval_rouge2"], 2)
-                    # self.assertGreaterEqual(ort_eval_metrics["eval_rougeL"], 7)
-                    # self.assertGreaterEqual(ort_eval_metrics["eval_rougeLsum"], 7)
+                    self.assertGreaterEqual(ort_eval_metrics["eval_rouge1"], 10)
+                    self.assertGreaterEqual(ort_eval_metrics["eval_rouge2"], 2)
+                    self.assertGreaterEqual(ort_eval_metrics["eval_rougeL"], 7)
+                    self.assertGreaterEqual(ort_eval_metrics["eval_rougeLsum"], 7)
                     ort_prediction = trainer.predict(test_dataset, inference_with_ort=inference_with_ort)
                     print("Training metrics(ORT):\n", train_metrics)
                     print("Evaluation metrics:\n", ort_eval_metrics)
