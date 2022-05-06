@@ -5,7 +5,16 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import torch
-from transformers import AutoTokenizer, PretrainedConfig
+from transformers import (
+    AutoConfig,
+    AutoModel,
+    AutoModelForCausalLM,
+    AutoModelForQuestionAnswering,
+    AutoModelForSequenceClassification,
+    AutoModelForTokenClassification,
+    AutoTokenizer,
+    PretrainedConfig,
+)
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import (
@@ -70,12 +79,18 @@ ONNX_INPUTS_DOCSTRING = r"""
 )
 class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
+    auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
         self.model = model
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
+
+        # registers the ORTModelForXXX classes into the transformers AutoModel classes
+        # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
+        AutoConfig.register(self.base_model_prefix, AutoConfig)
+        self.auto_model_class.register(AutoConfig, self.__class__)
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError
@@ -119,7 +134,7 @@ class ORTModel(OptimizedModel):
         model_id: Union[str, Path],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: Optional[str] = None,
         **kwargs,
@@ -177,7 +192,7 @@ class ORTModel(OptimizedModel):
         save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):
@@ -284,6 +299,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     # used in from_transformers to export model to onnx
     pipeline_task = "default"
+    auto_model_class = AutoModel
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -369,6 +385,7 @@ class ORTModelForQuestionAnswering(ORTModel):
 
     # used in from_transformers to export model to onnx
     pipeline_task = "question-answering"
+    auto_model_class = AutoModelForQuestionAnswering
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -469,6 +486,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
     # used in from_transformers to export model to onnx
     pipeline_task = "sequence-classification"
+    auto_model_class = AutoModelForSequenceClassification
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -555,6 +573,7 @@ class ORTModelForTokenClassification(ORTModel):
 
     # used in from_transformers to export model to onnx
     pipeline_task = "token-classification"
+    auto_model_class = AutoModelForTokenClassification
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -638,6 +657,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     # used in from_transformers to export model to onnx
     pipeline_task = "causal-lm"
+    auto_model_class = AutoModelForCausalLM
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
