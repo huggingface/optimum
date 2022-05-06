@@ -133,7 +133,7 @@ class ORTModel(OptimizedModel):
         model_id: Union[str, Path],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: Optional[str] = None,
         **kwargs,
@@ -191,7 +191,7 @@ class ORTModel(OptimizedModel):
         save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):
@@ -304,9 +304,6 @@ class ORTModelForFeatureExtraction(ORTModel):
         super().__init__(*args, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-
-        AutoConfig.register(self.base_model_prefix, AutoConfig)
-        AutoModel.register(AutoConfig, ORTModelForFeatureExtraction)
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
