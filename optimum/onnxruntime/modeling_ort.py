@@ -79,6 +79,7 @@ ONNX_INPUTS_DOCSTRING = r"""
 )
 class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
+    auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
         self.model = model
