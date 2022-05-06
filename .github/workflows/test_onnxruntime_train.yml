@@ -65,7 +65,7 @@ jobs:
               --gpus all \
               -v $PWD:/workspace \
               --workdir=/workspace \
-              ort11/cu11:latest /bin/bash /run.sh
+              ort11/cu11:latest /bin/bash examples/onnxruntime/training/docker/run.sh
 
   stop-runner:
     name: Stop self-hosted EC2 runner
