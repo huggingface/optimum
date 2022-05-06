@@ -586,7 +586,8 @@ def main():
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
     ranges = None
-    quantization_preprocessor = None
+    # Create a quantization preprocessor to determine the nodes to exclude
+    quantization_preprocessor = QuantizationPreprocessor()
     if apply_static_quantization:
         # Remove the unnecessary columns of the calibration dataset before the calibration step
         calibration_dataset = quantizer.clean_calibration_dataset(calibration_dataset)
@@ -625,8 +626,6 @@ def main():
             )
         ranges = quantizer.compute_ranges()
 
-        # Create a quantization preprocessor to determine the nodes to exclude when applying static quantization
-        quantization_preprocessor = QuantizationPreprocessor(model_path)
         # Exclude the nodes constituting LayerNorm
         quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
         # Exclude the nodes constituting GELU
