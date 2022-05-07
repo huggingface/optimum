@@ -32,6 +32,9 @@ from transformers import (
 from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
 
 
+nltk.download("punkt")
+
+
 class TestORTTrainer(unittest.TestCase):
     # @unittest.skip("Skip ORTTrainer test.")
     def test_ort_trainer(self):
@@ -131,7 +134,7 @@ class TestORTTrainer(unittest.TestCase):
         learning_rate = 2e-5
         weight_decay = 0.01
         num_train_epochs = 1
-        predict_with_generate = False
+        predict_with_generate = True
         inference_with_ort = False
 
         for model_name in model_names:
