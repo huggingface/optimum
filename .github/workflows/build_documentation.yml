@@ -51,7 +51,7 @@ jobs:
           sudo pip install --upgrade pip && sudo pip install --upgrade protobuf
           pip install git+https://github.com/huggingface/doc-builder
           cd optimum
-          echo "VERSION=$(grep '^=' optimum/version.py | cut -d '=' -f 2-)" >> $GITHUB_ENV
+          echo "VERSION=$(grep '^=' optimum/version.py | cut -d '=' -f 2- | xargs)" >> $GITHUB_ENV
           pip install .[dev,onnxruntime,intel]
           python -c "from optimum import intel; print(dir(intel))" 
           cd ..
