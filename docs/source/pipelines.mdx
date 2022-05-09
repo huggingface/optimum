@@ -80,7 +80,7 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 
 ### Using Optimum models
 
-The [`~pipelines.pipeline`] is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with OnnxRuntime. 
+The [`~pipelines.pipeline`] function is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with ONNX Runtime. 
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
 Once you've picked an appropriate model, load it with the `from_pretrained()` method associated with the corresponding `ORTModelFor*`
 and `AutoTokenizer' class. For example, here's how you can load an optimized model for question answering:
