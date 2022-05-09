@@ -12,12 +12,12 @@ specific language governing permissions and limitations under the License.
 
 # Optimum pipelines for inference
 
-The [`pipeline`] makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification.
-Even if you don't have experience with a specific modality or understand the code powering the models, you can still use them with the [`pipeline`]! This tutorial will teach you to:
+The [`~pipelines.pipeline`] makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification.
+Even if you don't have experience with a specific modality or understand the code powering the models, you can still use them with the [`~pipelines.pipeline`]! This tutorial will teach you to:
 
 <Tip>
 
-You can also use the `pipeline()` function from Transformers and provide your `OptimumModel`.
+You can also use the [pipeline](https://huggingface.co/docs/transformers/main/en/main_classes/pipelines#pipelines) function from Transformers and provide your `OptimumModel`.
 
 </Tip>
 
@@ -34,10 +34,10 @@ Currenlty supported tasks are:
 
 ## Optimum pipeline usage
 
-While each task has an associated [~`pipeline`], which it is simpler to use the general [~`pipeline`] abstraction which contains all the specific task pipelines. 
-The [~`pipeline`] automatically loads a default model and tokenizer capable of inference for your task. 
+While each task has an associated [`~pipelines.pipeline`], which it is simpler to use the general [`~pipelines.pipeline`] abstraction which contains all the specific task pipelines. 
+The [`~pipelines.pipeline`] automatically loads a default model and tokenizer capable of inference for your task. 
 
-1. Start by creating a [~`pipeline`] and specify an inference task:
+1. Start by creating a [`~pipelines.pipeline`] and specify an inference task:
 
 ```python
 >>> from optimum.pipelines import pipeline
@@ -46,21 +46,21 @@ The [~`pipeline`] automatically loads a default model and tokenizer capable of i
 
 ```
 
-2. Pass your input text to the [~`pipeline`]:
+2. Pass your input text to the [`~pipelines.pipeline`]:
 
 ```python
 >>> classifier("I like you. I love you.")
 [{'label': 'POSITIVE', 'score': 0.9998838901519775}]
 ```
 
-_Note: The default models used in the [~`pipeline`] are not optimized or quantized, there won't be an performance improvement compared to there pytorch counter parts._
+_Note: The default models used in the [`~pipelines.pipeline`] are not optimized or quantized, there won't be an performance improvement compared to there pytorch counter parts._
 
 ### Using vanilla Transformers model and converting to ONNX
 
-The [`pipeline`] accepts any supported model from the [Model Hub](https://huggingface.co/models). 
+The [`~pipelines.pipeline`] accepts any supported model from the [Model Hub](https://huggingface.co/models). 
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
 Once you've picked an appropriate model, load it with the `from_pretrained("{model_id}",from_transformers=True)` method associated with the `ORTModelFor*` 
-[`AutoTokenizer'] class. For example, here's how you can load the [`ORTModelForQuestionAnswering`] class for question answering:
+`AutoTokenizer' class. For example, here's how you can load the [`~onnxruntime.ORTModelForQuestionAnswering`] class for question answering:
 
 ```python
 >>> from transformers import AutoTokenizer
@@ -80,10 +80,10 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 
 ### Using Optimum models
 
-The [`pipeline`] is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with OnnxRuntime. 
+The [`~pipelines.pipeline`] is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with OnnxRuntime. 
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
 Once you've picked an appropriate model, load it with the `from_pretrained()` method associated with the corresponding `ORTModelFor*`
-and [`AutoTokenizer'] class. For example, here's how you can load an optimized model for question answering:
+and `AutoTokenizer' class. For example, here's how you can load an optimized model for question answering:
 
 ```python
 >>> from transformers import AutoTokenizer
@@ -104,10 +104,10 @@ and [`AutoTokenizer'] class. For example, here's how you can load an optimized m
 
 ### Optimizing and Quantizing in Pipelines
 
-The [`pipeline`] can not only run inference on vanilla Onnxruntime checkpoints you can also use checkpoints optimized with `ORTQuantizer` and `ORTOptimizer`
-Below you can find two examples on how you could [~`ORTOptimizer`] and [~`ORTQuantizer`] to optimize/quantize your model and use it for inference afterwards.
+The [`~pipelines.pipeline`] can not only run inference on vanilla Onnxruntime checkpoints you can also use checkpoints optimized with `ORTQuantizer` and `ORTOptimizer`
+Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] and [`~onnxruntime.ORTQuantizer`] to optimize/quantize your model and use it for inference afterwards.
 
-### Quantizing with [~`ORTQuantizer`]
+### Quantizing with `ORTQuantizer`
 
 ```python
 >>> from pathlib import Path
@@ -152,7 +152,7 @@ Below you can find two examples on how you could [~`ORTOptimizer`] and [~`ORTQua
                   )
 ```
 
-### Optimizing with [~`ORTOptimizer`]
+### Optimizing with `ORTOptimizer`
 
 ```python
 >>> from pathlib import Path
@@ -197,7 +197,7 @@ Below you can find two examples on how you could [~`ORTOptimizer`] and [~`ORTQua
 
 ## Transformers pipeline usage
 
-The [`pipeline`] is just a light wrapper around the `transformers.pipeline` function to enable checks for supported tasks and additional features
+The [`~pipelines.pipeline`] is just a light wrapper around the `transformers.pipeline` function to enable checks for supported tasks and additional features
 , like quantization and optimization. This being said you can use the `transformers.pipeline` and just replace your `AutoFor*` with the optimum 
  `ORTModelFor*` class. 
 

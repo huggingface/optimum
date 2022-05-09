@@ -39,14 +39,13 @@ logger = logging.getLogger(__name__)
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 
 ONNX_MODEL_START_DOCSTRING = r"""
-    This model inherits from [`ORTModel`]. Check the superclass documentation for the generic methods the
+    This model inherits from [~`onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
     library implements for all its model (such as downloading or saving)
     Parameters:
-        config ([`PretrainedConfig`](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig)): Model configuration class with all the parameters of the model.
+        config (`transformers.PretrainedConfig`): [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig) is the Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the
-            configuration. Check out the [`~ORTModel.from_pretrained`] method to load the model weights.
-        model ([`onnxruntime.InferenceSession`](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession)): This is the main class used to run a model. Check out the [`~ORTModel.load_model`]
-        for more information.
+            configuration. Check out the [`~onnxruntime.modeling_ort.ORTModel.from_pretrained`] method to load the model weights.
+        model (`onnxruntime.InferenceSession`): [onnxruntime.InferenceSession](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession) is the main class used to run a model. Check out the [`~onnxruntime.modeling_ort.ORTModel.load_model`] for more information.
 """
 
 ONNX_INPUTS_DOCSTRING = r"""
@@ -100,9 +99,9 @@ class ORTModel(OptimizedModel):
         """
         loads ONNX Inference session with Provider. Default Provider is if CUDAExecutionProvider GPU available else `CPUExecutionProvider`
         Arguments:
-            path (:obj:`str` or :obj:`Path`):
+            path (`str` or `Path`):
                 Directory from which to load
-            provider(:obj:`str`):
+            provider(`str`, *optional*):
                 Onnxruntime provider to use for loading the model, defaults to `CUDAExecutionProvider` if GPU is
                 available else `CPUExecutionProvider`
         """
@@ -114,11 +113,11 @@ class ORTModel(OptimizedModel):
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
         Save a model and its configuration file to a directory, so that it can be re-loaded using the
-        `:func:`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`` class method. It will always save the latest_model_name.
+        [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the latest_model_name.
         Arguments:
-            save_directory (:obj:`str` or :obj:`Path`):
+            save_directory (`str` or `Path`):
                 Directory where to save the model file.
-            file_name(:obj:`str`):
+            file_name(`str`, *optional*):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to save the model with
                 a different name.
         """
@@ -143,22 +142,22 @@ class ORTModel(OptimizedModel):
         Load a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
         Arguments:
-            model_id (:obj:`str` or :obj:`Path`):
+            model_id (`str` or `Path`):
                 Directory from which to load
-            use_auth_token (:obj:`str` or :obj:`bool`):
+            use_auth_token (`str` or `bool`):
                 Is needed to load models from a private repository
-            revision (:obj:`str`):
+            revision (`str`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id
-            cache_dir (:obj:`Union[str, Path]`, `optional`):
+            cache_dir (`Union[str, Path]`, *optional*):
                 Path to a directory in which a downloaded pretrained model configuration should be cached if the
                 standard cache should not be used.
-            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            force_download (`bool`, *optional*, defaults to `False`):
                 Whether or not to force the (re-)download of the model weights and configuration files, overriding the
                 cached versions if they exist.
-            file_name(:obj:`str`):
+            file_name(`str`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
                 repository or directory.
-            kwargs (:obj:`Dict`, `optional`)::
+            kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
         config_dict = kwargs.pop("config", {})
@@ -199,22 +198,22 @@ class ORTModel(OptimizedModel):
         """
         Converts a vanilla Transformers model into an optimized model using `transformers.onnx.export_onnx`.
         Arguments:
-            model_id (:obj:`str` or :obj:`Path`):
+            model_id (`str` or `Path`):
                 Directory from which to load
-            save_dir (:obj:`str` or :obj:`Path`):
+            save_dir (`str` or `Path`):
                 Directory where the onnx model should be saved, default to `transformers.file_utils.default_cache_path`, which is the cache dir for
                 transformers.
-            use_auth_token (:obj:`str` or :obj:`bool`):
+            use_auth_token (`str` or `bool`):
                 Is needed to load models from a private repository
-            revision (:obj:`str`):
+            revision (`str`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id
-            cache_dir (:obj:`Union[str, Path]`, `optional`):
+            cache_dir (`Union[str, Path]`, *optional*):
                 Path to a directory in which a downloaded pretrained model configuration should be cached if the
                 standard cache should not be used.
-            force_download (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            force_download (`bool`, *optional*, defaults to `False`):
                 Whether or not to force the (re-)download of the model weights and configuration files, overriding the
                 cached versions if they exist.
-            kwargs (:obj:`Dict`, `optional`)::
+            kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
 

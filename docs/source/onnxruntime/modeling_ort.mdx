@@ -55,9 +55,9 @@ Optimum Inference also includes methods to convert vanilla Transformers models t
 
 You can find a complete walkhrough Optimum Inference for ONNX Runtime in this [notebook](xx).
 
-### Working with the [Hugging Face Model Hub](https://hf.co/models)
+### Working with the Hugging Face Model Hub
 
-The Optimum model classes like [`~ORTModelForSequenceClassification`] are integrated with the [Hugging Face Model Hub](https://hf.co/models)), which means you can not only 
+The Optimum model classes like [`~onnxruntime.ORTModelForSequenceClassification`] are integrated with the [Hugging Face Model Hub](https://hf.co/models)), which means you can not only 
 load model from the Hub, but also push your models to the Hub with `push_to_hub()` method. Below is an example which downloads a vanilla Transformers model 
 from the Hub and converts it to an optimum onnxruntime model and pushes it back into a new repository.
 
@@ -100,4 +100,8 @@ from the Hub and converts it to an optimum onnxruntime model and pushes it back 
 ## ORTModelForTokenClassification
 
 [[autodoc]] onnxruntime.modeling_ort.ORTModelForTokenClassification
+
+## ORTModelForCausalLM
+
+[[autodoc]] onnxruntime.modeling_ort.ORTModelForCausalLM
 
