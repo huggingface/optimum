@@ -57,7 +57,7 @@ _Note: The default models used in the [`~pipelines.pipeline`] function are not o
 
 ### Using vanilla Transformers model and converting to ONNX
 
-The [`~pipelines.pipeline`] accepts any supported model from the [Model Hub](https://huggingface.co/models). 
+The [`~pipelines.pipeline`] function accepts any supported model from the [Model Hub](https://huggingface.co/models). 
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
 Once you've picked an appropriate model, load it with the `from_pretrained("{model_id}",from_transformers=True)` method associated with the `ORTModelFor*` 
 `AutoTokenizer' class. For example, here's how you can load the [`~onnxruntime.ORTModelForQuestionAnswering`] class for question answering:
