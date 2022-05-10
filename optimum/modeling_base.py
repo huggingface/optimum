@@ -45,7 +45,7 @@ class OptimizedModel(ABC):
     ):
         """
         Save a model and its configuration file to a directory, so that it can be re-loaded using the
-        `[`~OptimizedModel.from_pretrained`]` class method.
+        [`~onnxruntime.modeling_ort.OptimizedModel.from_pretrained`] class method.
         Arguments:
             save_directory (`str` or `os.PathLike`):
                 Directory to which to save. Will be created if it doesn't exist.
@@ -79,7 +79,7 @@ class OptimizedModel(ABC):
     def _save_pretrained(self, save_directory, **kwargs):
         """
         Save a model weights into a directory, so that it can be re-loaded using the
-        `[`~OptimizedModel.from_pretrained`]` class method.
+        [`~onnxruntime.modeling_ort.OptimizedModel.from_pretrained`] class method.
         """
         pass
 
