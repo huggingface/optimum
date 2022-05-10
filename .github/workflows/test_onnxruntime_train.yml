@@ -54,19 +54,19 @@ jobs:
       - name: Build Image
         working-directory: examples/onnxruntime/training/docker
         run: |
-            docker build -f Dockerfile-ort1.9.0-cu102 -t ort9/cu10 .
+            docker build -f Dockerfile-ort1.11.1-cu113 -t ort11/cu11 .
       - name: Run Test
         run: |
             docker run --rm -p 80:8888 \
               --gpus all \
               -v $PWD:/workspace \
               --workdir=/workspace \
-              ort9/cu10:latest /bin/bash /run.sh    
+              ort11/cu11:latest /bin/bash examples/onnxruntime/training/docker/run.sh
 
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
-      - start-runner # required to get output from the start-runner job 
+      - start-runner # required to get output from the start-runner job
       - do-the-job # required to wait when the main job is done
     runs-on: ubuntu-latest
     env:
@@ -86,4 +86,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-runner.outputs.label }}
           ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
-          

@@ -71,11 +71,11 @@ class TestORTTrainer(unittest.TestCase):
                             max_train_samples = 200
                             max_valid_samples = 50
                             max_test_samples = 20
-                            train_dataset = encoded_dataset["train"].select(range(max_train_samples))
-                            valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
-                            test_dataset = (
-                                encoded_dataset["test"].remove_columns(["label"]).select(range(max_test_samples))
-                            )
+                            train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
+                            valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
+                            test_dataset = encoded_dataset["test"].remove_columns(
+                                ["label"]
+                            )  # .select(range(max_test_samples))
 
                             def compute_metrics(eval_pred):
                                 predictions = (
@@ -97,7 +97,6 @@ class TestORTTrainer(unittest.TestCase):
                                 warmup_steps=500,
                                 weight_decay=0.01,
                                 logging_dir=tmp_dir,
-                                fp16=True,
                             )
 
                             trainer = ORTTrainer(
@@ -177,9 +176,9 @@ class TestORTTrainer(unittest.TestCase):
                     max_train_samples = 100
                     max_valid_samples = 30
                     max_test_samples = 10
-                    train_dataset = encoded_dataset["train"].select(range(max_train_samples))
-                    valid_dataset = encoded_dataset["validation"].select(range(max_valid_samples))
-                    test_dataset = encoded_dataset["test"].select(range(max_test_samples))
+                    train_dataset = encoded_dataset["train"]  # .select(range(max_train_samples))
+                    valid_dataset = encoded_dataset["validation"]  # .select(range(max_valid_samples))
+                    test_dataset = encoded_dataset["test"]  # .select(range(max_test_samples))
 
                     def compute_metrics(eval_pred):
                         predictions, labels = eval_pred

@@ -11,15 +11,18 @@ GPU_DEVICES=${2:-"all"}
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu10:latest $CMD
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu11:latest $CMD
 
+# Configure torch_ort
+python -m torch_ort.configure
+
 # Install dependencies
 pip install transformers datasets
-pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu transformers datasets nltk sklearn
-pip install deepspeed fairscale mpi4py
+pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn
+pip install fairscale deepspeed mpi4py
 
 # Install apex
-git clone https://github.com/NVIDIA/apex \
-    && cd apex \
-    && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+# git clone https://github.com/NVIDIA/apex \
+#     && cd apex \
+#     && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
 # Run the test
 python -m unittest tests/onnxruntime/nightly_test_onnxruntime.py
