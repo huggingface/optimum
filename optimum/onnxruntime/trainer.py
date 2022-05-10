@@ -305,6 +305,11 @@ class ORTTrainer(Trainer):
         self.model_wrapped = model
 
         if args.deepspeed:
+            if is_deepspeed_zero3_enabled():
+                raise NotImplementedError(
+                    "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
+                )
+
             self.model = model
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
@@ -1227,7 +1232,9 @@ class ORTTrainer(Trainer):
         if model:
             model = model
         else:
-            self.model.to("cpu")
+            if not (self.args.fp16 and self.args.deepspeed):
+                # Taking CPU to export the model
+                self.model.to("cpu")
             model = unwrap_model(self.model)
 
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
