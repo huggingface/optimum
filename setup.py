@@ -28,8 +28,8 @@ QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
 EXTRAS_REQUIRE = {
     #  pip install -e ".[onnxruntime,dev,intel]"  git+https://github.com/huggingface/transformers.git@main --upgrade
-    "onnxruntime": ["onnx", "onnxruntime", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
-    "onnxruntime-gpu": ["onnx", "onnxruntime-gpu", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
+    "onnxruntime": ["onnx", "onnxruntime>=1.9.0", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
+    "onnxruntime-gpu": ["onnx", "onnxruntime-gpu>=1.9.0", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
     "intel": [
         "pycocotools",
         "neural_compressor>=1.9",
@@ -59,6 +59,7 @@ setup(
         "Intended Audience :: Education",
         "Intended Audience :: Science/Research",
         "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -72,7 +73,7 @@ setup(
     packages=find_namespace_packages(include=["optimum*"]),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
-    python_requires=">=3.8.0",
+    python_requires=">=3.7.0",
     include_package_data=True,
     zip_safe=False,
 )
