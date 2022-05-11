@@ -683,7 +683,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + TOKEN_CLASSIFICATION_SAMPLE.format(
+        + TEXT_GENERATION_SAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForCausalLM",
             checkpoint="optimum/gpt2",
