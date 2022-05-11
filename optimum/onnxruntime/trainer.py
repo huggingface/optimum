@@ -310,6 +310,13 @@ class ORTTrainer(Trainer):
                     "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
                 )
 
+            if args.bf16:
+                warnings.warn(
+                    "ONNX Runtime doesn't support BF16 for executing `Aten` operator. The execution will fail if"
+                    "there are any `Aten` op in the IR. The implementation is in progress from ONNX Runtime side, stay tuned!",
+                    RuntimeWarning,
+                )
+
             self.model = model
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
@@ -773,6 +780,13 @@ class ORTTrainer(Trainer):
             )
 
             logger.info("[INFO] Exporting the model to ONNX...")
+            if args.deepspeed and args.fp16:
+                warnings.warn(
+                    "Make sure that `transformers.onnx.export_pytorch` of the transformers verion supports "
+                    "exporting ONNX on cuda.",
+                    RuntimeWarning,
+                )
+
             with_loss = has_labels and not self.label_smoother
             self._export(onnx_model_path, with_loss=with_loss)
             self.exported_with_loss = with_loss
@@ -977,7 +991,15 @@ class ORTTrainer(Trainer):
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
+
             logger.info("[INFO] Exporting the model to ONNX...")
+            if args.deepspeed and args.fp16:
+                warnings.warn(
+                    "Make sure that `transformers.onnx.export_pytorch` of the transformers verion supports "
+                    "exporting ONNX on cuda.",
+                    RuntimeWarning,
+                )
+
             if has_labels:
                 self._export(onnx_model_path)
                 self.exported_with_loss = True
