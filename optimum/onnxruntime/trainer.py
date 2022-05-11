@@ -313,7 +313,7 @@ class ORTTrainer(Trainer):
             if args.bf16:
                 warnings.warn(
                     "ONNX Runtime doesn't support BF16 when executing `Aten` operators. The execution will fail if"
-                    "there are any `Aten` op in the IR. The implementation is in progress from ONNX Runtime side, stay tuned!",
+                    "there are any `Aten` op in the IR. Support for this in ONNX Runtime is currently in progress, stay tuned!",
                     RuntimeWarning,
                 )
 
