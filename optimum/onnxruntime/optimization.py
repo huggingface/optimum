@@ -21,8 +21,9 @@ from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
 from onnx import load_model
+from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
-from onnxruntime.transformers.optimizer import FusionOptions, get_fusion_statistics, optimize_model
+from onnxruntime.transformers.optimizer import get_fusion_statistics, optimize_model
 from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.utils import ORTConfigManager
 
