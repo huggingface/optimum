@@ -782,7 +782,7 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] Exporting the model to ONNX...")
             if args.deepspeed and args.fp16:
                 warnings.warn(
-                    "Make sure that `transformers.onnx.export_pytorch` of the transformers verion supports "
+                    "Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
                     "exporting ONNX on CUDA.",
                     RuntimeWarning,
                 )
