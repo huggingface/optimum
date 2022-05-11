@@ -783,7 +783,7 @@ class ORTTrainer(Trainer):
             if args.deepspeed and args.fp16:
                 warnings.warn(
                     "Make sure that `transformers.onnx.export_pytorch` of the transformers verion supports "
-                    "exporting ONNX on cuda.",
+                    "exporting ONNX on CUDA.",
                     RuntimeWarning,
                 )
 
