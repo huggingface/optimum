@@ -19,9 +19,11 @@ import unittest
 from functools import partial
 from pathlib import Path
 
+import numpy as np
+import torch
 from transformers import AutoTokenizer
-from transformers.onnx import validate_model_outputs
 
+from onnxruntime import InferenceSession
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
 from optimum.onnxruntime.configuration import (
@@ -66,13 +68,13 @@ class TestORTOptimizer(unittest.TestCase):
                         onnx_optimized_model_output_path=optimized_model_path,
                         optimization_config=optimization_config,
                     )
-                    validate_model_outputs(
-                        optimizer._onnx_config,
-                        optimizer.tokenizer,
-                        optimizer.model,
-                        optimized_model_path,
-                        list(optimizer._onnx_config.outputs.keys()),
-                        atol=1e-4,
+                    input = "This is a sample input"
+                    with torch.no_grad():
+                        original_outputs = optimizer.model(**optimizer.tokenizer(input, return_tensors="pt"))
+                    session = InferenceSession(optimized_model_path.as_posix(), providers=["CPUExecutionProvider"])
+                    optimized_outputs = session.run(None, dict(optimizer.tokenizer(input, return_tensors="np")))
+                    self.assertTrue(
+                        np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=1e-4)
                     )
                     gc.collect()
 
@@ -126,13 +128,13 @@ class TestORTQuantizer(unittest.TestCase):
                         calibration_tensors_range=None,
                         quantization_config=qconfig,
                     )
-                    validate_model_outputs(
-                        quantizer._onnx_config,
-                        quantizer.tokenizer,
-                        quantizer.model,
-                        q8_model_path,
-                        list(quantizer._onnx_config.outputs.keys()),
-                        atol=8e-1,
+                    input = "This is a sample input"
+                    with torch.no_grad():
+                        original_outputs = quantizer.model(**quantizer.tokenizer(input, return_tensors="pt"))
+                    session = InferenceSession(q8_model_path.as_posix(), providers=["CPUExecutionProvider"])
+                    optimized_outputs = session.run(None, dict(quantizer.tokenizer(input, return_tensors="np")))
+                    self.assertTrue(
+                        np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=8e-1)
                     )
                     gc.collect()
 
@@ -179,13 +181,13 @@ class TestORTQuantizer(unittest.TestCase):
                         calibration_tensors_range=ranges,
                         quantization_config=qconfig,
                     )
-                    validate_model_outputs(
-                        quantizer._onnx_config,
-                        quantizer.tokenizer,
-                        quantizer.model,
-                        q8_model_path,
-                        list(quantizer._onnx_config.outputs.keys()),
-                        atol=5e-1,
+                    input = "This is a sample input"
+                    with torch.no_grad():
+                        original_outputs = quantizer.model(**quantizer.tokenizer(input, return_tensors="pt"))
+                    session = InferenceSession(q8_model_path.as_posix(), providers=["CPUExecutionProvider"])
+                    optimized_outputs = session.run(None, dict(quantizer.tokenizer(input, return_tensors="np")))
+                    self.assertTrue(
+                        np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=5e-1)
                     )
                     gc.collect()
 
