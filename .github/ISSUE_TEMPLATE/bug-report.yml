@@ -23,7 +23,7 @@ body:
         
         - Pipelines: `@philschmid`
         - Export of transformers model to onnx: `@lewtun`, `@michaelbenayoun`
-        - OnnxRuntime: `@JingyaHuang`, `@echarlaix`
+        - ONNX Runtime: `@JingyaHuang`, `@echarlaix`
         - Intel Neural Compressor: `@echarlaix`
 
       placeholder: "@Username ..."
