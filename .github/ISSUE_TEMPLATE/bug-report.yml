@@ -6,7 +6,7 @@ body:
     id: system-info
     attributes:
       label: System Info
-      description: Please share your system info with us. Among others, you can run the command `transformers-cli env` and copy-paste its output below.
+      description: Please share your system info with us.
       render: shell
       placeholder: optimum version, platform, python version, ...
     validations:
