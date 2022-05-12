@@ -25,6 +25,8 @@ body:
         - Export of transformers model to onnx: `@lewtun`, `@michaelbenayoun`
         - ONNX Runtime: `@JingyaHuang`, `@echarlaix`
         - Intel Neural Compressor: `@echarlaix`
+        - Graphcore: `@michaelbenayoun`
+        - Habana: `@regisss`
 
       placeholder: "@Username ..."
 
