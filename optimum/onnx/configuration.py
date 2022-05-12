@@ -137,6 +137,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         preprocessor: Union["PreTrainedTokenizerBase", "FeatureExtractionMixin"],
         batch_size: int = -1,
         seq_length: int = -1,
+        num_choices: int = -1,
         is_pair: bool = False,
         framework: Optional[TensorType] = None,
         num_channels: int = 3,
@@ -171,6 +172,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             preprocessor,
             batch_size,
             seq_length,
+            num_choices,
             is_pair,
             framework,
             num_channels,
@@ -234,6 +236,7 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
         tokenizer: "PreTrainedTokenizerBase",
         batch_size: int = -1,
         seq_length: int = -1,
+        num_choices: int = -1,
         is_pair: bool = False,
         framework: Optional[TensorType] = None,
     ) -> Mapping[str, Any]:
@@ -242,6 +245,7 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
             tokenizer,
             batch_size,
             seq_length,
+            num_choices,
             is_pair,
             framework,
         )
