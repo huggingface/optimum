@@ -29,16 +29,19 @@ from transformers import (
     default_data_collator,
 )
 
-from optimum.onnxruntime import ORTTrainer, Seq2SeqORTTrainer
+from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
+
+
+nltk.download("punkt")
 
 
 class TestORTTrainer(unittest.TestCase):
-    # @unittest.skip("Skip to just test seq2seq.")
+    # @unittest.skip("Skip ORTTrainer test.")
     def test_ort_trainer(self):
 
-        model_names = {"distilbert-base-uncased", "bert-base-cased", "roberta-base", "gpt2", "facebook/bart-base"}
-        dataset_names = {"sst2"}  # glue
-        if_inference_with_ort = {True, False}
+        model_names = {"distilbert-base-uncased", "bert-base-cased", "roberta-base", "gpt2"}
+        dataset_names = {"sst2"}
+        if_inference_with_ort = {True}
 
         for model_name in model_names:
             for dataset_name in dataset_names:
@@ -97,7 +100,6 @@ class TestORTTrainer(unittest.TestCase):
                                 warmup_steps=500,
                                 weight_decay=0.01,
                                 logging_dir=tmp_dir,
-                                fp16=True,
                             )
 
                             trainer = ORTTrainer(
@@ -122,7 +124,7 @@ class TestORTTrainer(unittest.TestCase):
                             print("Prediction results:\n", ort_prediction)
                             gc.collect()
 
-    # @unittest.skip("Skip")
+    # @unittest.skip("Skip ORTSeq2SeqTrainer test.")
     def test_ort_seq2seq_trainer(self):
 
         model_names = {"t5-small", "facebook/bart-base"}
@@ -213,8 +215,6 @@ class TestORTTrainer(unittest.TestCase):
                         num_train_epochs=num_train_epochs,
                         predict_with_generate=predict_with_generate,
                         fp16=True,
-                        do_train=True,
-                        do_eval=True,
                         label_smoothing_factor=0.1,
                     )
 
@@ -225,11 +225,11 @@ class TestORTTrainer(unittest.TestCase):
                         pad_to_multiple_of=8 if training_args.fp16 else None,
                     )
 
-                    trainer = Seq2SeqORTTrainer(
+                    trainer = ORTSeq2SeqTrainer(
                         model=model,
                         args=training_args,
-                        train_dataset=train_dataset if training_args.do_train else None,
-                        eval_dataset=valid_dataset if training_args.do_eval else None,
+                        train_dataset=train_dataset,
+                        eval_dataset=valid_dataset,
                         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
                         tokenizer=tokenizer,
                         data_collator=data_collator,

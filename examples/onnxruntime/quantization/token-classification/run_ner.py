@@ -36,8 +36,9 @@ from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTModel, ORTQuantizer
+from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
@@ -86,6 +87,10 @@ class ModelArguments:
             "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
             "with private models)."
         },
+    )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -519,7 +524,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization_config=qconfig)
+    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -542,7 +547,12 @@ def main():
                 desc="Running tokenizer on the validation dataset",
             )
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            quantized_model_path,
+            quantizer._onnx_config,
+            execution_provider=model_args.execution_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
@@ -568,7 +578,12 @@ def main():
                 desc="Running tokenizer on the prediction dataset",
             )
 
-        ort_model = ORTModel(quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics)
+        ort_model = ORTModel(
+            quantized_model_path,
+            quantizer._onnx_config,
+            execution_provider=model_args.execution_provider,
+            compute_metrics=compute_metrics,
+        )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(outputs.predictions, axis=2)
 

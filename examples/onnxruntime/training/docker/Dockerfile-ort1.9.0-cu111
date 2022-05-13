@@ -6,6 +6,8 @@ CMD nvidia-smi
 RUN chsh -s /bin/bash
 SHELL ["/bin/bash", "-c"]
 
+# Temporary fix until NVDIA finish the update of its docker images
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils
 
 # Install and update tools to minimize security vulnerabilities

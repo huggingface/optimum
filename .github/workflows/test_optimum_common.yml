@@ -8,12 +8,16 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9]
         os: [ubuntu-20.04, windows-2019, macos-10.15]
 
     runs-on: ${{ matrix.os }}
@@ -28,9 +32,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install .[tests]
         ls -l optimum/
-    - name: Test with pytest
+    - name: Test with unittest
       shell: bash
       run: |
         # Setting HUGGINGFACE_CO_STAGING to true for only one job of the matrix as the staging tests cannot run in parallel.
         export HUGGINGFACE_CO_STAGING=${{ matrix.python-version == '3.8' && matrix.os == 'ubuntu-20.04' }}
-        pytest tests/test_*.py
+        python -m unittest discover -s tests -p 'test_*.py'

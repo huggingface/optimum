@@ -6,6 +6,8 @@ CMD nvidia-smi
 RUN chsh -s /bin/bash
 SHELL ["/bin/bash", "-c"]
 
+# Temporary fix until NVDIA finish the update of its docker images
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils
 
 # Install and update tools to minimize security vulnerabilities
@@ -16,7 +18,7 @@ RUN apt-get install -y software-properties-common wget apt-utils patchelf git li
 RUN unattended-upgrade
 RUN apt-get autoremove -y
 
-# Install conda 
+# Install conda
 RUN apt-get update
 RUN apt-get install -y wget bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 git mercurial subversion && \
         apt-get clean
@@ -33,19 +35,18 @@ ENV PATH /opt/conda/bin:$PATH
 
 # Create the environment:
 RUN conda update conda \
-	&& conda create -n venv_ort python=3.8 pip 
+	&& conda create -n venv_ort python=3.8 pip
 
 RUN echo "source activate venv_ort" > ~/.bashrc
 ENV PATH /opt/conda/envs/venv_ort/bin:$PATH
 ENV CONDA_DEFAULT_ENV $venv_ort
 
 # Install onnxruntime-training dependencies
-RUN pip install onnx==1.11.0 ninja
+RUN pip install onnx==1.10.2 ninja
 RUN pip install torch==1.9.0+cu102 torchvision==0.10.0+cu102 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip install onnxruntime-training==1.11.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu111.html
+RUN pip install onnxruntime-training==1.11.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu102.html
 RUN pip install torch-ort
 # RUN python -m torch_ort.configure
-# RUN pip install coloredlogs seqeval scipy transformers datasets sacrebleu
 
 WORKDIR .
 

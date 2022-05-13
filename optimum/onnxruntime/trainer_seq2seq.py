@@ -20,8 +20,6 @@ from packaging import version
 from torch import nn
 from torch.utils.data.dataset import Dataset
 from transformers.deepspeed import is_deepspeed_zero3_enabled
-
-# from transformers.integrations import is_deepspeed_zero3_enabled
 from transformers.trainer_utils import PredictionOutput
 from transformers.utils import logging
 
@@ -37,7 +35,7 @@ if version.parse(torch.__version__) >= version.parse("1.8"):
 logger = logging.get_logger(__name__)
 
 
-class Seq2SeqORTTrainer(ORTTrainer):
+class ORTSeq2SeqTrainer(ORTTrainer):
     def evaluate(
         self,
         eval_dataset: Optional[Dataset] = None,
