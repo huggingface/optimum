@@ -6,9 +6,12 @@ from transformers import (
     Pipeline,
     PreTrainedTokenizer,
     QuestionAnsweringPipeline,
+    SummarizationPipeline,
+    Text2TextGenerationPipeline,
     TextClassificationPipeline,
     TextGenerationPipeline,
     TokenClassificationPipeline,
+    TranslationPipeline,
     ZeroShotClassificationPipeline,
 )
 from transformers import pipeline as transformers_pipeline
@@ -24,6 +27,7 @@ if is_onnxruntime_available():
         ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForQuestionAnswering,
+        ORTModelForSeq2SeqLM,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
@@ -60,6 +64,21 @@ if is_onnxruntime_available():
             "class": (ORTModelForCausalLM,) if is_onnxruntime_available() else (),
             "default": "distilgpt2",
         },
+        "summarization": {
+            "impl": SummarizationPipeline,
+            "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
+            "default": "t5-base",
+        },
+        "translation": {
+            "impl": TranslationPipeline,
+            "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
+            "default": "t5-base",
+        },
+        "text2text-generation": {
+            "impl": Text2TextGenerationPipeline,
+            "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
+            "default": "t5-small",
+        },
     }
 
 
@@ -74,18 +93,20 @@ def pipeline(
     **kwargs,
 ) -> Pipeline:
 
-    if task not in list(SUPPORTED_TASKS.keys()):
-        raise ValueError(f"Task {task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
+    targeted_task = "translation" if task.startswith("translation") else task
+
+    if targeted_task not in list(SUPPORTED_TASKS.keys()):
+        raise ValueError(f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
 
     if accelerator != "ort":
         raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are ort")
 
     if model is None:
-        model_id = SUPPORTED_TASKS[task]["default"]
-        model = SUPPORTED_TASKS[task]["class"][0].from_pretrained(model_id, from_transformers=True)
+        model_id = SUPPORTED_TASKS[targeted_task]["default"]
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
     elif isinstance(model, str):
         model_id = model
-        model = SUPPORTED_TASKS[task]["class"][0].from_pretrained(model, from_transformers=True)
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model, from_transformers=True)
     elif isinstance(model, ORTModel):
         if tokenizer is None:
             raise ValueError("If you pass a model as a ORTModel, you must pass a tokenizer as well")

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from transformers.feature_extraction_utils import FeatureExtractionMixin
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
+import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
@@ -277,3 +278,70 @@ class OnnxSeq2SeqConfigWithPastAndLoss(OnnxConfigWithPastAndLoss):
         for key in reversed(extra_outputs.keys()):
             common_outputs.move_to_end(key, last=False)
         return copy.deepcopy(common_outputs)
+
+
+class EncoderOnnxConfig(OnnxConfig):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict(
+            [
+                ("input_ids", {0: "batch", 1: "sequence"}),
+                ("attention_mask", {0: "batch", 1: "sequence"}),
+                ("token_type_ids", {0: "batch", 1: "sequence"}),
+            ]
+        )
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict({"last_hidden_state": {0: "batch", 1: "sequence"}})
+
+
+class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = OrderedDict(
+            [
+                ("input_ids", {0: "batch", 1: "past_decoder_sequence + sequence"}),
+                ("encoder_hidden_states", {0: "batch", 1: "encoder_sequence"}),
+                ("encoder_attention_mask", {0: "batch", 1: "encoder_sequence"}),
+            ]
+        )
+        if self.use_past:
+            self.fill_with_past_key_values_(common_inputs, direction="inputs")
+
+        return common_inputs
+
+    def generate_dummy_inputs(
+        self,
+        tokenizer: "PreTrainedTokenizerBase",
+        batch_size: int = -1,
+        seq_length: int = -1,
+        is_pair: bool = False,
+        framework: Optional[TensorType] = None,
+    ) -> Mapping[str, Any]:
+        common_inputs = {}
+        dummy_input = super().generate_dummy_inputs(
+            tokenizer, batch_size=batch_size, seq_length=seq_length, is_pair=is_pair, framework=framework
+        )
+        batch = dummy_input["input_ids"].shape[0]
+        encoder_seq_length = dummy_input["input_ids"].shape[1]
+        encoder_hidden_states_shape = (batch, encoder_seq_length, self._config.hidden_size)
+        common_inputs["input_ids"] = dummy_input["decoder_input_ids"]
+        common_inputs["encoder_hidden_states"] = torch.zeros(encoder_hidden_states_shape)
+        common_inputs["encoder_attention_mask"] = dummy_input["attention_mask"]
+        if "past_key_values" in dummy_input:
+            common_inputs["past_key_values"] = dummy_input["past_key_values"]
+
+        return common_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super(OnnxConfigWithPast, self).outputs
+        self.fill_with_past_key_values_(common_outputs, direction="outputs")
+
+        return common_outputs
+
+    def fill_with_past_key_values_(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+        num_mha_per_layer = 4
+        for i in range(self.num_layers[0] * num_mha_per_layer):
+            inputs_or_outputs[f"past_key_values_{i}"] = {0: "batch", 2: "past_sequence + sequence"}

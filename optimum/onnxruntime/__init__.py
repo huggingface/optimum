@@ -57,6 +57,7 @@ from .modeling_ort import (
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
 )
+from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer
 from .trainer import ORTTrainer
