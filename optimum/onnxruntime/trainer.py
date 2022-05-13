@@ -95,7 +95,7 @@ import onnx
 import onnxruntime
 
 from .modeling_ort import ORTModel
-from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_for_loss
+from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
 
 
 if is_apex_available():
@@ -157,7 +157,6 @@ class ORTTrainer(Trainer):
 
         self.feature = feature
         self.onnx_model_path = onnx_model_path
-        # self.session_options = None
         self.exported_with_loss = False
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
