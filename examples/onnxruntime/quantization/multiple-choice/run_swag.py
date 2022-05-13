@@ -200,6 +200,10 @@ class OptimizationArguments:
             "set to True."
         },
     )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 def main():
@@ -403,7 +407,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization_config=qconfig)
+    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -427,7 +431,11 @@ def main():
             )
 
         ort_model = ORTModel(
-            quantized_model_path, quantizer._onnx_config, compute_metrics=compute_metrics, label_names=["label"]
+            quantized_model_path,
+            quantizer._onnx_config,
+            execution_provider=optim_args.execution_provider,
+            compute_metrics=compute_metrics,
+            label_names=["label"],
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
 
