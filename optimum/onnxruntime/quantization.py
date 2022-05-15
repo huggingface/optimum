@@ -323,7 +323,7 @@ class ORTQuantizer(ABC):
                 )
 
         LOGGER.info(
-            f"Creating {'dynamic' if quantization_config.is_static else 'static'} quantizer: {quantization_config}"
+            f"Creating {'static' if quantization_config.is_static else 'dynamic'} quantizer: {quantization_config}"
         )
 
         if preprocessor is not None:
