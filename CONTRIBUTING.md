@@ -60,7 +60,7 @@ If you would like to work on any of the open Issues:
 7. Once you're happy with your dataset script file, add your changes and make a commit to record your changes locally:
 
 	```bash
-	git add path/to/file
+	git add modified_file.py
 	git commit
 	```
 
