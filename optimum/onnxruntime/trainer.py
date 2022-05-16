@@ -312,8 +312,8 @@ class ORTTrainer(Trainer):
 
             if args.bf16:
                 warnings.warn(
-                    "ONNX Runtime doesn't support BF16 for executing `Aten` operator. The execution will fail if"
-                    "there are any `Aten` op in the IR. The implementation is in progress from ONNX Runtime side, stay tuned!",
+                    "ONNX Runtime doesn't support BF16 when executing `Aten` operators. The execution will fail if"
+                    "there are any `Aten` op in the IR. Support for this in ONNX Runtime is currently in progress, stay tuned!",
                     RuntimeWarning,
                 )
 
@@ -782,8 +782,8 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] Exporting the model to ONNX...")
             if self.args.deepspeed and self.args.fp16:
                 warnings.warn(
-                    "Make sure that `transformers.onnx.export_pytorch` of the transformers verion supports "
-                    "exporting ONNX on cuda.",
+                    "Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
+                    "exporting ONNX on CUDA.",
                     RuntimeWarning,
                 )
 
@@ -998,8 +998,8 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] Exporting the model to ONNX...")
             if args.deepspeed and args.fp16:
                 warnings.warn(
-                    "Make sure that `transformers.onnx.export_pytorch` of the transformers verion supports "
-                    "exporting ONNX on cuda.",
+                    "Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
+                    "exporting ONNX on CUDA.",
                     RuntimeWarning,
                 )
 
