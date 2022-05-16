@@ -780,7 +780,7 @@ class ORTTrainer(Trainer):
             )
 
             logger.info("[INFO] Exporting the model to ONNX...")
-            if args.deepspeed and args.fp16:
+            if self.args.deepspeed and self.args.fp16:
                 warnings.warn(
                     "Make sure that `transformers.onnx.export_pytorch` of the transformers verion supports "
                     "exporting ONNX on cuda.",
@@ -873,6 +873,9 @@ class ORTTrainer(Trainer):
             )
 
             # Update containers on host
+            print("The local rank is:", self.args.local_rank)
+            print("The trainer.device is:", self.args.device)
+            print("The device os loss is:", loss.device)
             if loss is not None:
                 if self.args.local_rank != -1:
                     loss = loss.to("cuda")
