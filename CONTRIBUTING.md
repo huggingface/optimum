@@ -57,7 +57,7 @@ If you would like to work on any of the open Issues:
 	make style
 	```
 
-7. Once you're happy with your dataset script file, add your changes and make a commit to record your changes locally:
+7.  Once you're happy with your changes, add the changed files using `git add` and make a commit with `git commit` to record your changes locally:
 
 	```bash
 	git add modified_file.py
