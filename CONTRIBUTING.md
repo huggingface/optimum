@@ -69,7 +69,7 @@ If you would like to work on any of the open Issues:
 
 	```bash
 	git fetch upstream
-	git rebase upstream/master
+	git rebase upstream/main
     ```
 
    Push the changes to your account using:
