@@ -101,24 +101,25 @@ class TokenClassificationProcessing(DatasetProcessing):
         all_labels = [[self.label_list[l] for l in label if l != -100] for label in eval_dataset[self.ref_keys[0]]]
         all_preds = []
         for i, data in enumerate(eval_dataset):
-            inputs = " ".join(data[self.data_keys["primary"]])
+            inputs = " ".join(data["tokens"])
             res = pipeline(inputs)
 
-            tokenized_inputs = pipeline.preprocess(inputs, offset_mapping=False)  # subideal as preprocess is run twice
-            token_to_word_id = tokenized_inputs.word_ids(batch_index=0)
+            # BatchEncoding.word_ids may be wrong so let's populate it ourselves
+            token_to_word_id = []
+            for j, word in enumerate(data["tokens"]):
+                preprocessed_inputs = pipeline.preprocess(word)
+                n_tokens = len([k for k in preprocessed_inputs.word_ids(0) if k != None])  # exclude None
+                token_to_word_id.extend([j] * n_tokens)
 
             # the pipeline may give as output labeled tokens that are part of the same word, keep track
             # of the indexing to match the true labels on words
             index_tokens_word_start = []
 
-            # TODO shouldn't we rather use "offset_mapping" here?
-            n_none = 0
             for j, word_index in enumerate(token_to_word_id):
-                if word_index is None:  # Special tokens added by the tokenizer are mapped to None
-                    n_none += 1
-
-                if word_index is not None and word_index != token_to_word_id[j - 1]:
-                    index_tokens_word_start.append(j - n_none)
+                if j == 0:
+                    index_tokens_word_start.append(j)
+                elif word_index != token_to_word_id[j - 1]:
+                    index_tokens_word_start.append(j)
 
             # keep only predictions that correspond to the beginning of a word
             preds = [res[index]["entity"] for index in index_tokens_word_start]
