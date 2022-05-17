@@ -1,8 +1,0 @@
-.git
-tests
-notebook
-examples
-docs
-*.onnx
-*.json
-*.log
