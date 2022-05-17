@@ -780,15 +780,18 @@ class ORTTrainer(Trainer):
             )
 
             logger.info("[INFO] Exporting the model to ONNX...")
+            # TODO: Need to specify the transformers version with CUDA support on ONNX export.
             if self.args.deepspeed and self.args.fp16:
-                warnings.warn(
-                    "Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
-                    "exporting ONNX on CUDA.",
-                    RuntimeWarning,
+                logger.warning(
+                    "[WARNING] Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
+                    "exporting ONNX on CUDA."
                 )
+                export_device = "cuda"
+            else:
+                export_device = "cpu"
 
             with_loss = has_labels and not self.label_smoother
-            self._export(onnx_model_path, with_loss=with_loss)
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
@@ -873,9 +876,6 @@ class ORTTrainer(Trainer):
             )
 
             # Update containers on host
-            print("The local rank is:", self.args.local_rank)
-            print("The trainer.device is:", self.args.device)
-            print("The device os loss is:", loss.device)
             if loss is not None:
                 if self.args.local_rank != -1:
                     loss = loss.to("cuda")
@@ -996,18 +996,20 @@ class ORTTrainer(Trainer):
             )
 
             logger.info("[INFO] Exporting the model to ONNX...")
-            if args.deepspeed and args.fp16:
-                warnings.warn(
-                    "Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
-                    "exporting ONNX on CUDA.",
-                    RuntimeWarning,
+            if self.args.deepspeed and self.args.fp16:
+                logger.warning(
+                    "[WARNING] Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
+                    "exporting ONNX on CUDA."
                 )
+                export_device = "cuda"
+            else:
+                export_device = "cpu"
 
             if has_labels:
-                self._export(onnx_model_path)
+                self._export(onnx_model_path, device=export_device)
                 self.exported_with_loss = True
             else:
-                self._export(onnx_model_path, with_loss=False)
+                self._export(onnx_model_path, with_loss=False, device=export_device)
                 self.exported_with_loss = False
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
@@ -1243,6 +1245,7 @@ class ORTTrainer(Trainer):
         model_path: os.PathLike,
         model: Optional[PreTrainedModel] = None,
         opset: Optional[int] = None,
+        device: str = "cpu",
         with_loss: bool = True,
     ) -> None:
         """
@@ -1251,6 +1254,8 @@ class ORTTrainer(Trainer):
         Args:
             onnx_model_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            device (`str`, *optional*, defaults to `cpu`):
+                The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
             with_loss (`bool`, defaults to `True`):
                 Whether to export ONNX model with the loss in outputs.
         """
@@ -1270,7 +1275,31 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        _ = export(preprocessor=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
+        # TODO: Need to specify the transformers version with CUDA support on ONNX export.
+        try:
+            _ = export(
+                preprocessor=self.tokenizer,
+                model=model,
+                config=onnx_config,
+                opset=opset,
+                output=model_path,
+                device=device,
+            )
+        except TypeError as err:
+            if self.args.deepspeed and self.args.fp16:
+                logger.warning(
+                    f"[WARNING] {err}. It seems that the "
+                    "installed Transformers version doesn't support ONNX export on CUDA. Check if "
+                    "`transformers.onnx.export_pytorch` supports exporting ONNX on CUDA. If not, upgrade "
+                    "your Transformers with `pip install --upgrade transformers`."
+                )
+            _ = export(
+                preprocessor=self.tokenizer,
+                model=model,
+                config=onnx_config,
+                opset=opset,
+                output=model_path,
+            )
 
     def _wrap_model(self, model, training=True):
         if is_sagemaker_mp_enabled():
