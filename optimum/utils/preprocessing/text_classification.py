@@ -86,10 +86,15 @@ class TextClassificationProcessing(DatasetProcessing):
 
             all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
 
-            # TODO support several columns (e.g. mnli)
-            preds = pipeline(inputs[self.data_keys["primary"]])
-            if len(preds) == 1:
-                preds = preds[0]
+            # we manually unroll the pipeline since it is broken
+            # see https://github.com/huggingface/transformers/issues/17305
+            if self.data_keys["secondary"]:
+                inps = [inputs[self.data_keys["primary"]], inputs[self.data_keys["secondary"]]]
+            else:
+                inps = inputs[self.data_keys["primary"]]
+            tokenized_inputs = pipeline.preprocess([inps])
+            model_outputs = pipeline.forward(tokenized_inputs)
+            preds = pipeline.postprocess(model_outputs)  # preds is a dict
 
             # Is always `label` as an output of pipeline?
             pred_id = np.array([self.config.label2id[preds["label"]]])
