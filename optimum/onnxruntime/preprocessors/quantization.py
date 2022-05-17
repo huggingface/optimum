@@ -34,11 +34,9 @@ class PreprocessorPass(ABC):
 
 
 class QuantizationPreprocessor:
-    __slots__ = ("_graph", "_model", "_passes")
+    __slots__ = ("_passes",)
 
-    def __init__(self, model_or_path: Union[str, PathLike, Path, bytes]):
-        self._graph = load_model(model_or_path.as_posix() if isinstance(model_or_path, Path) else model_or_path)
-        self._model = OnnxModel(self._graph)
+    def __init__(self):
         self._passes = []
 
     def from_config(self, config):
@@ -48,11 +46,13 @@ class QuantizationPreprocessor:
         if target not in self._passes:
             self._passes.append(target)
 
-    def collect(self) -> Tuple[Set[str], Set[str]]:
+    def collect(self, model_or_path: Union[str, PathLike, Path, bytes]) -> Tuple[Set[str], Set[str]]:
         global_nodes_to_quantize, global_nodes_to_exclude = set(), set()
+        _graph = load_model(model_or_path.as_posix() if isinstance(model_or_path, Path) else model_or_path)
+        _model = OnnxModel(_graph)
 
         for walking_pass in self._passes:
-            nodes_to_quantize, nodes_to_exclude = walking_pass(self._graph, self._model)
+            nodes_to_quantize, nodes_to_exclude = walking_pass(_graph, _model)
 
             if nodes_to_quantize is not None:
                 global_nodes_to_quantize.update(nodes_to_quantize)
