@@ -81,6 +81,7 @@ class FrameworkArgs(BaseModelNoExtra):
 class Versions(BaseModelNoExtra):
     transformers: str
     optimum: str
+    optimum_hash: Optional[str]
     onnxruntime: Optional[str]
     torch_ort: Optional[str]
 

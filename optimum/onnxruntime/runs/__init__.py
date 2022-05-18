@@ -1,14 +1,11 @@
 import copy
 import os
-import subprocess
 
-import transformers
 from datasets import load_metric
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum import version as optimum_version
 from optimum.pipelines import pipeline as _optimum_pipeline
 from optimum.runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 
@@ -98,32 +95,9 @@ class OnnxRuntimeRun(Run):
         model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
         self.torch_model = model_class.from_pretrained(run_config["model_name_or_path"])
 
-        cpu_info = subprocess.check_output(["lscpu"]).decode("utf-8")
-
-        self.return_body = {
-            "model_name_or_path": run_config["model_name_or_path"],
-            "model_type": self.torch_model.config.model_type,
-            "task": self.task,
-            "dataset": run_config["dataset"],
-            "quantization_approach": run_config["quantization_approach"],
-            "operators_to_quantize": run_config["operators_to_quantize"],
-            "node_exclusion": run_config["node_exclusion"],
-            "aware_training": run_config["aware_training"],
-            "per_channel": run_config["per_channel"],
-            "calibration": run_config["calibration"],
-            "framework": run_config["framework"],
-            "framework_args": run_config["framework_args"],
-            "hardware": cpu_info,  # is this ok?
-            "versions": {
-                "transformers": transformers.__version__,
-                "optimum": optimum_version.__version__,
-            },
-            "evaluation": {
-                "time": [],
-                "others": {"baseline": {}, "optimized": {}},
-            },
-            "metrics": run_config["metrics"],
-        }
+        self.return_body[
+            "model_type"
+        ] = self.torch_model.config.model_type  # return_body is initialized in parent class
 
     def _launch_time(self, trial):
         batch_size = trial.suggest_categorical("batch_size", self.batch_sizes)
@@ -192,23 +166,6 @@ class OnnxRuntimeRun(Run):
 
         self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
         self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
-
-    def load_datasets(self):
-        datasets_dict = self.processor.load_datasets()
-
-        self._eval_dataset = datasets_dict["eval"]
-        if self.static_quantization:
-            self._calibration_dataset = datasets_dict["calibration"]
-
-    def get_calibration_dataset(self):
-        if not hasattr(self, "_calibration_dataset"):
-            raise KeyError("No calibration dataset defined for this run.")
-        return self._calibration_dataset
-
-    def get_eval_dataset(self):
-        if not hasattr(self, "_eval_dataset"):
-            raise KeyError("No evaluation dataset defined for this run.")
-        return self._eval_dataset
 
     def finalize(self):
         if os.path.isfile(self.quantized_model_path):
