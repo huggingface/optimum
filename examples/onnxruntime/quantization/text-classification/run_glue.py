@@ -362,7 +362,7 @@ def main():
         and not is_regression
     ):
         # Some have all caps in their config, some don't.
-        label_name_to_id = {k.lower(): v for k, v in model_config.config.label2id.items()}
+        label_name_to_id = {k.lower(): v for k, v in model_config.label2id.items()}
         if list(sorted(label_name_to_id.keys())) == list(sorted(label_list)):
             label_to_id = {i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)}
         else:
