@@ -42,7 +42,7 @@ class Calibrator:
 
 class Run:
     def __init__(self, run_config: dict):
-        """Initialize the Run class holding methods to perform inference and evaluation given a query.
+        """Initialize the Run class holding methods to perform inference and evaluation given a config.
 
         A run compares a transformers model and an optimized model on latency/throughput, model size, and provided metrics.
 
