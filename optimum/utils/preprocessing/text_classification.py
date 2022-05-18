@@ -3,6 +3,7 @@ from typing import Dict, List
 
 from datasets import Dataset, Metric, load_dataset
 from transformers import PreTrainedTokenizerBase, TextClassificationPipeline
+from transformers import PretrainedConfig
 
 from .base import DatasetProcessing
 
@@ -14,12 +15,35 @@ class TextClassificationProcessing(DatasetProcessing):
 
         super().__init__(**kwargs)
         self.config = kwargs["config"]
+        self.label_to_id = None
 
     def load_datasets(self):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
         max_eval_samples = 100  # TODO remove this
+
+        # TODO support regression task
+        # Labels
+        # Trying to have good defaults here, don't hesitate to tweak to your needs.
+        is_regression = raw_datasets[self.eval_split].features[self.ref_keys[0]].dtype in ["float32", "float64"]
+        if not is_regression:
+            label_list = raw_datasets[self.eval_split].features[self.ref_keys[0]].names
+            num_labels = len(label_list)
+        else:
+            num_labels = 1
+
+        if self.config.label2id != PretrainedConfig(num_labels=num_labels).label2id and not is_regression:
+            # Some have all caps in their config, some don't.
+            label_name_to_id = {k.lower(): v for k, v in self.config.label2id.items()}
+            if list(sorted(label_name_to_id.keys())) == list(sorted(label_list)):
+                self.label_to_id = {i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)}
+            else:
+                print(
+                    "Your model seems to have been trained with labels, but they don't match the dataset: ",
+                    f"model labels: {list(sorted(label_name_to_id.keys()))}, dataset labels: {list(sorted(label_list))}."
+                    "\nIgnoring the model labels as a result.",
+                )
 
         # Preprocessing the raw_datasets
         def preprocess_function(
@@ -82,10 +106,7 @@ class TextClassificationProcessing(DatasetProcessing):
             else:
                 raise ValueError("Missing labels")
 
-            # the dataset label ids may be different from the label2id of predictions
-            label_text = self.config.id2label[labels]
-            label_id = self.config.label2id[label_text]
-            all_labels.append(label_id)
+            all_labels.append(labels)
 
             # we manually unroll the pipeline since it is broken
             # see https://github.com/huggingface/transformers/issues/17305
@@ -97,10 +118,14 @@ class TextClassificationProcessing(DatasetProcessing):
             model_outputs = pipeline.forward(tokenized_inputs)
             preds = pipeline.postprocess(model_outputs)  # preds is a dict
 
-            print("ref:", label_id)
-            print("pred:", self.config.label2id[preds["label"]])
-            print("-----")
-            all_preds.append(self.config.label2id[preds["label"]])
+            # the dataset label ids may be different from the label2id of predictions
+            if self.label_to_id is not None:
+                preds = self.config.label2id[preds["label"]]
+                preds = self.label_to_id[preds]
+            else:
+                preds = self.config.label2id[preds["label"]]
+
+            all_preds.append(preds)
 
         return all_labels, all_preds
 
