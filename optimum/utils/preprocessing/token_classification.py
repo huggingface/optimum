@@ -16,7 +16,7 @@ class TokenClassificationProcessing(DatasetProcessing):
         kwargs["tokenizer"]._tokenizer.pre_tokenizer = pre_tokenizers.Sequence([WhitespaceSplit()])
 
         if "secondary" in kwargs["data_keys"]:
-            raise ValueError("Only one data column is supported for now.")
+            raise ValueError("Only one data column is supported for token-classification.")
         else:
             kwargs["data_keys"]["secondary"] = None
 
@@ -49,7 +49,7 @@ class TokenClassificationProcessing(DatasetProcessing):
         else:
             self.label_list = get_label_list(raw_datasets["train"][self.ref_keys[0]])
 
-        max_eval_samples = 20  # TODO remove this
+        max_eval_samples = 100  # TODO remove this
 
         # Preprocessing the raw_datasets
         def preprocess_function(
@@ -101,12 +101,12 @@ class TokenClassificationProcessing(DatasetProcessing):
         all_labels = [[self.label_list[l] for l in label if l != -100] for label in eval_dataset[self.ref_keys[0]]]
         all_preds = []
         for i, data in enumerate(eval_dataset):
-            inputs = " ".join(data["tokens"])
+            inputs = " ".join(data[self.data_keys["primary"]])
             res = pipeline(inputs)
 
             # BatchEncoding.word_ids may be wrong so let's populate it ourselves
             token_to_word_id = []
-            for j, word in enumerate(data["tokens"]):
+            for j, word in enumerate(data[self.data_keys["primary"]]):
                 preprocessed_inputs = pipeline.preprocess(word)
                 n_tokens = len([k for k in preprocessed_inputs.word_ids(0) if k != None])  # exclude None
                 token_to_word_id.extend([j] * n_tokens)

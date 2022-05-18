@@ -1,19 +1,15 @@
 from functools import partial
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-import numpy as np
 from datasets import Dataset, Metric, load_dataset
-from transformers import PretrainedConfig, PreTrainedTokenizerBase, TextClassificationPipeline
-from transformers.trainer_pt_utils import nested_concat
+from transformers import PreTrainedTokenizerBase, TextClassificationPipeline
 
 from .base import DatasetProcessing
 
 
 class TextClassificationProcessing(DatasetProcessing):
     def __init__(self, **kwargs):
-        if "secondary" in kwargs["data_keys"]:
-            raise ValueError("Only one data column is supported for now.")
-        else:
+        if "secondary" not in kwargs["data_keys"]:
             kwargs["data_keys"]["secondary"] = None
 
         super().__init__(**kwargs)
@@ -23,7 +19,7 @@ class TextClassificationProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        max_eval_samples = 20  # TODO remove this
+        max_eval_samples = 100  # TODO remove this
 
         # Preprocessing the raw_datasets
         def preprocess_function(
@@ -73,18 +69,23 @@ class TextClassificationProcessing(DatasetProcessing):
         return datasets_dict
 
     def run_inference(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline):
-        all_labels = None
-        all_preds = None
+        all_labels = []
+        all_preds = []
         for _, inputs in enumerate(eval_dataset):
             has_labels = all(inputs.get(k) is not None for k in self.ref_keys)
             if has_labels:
-                labels = tuple(np.array([inputs.get(name)]) for name in self.ref_keys)
+                labels = tuple(inputs.get(name) for name in self.ref_keys)
                 if len(labels) == 1:
                     labels = labels[0]
+                else:
+                    raise ValueError("Only one label supported.")
             else:
                 raise ValueError("Missing labels")
 
-            all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+            # the dataset label ids may be different from the label2id of predictions
+            label_text = self.config.id2label[labels]
+            label_id = self.config.label2id[label_text]
+            all_labels.append(label_id)
 
             # we manually unroll the pipeline since it is broken
             # see https://github.com/huggingface/transformers/issues/17305
@@ -96,10 +97,10 @@ class TextClassificationProcessing(DatasetProcessing):
             model_outputs = pipeline.forward(tokenized_inputs)
             preds = pipeline.postprocess(model_outputs)  # preds is a dict
 
-            # Is always `label` as an output of pipeline?
-            pred_id = np.array([self.config.label2id[preds["label"]]])
-
-            all_preds = pred_id if all_preds is None else nested_concat(all_preds, pred_id, padding_index=-100)
+            print("ref:", label_id)
+            print("pred:", self.config.label2id[preds["label"]])
+            print("-----")
+            all_preds.append(self.config.label2id[preds["label"]])
 
         return all_labels, all_preds
 
