@@ -2,8 +2,7 @@ from functools import partial
 from typing import Dict, List
 
 from datasets import Dataset, Metric, load_dataset
-from transformers import PreTrainedTokenizerBase, TextClassificationPipeline
-from transformers import PretrainedConfig
+from transformers import PretrainedConfig, PreTrainedTokenizerBase, TextClassificationPipeline
 
 from .base import DatasetProcessing
 
