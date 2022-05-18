@@ -131,7 +131,7 @@ class Run(BaseModelNoExtra):
         return field_value
 
 
-class RunQuery(Run):
+class RunConfig(Run):
     batch_sizes: Optional[List[int]] = Field(
         [4, 8], description="Possibly several batch size to include in a single run"
     )

@@ -21,8 +21,8 @@ from .utils import task_ortmodel_map
 
 
 class OnnxRuntimeRun(Run):
-    def __init__(self, run_query):
-        super().__init__(run_query)
+    def __init__(self, run_config):
+        super().__init__(run_config)
 
         # Create the quantization configuration containing all the quantization parameters
         qconfig = QuantizationConfig(
@@ -31,43 +31,43 @@ class OnnxRuntimeRun(Run):
             mode=QuantizationMode.QLinearOps if self.static_quantization else QuantizationMode.IntegerOps,
             activations_dtype=QuantType.QInt8 if self.static_quantization else QuantType.QUInt8,
             weights_dtype=QuantType.QInt8,
-            per_channel=run_query["per_channel"],
+            per_channel=run_config["per_channel"],
             reduce_range=False,
-            operators_to_quantize=run_query["operators_to_quantize"],
+            operators_to_quantize=run_config["operators_to_quantize"],
         )
 
         quantizer = ORTQuantizer.from_pretrained(
-            run_query["model_name_or_path"],
+            run_config["model_name_or_path"],
             feature=get_autoclass_name(self.task),
-            opset=run_query["framework_args"]["opset"],
+            opset=run_config["framework_args"]["opset"],
         )
 
         self.tokenizer = copy.deepcopy(quantizer.tokenizer)
 
-        self.batch_sizes = run_query["batch_sizes"]
-        self.input_lengths = run_query["input_lengths"]
+        self.batch_sizes = run_config["batch_sizes"]
+        self.input_lengths = run_config["input_lengths"]
 
         self.model_path = "model.onnx"
         self.quantized_model_path = "quantized_model.onnx"
 
         processing_class = task_processing_map[self.task]
         self.processor = processing_class(
-            dataset_path=run_query["dataset"]["path"],
-            dataset_name=run_query["dataset"]["name"],
-            calibration_split=run_query["dataset"]["calibration_split"],
-            eval_split=run_query["dataset"]["eval_split"],
+            dataset_path=run_config["dataset"]["path"],
+            dataset_name=run_config["dataset"]["name"],
+            calibration_split=run_config["dataset"]["calibration_split"],
+            eval_split=run_config["dataset"]["eval_split"],
             tokenizer=self.tokenizer,
-            max_seq_length=run_query["dataset"]["max_seq_length"],  # not needed for some tasks?
-            data_keys=run_query["dataset"]["data_keys"],
-            ref_keys=run_query["dataset"]["ref_keys"],
+            max_seq_length=run_config["dataset"]["max_seq_length"],  # not needed for some tasks?
+            data_keys=run_config["dataset"]["data_keys"],
+            ref_keys=run_config["dataset"]["ref_keys"],
             static_quantization=self.static_quantization,
-            num_calibration_samples=run_query["calibration"]["num_calibration_samples"]
+            num_calibration_samples=run_config["calibration"]["num_calibration_samples"]
             if self.static_quantization
             else None,
             config=quantizer.model.config,
         )
 
-        self.metric_names = run_query["metrics"]
+        self.metric_names = run_config["metrics"]
 
         self.load_datasets()
 
@@ -96,23 +96,23 @@ class OnnxRuntimeRun(Run):
 
         # pytorch benchmark
         model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
-        self.torch_model = model_class.from_pretrained(run_query["model_name_or_path"])
+        self.torch_model = model_class.from_pretrained(run_config["model_name_or_path"])
 
         cpu_info = subprocess.check_output(["lscpu"]).decode("utf-8")
 
         self.return_body = {
-            "model_name_or_path": run_query["model_name_or_path"],
+            "model_name_or_path": run_config["model_name_or_path"],
             "model_type": self.torch_model.config.model_type,
             "task": self.task,
-            "dataset": run_query["dataset"],
-            "quantization_approach": run_query["quantization_approach"],
-            "operators_to_quantize": run_query["operators_to_quantize"],
-            "node_exclusion": run_query["node_exclusion"],
-            "aware_training": run_query["aware_training"],
-            "per_channel": run_query["per_channel"],
-            "calibration": run_query["calibration"],
-            "framework": run_query["framework"],
-            "framework_args": run_query["framework_args"],
+            "dataset": run_config["dataset"],
+            "quantization_approach": run_config["quantization_approach"],
+            "operators_to_quantize": run_config["operators_to_quantize"],
+            "node_exclusion": run_config["node_exclusion"],
+            "aware_training": run_config["aware_training"],
+            "per_channel": run_config["per_channel"],
+            "calibration": run_config["calibration"],
+            "framework": run_config["framework"],
+            "framework_args": run_config["framework_args"],
             "hardware": cpu_info,  # is this ok?
             "versions": {
                 "transformers": transformers.__version__,
@@ -122,7 +122,7 @@ class OnnxRuntimeRun(Run):
                 "time": [],
                 "others": {"raw": {}, "optimized": {}},
             },
-            "metrics": run_query["metrics"],
+            "metrics": run_config["metrics"],
         }
 
     def _launch_time(self, trial):

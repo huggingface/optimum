@@ -14,7 +14,7 @@ from .utils.preprocessing import (
     TextClassificationProcessing,
     TokenClassificationProcessing,
 )
-from .utils.runs import RunQuery
+from .utils.runs import RunConfig
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -41,24 +41,24 @@ class Calibrator:
 
 
 class Run:
-    def __init__(self, run_query: dict):
+    def __init__(self, run_config: dict):
         """Initialize the Run class holding methods to perform inference and evaluation given a query.
 
         A run compares a transformers model and an optimized model on latency/throughput, model size, and provided metrics.
 
         Args:
-            run_query (dict): Parameters to use for the run. TODO: See BaseModel doc for the expected arguments.
+            run_config (dict): Parameters to use for the run. TODO: See BaseModel doc for the expected arguments.
         """
-        RunQuery(**run_query)  # validate the data (useful if used as standalone)
+        RunConfig(**run_config)  # validate the data (useful if used as standalone)
 
-        self.task = run_query["task"]
+        self.task = run_config["task"]
 
-        if run_query["quantization_approach"] == "static":
+        if run_config["quantization_approach"] == "static":
             self.static_quantization = True
         else:
             self.static_quantization = False
 
-        search_space = {"batch_size": run_query["batch_sizes"], "input_length": run_query["input_lengths"]}
+        search_space = {"batch_size": run_config["batch_sizes"], "input_length": run_config["input_lengths"]}
 
         self.study = optuna.create_study(
             directions=["maximize", "minimize"],
