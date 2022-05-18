@@ -30,7 +30,14 @@ import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import (
+    AutoConfig,
+    EvalPrediction,
+    HfArgumentParser,
+    PretrainedConfig,
+    PreTrainedTokenizer,
+    TrainingArguments,
+)
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -304,16 +311,22 @@ def main():
         validation_split = "validation_matched" if data_args.task_name == "mnli" else "validation"
         if data_args.task_name is not None:
             is_regression = data_args.task_name == "stsb"
-            if not is_regression and training_args.do_predict:
+            if not is_regression:
                 label_list = raw_datasets[validation_split].features["label"].names
+                num_labels = len(label_list)
+            else:
+                num_labels = 1
         else:
             # Trying to have good defaults here, don't hesitate to tweak to your needs.
             is_regression = raw_datasets[validation_split].features["label"].dtype in ["float32", "float64"]
-            if not is_regression and training_args.do_predict:
+            if is_regression:
+                num_labels = 1
+            else:
                 # A useful fast method:
                 # https://huggingface.co/docs/datasets/package_reference/main_classes.html#datasets.Dataset.unique
                 label_list = raw_datasets[validation_split].unique("label")
                 label_list.sort()  # Let's sort it for determinism
+                num_labels = len(label_list)
 
         # Preprocessing the raw_datasets
         if data_args.task_name is not None:
@@ -328,6 +341,26 @@ def main():
                     sentence1_key, sentence2_key = non_label_column_names[:2]
                 else:
                     sentence1_key, sentence2_key = non_label_column_names[0], None
+        # Some models have set the order of the labels to use, so let's make sure we do use it.
+        label_to_id = None
+        model_config = AutoConfig.from_pretrained(model_args.model_name_or_path)
+        if (
+            model_config.label2id != PretrainedConfig(num_labels=num_labels).label2id
+            and data_args.task_name is not None
+            and not is_regression
+        ):
+            # Some have all caps in their config, some don't.
+            label_name_to_id = {k.lower(): v for k, v in model_config.config.label2id.items()}
+            if list(sorted(label_name_to_id.keys())) == list(sorted(label_list)):
+                label_to_id = {i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)}
+            else:
+                logger.warning(
+                    "Your model seems to have been trained with labels, but they don't match the dataset: ",
+                    f"model labels: {list(sorted(label_name_to_id.keys()))}, dataset labels: {list(sorted(label_list))}."
+                    "\nIgnoring the model labels as a result.",
+                )
+        elif data_args.task_name is None and not is_regression:
+            label_to_id = {v: i for i, v in enumerate(label_list)}
 
         def preprocess_function(examples, tokenizer: PreTrainedTokenizer, max_length: Optional[int] = None):
             # Tokenize the texts
@@ -339,6 +372,10 @@ def main():
             result = tokenizer(
                 *args, padding="max_length", max_length=min(max_length, tokenizer.model_max_length), truncation=True
             )
+
+            # Map labels to IDs (not necessary for GLUE tasks)
+            if label_to_id is not None and "label" in examples:
+                result["label"] = [(label_to_id[l] if l != -1 else -1) for l in examples["label"]]
             return result
 
         # Get the metric function
