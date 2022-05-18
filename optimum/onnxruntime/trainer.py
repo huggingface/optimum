@@ -877,19 +877,16 @@ class ORTTrainer(Trainer):
 
             # Update containers on host
             if loss is not None:
-                if self.args.local_rank != -1:
-                    loss = loss.to("cuda")
+                loss = loss.to(args.device)
                 losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
-                if self.args.local_rank != -1:
-                    logits = logits.to("cuda")
+                logits = logits.to(args.device)
                 logits = self._pad_across_processes(logits)
                 logits = self._nested_gather(logits)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
-                if self.args.local_rank != -1:
-                    labels = labels.to("cuda")
+                labels = labels.to(args.device)
                 labels = self._pad_across_processes(labels)
                 labels = self._nested_gather(labels)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
@@ -1087,11 +1084,14 @@ class ORTTrainer(Trainer):
                 model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
             if loss is not None:
+                loss = loss.to(args.device)
                 losses = loss.repeat(batch_size)
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
+                logits = logits.to(args.device)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
+                labels = labels.to(args.device)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
             self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
 
