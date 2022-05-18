@@ -341,6 +341,7 @@ def main():
                     sentence1_key, sentence2_key = non_label_column_names[:2]
                 else:
                     sentence1_key, sentence2_key = non_label_column_names[0], None
+
         # Some models have set the order of the labels to use, so let's make sure we do use it.
         label_to_id = None
         model_config = AutoConfig.from_pretrained(model_args.model_name_or_path)
