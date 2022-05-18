@@ -120,7 +120,7 @@ class OnnxRuntimeRun(Run):
             },
             "evaluation": {
                 "time": [],
-                "others": {"raw": {}, "optimized": {}},
+                "others": {"baseline": {}, "optimized": {}},
             },
             "metrics": run_config["metrics"],
         }
@@ -139,12 +139,12 @@ class OnnxRuntimeRun(Run):
         torch_benchmark = TimeBenchmark(
             self.torch_model, input_length, batch_size, has_token_type_ids=has_token_type_ids
         )
-        raw_time_metrics = torch_benchmark.execute()
+        baseline_time_metrics = torch_benchmark.execute()
 
         time_evaluation = {
             "batch_size": batch_size,
             "input_length": input_length,
-            "raw": raw_time_metrics,
+            "baseline": baseline_time_metrics,
             "optimized": optimized_time_metrics,
         }
 
@@ -175,22 +175,22 @@ class OnnxRuntimeRun(Run):
         eval_dataset = self.get_eval_dataset()
 
         # may be better to avoid to get labels twice
-        all_labels, all_preds_raw = self.processor.run_inference(eval_dataset, transformers_pipeline)
+        all_labels, all_preds_baseline = self.processor.run_inference(eval_dataset, transformers_pipeline)
         _, all_preds_optimized = self.processor.run_inference(eval_dataset, ort_pipeline)
 
-        raw_metrics_dict = {}
+        baseline_metrics_dict = {}
         optimized_metrics_dict = {}
 
         for metric_name in self.metric_names:
             metric = load_metric(metric_name)
-            raw_metrics_dict.update(
-                self.processor.get_metrics(predictions=all_preds_raw, references=all_labels, metric=metric)
+            baseline_metrics_dict.update(
+                self.processor.get_metrics(predictions=all_preds_baseline, references=all_labels, metric=metric)
             )
             optimized_metrics_dict.update(
                 self.processor.get_metrics(predictions=all_preds_optimized, references=all_labels, metric=metric)
             )
 
-        self.return_body["evaluation"]["others"]["raw"].update(raw_metrics_dict)
+        self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
         self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
 
     def load_datasets(self):
