@@ -96,8 +96,8 @@ class DatasetArgs(BaseModelNoExtra):
     name: Optional[str] = None
     calibration_split: Optional[str] = None
     eval_split: str
-    data_keys: Dict[str, Union[None, str]]  # TODO auto-infer AND check that right keys are provided?
-    ref_keys: List[str]  # TODO auto-infer
+    data_keys: Dict[str, Union[None, str]]  # TODO auto-infer with train-eval-index if available
+    ref_keys: List[str]  # TODO auto-infer with train-eval-index if available
     max_seq_length: Optional[int] = 128
 
 
@@ -113,7 +113,7 @@ class Run(BaseModelNoExtra):
     framework: Frameworks
     framework_args: FrameworkArgs
     aware_training: Optional[bool] = False
-    metrics: List[str]  # TODO check that the passed metrics are fine for the given task/dataset?
+    metrics: List[str]  # TODO check that the passed metrics are fine for the given task/dataset
 
     @validator("calibration")
     def calibration_check(cls, field_value, values):

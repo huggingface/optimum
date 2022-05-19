@@ -176,7 +176,7 @@ class TimeBenchmark:
         self.has_token_type_ids = has_token_type_ids
         self.model = model
 
-        # TODO parametrize
+        # TODO fix
         self.warmup_runs = 2
         self.benchmark_duration = 2
 

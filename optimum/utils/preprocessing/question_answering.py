@@ -70,8 +70,8 @@ class QuestionAnsweringProcessing(DatasetProcessing):
                 desc="Running tokenizer on calibration dataset",
             )
 
-            # TODO careful we don't remove required
             columns_to_remove = raw_datasets.column_names[self.calibration_split]
+            columns_to_remove = [name for name in columns_to_remove if name not in self.tokenizer.model_input_names]
             calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
 
             if self.num_calibration_samples is not None:
