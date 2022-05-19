@@ -3,6 +3,7 @@ from typing import Dict, List
 
 from datasets import Dataset, Metric, load_dataset
 from transformers import PretrainedConfig, PreTrainedTokenizerBase, TextClassificationPipeline
+from transformers.pipelines.text_classification import ClassificationFunction
 
 from .base import DatasetProcessing
 
@@ -22,17 +23,17 @@ class TextClassificationProcessing(DatasetProcessing):
 
         max_eval_samples = 100  # TODO remove this
 
-        # TODO support regression task
         # Labels
-        # Trying to have good defaults here, don't hesitate to tweak to your needs.
-        is_regression = raw_datasets[self.eval_split].features[self.ref_keys[0]].dtype in ["float32", "float64"]
-        if not is_regression:
+        if not self.task_args["is_regression"]:
             label_list = raw_datasets[self.eval_split].features[self.ref_keys[0]].names
             num_labels = len(label_list)
         else:
             num_labels = 1
 
-        if self.config.label2id != PretrainedConfig(num_labels=num_labels).label2id and not is_regression:
+        if (
+            self.config.label2id != PretrainedConfig(num_labels=num_labels).label2id
+            and not self.task_args["is_regression"]
+        ):
             # Some have all caps in their config, some don't.
             label_name_to_id = {k.lower(): v for k, v in self.config.label2id.items()}
             if list(sorted(label_name_to_id.keys())) == list(sorted(label_list)):
@@ -115,14 +116,18 @@ class TextClassificationProcessing(DatasetProcessing):
                 inps = inputs[self.data_keys["primary"]]
             tokenized_inputs = pipeline.preprocess([inps])
             model_outputs = pipeline.forward(tokenized_inputs)
-            preds = pipeline.postprocess(model_outputs)  # preds is a dict
+            # preds is a dict. No processing function is applied as not needed for score in the regression case
+            preds = pipeline.postprocess(model_outputs, function_to_apply=ClassificationFunction.NONE)
 
-            # the dataset label ids may be different from the label2id of predictions
-            if self.label_to_id is not None:
-                preds = self.config.label2id[preds["label"]]
-                preds = self.label_to_id[preds]
+            if not self.task_args["is_regression"]:
+                # the dataset label ids may be different from the label2id of predictions
+                if self.label_to_id is not None:
+                    preds = self.config.label2id[preds["label"]]
+                    preds = self.label_to_id[preds]
+                else:
+                    preds = self.config.label2id[preds["label"]]
             else:
-                preds = self.config.label2id[preds["label"]]
+                preds = preds["score"]
 
             all_preds.append(preds)
 

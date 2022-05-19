@@ -10,12 +10,12 @@ class DatasetProcessing:
         dataset_path: str,
         dataset_name: str,
         tokenizer: PreTrainedTokenizerBase,
-        max_seq_length: int,
         eval_split: str,
         static_quantization: bool,
         data_keys: Dict[str, str],
         ref_keys: List[str],
         config: PretrainedConfig,
+        task_args: Optional[Dict] = None,
         num_calibration_samples: Optional[int] = None,
         calibration_split: Optional[str] = None,
     ):
@@ -31,6 +31,8 @@ class DatasetProcessing:
             static_quantization (bool): Static quantization is used.
             data_keys (Dict[str, str]): Map "primary" and "secondary" to data column names.
             ref_keys (List[str]): References column names.
+            config (PretrainedConfig): Model configuration, useful for some tasks.
+            task_args(Optional[Dict], optional): Task-specific arguments.
             num_calibration_samples (Optional[int], optional): Number of calibration samples for static quantization. Defaults to None.
             calibration_split (Optional[str], optional): Calibration split (e.g. "train") for static quantization. Defaults to None.
         """
@@ -47,7 +49,7 @@ class DatasetProcessing:
         self.static_quantization = static_quantization
         self.data_keys = data_keys
         self.ref_keys = ref_keys
-        self.max_seq_length = max_seq_length
+        self.task_args = task_args
 
     def load_datasets(self):
         """Load calibration dataset if needed, and evaluation dataset.

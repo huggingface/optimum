@@ -98,12 +98,16 @@ class DatasetArgs(BaseModelNoExtra):
     eval_split: str
     data_keys: Dict[str, Union[None, str]]  # TODO auto-infer with train-eval-index if available
     ref_keys: List[str]  # TODO auto-infer with train-eval-index if available
-    max_seq_length: Optional[int] = 128
+
+
+class TaskArgs(BaseModelNoExtra):
+    is_regression: Optional[bool] = None
 
 
 class Run(BaseModelNoExtra):
     model_name_or_path: str
     task: str
+    task_args: Optional[TaskArgs] = None
     quantization_approach: QuantizationApproach
     dataset: DatasetArgs
     operators_to_quantize: List[str] = ["Add", "MatMul"]
@@ -115,26 +119,38 @@ class Run(BaseModelNoExtra):
     aware_training: Optional[bool] = False
     metrics: List[str]  # TODO check that the passed metrics are fine for the given task/dataset
 
-    @validator("calibration")
-    def calibration_check(cls, field_value, values):
-        if values["quantization_approach"] == "static":
-            assert field_value, "Calibration parameters should be passed for static quantization."
+    @validator("task")
+    def model_type_check(cls, field_value):
+        APIFeaturesManager.check_supported_task(task=field_value)
+        return field_value
+
+    @validator("task_args")
+    def task_args_check(cls, field_value, values):
+        if values["task"] == "text-classification":
+            message = "For text classification, whether the task is regression should be explicity specified in the task_args.is_regression key."
+            assert field_value, message
+            assert field_value.is_regression, message
         return field_value
 
     @validator("dataset")
     def dataset_check(cls, field_value, values):
         if values["quantization_approach"] == "static":
-            assert field_value.calibration_split, "Calibration split should be passed for static quantization."
+            assert (
+                field_value.calibration_split
+            ), "Calibration split should be passed for static quantization in the dataset.calibration_split key."
+        return field_value
+
+    @validator("calibration")
+    def calibration_check(cls, field_value, values):
+        if values["quantization_approach"] == "static":
+            assert (
+                field_value
+            ), "Calibration parameters should be passed for static quantization in the calibration key."
         return field_value
 
     @validator("aware_training")
     def aware_training_check(cls, field_value):
         assert field_value == False, "Quantization aware-training not supported."
-        return field_value
-
-    @validator("task")
-    def model_type_check(cls, field_value):
-        APIFeaturesManager.check_supported_task(task=field_value)
         return field_value
 
 

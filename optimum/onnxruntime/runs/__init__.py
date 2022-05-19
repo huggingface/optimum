@@ -54,9 +54,9 @@ class OnnxRuntimeRun(Run):
             calibration_split=run_config["dataset"]["calibration_split"],
             eval_split=run_config["dataset"]["eval_split"],
             tokenizer=self.tokenizer,
-            max_seq_length=run_config["dataset"]["max_seq_length"],  # not needed for some tasks?
             data_keys=run_config["dataset"]["data_keys"],
             ref_keys=run_config["dataset"]["ref_keys"],
+            task_args=run_config["task_args"],
             static_quantization=self.static_quantization,
             num_calibration_samples=run_config["calibration"]["num_calibration_samples"]
             if self.static_quantization
