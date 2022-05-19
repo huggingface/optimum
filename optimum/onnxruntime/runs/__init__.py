@@ -73,7 +73,9 @@ class OnnxRuntimeRun(Run):
         ranges = None
         if self.static_quantization:
             calibration_dataset = self.get_calibration_dataset()
-            calibrator = OnnxRuntimeCalibrator(calibration_dataset, quantizer, self.model_path, qconfig)
+            calibrator = OnnxRuntimeCalibrator(
+                calibration_dataset, quantizer, self.model_path, qconfig, calibration_params=run_config["calibration"]
+            )
             ranges = calibrator.calibrate()
 
         # Export the quantized model

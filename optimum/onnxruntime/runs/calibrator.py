@@ -1,3 +1,5 @@
+from typing import Dict
+
 from datasets import Dataset
 
 from optimum.onnxruntime.configuration import AutoCalibrationConfig
@@ -9,13 +11,19 @@ from ..configuration import QuantizationConfig
 
 class OnnxRuntimeCalibrator(Calibrator):
     def __init__(
-        self, calibration_dataset: Dataset, quantizer: ORTQuantizer, model_path: str, qconfig: QuantizationConfig
+        self,
+        calibration_dataset: Dataset,
+        quantizer: ORTQuantizer,
+        model_path: str,
+        qconfig: QuantizationConfig,
+        calibration_params: Dict,
     ):
         super().__init__(
             calibration_dataset=calibration_dataset,
             quantizer=quantizer,
             model_path=model_path,
             qconfig=qconfig,
+            calibration_params=calibration_params,
         )
 
         # Remove the unnecessary columns of the calibration dataset before the calibration step
@@ -23,9 +31,9 @@ class OnnxRuntimeCalibrator(Calibrator):
 
     def calibrate(self):
         # Create the calibration configuration given the selected calibration method
-        if self.calibration_params["calibration_method"] == "entropy":
+        if self.calibration_params["method"] == "entropy":
             calibration_config = AutoCalibrationConfig.entropy(self.calibration_dataset)
-        elif self.calibration_params["calibration_method"] == "percentile":
+        elif self.calibration_params["method"] == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
                 self.calibration_dataset,
                 percentile=self.calibration_params["calibration_histogram_percentile"],

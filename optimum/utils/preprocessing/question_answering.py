@@ -1,8 +1,8 @@
 from functools import partial
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from datasets import Dataset, Metric, load_dataset
-from transformers import PretrainedConfig, PreTrainedTokenizerBase, QuestionAnsweringPipeline
+from transformers import PreTrainedTokenizerBase, QuestionAnsweringPipeline
 
 from .base import DatasetProcessing
 
@@ -20,9 +20,12 @@ class QuestionAnsweringProcessing(DatasetProcessing):
 
         # Preprocessing the raw_datasets
         def preprocess_function(
-            examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase, max_length: int
+            examples,
+            data_keys: Dict[str, str],
+            tokenizer: PreTrainedTokenizerBase,
         ):
-            doc_stride = min(max_length // 2, 128)
+            max_seq_len = min(tokenizer.model_max_length, 384)
+            doc_stride = min(max_seq_len // 2, 128)
 
             # Some of the questions have lots of whitespace on the left, which is not useful and will make the
             # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
@@ -39,10 +42,10 @@ class QuestionAnsweringProcessing(DatasetProcessing):
                 text=examples[data_keys["question"] if pad_on_right else data_keys["context"]],
                 text_pair=examples[data_keys["context"] if pad_on_right else data_keys["question"]],
                 truncation="only_second" if pad_on_right else "only_first",
-                max_length=min(max_length, tokenizer.model_max_length),
+                max_length=max_seq_len,
                 stride=doc_stride,
-                return_overflowing_tokens=True,
-                return_offsets_mapping=True,
+                return_overflowing_tokens=False,  # not needed as we don't care about labels
+                return_offsets_mapping=False,  # not needed as we don't care about labels
                 padding="max_length",
             )
             return tokenized_examples
@@ -61,7 +64,6 @@ class QuestionAnsweringProcessing(DatasetProcessing):
                     preprocess_function,
                     tokenizer=self.tokenizer,
                     data_keys=self.data_keys,
-                    max_length=self.max_seq_length,
                 ),
                 batched=True,
                 load_from_cache_file=True,

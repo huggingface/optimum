@@ -56,7 +56,7 @@ class BaseModelNoExtra(BaseModel):
 
 
 class Calibration(BaseModelNoExtra):
-    calibration_method: CalibrationMethods
+    method: CalibrationMethods
     num_calibration_samples: int
     calibration_histogram_percentile: Optional[float] = None
     calibration_moving_average: Optional[bool] = None
@@ -104,8 +104,8 @@ class DatasetArgs(BaseModelNoExtra):
 class Run(BaseModelNoExtra):
     model_name_or_path: str
     task: str
-    dataset: DatasetArgs
     quantization_approach: QuantizationApproach
+    dataset: DatasetArgs
     operators_to_quantize: List[str] = ["Add", "MatMul"]
     node_exclusion: List[str] = []
     per_channel: Optional[bool] = False
@@ -116,9 +116,15 @@ class Run(BaseModelNoExtra):
     metrics: List[str]  # TODO check that the passed metrics are fine for the given task/dataset?
 
     @validator("calibration")
-    def calibratio_check(cls, field_value, values):
+    def calibration_check(cls, field_value, values):
         if values["quantization_approach"] == "static":
             assert field_value, "Calibration parameters should be passed for static quantization."
+        return field_value
+
+    @validator("dataset")
+    def dataset_check(cls, field_value, values):
+        if values["quantization_approach"] == "static":
+            assert field_value.calibration_split, "Calibration split should be passed for static quantization."
         return field_value
 
     @validator("aware_training")
