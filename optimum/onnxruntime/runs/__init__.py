@@ -68,8 +68,7 @@ class OnnxRuntimeRun(Run):
 
         self.load_datasets()
 
-        # quantization_preprocessor = QuantizationPreprocessor()
-        quantization_preprocessor = None
+        quantization_preprocessor = QuantizationPreprocessor()
         ranges = None
         if self.static_quantization:
             calibration_dataset = self.get_calibration_dataset()
@@ -84,7 +83,7 @@ class OnnxRuntimeRun(Run):
             onnx_quantized_model_output_path=self.quantized_model_path,
             calibration_tensors_range=ranges,
             quantization_config=qconfig,
-            preprocessor=quantization_preprocessor,  # TODO
+            preprocessor=quantization_preprocessor,
         )
 
         # onnxruntime benchmark

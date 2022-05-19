@@ -61,7 +61,7 @@ class OnnxRuntimeCalibrator(Calibrator):
                 calibration_config=calibration_config,
                 onnx_model_path=self.model_path,
                 operators_to_quantize=self.qconfig.operators_to_quantize,
-                batch_size=8,  # TODO set as arg?
+                batch_size=8,
                 use_external_data_format=False,
             )
         ranges = self.quantizer.compute_ranges()
