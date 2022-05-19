@@ -46,16 +46,14 @@ class TextClassificationProcessing(DatasetProcessing):
                 )
 
         # Preprocessing the raw_datasets
-        def preprocess_function(
-            examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase, max_length: int
-        ):
+        def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
             # Tokenize the texts
 
             tokenized_inputs = tokenizer(
                 text=examples[data_keys["primary"]],
                 text_pair=examples[data_keys["secondary"]] if data_keys["secondary"] else None,
                 padding="max_length",
-                max_length=min(max_length, tokenizer.model_max_length),
+                max_length=tokenizer.model_max_length,
                 truncation=True,
             )
             return tokenized_inputs
@@ -74,7 +72,6 @@ class TextClassificationProcessing(DatasetProcessing):
                     preprocess_function,
                     tokenizer=self.tokenizer,
                     data_keys=self.data_keys,
-                    max_length=self.max_seq_length,
                 ),
                 batched=True,
                 load_from_cache_file=True,
