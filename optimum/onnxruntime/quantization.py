@@ -323,12 +323,12 @@ class ORTQuantizer(ABC):
                 )
 
         LOGGER.info(
-            f"Creating {'dynamic' if quantization_config.is_static else 'static'} quantizer: {quantization_config}"
+            f"Creating {'static' if quantization_config.is_static else 'dynamic'} quantizer: {quantization_config}"
         )
 
         if preprocessor is not None:
             LOGGER.info("Preprocessor detected, collecting nodes to include/exclude")
-            nodes_to_quantize, nodes_to_exclude = preprocessor.collect()
+            nodes_to_quantize, nodes_to_exclude = preprocessor.collect(onnx_model_path)
 
             nodes_to_quantize.update(quantization_config.nodes_to_quantize)
             nodes_to_exclude.update(quantization_config.nodes_to_exclude)

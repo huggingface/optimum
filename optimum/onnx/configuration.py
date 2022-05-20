@@ -169,15 +169,15 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         """
         # Generate dummy labels
         dummy_inputs = super().generate_dummy_inputs(
-            preprocessor,
-            batch_size,
-            seq_length,
-            is_pair,
-            framework,
-            num_channels,
-            image_width,
-            image_height,
-            tokenizer,
+            preprocessor=preprocessor,
+            batch_size=batch_size,
+            seq_length=seq_length,
+            is_pair=is_pair,
+            framework=framework,
+            num_channels=num_channels,
+            image_width=image_width,
+            image_height=image_height,
+            tokenizer=tokenizer,
         )
         label_batch_size = compute_effective_axis_dimension(
             batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
@@ -241,10 +241,10 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
 
         dummy_inputs = self._onnx_config.generate_dummy_inputs(
             tokenizer,
-            batch_size,
-            seq_length,
-            is_pair,
-            framework,
+            batch_size=batch_size,
+            seq_length=seq_length,
+            is_pair=is_pair,
+            framework=framework,
         )
         label_batch_size = compute_effective_axis_dimension(
             batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0

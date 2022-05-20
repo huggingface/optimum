@@ -448,7 +448,8 @@ def main():
     )
 
     ranges = None
-    quantization_preprocessor = None
+    # Create a quantization preprocessor to determine the nodes to exclude
+    quantization_preprocessor = QuantizationPreprocessor()
     if apply_static_quantization:
         # Preprocess the calibration dataset
         if "train" not in raw_datasets:
@@ -501,8 +502,6 @@ def main():
             )
         ranges = quantizer.compute_ranges()
 
-        # Create a quantization preprocessor to determine the nodes to exclude when applying static quantization
-        quantization_preprocessor = QuantizationPreprocessor(model_path)
         # Exclude the nodes constituting LayerNorm
         quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
         # Exclude the nodes constituting GELU
