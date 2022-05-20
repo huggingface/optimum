@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, DefaultDict, Dict, Mapping, Optional, Set, Tuple, Union
 
 import torch
-from transformers import AutoConfig, AutoTokenizer, PretrainedConfig
+from transformers import AutoConfig, AutoTokenizer, PretrainedConfig, AutoModelForSeq2SeqLM
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
@@ -39,7 +39,10 @@ logger = logging.getLogger(__name__)
 
 
 class ORTModelForSeq2SeqLM(ORTModel):
-    base_model_prefix = "onnx_model"
+    """
+    Sequence-to-sequence model with a language modeling head for ONNX.
+    """
+    auto_model_class = AutoModelForSeq2SeqLM
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
