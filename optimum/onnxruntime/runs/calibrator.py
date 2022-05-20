@@ -50,7 +50,7 @@ class OnnxRuntimeCalibrator(Calibrator):
         if not 1 <= num_calibration_shards <= len(self.calibration_dataset):
             raise ValueError(
                 f"Invalid value of number of shards {num_calibration_shards} chosen to split the calibration"
-                f" dataset, should be higher than 0 and lower or equal to the number of samples "
+                " dataset, should be higher than 0 and lower or equal to the number of samples "
                 f"{len(self.calibration_dataset)}."
             )
 

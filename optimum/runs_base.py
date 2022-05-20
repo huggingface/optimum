@@ -99,7 +99,6 @@ class Run:
                 "time": [],
                 "others": {"baseline": {}, "optimized": {}},
             },
-            "metrics": run_config["metrics"],
         }
 
     def launch(self):

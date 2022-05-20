@@ -90,6 +90,14 @@ class Evaluation(BaseModelNoExtra):
     time: List[Dict]
     others: Dict
 
+    @validator("others")
+    def others_check(cls, field_value):
+        assert "baseline" in field_value
+        assert "optimized" in field_value
+        for metric_name, metric_dict in field_value["baseline"].items():
+            assert metric_dict.keys() == field_value["optimized"][metric_name].keys()
+        return field_value
+
 
 class DatasetArgs(BaseModelNoExtra):
     path: str
@@ -117,7 +125,6 @@ class Run(BaseModelNoExtra):
     framework: Frameworks
     framework_args: FrameworkArgs
     aware_training: Optional[bool] = False
-    metrics: List[str]  # TODO check that the passed metrics are fine for the given task/dataset
 
     @validator("task")
     def model_type_check(cls, field_value):
@@ -128,8 +135,8 @@ class Run(BaseModelNoExtra):
     def task_args_check(cls, field_value, values):
         if values["task"] == "text-classification":
             message = "For text classification, whether the task is regression should be explicity specified in the task_args.is_regression key."
-            assert field_value, message
-            assert field_value.is_regression, message
+            assert field_value != None, message
+            assert field_value.is_regression != None, message
         return field_value
 
     @validator("dataset")
@@ -155,6 +162,7 @@ class Run(BaseModelNoExtra):
 
 
 class RunConfig(Run):
+    metrics: List[str]  # TODO check that the passed metrics are fine for the given task/dataset
     batch_sizes: Optional[List[int]] = Field(
         [4, 8], description="Possibly several batch size to include in a single run"
     )

@@ -41,8 +41,8 @@ class TextClassificationProcessing(DatasetProcessing):
             else:
                 print(
                     "Your model seems to have been trained with labels, but they don't match the dataset: ",
-                    f"model labels: {list(sorted(label_name_to_id.keys()))}, dataset labels: {list(sorted(label_list))}."
-                    "\nIgnoring the model labels as a result.",
+                    f"model labels: {list(sorted(label_name_to_id.keys()))}, dataset labels:"
+                    f" {list(sorted(label_list))}.\nIgnoring the model labels as a result.",
                 )
 
         # Preprocessing the raw_datasets
