@@ -12,9 +12,6 @@ from .base import DatasetProcessing
 
 class TokenClassificationProcessing(DatasetProcessing):
     def __init__(self, **kwargs):
-        # this is very ugly and may break with some datasets. See https://github.com/huggingface/transformers/issues/17139
-        kwargs["tokenizer"]._tokenizer.pre_tokenizer = pre_tokenizers.Sequence([WhitespaceSplit()])
-
         if "secondary" in kwargs["data_keys"]:
             raise ValueError("Only one data column is supported for token-classification.")
         else:
@@ -101,7 +98,7 @@ class TokenClassificationProcessing(DatasetProcessing):
             inputs = " ".join(data[self.data_keys["primary"]])
             res = pipeline(inputs)
 
-            # BatchEncoding.word_ids may be wrong so let's populate it ourselves
+            # BatchEncoding.word_ids may be wrong as we joined words with " ", so let's populate it ourselves
             token_to_word_id = []
             for j, word in enumerate(data[self.data_keys["primary"]]):
                 preprocessed_inputs = pipeline.preprocess(word)
