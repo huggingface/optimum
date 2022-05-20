@@ -6,8 +6,8 @@ import torch
 from transformers import (
     AutoModel,
     AutoModelForCausalLM,
-    AutoModelForSeq2SeqLM,
     AutoModelForQuestionAnswering,
+    AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
     AutoTokenizer,
@@ -19,18 +19,17 @@ import onnxruntime
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
-    ORTModelForSeq2SeqLM,
     ORTModelForFeatureExtraction,
     ORTModelForQuestionAnswering,
+    ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
-
-from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 
 
 class ORTModelIntergrationTest(unittest.TestCase):
