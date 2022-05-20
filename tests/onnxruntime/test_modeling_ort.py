@@ -6,6 +6,7 @@ import torch
 from transformers import (
     AutoModel,
     AutoModelForCausalLM,
+    AutoModelForSeq2SeqLM,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
@@ -18,6 +19,7 @@ import onnxruntime
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
+    ORTModelForSeq2SeqLM,
     ORTModelForFeatureExtraction,
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
@@ -27,6 +29,8 @@ from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
+
+from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 
 
 class ORTModelIntergrationTest(unittest.TestCase):
@@ -481,3 +485,79 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+
+class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "t5": "t5-small",
+        "bart": "facebook/bart-base",
+    }
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_supported_transformers_architectures(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        self.assertIsInstance(model.model, ORTModelForConditionalGeneration)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_generate_utils(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
+        outputs = model.generate(**tokens)
+        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertTrue(isinstance(res[0], str))
+        self.assertTrue(len(res[0]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_generate_utils_with_input_ids(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
+        outputs = model.generate(input_ids=tokens["input_ids"])
+        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertTrue(isinstance(res[0], str))
+        self.assertTrue(len(res[0]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_text_generation(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Wolfgang and i live"
+        outputs = pp(text)
+
+        # compare model output class
+        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
+        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_text_generation(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Wolfgang and i live"
+        outputs = pp(text)
+
+        # compare model output class
+        self.assertTrue(isinstance(outputs[0]["summary_text"], str))
+        self.assertTrue(len(outputs[0]["summary_text"]) < len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_text_generation(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("translation", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Wolfgang and i live"
+        outputs = pp(text)
+
+        # compare model output class
+        self.assertTrue(isinstance(outputs[0]["translation_text"], str))
