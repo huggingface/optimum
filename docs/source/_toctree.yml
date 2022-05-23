@@ -30,3 +30,7 @@
   - local: intel/trainer
     title: Trainer
   title: Intel Neural Compressor
+- sections:
+  - local: benchmark
+    title: Benchmark Optimum models
+  title: API Reference

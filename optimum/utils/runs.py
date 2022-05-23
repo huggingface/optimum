@@ -1,8 +1,6 @@
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from transformers import AutoConfig
-
 from pydantic import BaseModel, Extra, Field, validator
 
 
