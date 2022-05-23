@@ -24,17 +24,17 @@ class DatasetProcessing:
         This class should be task-dependent, backend independent.
 
         Args:
-            dataset_path (str): Dataset path (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.path)
-            dataset_name (str): Dataset name (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.name)
-            tokenizer (PreTrainedTokenizerBase): Tokenizer used for evaluation.
-            eval_split (str): Dataset split used for evaluation (e.g. "test").
-            static_quantization (bool): Static quantization is used.
-            data_keys (Dict[str, str]): Map "primary" and "secondary" to data column names.
-            ref_keys (List[str]): References column names.
-            config (PretrainedConfig): Model configuration, useful for some tasks.
-            task_args(Optional[Dict], optional): Task-specific arguments.
-            num_calibration_samples (Optional[int], optional): Number of calibration samples for static quantization. Defaults to None.
-            calibration_split (Optional[str], optional): Calibration split (e.g. "train") for static quantization. Defaults to None.
+            dataset_path (`str`): Dataset path (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.path)
+            dataset_name (`str`): Dataset name (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.name)
+            tokenizer (`PreTrainedTokenizerBase`): Tokenizer used for evaluation.
+            eval_split (`str`): Dataset split used for evaluation (e.g. "test").
+            static_quantization (`bool`): Static quantization is used.
+            data_keys (`Dict[str, str]`): Map "primary" and "secondary" to data column names.
+            ref_keys (`List[str]`): References column names.
+            config (`PretrainedConfig`): Model configuration, useful for some tasks.
+            task_args(`Dict`, *optional*): Task-specific arguments.
+            num_calibration_samples (`int`, *optional*): Number of calibration samples for static quantization. Defaults to None.
+            calibration_split (`str`, *optional*): Calibration split (e.g. "train") for static quantization. Defaults to None.
         """
 
         if len(ref_keys) != 1:
@@ -57,7 +57,7 @@ class DatasetProcessing:
         The evaluation dataset is meant to be used by a pipeline and is therefore not preprocessed. The calibration dataset is preprocessed.
 
         Returns:
-            dict: Dictionary holding the datasets.
+            `Dict`: Dictionary holding the datasets.
         """
         raise NotImplementedError()
 
@@ -65,12 +65,13 @@ class DatasetProcessing:
         """Run inference on the provided dataset using a pipeline, and return all labels, predictions.
 
         Args:
-            eval_dataset (Dataset): Raw dataset to run inference on.
-            pipeline (QuestionAnsweringPipeline): Pipeline used for inference. Should be initialized beforehand.
+            eval_dataset (`Dataset`): Raw dataset to run inference on.
+            pipeline (`Pipeline`): Pipeline used for inference. Should be initialized beforehand.
 
         Returns:
-            list: List of labels.
-            list: List of predictions on the dataset using the pipeline.
+            `tuple(List)` comprising labels and predictions:
+            - **labels** are the references for evaluation.
+            - **predictions** are the predictions on the dataset using the pipeline.
         """
         raise NotImplementedError()
 
@@ -78,12 +79,12 @@ class DatasetProcessing:
         """Compute a metric given pre-formatted predictions and references.
 
         Args:
-            predictions (List): Predictions.
-            references (List): References.
-            metric (Metric): Pre-loaded metric to run evaluation on.
+            predictions (`List`): Predictions.
+            references (`List`): References.
+            metric (`Metric`): Pre-loaded metric to run evaluation on.
 
         Returns:
-            dict: Computed metrics.
+            `Dict`: Computed metrics.
         """
         raise NotImplementedError()
 
@@ -91,6 +92,6 @@ class DatasetProcessing:
         """Get task-specific kwargs to initialize the pipeline.
 
         Returns:
-            dict: Task-specific kwargs to initialize the pipeline.
+            `Dict`: Task-specific kwargs to initialize the pipeline.
         """
         raise NotImplementedError()

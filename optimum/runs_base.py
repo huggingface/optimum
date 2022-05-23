@@ -50,7 +50,7 @@ class Run:
         A run compares a transformers model and an optimized model on latency/throughput, model size, and provided metrics.
 
         Args:
-            run_config (dict): Parameters to use for the run. TODO: See BaseModel doc for the expected arguments.
+            run_config (dict): Parameters to use for the run. See [`~utils.runs.RunConfig`] for the expected keys.
         """
         RunConfig(**run_config)  # validate the data (useful if used as standalone)
 
@@ -107,7 +107,7 @@ class Run:
         These metrics are latency, throughput, model size, and user provided metrics.
 
         Returns:
-            dict: Finalized run data with metrics stored in the "evaluation" key
+            `dict`: Finalized run data with metrics stored in the "evaluation" key.
         """
         try:
             self.study.optimize(self._launch_time, n_trials=100, timeout=600)
@@ -120,7 +120,7 @@ class Run:
     def _launch_time(self, trial):
         """Optuna objective function to measure latency/throughput.
 
-        Populate the ["evaluation"]["time"] list of the run for various batch size and input length.
+        Populate the `["evaluation"]["time"]` list of the run for various batch size and input length.
 
         Returns:
             Dummy data.
@@ -131,12 +131,12 @@ class Run:
         """
         Run evaluation on the original and optimized model.
 
-        Populate the ["evaluation"]["others"] subdictionary of the run.
+        Populate the `["evaluation"]["others"]` subdictionary of the run.
         """
         raise NotImplementedError()
 
     def load_datasets(self):
-        """Load evaluation dataset, and if needed, calibration dataset."""
+        """Load evaluation dataset, and if needed, calibration dataset for static quantization."""
         datasets_dict = self.processor.load_datasets()
 
         self._eval_dataset = datasets_dict["eval"]
@@ -144,13 +144,22 @@ class Run:
             self._calibration_dataset = datasets_dict["calibration"]
 
     def get_calibration_dataset(self):
-        """Failsafe get calibration dataset."""
+        """Get calibration dataset. The dataset needs to be loaded first with [`~optimum.runs_base.Run.load_datasets`].
+
+        Returns:
+            `datasets.Dataset`: Calibration dataset.
+        """
         if not hasattr(self, "_calibration_dataset"):
             raise KeyError("No calibration dataset defined for this run.")
         return self._calibration_dataset
 
     def get_eval_dataset(self):
-        """Failsafe get evaluation dataset."""
+        """
+        Get evaluation dataset.  The dataset needs to be loaded first with [`~optimum.runs_base.Run.load_datasets`].
+
+         Returns:
+            `datasets.Dataset`: Evaluation dataset.
+        """
         if not hasattr(self, "_eval_dataset"):
             raise KeyError("No evaluation dataset defined for this run.")
         return self._eval_dataset

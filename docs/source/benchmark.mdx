@@ -16,9 +16,30 @@ specific language governing permissions and limitations under the License.
 
 [[autodoc]] optimum.runs_base.Run
     - __init__
-    - all
+    - launch
+    - load_datasets
+    - get_calibration_dataset
+    - get_eval_dataset
 
 ## RunConfig
 
 [[autodoc]] optimum.utils.runs.RunConfig
     - all
+
+[[autodoc]] optimum.utils.runs.Calibration
+    - all
+
+[[autodoc]] optimum.utils.runs.DatasetArgs
+    - all
+
+[[autodoc]] optimum.utils.runs.TaskArgs
+    - all
+
+## Processing utility methods
+
+[[autodoc]] optimum.utils.preprocessing.base.DatasetProcessing
+    - __init__
+    - load_datasets
+    - run_inference
+    - get_metrics
+    - get_pipeline_kwargs
