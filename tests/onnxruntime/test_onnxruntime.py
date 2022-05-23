@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from transformers import AutoTokenizer
+from onnx import load as onnx_load
 
 from onnxruntime import InferenceSession
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
@@ -102,7 +103,12 @@ class TestORTOptimizer(unittest.TestCase):
 
 class TestORTQuantizer(unittest.TestCase):
     def test_dynamic_quantization(self):
-        model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
+        num_expected_quantized_matmul_per_model = {
+            "bert-base-cased": 72,
+            "roberta-base": 72,
+            "distilbert-base-uncased": 36,
+            "facebook/bart-base": 96,
+        }
 
         qconfig = QuantizationConfig(
             is_static=False,
@@ -115,7 +121,7 @@ class TestORTQuantizer(unittest.TestCase):
             operators_to_quantize=["MatMul"],
         )
 
-        for model_name in model_names:
+        for model_name in num_expected_quantized_matmul_per_model:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
@@ -128,18 +134,16 @@ class TestORTQuantizer(unittest.TestCase):
                         calibration_tensors_range=None,
                         quantization_config=qconfig,
                     )
-                    input = "This is a sample input"
-                    with torch.no_grad():
-                        original_outputs = quantizer.model(**quantizer.tokenizer(input, return_tensors="pt"))
-                    session = InferenceSession(q8_model_path.as_posix(), providers=["CPUExecutionProvider"])
-                    optimized_outputs = session.run(None, dict(quantizer.tokenizer(input, return_tensors="np")))
-                    self.assertTrue(
-                        np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=8e-1)
-                    )
+                    quantized_model = onnx_load(q8_model_path)
+                    num_quantized_matmul = 0
+                    for initializer in quantized_model.graph.initializer:
+                        if "MatMul" in initializer.name and "quantized" in initializer.name:
+                            num_quantized_matmul += 1
+                    self.assertEqual(num_expected_quantized_matmul_per_model[model_name], num_quantized_matmul)
                     gc.collect()
 
     def test_static_quantization(self):
-        model_names = {"bert-base-cased"}
+        num_expected_quantized_matmul_per_model = {"bert-base-cased": 72}
 
         qconfig = QuantizationConfig(
             is_static=True,
@@ -155,7 +159,7 @@ class TestORTQuantizer(unittest.TestCase):
         def preprocess_function(examples, tokenizer):
             return tokenizer(examples["sentence"], padding="max_length", max_length=128, truncation=True)
 
-        for model_name in model_names:
+        for model_name in num_expected_quantized_matmul_per_model:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
@@ -181,14 +185,13 @@ class TestORTQuantizer(unittest.TestCase):
                         calibration_tensors_range=ranges,
                         quantization_config=qconfig,
                     )
-                    input = "This is a sample input"
-                    with torch.no_grad():
-                        original_outputs = quantizer.model(**quantizer.tokenizer(input, return_tensors="pt"))
-                    session = InferenceSession(q8_model_path.as_posix(), providers=["CPUExecutionProvider"])
-                    optimized_outputs = session.run(None, dict(quantizer.tokenizer(input, return_tensors="np")))
-                    self.assertTrue(
-                        np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=5e-1)
-                    )
+
+                    quantized_model = onnx_load(q8_model_path)
+                    num_quantized_matmul = 0
+                    for initializer in quantized_model.graph.initializer:
+                        if "MatMul" in initializer.name and "quantized" in initializer.name:
+                            num_quantized_matmul += 1
+                    self.assertEqual(num_expected_quantized_matmul_per_model[model_name], num_quantized_matmul)
                     gc.collect()
 
 
