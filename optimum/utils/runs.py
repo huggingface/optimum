@@ -5,6 +5,7 @@ from pydantic import BaseModel, Extra, Field, validator
 
 from .doc import generate_doc_basemodel
 
+
 class APIFeaturesManager:
     _SUPPORTED_TASKS = ["text-classification", "token-classification", "question-answering"]
 
@@ -58,7 +59,9 @@ class BaseModelNoExtra(BaseModel):
 class Calibration(BaseModelNoExtra):
     """Parameters for post-training calibration with static quantization."""
 
-    method: CalibrationMethods = Field(..., description="Calibration method used, either \"minmax\", \"entropy\" or \"percentile\".")
+    method: CalibrationMethods = Field(
+        ..., description='Calibration method used, either "minmax", "entropy" or "percentile".'
+    )
     num_calibration_samples: int = Field(
         ..., description="Number of examples to use for the calibration step resulting from static quantization."
     )
@@ -134,6 +137,7 @@ class TaskArgs(BaseModelNoExtra):
         None, description="Text classification specific. Set whether the task is regression (output = one float)."
     )
 
+
 @generate_doc_basemodel
 class Run(BaseModelNoExtra):
     model_name_or_path: str = Field(..., description="Name of the model hosted on the Hub to use for the run.")
@@ -146,9 +150,12 @@ class Run(BaseModelNoExtra):
         ..., description="Dataset to use. Several keys must be set on top of the dataset name."
     )
     operators_to_quantize: Optional[List[str]] = Field(
-        ["Add", "MatMul"], description="Operators to quantize, doing no modifications to others (default: `[\"Add\", \"MatMul\"]`)."
+        ["Add", "MatMul"],
+        description='Operators to quantize, doing no modifications to others (default: `["Add", "MatMul"]`).',
     )
-    node_exclusion: Optional[List[str]] = Field([], description="Specific nodes to exclude from being quantized (default: `[]`).")
+    node_exclusion: Optional[List[str]] = Field(
+        [], description="Specific nodes to exclude from being quantized (default: `[]`)."
+    )
     per_channel: Optional[bool] = Field(False, description="Whether to quantize per channel (default: `False`).")
     calibration: Optional[Calibration] = Field(
         None, description="Calibration parameters, in case static quantization is used."
@@ -198,7 +205,9 @@ class Run(BaseModelNoExtra):
 class RunConfig(Run):
     """Parameters defining a run. A run is an evaluation of a triplet (model, dataset, metric) coupled with optimization parameters, allowing to compare a transformers baseline and a model optimized with Optimum."""
 
-    metrics: List[str] = Field(..., description="List of metrics to evaluate on.")  # TODO check that the passed metrics are fine for the given task/dataset
+    metrics: List[str] = Field(
+        ..., description="List of metrics to evaluate on."
+    )  # TODO check that the passed metrics are fine for the given task/dataset
     batch_sizes: Optional[List[int]] = Field(
         [4, 8], description="Batch sizes to include in the run to measure time metrics."
     )
