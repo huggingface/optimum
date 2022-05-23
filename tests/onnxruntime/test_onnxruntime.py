@@ -105,7 +105,7 @@ class TestORTQuantizer(unittest.TestCase):
     def test_dynamic_quantization(self):
         num_expected_quantized_matmul_per_model = {
             "bert-base-cased": 72,
-            "roberta-base": 72,
+            # "roberta-base": 72,
             "distilbert-base-uncased": 36,
             "facebook/bart-base": 96,
         }
