@@ -208,6 +208,9 @@ class ORTModelForSeq2SeqLM(ORTModel):
     def generate(self, *args, **kwargs):
         return self.model.generate(*args, **kwargs)
 
+    def forward(self, *args, **kwargs):
+        return self.model.forward(*args, **kwargs)
+
 
 class ORTEncoder(torch.nn.Module):
     def __init__(self, encoder):

@@ -17,6 +17,9 @@ from transformers import (
 
 import onnxruntime
 from optimum.onnxruntime import (
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    ONNX_ENCODER_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
@@ -39,6 +42,7 @@ class ORTModelIntergrationTest(unittest.TestCase):
         self.LOCAL_MODEL_PATH = "assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
+        self.ONNX_SEQ2SEQ_MODEL_ID = "echarlaix/t5-small-onnx"
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
@@ -48,6 +52,11 @@ class ORTModelIntergrationTest(unittest.TestCase):
     def test_load_model_from_hub(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_seq2seq_model_from_hub(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+        self.assertIsInstance(model.model, ORTModelForConditionalGeneration)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_without_onnx_model(self):
@@ -65,9 +74,20 @@ class ORTModelIntergrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
             model.save_pretrained(tmpdirname)
-            # folder contains all config files and pytorch_model.bin
+            # folder contains all config files and ONNX exported model
             folder_contents = os.listdir(tmpdirname)
             self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
+            self.assertTrue(CONFIG_NAME in folder_contents)
+
+    def test_save_seq2seq_model(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+            model.save_pretrained(tmpdirname)
+            folder_contents = os.listdir(tmpdirname)
+            # Verify config and ONNX exported encoder, decoder and decoder present in folder
+            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
             self.assertTrue(CONFIG_NAME in folder_contents)
 
     @require_hf_token
@@ -499,6 +519,23 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, ORTModelForConditionalGeneration)
         self.assertIsInstance(model.config, PretrainedConfig)
 
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            model = ORTModelForSeq2SeqLM.from_pretrained("t5-small", from_transformers=False)
+        self.assertTrue("Unrecognized configuration class", context.exception)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_model_call(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        decoder_start_token_id = trfs_model.config.decoder_start_token_id
+        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        outputs = model(**tokens, **decoder_inputs)
+        self.assertTrue("logits" in outputs)
+        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils(self, *args, **kwargs):
         model_arch, model_id = args
@@ -509,7 +546,6 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         outputs = model.generate(**tokens)
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertTrue(isinstance(res[0], str))
-        self.assertTrue(len(res[0]) > len(text))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils_with_input_ids(self, *args, **kwargs):
@@ -521,7 +557,21 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertTrue(isinstance(res[0], str))
-        self.assertTrue(len(res[0]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_compare_to_transformers(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        trfs_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        decoder_start_token_id = model.config.decoder_start_token_id
+        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        onnx_outputs = onnx_model(**tokens, **decoder_inputs)
+        with torch.no_grad():
+            trtfs_outputs = trfs_model(**tokens, **decoder_inputs)
+        # Compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
@@ -529,12 +579,11 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         pp = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
-        text = "My Name is Wolfgang and i live"
+        text = "This is a test"
         outputs = pp(text)
 
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
-        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
@@ -542,20 +591,19 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         pp = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
-        text = "My Name is Wolfgang and i live"
+        text = "This is a test"
         outputs = pp(text)
 
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["summary_text"], str))
-        self.assertTrue(len(outputs[0]["summary_text"]) < len(text))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("translation", model=onnx_model, tokenizer=tokenizer)
-        text = "My Name is Wolfgang and i live"
+        pp = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
+        text = "This is a test"
         outputs = pp(text)
 
         # compare model output class
