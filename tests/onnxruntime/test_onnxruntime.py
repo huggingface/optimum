@@ -22,8 +22,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from transformers import AutoTokenizer
-from onnx import load as onnx_load
 
+from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
