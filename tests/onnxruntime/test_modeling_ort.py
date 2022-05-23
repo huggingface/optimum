@@ -530,7 +530,7 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        decoder_start_token_id = trfs_model.config.decoder_start_token_id
+        decoder_start_token_id = model.config.decoder_start_token_id
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         outputs = model(**tokens, **decoder_inputs)
         self.assertTrue("logits" in outputs)
@@ -565,7 +565,7 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         trfs_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        decoder_start_token_id = model.config.decoder_start_token_id
+        decoder_start_token_id = trfs_model.config.decoder_start_token_id
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
         with torch.no_grad():
