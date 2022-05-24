@@ -57,7 +57,7 @@ class ORTOptimizerTest(unittest.TestCase):
         "electra": "google/electra-small-discriminator",
     }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL.items())
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_optimize(self, *args, **kwargs):
         model_type, model_name = args
         optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
