@@ -86,5 +86,5 @@ jobs:
       - name: Push to repositories
         run: |
           cd doc-build-dev
-          doc-builder push ${{ env.package_name }} --doc_build_repo_id "huggingface/doc-build-dev" --token ${{ env.WRITE }} --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
+          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build-dev" --token ${{ env.WRITE }} --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
         shell: bash
