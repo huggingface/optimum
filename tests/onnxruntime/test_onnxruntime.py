@@ -107,7 +107,7 @@ class TestORTQuantizer(unittest.TestCase):
             "bert-base-cased": 72,
             # "roberta-base": 72,
             "distilbert-base-uncased": 36,
-            #"facebook/bart-base": 96,
+            # "facebook/bart-base": 96,
         }
 
         qconfig = QuantizationConfig(
