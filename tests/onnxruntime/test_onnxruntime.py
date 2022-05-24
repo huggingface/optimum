@@ -75,9 +75,7 @@ class ORTOptimizerTest(unittest.TestCase):
                 original_outputs = optimizer.model(**optimizer.tokenizer(input, return_tensors="pt"))
             session = InferenceSession(optimized_model_path.as_posix(), providers=["CPUExecutionProvider"])
             optimized_outputs = session.run(None, dict(optimizer.tokenizer(input, return_tensors="np")))
-            self.assertTrue(
-                np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=1e-4)
-            )
+            self.assertTrue(np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=1e-4))
             gc.collect()
 
     def test_optimization_details(self):
