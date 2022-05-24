@@ -23,7 +23,7 @@ You can also use the [pipeline()](https://huggingface.co/docs/transformers/main/
 
 Currenlty supported tasks are:
 
-**Onnx Runtime**
+**ONNX Runtime**
 
 * `feature-extraction`
 * `text-classification`
@@ -31,6 +31,9 @@ Currenlty supported tasks are:
 * `question-answering`
 * `zero-shot-classification`
 * `text-generation`
+* `text2text-generation`
+* `summarization`
+* `translation`
 
 ## Optimum pipeline usage
 
@@ -190,9 +193,11 @@ Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] a
 # save model & push model to the hub
 >>> tokenizer.save_pretrained("new_path_for_directory")
 >>> model.save_pretrained("new_path_for_directory")
->>> model.push_to_hub("new_path_for_directory",
-                  repository_id="my-onnx-repo",
-                  use_auth_token=True)
+>>> model.push_to_hub(
+...     "new_path_for_directory",
+...     repository_id="my-onnx-repo",
+...     use_auth_token=True
+...)
 ```
 
 ## Transformers pipeline usage
