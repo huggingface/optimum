@@ -33,6 +33,7 @@ from optimum.onnxruntime.configuration import (
     OptimizationConfig,
     QuantizationConfig,
 )
+from parameterized import parameterized
 
 
 class ORTConfigTest(unittest.TestCase):
