@@ -106,7 +106,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         "bert-base-cased": 72,
         "roberta-base": 72,
         "distilbert-base-uncased": 36,
-        "facebook/bart-base": 96,
+        # "facebook/bart-base": 96,
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL.items())
