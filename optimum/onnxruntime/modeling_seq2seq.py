@@ -26,7 +26,7 @@ from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.onnx import FeaturesManager, export
 
 import onnx
-import onnxruntime as ort
+import onnxruntime
 from huggingface_hub import HfApi, hf_hub_download
 from optimum.onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
 from optimum.onnx.modeling_seq2seq import _DecoderWithLMhead
@@ -62,9 +62,9 @@ class ORTModelForSeq2SeqLM(ORTModel):
         if provider is None:
             provider = "CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"
 
-        encoder_session = ort.InferenceSession(str(encoder_path), providers=[provider])
-        decoder_session = ort.InferenceSession(str(decoder_path), providers=[provider])
-        decoder_with_past_session = ort.InferenceSession(str(decoder_with_past_path), providers=[provider])
+        encoder_session = onnxruntime.InferenceSession(str(encoder_path), providers=[provider])
+        decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=[provider])
+        decoder_with_past_session = onnxruntime.InferenceSession(str(decoder_with_past_path), providers=[provider])
 
         return ORTModelForConditionalGeneration(encoder_session, decoder_session, decoder_with_past_session, config)
 
@@ -213,7 +213,7 @@ class ORTModelForSeq2SeqLM(ORTModel):
 
 
 class ORTEncoder(torch.nn.Module):
-    def __init__(self, encoder):
+    def __init__(self, encoder: onnxruntime.InferenceSession):
         super().__init__()
         self.encoder = encoder
         self.main_input_name = "input_ids"
@@ -238,7 +238,7 @@ class ORTEncoder(torch.nn.Module):
 
 
 class ORTDecoder(torch.nn.Module):
-    def __init__(self, decoder):
+    def __init__(self, decoder: onnxruntime.InferenceSession):
         super().__init__()
         self.decoder = decoder
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.decoder.get_inputs())}
@@ -284,7 +284,13 @@ class ORTDecoder(torch.nn.Module):
 
 
 class ORTModelForConditionalGeneration(torch.nn.Module, GenerationMixin):
-    def __init__(self, encoder_sess, decoder_sess, decoder_with_past_sess, config):
+    def __init__(
+        self,
+        encoder_sess: onnxruntime.InferenceSession,
+        decoder_sess: onnxruntime.InferenceSession,
+        decoder_with_past_sess: onnxruntime.InferenceSession,
+        config: Dict,
+    ):
         super().__init__()
         self.encoder = ORTEncoder(encoder_sess)
         self.decoder = ORTDecoder(decoder_sess)

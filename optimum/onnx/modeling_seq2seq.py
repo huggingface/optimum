@@ -11,13 +11,16 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from typing import Optional, Tuple
+
+import torch
 from transformers import PreTrainedModel
 
 
 # Currently inherits from PreTrainedModel for export constraint coming from transformers.onnx.export
 class _DecoderWithLMhead(PreTrainedModel):
     # Decoder with language modeling head
-    def __init__(self, model):
+    def __init__(self, model: PreTrainedModel):
         super().__init__(model.config)
         self.config = model.config
         self.decoder = model.get_decoder()
@@ -25,7 +28,12 @@ class _DecoderWithLMhead(PreTrainedModel):
         self.final_logits_bias = getattr(model, "final_logits_bias", None)
 
     def forward(
-        self, input_ids, encoder_hidden_states, attention_mask=None, encoder_attention_mask=None, past_key_values=None
+        self,
+        input_ids: torch.LongTensor,
+        encoder_hidden_states: torch.FloatTensor,
+        attention_mask: Optional[torch.LongTensor] = None,
+        encoder_attention_mask: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
     ):
         decoder_outputs = self.decoder(
             input_ids=input_ids,
