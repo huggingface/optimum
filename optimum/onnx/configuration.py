@@ -287,7 +287,6 @@ class EncoderOnnxConfig(OnnxConfig):
             [
                 ("input_ids", {0: "batch", 1: "sequence"}),
                 ("attention_mask", {0: "batch", 1: "sequence"}),
-                ("token_type_ids", {0: "batch", 1: "sequence"}),
             ]
         )
 
@@ -323,14 +322,14 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         dummy_input = super().generate_dummy_inputs(
             tokenizer, batch_size=batch_size, seq_length=seq_length, is_pair=is_pair, framework=framework
         )
-        batch = dummy_input["input_ids"].shape[0]
-        encoder_seq_length = dummy_input["input_ids"].shape[1]
+        batch, encoder_seq_length = dummy_input["input_ids"].shape
         encoder_hidden_states_shape = (batch, encoder_seq_length, self._config.hidden_size)
-        common_inputs["input_ids"] = dummy_input["decoder_input_ids"]
+        common_inputs["input_ids"] = dummy_input.pop("decoder_input_ids")
         common_inputs["encoder_hidden_states"] = torch.zeros(encoder_hidden_states_shape)
-        common_inputs["encoder_attention_mask"] = dummy_input["attention_mask"]
+        common_inputs["encoder_attention_mask"] = dummy_input.pop("attention_mask")
+
         if "past_key_values" in dummy_input:
-            common_inputs["past_key_values"] = dummy_input["past_key_values"]
+            common_inputs["past_key_values"] = dummy_input.pop("past_key_values")
 
         return common_inputs
 
@@ -338,7 +337,6 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super(OnnxConfigWithPast, self).outputs
         self.fill_with_past_key_values_(common_outputs, direction="outputs")
-
         return common_outputs
 
     def fill_with_past_key_values_(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):

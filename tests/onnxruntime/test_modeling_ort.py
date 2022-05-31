@@ -29,7 +29,7 @@ from optimum.onnxruntime import (
     ORTModelForTokenClassification,
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
+from optimum.onnxruntime.modeling_seq2seq import ORTEncoder, ORTDecoder
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
@@ -56,7 +56,9 @@ class ORTModelIntergrationTest(unittest.TestCase):
 
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
-        self.assertIsInstance(model.model, ORTModelForConditionalGeneration)
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_without_onnx_model(self):
@@ -510,13 +512,16 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "t5": "t5-small",
         "bart": "facebook/bart-base",
+        "marian": "sshleifer/tiny-marian-en-de",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_supported_transformers_architectures(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, ORTModelForConditionalGeneration)
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):

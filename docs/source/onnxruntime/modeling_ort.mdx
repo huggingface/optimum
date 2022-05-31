@@ -75,11 +75,10 @@ from the Hub and converts it to an optimum onnxruntime model and pushes it back 
 >>> tokenizer.save_pretrained("a_local_path_for_convert_onnx_model")
 
 # push model onnx model to HF Hub
->>> model.push_to_hub(
-...     "a_local_path_for_convert_onnx_model",
-...      repository_id="my-onnx-repo",
-...     use_auth_token=True
-... )
+>>> model.push_to_hub("a_local_path_for_convert_onnx_model",
+                  repository_id="my-onnx-repo",
+                  use_auth_token=True
+                  )
 ```
 
 ## ORTModel
