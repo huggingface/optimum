@@ -141,3 +141,11 @@ def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
         return OnnxConfigWithPastAndLoss(onnx_config)
     else:
         return OnnxConfigWithLoss(onnx_config)
+
+
+def get_device_for_provider(provider: ort.InferenceSession) -> torch.device:
+    return torch.device("cuda") if provider == "CUDAExecutionProvider" else torch.device("cpu")
+
+
+def get_provider_for_device(device: torch.device) -> str:
+    return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"

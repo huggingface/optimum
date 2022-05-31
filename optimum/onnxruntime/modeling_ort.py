@@ -30,7 +30,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, _is_gpu_available
+from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ class ORTModel(OptimizedModel):
                 available else `CPUExecutionProvider`
         """
         if provider is None:
-            provider = "CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"
+            provider = "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])
 
@@ -663,6 +663,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self._device = get_device_for_provider(self.model.get_providers()[0])
 
     @property
     def device(self) -> torch.device:
@@ -670,7 +671,20 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
         device).
         """
-        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        return self._device
+
+    @device.setter
+    def device(self, value):
+        self._device = value
+
+    def to(self, device):
+        """
+        Changes the ONNX Runtime provider according to the device.
+        """
+        self.device = device
+        provider = get_provider_for_device(self.device)
+        self.model.set_providers([provider])
+        return self
 
     def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
         """
@@ -702,9 +716,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         }
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        # put on correct device
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return CausalLMOutputWithCrossAttentions(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+            logits=logits,
         )
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
