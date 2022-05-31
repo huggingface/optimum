@@ -351,10 +351,9 @@ class ORTModelForFeatureExtraction(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return BaseModelOutput(
-            last_hidden_state=torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]),
-        )
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
 QUESTION_ANSWERING_SAMPLE = r"""
@@ -437,10 +436,12 @@ class ORTModelForQuestionAnswering(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
+        end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return QuestionAnsweringModelOutput(
-            start_logits=torch.from_numpy(outputs[self.model_outputs["start_logits"]]),
-            end_logits=torch.from_numpy(outputs[self.model_outputs["end_logits"]]),
+            start_logits=start_logits,
+            end_logits=end_logits,
         )
 
 
@@ -540,9 +541,10 @@ class ORTModelForSequenceClassification(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+            logits=logits,
         )
 
 
@@ -625,9 +627,10 @@ class ORTModelForTokenClassification(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return TokenClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+            logits=logits,
         )
 
 
@@ -716,7 +719,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         }
         # run inference
         outputs = self.model.run(None, onnx_inputs)
-        # put on correct device
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return CausalLMOutputWithCrossAttentions(
