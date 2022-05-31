@@ -20,6 +20,7 @@ REQUIRED_PKGS = [
     "packaging",
     "numpy",
     "huggingface_hub==0.4.0",
+    "protobuf<=3.20.1"
 ]
 
 TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]
