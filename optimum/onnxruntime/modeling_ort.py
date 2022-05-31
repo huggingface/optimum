@@ -85,11 +85,33 @@ class ORTModel(OptimizedModel):
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
+        self._device = get_device_for_provider(self.model.get_providers()[0])
 
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.base_model_prefix, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
+
+    @property
+    def device(self) -> torch.device:
+        """
+        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
+        device).
+        """
+        return self._device
+
+    @device.setter
+    def device(self, value):
+        self._device = value
+
+    def to(self, device):
+        """
+        Changes the ONNX Runtime provider according to the device.
+        """
+        self.device = device
+        provider = get_provider_for_device(self.device)
+        self.model.set_providers([provider])
+        return self
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError
@@ -663,28 +685,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self._device = get_device_for_provider(self.model.get_providers()[0])
-
-    @property
-    def device(self) -> torch.device:
-        """
-        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
-        device).
-        """
-        return self._device
-
-    @device.setter
-    def device(self, value):
-        self._device = value
-
-    def to(self, device):
-        """
-        Changes the ONNX Runtime provider according to the device.
-        """
-        self.device = device
-        provider = get_provider_for_device(self.device)
-        self.model.set_providers([provider])
-        return self
 
     def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
         """
