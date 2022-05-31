@@ -119,13 +119,13 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def load_model(path: Union[str, Path], provider=None):
         """
-        loads ONNX Inference session with Provider. Default Provider is if CUDAExecutionProvider GPU available else `CPUExecutionProvider`
+        Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
+
         Arguments:
             path (`str` or `Path`):
-                Directory from which to load
+                Directory from which to load the model.
             provider(`str`, *optional*):
-                Onnxruntime provider to use for loading the model, defaults to `CUDAExecutionProvider` if GPU is
-                available else `CPUExecutionProvider`
+                ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
         if provider is None:
             provider = "CPUExecutionProvider"
