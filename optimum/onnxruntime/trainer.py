@@ -25,6 +25,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from packaging.version import Version, parse
 from tqdm.auto import tqdm
 
 
@@ -37,6 +38,7 @@ from transformers.integrations import (  # isort: split
 import numpy as np
 import torch
 import torch.distributed as dist
+import transformers
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data.distributed import DistributedSampler
@@ -93,6 +95,15 @@ from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_fo
 
 if is_apex_available():
     from apex import amp
+
+if is_fairscale_available():
+    dep_version_check("fairscale")
+    import fairscale
+    from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
+    from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
+    from fairscale.nn.wrap import auto_wrap
+    from fairscale.optim import OSS
+    from fairscale.optim.grad_scaler import ShardedGradScaler
 
 if TYPE_CHECKING:
     import optuna
@@ -296,6 +307,18 @@ class ORTTrainer(Trainer):
         self.model_wrapped = model
 
         if args.deepspeed:
+            if is_deepspeed_zero3_enabled():
+                raise NotImplementedError(
+                    "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
+                )
+
+            if args.bf16:
+                warnings.warn(
+                    "ONNX Runtime doesn't support BF16 when executing `Aten` operators. The execution will fail if"
+                    "there are any `Aten` op in the IR. Support for this in ONNX Runtime is currently in progress, stay tuned!",
+                    RuntimeWarning,
+                )
+
             self.model = model
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
@@ -500,9 +523,7 @@ class ORTTrainer(Trainer):
                     if self.deepspeed:
                         pass  # called outside the loop
                     elif is_torch_tpu_available():
-                        if self.do_grad_scaling:
-                            self.scaler.step(self.optimizer)
-                            self.scaler.update()
+                        raise NotImplementedError("`ORTTrainer` is not supported by TPU!")
                     elif self.do_grad_scaling:
                         scale_before = self.scaler.get_scale()
                         self.scaler.step(self.optimizer)
@@ -625,7 +646,6 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
-            logger.warning("Evaluating with ONNX Runtime backend. The loss will be `None` in this case.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
             try:
                 output = eval_loop(
@@ -694,7 +714,6 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
-            logger.warning("Predicting with ONNX Runtime backend. The loss will be `None` in this case.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
             try:
                 output = eval_loop(
@@ -763,8 +782,13 @@ class ORTTrainer(Trainer):
             )
 
             logger.info("[INFO] Exporting the model to ONNX...")
+            if self.args.deepspeed and self.args.fp16:
+                export_device = "cuda"
+            else:
+                export_device = "cpu"
+
             with_loss = has_labels and not self.label_smoother
-            self._export(onnx_model_path, with_loss=with_loss)
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
@@ -850,13 +874,16 @@ class ORTTrainer(Trainer):
 
             # Update containers on host
             if loss is not None:
+                loss = loss.to(args.device)
                 losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
+                logits = logits.to(args.device)
                 logits = self._pad_across_processes(logits)
                 logits = self._nested_gather(logits)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
+                labels = labels.to(args.device)
                 labels = self._pad_across_processes(labels)
                 labels = self._nested_gather(labels)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
@@ -961,12 +988,18 @@ class ORTTrainer(Trainer):
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
             )
+
             logger.info("[INFO] Exporting the model to ONNX...")
+            if self.args.deepspeed and self.args.fp16:
+                export_device = "cuda"
+            else:
+                export_device = "cpu"
+
             if has_labels:
-                self._export(onnx_model_path)
+                self._export(onnx_model_path, device=export_device)
                 self.exported_with_loss = True
             else:
-                self._export(onnx_model_path, with_loss=False)
+                self._export(onnx_model_path, with_loss=False, device=export_device)
                 self.exported_with_loss = False
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
@@ -1044,11 +1077,14 @@ class ORTTrainer(Trainer):
                 model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
             if loss is not None:
+                loss = loss.to(args.device)
                 losses = loss.repeat(batch_size)
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
+                logits = logits.to(args.device)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
+                labels = labels.to(args.device)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
             self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
 
@@ -1202,6 +1238,7 @@ class ORTTrainer(Trainer):
         model_path: os.PathLike,
         model: Optional[PreTrainedModel] = None,
         opset: Optional[int] = None,
+        device: str = "cpu",
         with_loss: bool = True,
     ) -> None:
         """
@@ -1210,13 +1247,17 @@ class ORTTrainer(Trainer):
         Args:
             onnx_model_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            device (`str`, *optional*, defaults to `cpu`):
+                The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
             with_loss (`bool`, defaults to `True`):
                 Whether to export ONNX model with the loss in outputs.
         """
         if model:
             model = model
         else:
-            self.model.to("cpu")
+            if not (self.args.fp16 and self.args.deepspeed):
+                # Taking CPU to export the model
+                self.model.to("cpu")
             model = unwrap_model(self.model)
 
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
@@ -1227,7 +1268,29 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        _ = export(preprocessor=self.tokenizer, model=model, config=onnx_config, opset=opset, output=model_path)
+        if parse(transformers.__version__) > parse("4.19.2"):
+            _ = export(
+                preprocessor=self.tokenizer,
+                model=model,
+                config=onnx_config,
+                opset=opset,
+                output=model_path,
+                device=device,
+            )
+        else:
+            if device == "cuda":
+                raise ImportError(
+                    f"Tried to export ONNX model on CUDA. However, the current transformers version is "
+                    f"{transformers.__version__}. Transformers version >4.19.2 is required to support ONNX export on CUDA.\n"
+                    "Please update transformers by running `pip install --upgrade transformers`"
+                )
+            _ = export(
+                preprocessor=self.tokenizer,
+                model=model,
+                config=onnx_config,
+                opset=opset,
+                output=model_path,
+            )
 
     def _wrap_model(self, model, training=True):
         if is_sagemaker_mp_enabled():
@@ -1261,9 +1324,15 @@ class ORTTrainer(Trainer):
 
         # Distributed training (should be after apex fp16 initialization)
         if self.sharded_ddp is not None:
-            raise NotImplementedError(
-                "Fairscale's distributed data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
-            )
+            # Sharded DDP!
+            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+                model = ShardedDDP(model, self.optimizer)
+            else:
+                raise NotImplementedError(
+                    "Fairscale's zero_dp_2 and zero_dp_3 are not compatible with `torch_ort.ORTModule`"
+                    " used in `ORTTrainer`. Use `--sharded_ddp simpe` or deepspeed stage 2 if you want"
+                    "the gradient to be sharded."
+                )
         elif is_sagemaker_dp_enabled():
             model = nn.parallel.DistributedDataParallel(
                 model, device_ids=[int(os.getenv("SMDATAPARALLEL_LOCAL_RANK"))]

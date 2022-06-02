@@ -1,4 +1,8 @@
 {
+    "bf16": {
+        "enabled": "auto"
+    },
+
     "fp16": {
         "enabled": "auto",
         "loss_scale": 0,
