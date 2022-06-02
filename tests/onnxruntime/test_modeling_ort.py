@@ -131,9 +131,9 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForQuestionAnswering.from_pretrained("t5-small")
+            model = ORTModelForQuestionAnswering.from_pretrained("t5-small", from_transformers=False)
 
-        self.assertTrue("Unrecognized configuration class", context.exception)
+        self.assertTrue("Not Found for url" in str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -210,9 +210,9 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForSequenceClassification.from_pretrained("t5-small", from_transformers=Tru)
+            model = ORTModelForSequenceClassification.from_pretrained("t5-small", from_transformers=False)
 
-        self.assertTrue("Unrecognized configuration class", context.exception)
+        self.assertTrue("Not Found for url" in str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_forward_call(self, *args, **kwargs):
@@ -299,9 +299,9 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForTokenClassification.from_pretrained("t5-small", from_transformers=Tru)
+            model = ORTModelForTokenClassification.from_pretrained("t5-small", from_transformers=False)
 
-        self.assertTrue("Unrecognized configuration class", context.exception)
+        self.assertTrue("Not Found for url" in str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -370,9 +370,9 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForFeatureExtraction.from_pretrained("google/vit-base-patch16-224", from_transformers=Tru)
+            model = ORTModelForFeatureExtraction.from_pretrained("google/vit-base-patch16-224", from_transformers=False)
 
-        self.assertTrue("Unrecognized configuration class", context.exception)
+        self.assertTrue("Not Found for url" in str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -434,9 +434,9 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
+            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=False)
 
-        self.assertTrue("Unrecognized configuration class", context.exception)
+        self.assertTrue("Not Found for url" in str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -531,7 +531,8 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             model = ORTModelForSeq2SeqLM.from_pretrained("t5-small", from_transformers=False)
-        self.assertTrue("Unrecognized configuration class", context.exception)
+
+        self.assertTrue("Not Found for url" in str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
