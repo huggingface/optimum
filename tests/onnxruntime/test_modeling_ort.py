@@ -29,7 +29,7 @@ from optimum.onnxruntime import (
     ORTModelForTokenClassification,
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTEncoder, ORTDecoder
+from optimum.onnxruntime.modeling_seq2seq import ORTDecoder, ORTEncoder
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
@@ -266,7 +266,9 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
         sequence_to_classify = "Who are you voting for in 2020?"
         candidate_labels = ["Europe", "public health", "politics", "elections"]
         hypothesis_template = "This text is about {}."
-        outputs = pipe(sequence_to_classify, candidate_labels, multi_class=True, hypothesis_template=hypothesis_template)
+        outputs = pipe(
+            sequence_to_classify, candidate_labels, multi_class=True, hypothesis_template=hypothesis_template
+        )
 
         # compare model output class
         self.assertTrue(any(score > 0.0 for score in outputs["scores"]))
@@ -400,7 +402,9 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
             transformers_outputs = transformers_model(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.last_hidden_state, transformers_outputs.last_hidden_state, atol=1e-4))
+        self.assertTrue(
+            torch.allclose(onnx_outputs.last_hidden_state, transformers_outputs.last_hidden_state, atol=1e-4)
+        )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
