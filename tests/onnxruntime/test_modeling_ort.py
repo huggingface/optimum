@@ -148,14 +148,14 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
         self.assertTrue("start_logits" in outputs)
         self.assertTrue("end_logits" in outputs)
 
-        self.assertTrue(isinstance(outputs.start_logits, torch.Tensor))
-        self.assertTrue(isinstance(outputs.end_logits, torch.Tensor))
+        self.assertIsInstance(outputs.start_logits, torch.Tensor)
+        self.assertIsInstance(outputs.end_logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
-        trfs_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
+        transformers_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -163,25 +163,25 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
         )
         onnx_outputs = onnx_model(**tokens)
         with torch.no_grad():
-            trtfs_outputs = trfs_model(**tokens)
+            transformers_outputs = transformers_model(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.start_logits, trtfs_outputs.start_logits, atol=1e-4))
-        self.assertTrue(torch.allclose(onnx_outputs.end_logits, trtfs_outputs.end_logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.start_logits, transformers_outputs.start_logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.end_logits, transformers_outputs.end_logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
-        outputs = pp(question, context)
+        outputs = pipe(question, context)
 
         # compare model output class
         self.assertGreaterEqual(outputs["score"], 0.0)
-        self.assertTrue(isinstance(outputs["answer"], str))
+        self.assertIsInstance(outputs["answer"], str)
 
 
 class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
@@ -225,48 +225,48 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
         )
         outputs = model(**tokens)
         self.assertTrue("logits" in outputs)
-        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
+        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-        trfs_model = AutoModelForSequenceClassification.from_pretrained(model_id)
+        transformers_model = AutoModelForSequenceClassification.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
         )
         with torch.no_grad():
-            trtfs_outputs = trfs_model(**tokens)
+            transformers_outputs = transformers_model(**tokens)
         onnx_outputs = onnx_model(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
-        outputs = pp(text)
+        outputs = pipe(text)
 
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
-        self.assertTrue(isinstance(outputs[0]["label"], str))
+        self.assertIsInstance(outputs[0]["label"], str)
 
     def test_pipeline_zero_shot_classification(self):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             "typeform/distilbert-base-uncased-mnli", from_transformers=True
         )
         tokenizer = AutoTokenizer.from_pretrained("typeform/distilbert-base-uncased-mnli")
-        pp = pipeline("zero-shot-classification", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("zero-shot-classification", model=onnx_model, tokenizer=tokenizer)
         sequence_to_classify = "Who are you voting for in 2020?"
         candidate_labels = ["Europe", "public health", "politics", "elections"]
         hypothesis_template = "This text is about {}."
-        outputs = pp(sequence_to_classify, candidate_labels, multi_class=True, hypothesis_template=hypothesis_template)
+        outputs = pipe(sequence_to_classify, candidate_labels, multi_class=True, hypothesis_template=hypothesis_template)
 
         # compare model output class
         self.assertTrue(any(score > 0.0 for score in outputs["scores"]))
@@ -312,13 +312,13 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
         )
         outputs = model(**tokens)
         self.assertTrue("logits" in outputs)
-        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
+        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
-        trfs_model = AutoModelForTokenClassification.from_pretrained(model_id)
+        transformers_model = AutoModelForTokenClassification.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -326,19 +326,19 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
         )
         onnx_outputs = onnx_model(**tokens)
         with torch.no_grad():
-            trtfs_outputs = trfs_model(**tokens)
+            transformers_outputs = transformers_model(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
-        outputs = pp(text)
+        outputs = pipe(text)
 
         # compare model output class
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
@@ -383,13 +383,13 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
         )
         outputs = model(**tokens)
         self.assertTrue("last_hidden_state" in outputs)
-        self.assertTrue(isinstance(outputs.last_hidden_state, torch.Tensor))
+        self.assertIsInstance(outputs.last_hidden_state, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
-        trfs_model = AutoModel.from_pretrained(model_id)
+        transformers_model = AutoModel.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -397,19 +397,19 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
         )
         onnx_outputs = onnx_model(**tokens)
         with torch.no_grad():
-            trtfs_outputs = trfs_model(**tokens)
+            transformers_outputs = transformers_model(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.last_hidden_state, trtfs_outputs.last_hidden_state, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.last_hidden_state, transformers_outputs.last_hidden_state, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
-        outputs = pp(text)
+        outputs = pipe(text)
 
         # compare model output class
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
@@ -445,7 +445,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         )
         outputs = model(**tokens)
         self.assertTrue("logits" in outputs)
-        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
+        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils(self, *args, **kwargs):
@@ -459,7 +459,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         )
         outputs = model.generate(**tokens)
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertTrue(isinstance(res[0], str))
+        self.assertIsInstance(res[0], str)
         self.assertTrue(len(res[0]) > len(text))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
@@ -474,14 +474,14 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         )
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertTrue(isinstance(res[0], str))
+        self.assertIsInstance(res[0], str)
         self.assertTrue(len(res[0]) > len(text))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        trfs_model = AutoModelForCausalLM.from_pretrained(model_id)
+        transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer(
             "This is a sample output",
@@ -489,22 +489,22 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         )
         onnx_outputs = onnx_model(**tokens)
         with torch.no_grad():
-            trtfs_outputs = trfs_model(**tokens)
+            transformers_outputs = transformers_model(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
-        outputs = pp(text)
+        outputs = pipe(text)
 
         # compare model output class
-        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
+        self.assertIsInstance(outputs[0]["generated_text"], str)
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
 
@@ -539,7 +539,7 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         outputs = model(**tokens, **decoder_inputs)
         self.assertTrue("logits" in outputs)
-        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
+        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils(self, *args, **kwargs):
@@ -550,7 +550,7 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         tokens = tokenizer(text, return_tensors="pt")
         outputs = model.generate(**tokens)
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertTrue(isinstance(res[0], str))
+        self.assertIsInstance(res[0], str)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils_with_input_ids(self, *args, **kwargs):
@@ -561,55 +561,55 @@ class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
         tokens = tokenizer(text, return_tensors="pt")
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertTrue(isinstance(res[0], str))
+        self.assertIsInstance(res[0], str)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        trfs_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+        transformers_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        decoder_start_token_id = trfs_model.config.decoder_start_token_id
+        decoder_start_token_id = transformers_model.config.decoder_start_token_id
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
         with torch.no_grad():
-            trtfs_outputs = trfs_model(**tokens, **decoder_inputs)
+            transformers_outputs = transformers_model(**tokens, **decoder_inputs)
         # Compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
-        outputs = pp(text)
+        outputs = pipe(text)
 
         # compare model output class
-        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
+        self.assertIsInstance(outputs[0]["generated_text"], str)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
-        outputs = pp(text)
+        outputs = pipe(text)
 
         # compare model output class
-        self.assertTrue(isinstance(outputs[0]["summary_text"], str))
+        self.assertIsInstance(outputs[0]["summary_text"], str)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
-        outputs = pp(text)
+        outputs = pipe(text)
 
         # compare model output class
-        self.assertTrue(isinstance(outputs[0]["translation_text"], str))
+        self.assertIsInstance(outputs[0]["translation_text"], str)
