@@ -41,10 +41,6 @@ logger = logging.getLogger(__name__)
 
 SEQ2SEQ_ONNX_MODEL_START_DOCSTRING = r"""
     Arguments:
-        config (`transformers.PretrainedConfig`):
-            [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig)
-            is the model configuration class with all the parameters of the model. Initializing with a config file does
-            not load the weights associated with the model, only the configuration.
         encoder_session (`onnxruntime.InferenceSession`):
             The ONNX Runtime inference session associated to the encoder.
         decoder_session (`onnxruntime.InferenceSession`):
@@ -52,7 +48,9 @@ SEQ2SEQ_ONNX_MODEL_START_DOCSTRING = r"""
         decoder_with_past_session (`onnxruntime.InferenceSession`):
             The ONNX Runtime inference session associated to the decoder with past key values.
         config (`transformers.PretrainedConfig`):
-            An instance of the configuration associated to the model.
+            [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig)
+            is an instance of the configuration associated to the model. Initializing with a config file does
+            not load the weights associated with the model, only the configuration.
         encoder_file_name(`str`, *optional*):
             The encoder model file name overwriting the default file name, allowing to save the encoder model with
             a different name.
@@ -101,11 +99,18 @@ class ORTModelForConditionalGeneration(ORTModel):
     pipeline_task = "seq2seq-lm"
     auto_model_class = AutoModelForSeq2SeqLM
 
-    def __init__(self, encoder=None, decoder=None, decoder_with_past=None, config=None, **kwargs):
+    def __init__(
+        self,
+        encoder_session: onnxruntime.InferenceSession = None,
+        decoder_session: onnxruntime.InferenceSession = None,
+        decoder_with_past_session: onnxruntime.InferenceSession = None,
+        config: transformers.PretrainedConfig = None,
+        **kwargs
+    ):
         super().__init__(config=config, **kwargs)
-        self.encoder = ORTEncoder(encoder)
-        self.decoder = ORTDecoder(decoder)
-        self.decoder_with_past = ORTDecoder(decoder_with_past)
+        self.encoder = ORTEncoder(encoder_session)
+        self.decoder = ORTDecoder(decoder_session)
+        self.decoder_with_past = ORTDecoder(decoder_with_past_session)
         self.encoder_file_name = kwargs.get("encoder", ONNX_ENCODER_NAME)
         self.decoder_file_name = kwargs.get("decoder", ONNX_DECODER_NAME)
         self.decoder_file_with_past_name = kwargs.get("decoder_with_past", ONNX_DECODER_WITH_PAST_NAME)
