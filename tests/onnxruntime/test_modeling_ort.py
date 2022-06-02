@@ -370,7 +370,9 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForFeatureExtraction.from_pretrained("google/vit-base-patch16-224", from_transformers=False)
+            model = ORTModelForFeatureExtraction.from_pretrained(
+                "google/vit-base-patch16-224", from_transformers=False
+            )
 
         self.assertTrue("Not Found for url" in str(context.exception))
 
