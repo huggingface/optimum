@@ -328,7 +328,7 @@ class ORTQuantizer(ABC):
 
         if preprocessor is not None:
             LOGGER.info("Preprocessor detected, collecting nodes to include/exclude")
-            nodes_to_quantize, nodes_to_exclude = preprocessor.collect()
+            nodes_to_quantize, nodes_to_exclude = preprocessor.collect(onnx_model_path)
 
             nodes_to_quantize.update(quantization_config.nodes_to_quantize)
             nodes_to_exclude.update(quantization_config.nodes_to_exclude)

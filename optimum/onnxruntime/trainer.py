@@ -25,6 +25,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from packaging.version import Version, parse
 from tqdm.auto import tqdm
 
 
@@ -37,6 +38,7 @@ from transformers.integrations import (  # isort: split
 import numpy as np
 import torch
 import torch.distributed as dist
+import transformers
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data.distributed import DistributedSampler
@@ -780,12 +782,7 @@ class ORTTrainer(Trainer):
             )
 
             logger.info("[INFO] Exporting the model to ONNX...")
-            # TODO: Need to specify the transformers version with CUDA support on ONNX export.
             if self.args.deepspeed and self.args.fp16:
-                logger.warning(
-                    "[WARNING] Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
-                    "exporting ONNX on CUDA."
-                )
                 export_device = "cuda"
             else:
                 export_device = "cpu"
@@ -994,10 +991,6 @@ class ORTTrainer(Trainer):
 
             logger.info("[INFO] Exporting the model to ONNX...")
             if self.args.deepspeed and self.args.fp16:
-                logger.warning(
-                    "[WARNING] Make sure that `transformers.onnx.export_pytorch` of the transformers version supports "
-                    "exporting ONNX on CUDA."
-                )
                 export_device = "cuda"
             else:
                 export_device = "cpu"
@@ -1275,8 +1268,7 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        # TODO: Need to specify the transformers version with CUDA support on ONNX export.
-        try:
+        if parse(transformers.__version__) > parse("4.19.2"):
             _ = export(
                 preprocessor=self.tokenizer,
                 model=model,
@@ -1285,13 +1277,12 @@ class ORTTrainer(Trainer):
                 output=model_path,
                 device=device,
             )
-        except TypeError as err:
-            if self.args.deepspeed and self.args.fp16:
-                logger.warning(
-                    f"[WARNING] {err}. It seems that the "
-                    "installed Transformers version doesn't support ONNX export on CUDA. Check if "
-                    "`transformers.onnx.export_pytorch` supports exporting ONNX on CUDA. If not, upgrade "
-                    "your Transformers with `pip install --upgrade transformers`."
+        else:
+            if device == "cuda":
+                raise ImportError(
+                    f"Tried to export ONNX model on CUDA. However, the current transformers version is "
+                    f"{transformers.__version__}. Transformers version >4.19.2 is required to support ONNX export on CUDA.\n"
+                    "Please update transformers by running `pip install --upgrade transformers`"
                 )
             _ = export(
                 preprocessor=self.tokenizer,
