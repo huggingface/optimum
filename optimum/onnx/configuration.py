@@ -340,6 +340,6 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return common_outputs
 
     def fill_with_past_key_values_(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
-        num_mha_per_layer = 4
-        for i in range(self.num_layers[0] * num_mha_per_layer):
+        num_pkv_per_layer = 4
+        for i in range(self.num_layers[0] * num_pkv_per_layer):
             inputs_or_outputs[f"past_key_values_{i}"] = {0: "batch", 2: "past_sequence + sequence"}

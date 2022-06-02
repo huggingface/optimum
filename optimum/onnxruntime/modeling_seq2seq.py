@@ -422,7 +422,7 @@ class ORTDecoder:
 
         if past_key_values is not None:
             # Flatten the past_key_values
-            past_key_values = [mha for past_key_value in past_key_values for mha in past_key_value]
+            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
             # Add the past_key_values to the decoder inputs
             for i, past_key_value in enumerate(past_key_values):
@@ -431,15 +431,16 @@ class ORTDecoder:
         # Run inference
         outputs = self.decoder.run(None, onnx_inputs)
 
-        # Tuple of length equal to : number of layer * number of multi-head attention
+        # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
+        # self-attention layer and 2 to the cross-attention layer)
         past_key_values = tuple(
             torch.from_numpy(outputs[self.output_names[key]]) for key in self.output_names if "past_key_values" in key
         )
 
-        # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number on multi-head attention
-        # (number of self-attention and cross-attention per decoder layer)
-        num_mha = 4
-        past_key_values = tuple(past_key_values[i : i + num_mha] for i in range(0, len(past_key_values), num_mha))
+        # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
+        # cross-attention per decoder layer
+        num_pkv = 4
+        past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
 
         return Seq2SeqLMOutput(
             logits=torch.from_numpy(outputs[self.output_names["logits"]]), past_key_values=past_key_values
