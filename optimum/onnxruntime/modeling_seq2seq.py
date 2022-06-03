@@ -590,7 +590,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         # be placed on the same device as the other inputs (CPU). Needed for version of transformers < 4.19.0
         return torch.device("cpu")
 
-    # Adapted from https://github.com/huggingface/transformers/blob/main/src/transformers/models/bart/modeling_bart.py#L1425
+    # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
     def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
         reordered_past = ()
