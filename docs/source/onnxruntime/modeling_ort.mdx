@@ -42,14 +42,14 @@ Optimum Inference also includes methods to convert vanilla Transformers models t
 >>> from transformers import AutoTokenizer, pipeline
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification
 
-# load model from hub and convert
->>> model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english",from_transformers=True)
+# Load model from hub and convert
+>>> model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True)
 >>> tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
-# create pipeline
->>> onnx_classifier = pipeline("text-classification",model=model,tokenizer=tokenizer)
+# Create pipeline
+>>> onnx_classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
 
->>> result = onnx_classifier(text="This is a great model")
+>>> result = onnx_classifier("This is a great model")
 [{'label': 'POSITIVE', 'score': 0.9998838901519775}]
 ```
 
@@ -66,19 +66,16 @@ from the Hub and converts it to an optimum onnxruntime model and pushes it back 
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification
 
-# load model from hub and convert
->>> model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english",from_transformers=True)
+# Load model from hub and convert
+>>> model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True)
 >>> tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
-# save converted model
+# Save converted model
 >>> model.save_pretrained("a_local_path_for_convert_onnx_model")
 >>> tokenizer.save_pretrained("a_local_path_for_convert_onnx_model")
 
-# push model onnx model to HF Hub
->>> model.push_to_hub("a_local_path_for_convert_onnx_model",
-                  repository_id="my-onnx-repo",
-                  use_auth_token=True
-                  )
+# Push model onnx model to HF Hub
+>>> model.push_to_hub("a_local_path_for_convert_onnx_model", repository_id="my-onnx-repo", use_auth_token=True)
 ```
 
 ## ORTModel

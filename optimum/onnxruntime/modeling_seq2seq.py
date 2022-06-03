@@ -38,8 +38,7 @@ from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_
 
 logger = logging.getLogger(__name__)
 
-
-SEQ2SEQ_ONNX_MODEL_START_DOCSTRING = r"""
+ONNX_INPUTS_DOCSTRING = r"""
     Arguments:
         encoder_session (`onnxruntime.InferenceSession`):
             The ONNX Runtime inference session associated to the encoder.
@@ -65,7 +64,7 @@ SEQ2SEQ_ONNX_MODEL_START_DOCSTRING = r"""
 ENCODER_INPUTS_DOCSTRING = r"""
     Arguments:
         input_ids (`torch.LongTensor`):
-            Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, encoder_sequence_length)`.
+            Indices of input sequence tokens in the vocabulary of shape `(batch_size, encoder_sequence_length)`.
         attention_mask (`torch.LongTensor`):
             Mask to avoid performing attention on padding token indices, of shape
             `(batch_size, encoder_sequence_length)`. Mask values selected in `[0, 1]`.
@@ -87,12 +86,62 @@ DECODER_INPUTS_DOCSTRING = r"""
             `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
 """
 
+SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
+    Arguments:
+        input_ids (`torch.LongTensor`):
+            Indices of input sequence tokens in the vocabulary of shape `(batch_size, encoder_sequence_length)`.
+        attention_mask (`torch.LongTensor`):
+            Mask to avoid performing attention on padding token indices, of shape
+            `(batch_size, encoder_sequence_length)`. Mask values selected in `[0, 1]`.
+        decoder_input_ids (`torch.LongTensor`):
+            Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
+        encoder_outputs (`torch.FloatTensor`):
+            The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+            Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
+            The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
+            `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
+"""
+
+_TOKENIZER_FOR_DOC = "AutoTokenizer"
+
+TRANSLATION_SAMPLE = r"""
+    Example of text generation:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = tokenizer("My name is Eustache and I like to", return_tensors="pt")
+
+    >>> gen_tokens = model.generate(**inputs)
+    >>> outputs = tokenizer.batch_decode(gen_tokens)
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_summarization = pipeline("translation_en_to_de", model=model, tokenizer=tokenizer)
+
+    >>> text = "My name is Eustache."
+    >>> pred = onnx_summarization(text)
+    ```
+"""
 
 @add_start_docstrings(
     """
     Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
     """,
-    SEQ2SEQ_ONNX_MODEL_START_DOCSTRING,
+    ONNX_INPUTS_DOCSTRING,
 )
 class ORTModelForConditionalGeneration(ORTModel):
     # Used in from_transformers to export model to onnx
@@ -464,6 +513,14 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         super().__init__(*args, **kwargs)
         self.main_input_name = "input_ids"
 
+    @add_start_docstrings_to_model_forward(
+        SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
+        + TRANSLATION_SAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForSeq2SeqLM",
+            checkpoint="optimum/t5-small",
+        )
+    )
     def forward(
         self,
         input_ids: torch.LongTensor = None,
