@@ -1,15 +1,28 @@
-import inspect
+# coding=utf-8
+# Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
-from torch.fx import GraphModule
 from torch.fx.node import Argument, Node, Target
 from torch.nn.intrinsic import _FusedModule
-from torch.quantization.fx.graph_module import ObservedGraphModule, QuantizedGraphModule
-from torch.quantization.quantize_fx import Scope, ScopeContextManager, convert_fx
+from torch.quantization.fx.graph_module import GraphModule, ObservedGraphModule
+from torch.quantization.quantize_fx import Scope, ScopeContextManager
+from torch.quantization.quantize_fx import fuse_fx as orig_fuse_fx
 from torch.quantization.quantize_fx import prepare_fx as orig_prepare_fx
-from torch.quantization.quantize_fx import prepare_qat_fx
-from transformers.utils.fx import HFTracer, check_if_model_is_supported, get_concrete_args
+from torch.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
+from transformers.utils.fx import HFTracer, check_if_model_is_supported, get_concrete_args, symbolic_trace
 
 
 if TYPE_CHECKING:
@@ -73,14 +86,32 @@ def specialized_quantization_tracer_creator(concrete_args):
     return type("QuantizationTracer", (QuantizationTracer,), {"specialized_concrete_args": concrete_args})
 
 
+def fuse_fx(
+    model: Union["PreTrainedModel", GraphModule],
+    fuse_custom_config_dict: Optional[Dict[str, Any]] = None,
+    input_names: Optional[List[str]] = None,
+) -> GraphModule:
+    if not isinstance(model, GraphModule):
+        if input_names is None:
+            input_names = model.dummy_inputs.keys()
+        input_names = list(input_names)
+        model = symbolic_trace(model, input_names)
+    orig_symbolic_trace = torch.fx.symbolic_trace
+    torch.fx.symbolic_trace = lambda x: x
+    gm = orig_fuse_fx(model, fuse_custom_config_dict=fuse_custom_config_dict)
+    torch.fx.symbolic_trace = orig_symbolic_trace
+    return gm
+
+
 def prepare_fx(
-    model: Union[torch.nn.Module, GraphModule],
+    model: Union["PreTrainedModel", GraphModule],
     qconfig_dict: Any,
     prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
     equalization_qconfig_dict: Optional[Dict[str, Any]] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
     input_names: Optional[List[str]] = None,
 ) -> ObservedGraphModule:
+    check_if_model_is_supported(model)
     tracer_cls = QuantizationTracer
     if not isinstance(model, GraphModule):
         if input_names is None:
@@ -94,6 +125,32 @@ def prepare_fx(
         qconfig_dict,
         prepare_custom_config_dict=prepare_custom_config_dict,
         equalization_qconfig_dict=equalization_qconfig_dict,
+        backend_config_dict=backend_config_dict,
+    )
+    torch.ao.quantization.quantize_fx.QuantizationTracer = orig_quantization_tracer
+    return gm
+
+
+def prepare_qat_fx(
+    model: torch.nn.Module,
+    qconfig_dict: Any,
+    prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
+    backend_config_dict: Optional[Dict[str, Any]] = None,
+    input_names: Optional[List[str]] = None,
+) -> ObservedGraphModule:
+    check_if_model_is_supported(model)
+    tracer_cls = QuantizationTracer
+    if not isinstance(model, GraphModule):
+        if input_names is None:
+            input_names = model.dummy_inputs.keys()
+        input_names = list(input_names)
+        tracer_cls = specialized_quantization_tracer_creator(get_concrete_args(model, input_names))
+    orig_quantization_tracer = torch.ao.quantization.quantize_fx.QuantizationTracer
+    torch.ao.quantization.quantize_fx.QuantizationTracer = tracer_cls
+    gm = orig_prepare_qat_fx(
+        model,
+        qconfig_dict,
+        prepare_custom_config_dict=prepare_custom_config_dict,
         backend_config_dict=backend_config_dict,
     )
     torch.ao.quantization.quantize_fx.QuantizationTracer = orig_quantization_tracer
