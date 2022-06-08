@@ -16,7 +16,7 @@ python -m torch_ort.configure
 
 # Install dependencies
 pip install transformers datasets
-pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn
+pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized
 pip install fairscale deepspeed mpi4py
 
 # Install apex
