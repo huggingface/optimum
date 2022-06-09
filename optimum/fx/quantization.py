@@ -90,12 +90,13 @@ def fuse_fx(
     model: Union["PreTrainedModel", GraphModule],
     fuse_custom_config_dict: Optional[Dict[str, Any]] = None,
     input_names: Optional[List[str]] = None,
+    check: bool = True,
 ) -> GraphModule:
     if not isinstance(model, GraphModule):
         if input_names is None:
             input_names = model.dummy_inputs.keys()
         input_names = list(input_names)
-        model = symbolic_trace(model, input_names)
+        model = symbolic_trace(model, input_names, disable_check=not check)
     orig_symbolic_trace = torch.fx.symbolic_trace
     torch.fx.symbolic_trace = lambda x: x
     gm = orig_fuse_fx(model, fuse_custom_config_dict=fuse_custom_config_dict)
@@ -110,8 +111,10 @@ def prepare_fx(
     equalization_qconfig_dict: Optional[Dict[str, Any]] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
     input_names: Optional[List[str]] = None,
+    check: bool = True,
 ) -> ObservedGraphModule:
-    check_if_model_is_supported(model)
+    if check:
+        check_if_model_is_supported(model)
     tracer_cls = QuantizationTracer
     if not isinstance(model, GraphModule):
         if input_names is None:
@@ -137,8 +140,10 @@ def prepare_qat_fx(
     prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
     input_names: Optional[List[str]] = None,
+    check: bool = True,
 ) -> ObservedGraphModule:
-    check_if_model_is_supported(model)
+    if check:
+        check_if_model_is_supported(model)
     tracer_cls = QuantizationTracer
     if not isinstance(model, GraphModule):
         if input_names is None:
