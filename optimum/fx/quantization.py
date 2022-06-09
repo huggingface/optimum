@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import torch
 from torch.fx.node import Argument, Node, Target
@@ -84,7 +84,8 @@ class QuantizationTracer(HFTracer):
         return super().trace(root, concrete_args=concrete_args)
 
 
-def specialized_quantization_tracer_creator(concrete_args):
+def specialized_quantization_tracer_creator(concrete_args: Dict[str, Any]) -> Type:
+    """Creates a QuantizationTracer-like class specifying concrete_args as a class attribute."""
     return type("QuantizationTracer", (QuantizationTracer,), {"specialized_concrete_args": concrete_args})
 
 
@@ -95,6 +96,24 @@ def fuse_fx(
     input_names: Optional[List[str]] = None,
     check: bool = True,
 ) -> GraphModule:
+    """
+    Transformers models compatible version of torch.quantization.quantize_fx.fuse_fx, refer to PyTorch documentation
+    for more details.
+
+    Args:
+        model (`PreTrainedModel` or `torch.fx.GraphModule`):
+            The model to fuse.
+        fuse_custom_config_dict (`Dict[str, Any]`, *optional*):
+            Refer to PyTorch documentation.
+        input_names (`List[str]`, *optional*):
+            The input names of the model, only used to trace if model is a PreTrainedModel. This is not needed if model
+            is already a GraphModule.
+        check (`bool`, *optional*, defaults to `True`):
+            If True, a check is done to verify that the model can be traced.
+
+    Returns:
+        `torch.fx.GraphModule`: A GraphModule with the fused modules.
+    """
     if not isinstance(model, GraphModule):
         if input_names is None:
             input_names = model.dummy_inputs.keys()
@@ -117,6 +136,30 @@ def prepare_fx(
     input_names: Optional[List[str]] = None,
     check: bool = True,
 ) -> ObservedGraphModule:
+    """
+    Transformers models compatible version of torch.quantization.quantize_fx.prepare_fx, refer to PyTorch documentation
+    for more details.
+
+    Args:
+        model (`PreTrainedModel` or `torch.fx.GraphModule`):
+            The model to fuse.
+        qconfig_dict (`Any`):
+            Refer to PyTorch documentation.
+        prepare_custom_config_dict (`Dict[str, Any]`, *optional*):
+            Refer to PyTorch documentation.
+        equalization_qconfig_dict (`Dict[str, Any]`, *optional*):
+            Refer to PyTorch documentation.
+        backend_config_dict (`Dict[str, Any]`, *optional*):
+            Refer to PyTorch documentation.
+        input_names (`List[str]`, *optional*):
+            The input names of the model, only used to trace if model is a PreTrainedModel. This is not needed if model
+            is already a GraphModule.
+        check (`bool`, *optional*, defaults to `True`):
+            If True, a check is done to verify that the model can be traced.
+
+    Returns:
+        `torch.quantization.fx.graph_module.ObservedGraphModule`: An ObservedGraphModule ready for calibration.
+    """
     if check:
         check_if_model_is_supported(model)
     tracer_cls = QuantizationTracer
@@ -140,13 +183,35 @@ def prepare_fx(
 
 @check_if_available
 def prepare_qat_fx(
-    model: torch.nn.Module,
+    model: Union["PreTrainedModel", GraphModule],
     qconfig_dict: Any,
     prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
     input_names: Optional[List[str]] = None,
     check: bool = True,
 ) -> ObservedGraphModule:
+    """
+    Transformers models compatible version of torch.quantization.quantize_fx.prepare_qat_fx, refer to PyTorch
+    documentation for more details.
+
+    Args:
+        model (`PreTrainedModel` or `torch.fx.GraphModule`):
+            The model to fuse.
+        qconfig_dict (`Any`):
+            Refer to PyTorch documentation.
+        prepare_custom_config_dict (`Dict[str, Any]`, *optional*):
+            Refer to PyTorch documentation.
+        backend_config_dict (`Dict[str, Any]`, *optional*):
+            Refer to PyTorch documentation.
+        input_names (`List[str]`, *optional*):
+            The input names of the model, only used to trace if model is a PreTrainedModel. This is not needed if model
+            is already a GraphModule.
+        check (`bool`, *optional*, defaults to `True`):
+            If True, a check is done to verify that the model can be traced.
+
+    Returns:
+        `torch.quantization.fx.graph_module.ObservedGraphModule`: An ObservedGraphModule ready for QAT.
+    """
     if check:
         check_if_model_is_supported(model)
     tracer_cls = QuantizationTracer
