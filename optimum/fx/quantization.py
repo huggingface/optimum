@@ -102,14 +102,14 @@ def fuse_fx(
     check: bool = True,
 ) -> GraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.fuse_fx, refer to PyTorch documentation
+    Transformers models compatible version of torch.quantization.quantize_fx.fuse_fx, refer to the PyTorch documentation
     for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.fuse_fx.html.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
             The model to fuse.
         fuse_custom_config_dict (`Dict[str, Any]`, *optional*):
-            Dictionary for custom configurations for fuse_fx, refer to PyTorch documentation for more details.
+            Dictionary for custom configurations for fuse_fx, refer to the PyTorch documentation for more details.
         input_names (`List[str]`, *optional*):
             The input names of the model, only used to trace if model is a PreTrainedModel. This is not needed if model
             is already a GraphModule.
@@ -150,17 +150,17 @@ def prepare_fx(
     check: bool = True,
 ) -> ObservedGraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.prepare_fx, refer to PyTorch documentation
-    for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_fx.html#torch.quantization.quantize_fx.prepare_fx.
+    Transformers models compatible version of torch.quantization.quantize_fx.prepare_fx, refer to the PyTorch
+    documentation for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_fx.html#torch.quantization.quantize_fx.prepare_fx.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
             The model to prepare, must be in eval mode.
         qconfig_dict (`Any`):
-             Dictionary specifying how and which modules and operations should be quantized, refer to PyTorch
+             Dictionary specifying how and which modules and operations should be quantized, refer to the PyTorch
              documentation for more details.
         prepare_custom_config_dict (`Dict[str, Any]`, *optional*):
-            Customization configuration dictionary for quantization tool, refer to PyTorch documentation for more
+            Customization configuration dictionary for quantization tool, refer to the PyTorch documentation for more
             details.
         equalization_qconfig_dict (`Dict[str, Any]`, *optional*):
             A dictionary with a similar structure as qconfig_dict except it will contain configurations specific to
@@ -230,17 +230,17 @@ def prepare_qat_fx(
     check: bool = True,
 ) -> ObservedGraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.prepare_qat_fx, refer to PyTorch
+    Transformers models compatible version of torch.quantization.quantize_fx.prepare_qat_fx, refer to the PyTorch
     documentation for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_qat_fx.html#torch.quantization.quantize_fx.prepare_qat_fx.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
             The model to prepare, must be in train mode.
         qconfig_dict (`Any`):
-             Dictionary specifying how and which modules and operations should be quantized, refer to PyTorch
+             Dictionary specifying how and which modules and operations should be quantized, refer to the PyTorch
              documentation for more details.
         prepare_custom_config_dict (`Dict[str, Any]`, *optional*):
-            Customization configuration dictionary for quantization tool, refer to PyTorch documentation for more
+            Customization configuration dictionary for quantization tool, refer to the PyTorch documentation for more
             details.
         backend_config_dict (`Dict[str, Any]`, *optional*):
             A dictionary that specifies how operators are quantized in a backend, this includes how the operaetors are
