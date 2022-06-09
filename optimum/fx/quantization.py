@@ -24,6 +24,8 @@ from torch.quantization.quantize_fx import prepare_fx as orig_prepare_fx
 from torch.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
 from transformers.utils.fx import HFTracer, check_if_model_is_supported, get_concrete_args, symbolic_trace
 
+from .utils import check_if_available
+
 
 if TYPE_CHECKING:
     from torch.fx import Graph
@@ -86,6 +88,7 @@ def specialized_quantization_tracer_creator(concrete_args):
     return type("QuantizationTracer", (QuantizationTracer,), {"specialized_concrete_args": concrete_args})
 
 
+@check_if_available
 def fuse_fx(
     model: Union["PreTrainedModel", GraphModule],
     fuse_custom_config_dict: Optional[Dict[str, Any]] = None,
@@ -104,6 +107,7 @@ def fuse_fx(
     return gm
 
 
+@check_if_available
 def prepare_fx(
     model: Union["PreTrainedModel", GraphModule],
     qconfig_dict: Any,
@@ -134,6 +138,7 @@ def prepare_fx(
     return gm
 
 
+@check_if_available
 def prepare_qat_fx(
     model: torch.nn.Module,
     qconfig_dict: Any,

@@ -12,13 +12,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import unittest
+
 import torch
 from torch.ao.quantization.quantize_fx import fuse_fx as orig_fuse_fx
 from torch.ao.quantization.quantize_fx import prepare_fx as orig_prepare_fx
 from torch.ao.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
 from transformers import PretrainedConfig
 
-from optimum.fx.quantization import fuse_fx, prepare_fx, prepare_qat_fx
+from optimum.fx.utils import are_fx_features_available
+
+
+if are_fx_features_available():
+    from optimum.fx.quantization import fuse_fx, prepare_fx, prepare_qat_fx
 
 
 class DummyModel(torch.nn.Module):
@@ -44,6 +50,7 @@ class DummyModel(torch.nn.Module):
         return x
 
 
+@unittest.skipIf(not are_fx_features_available(), "not supported with this transformers version")
 def test_fuse_fx():
     model = DummyModel()
     model.eval()
@@ -52,6 +59,7 @@ def test_fuse_fx():
     assert torch_fx_fused_model.code == optimum_fused_model.code
 
 
+@unittest.skipIf(not are_fx_features_available(), "not supported with this transformers version")
 def test_prepare_fx():
     model = DummyModel()
     model.eval()
@@ -61,6 +69,7 @@ def test_prepare_fx():
     assert torch_fx_prepared_model.code == optimum_prepared_model.code
 
 
+@unittest.skipIf(not are_fx_features_available(), "not supported with this transformers version")
 def test_prepare_qat_fx():
     model = DummyModel()
     model.train()
