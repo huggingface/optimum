@@ -33,6 +33,10 @@ if TYPE_CHECKING:
 
 
 class QuantizationTracer(HFTracer):
+    """
+    Transformers compatible version of torch.quantization.quantize_fx.QuantizationTracer.
+    This tracer is used internally to prepare the model for quantization.
+    """
     specialized_concrete_args: Optional[Dict[str, Any]] = None
 
     def __init__(self, skipped_module_names: List[str], skipped_module_classes: List[Callable]):
@@ -47,23 +51,23 @@ class QuantizationTracer(HFTracer):
         self.scope = Scope("", None)
         self.node_name_to_scope: Dict[str, Tuple[str, type]] = {}
 
-    def is_leaf_module(self, m: torch.nn.Module, module_qualified_name: str) -> bool:
+    def is_leaf_module(self, module: torch.nn.Module, module_qualified_name: str) -> bool:
         return (
-            (m.__module__.startswith("torch.nn") and not isinstance(m, torch.nn.Sequential))
+            (module.__module__.startswith("torch.nn") and not isinstance(module, torch.nn.Sequential))
             or module_qualified_name in self.skipped_module_names
-            or type(m) in self.skipped_module_classes
-            or isinstance(m, _FusedModule)
-            or super().is_leaf_module(m, module_qualified_name)
+            or type(module) in self.skipped_module_classes
+            or isinstance(module, _FusedModule)
+            or super().is_leaf_module(module, module_qualified_name)
         )
 
     def call_module(
-        self, m: torch.nn.Module, forward: Callable[..., Any], args: Tuple[Any, ...], kwargs: Dict[str, Any]
+        self, module: torch.nn.Module, forward: Callable[..., Any], args: Tuple[Any, ...], kwargs: Dict[str, Any]
     ) -> Any:
-        module_qualified_name = self.path_of_module(m)
+        module_qualified_name = self.path_of_module(module)
         # Creating scope with information of current module
         # scope will be restored automatically upon exit
-        with ScopeContextManager(self.scope, m, module_qualified_name):
-            return super().call_module(m, forward, args, kwargs)
+        with ScopeContextManager(self.scope, module, module_qualified_name):
+            return super().call_module(module, forward, args, kwargs)
 
     def create_node(
         self,
@@ -98,13 +102,28 @@ def fuse_fx(
 ) -> GraphModule:
     """
     Transformers models compatible version of torch.quantization.quantize_fx.fuse_fx, refer to PyTorch documentation
-    for more details.
+    for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.fuse_fx.html.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
             The model to fuse.
         fuse_custom_config_dict (`Dict[str, Any]`, *optional*):
-            Refer to PyTorch documentation.
+            Dictionary for custom configurations for fuse_fx, e.g.:
+
+                ```python
+                >>> fuse_custom_config_dict = {
+                >>>   "additional_fuser_method_mapping": {
+                >>>     (Module1, Module2): fuse_module1_module2
+                >>>   }
+
+                >>>   # Attributes that are not used in forward function will
+                >>>   # be removed when constructing GraphModule, this is a list of attributes
+                >>>   # to preserve as an attribute of the GraphModule even when they are
+                >>>   # not used in the code, these attributes will also persist through deepcopy
+                >>>   "preserved_attributes": ["preserved_attr"],
+                >>> }
+                ```
+
         input_names (`List[str]`, *optional*):
             The input names of the model, only used to trace if model is a PreTrainedModel. This is not needed if model
             is already a GraphModule.
@@ -113,6 +132,14 @@ def fuse_fx(
 
     Returns:
         `torch.fx.GraphModule`: A GraphModule with the fused modules.
+
+    Example:
+
+        ```python
+        >>> from torch.ao.quantization import fuse_fx
+        >>> m = Model().eval()
+        >>> m = fuse_fx(m)
+        ```
     """
     if not isinstance(model, GraphModule):
         if input_names is None:
@@ -121,9 +148,9 @@ def fuse_fx(
         model = symbolic_trace(model, input_names, disable_check=not check)
     orig_symbolic_trace = torch.fx.symbolic_trace
     torch.fx.symbolic_trace = lambda x: x
-    gm = orig_fuse_fx(model, fuse_custom_config_dict=fuse_custom_config_dict)
+    graph_module = orig_fuse_fx(model, fuse_custom_config_dict=fuse_custom_config_dict)
     torch.fx.symbolic_trace = orig_symbolic_trace
-    return gm
+    return graph_module
 
 
 @check_if_available
@@ -138,15 +165,139 @@ def prepare_fx(
 ) -> ObservedGraphModule:
     """
     Transformers models compatible version of torch.quantization.quantize_fx.prepare_fx, refer to PyTorch documentation
-    for more details.
+    for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_fx.html#torch.quantization.quantize_fx.prepare_fx.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
-            The model to fuse.
+            The model to prepare, must be in eval mode.
         qconfig_dict (`Any`):
-            Refer to PyTorch documentation.
+             qconfig_dict is a dictionary with the following configurations:
+
+                ```python
+                >>> qconfig_dict = {
+                >>>   # optional, global config
+                >>>   "": qconfig?,
+
+                >>>   # optional, used for module and function types
+                >>>   # could also be split into module_types and function_types if we prefer
+                >>>   "object_type": [
+                >>>     (torch.nn.Conv2d, qconfig?),
+                >>>     (torch.nn.functional.add, qconfig?),
+                >>>     ...,
+                >>>    ],
+
+                >>>   # optional, used for module names
+                >>>   "module_name": [
+                >>>     ("foo.bar", qconfig?)
+                >>>     ...,
+                >>>   ],
+
+                >>>   # optional, matched in order, first match takes precedence
+                >>>   "module_name_regex": [
+                >>>     ("foo.*bar.*conv[0-9]+", qconfig?)
+                >>>     ...,
+                >>>   ],
+
+                >>>   # optional, used for matching object type invocations in a submodule by
+                >>>   # order
+                >>>   # TODO(future PR): potentially support multiple indices ('0,1') and/or
+                >>>   #   ranges ('0:3').
+                >>>   "module_name_object_type_order": [
+                >>>     # fully_qualified_name, object_type, index, qconfig
+                >>>     ("foo.bar", torch.nn.functional.linear, 0, qconfig?),
+                >>>   ],
+
+                >>>   # priority (in increasing order):
+                >>>   #   global, object_type, module_name_regex, module_name,
+                >>>   #   module_name_object_type_order
+                >>>   # qconfig == None means fusion and quantization should be skipped for anything
+                >>>   # matching the rule
+                >>> }
+                ```
+
         prepare_custom_config_dict (`Dict[str, Any]`, *optional*):
-            Refer to PyTorch documentation.
+            Customization configuration dictionary for quantization tool:
+
+            ```python
+            >>> prepare_custom_config_dict = {
+            >>>   # optional: specify the path for standalone modules
+            >>>   # These modules are symbolically traced and quantized as one unit
+            >>>   "standalone_module_name": [
+            >>>      # module_name, qconfig_dict, prepare_custom_config_dict
+            >>>      ("submodule.standalone",
+            >>>       None,  # qconfig_dict for the prepare function called in the submodule,
+            >>>              # None means use qconfig from parent qconfig_dict
+            >>>       {"input_quantized_idxs": [], "output_quantized_idxs": []}),  # prepare_custom_config_dict
+            >>>       {}  # backend_config_dict, TODO: point to README doc when it's ready
+            >>>   ],
+
+            >>>   "standalone_module_class": [
+            >>>       # module_class, qconfig_dict, prepare_custom_config_dict
+            >>>       (StandaloneModule,
+            >>>        None,  # qconfig_dict for the prepare function called in the submodule,
+            >>>               # None means use qconfig from parent qconfig_dict
+            >>>       {"input_quantized_idxs": [0], "output_quantized_idxs": [0]},  # prepare_custom_config_dict
+            >>>       {})  # backend_config_dict, TODO: point to README doc when it's ready
+            >>>   ],
+
+            >>>   # user will manually define the corresponding observed
+            >>>   # module class which has a from_float class method that converts
+            >>>   # float custom module to observed custom module
+            >>>   # (only needed for static quantization)
+            >>>   "float_to_observed_custom_module_class": {
+            >>>      "static": {
+            >>>          CustomModule: ObservedCustomModule
+            >>>      }
+            >>>   },
+
+            >>>   # the qualified names for the submodule that are not symbolically traceable
+            >>>   "non_traceable_module_name": [
+            >>>      "non_traceable_module"
+            >>>   ],
+
+            >>>   # the module classes that are not symbolically traceable
+            >>>   # we'll also put dynamic/weight_only custom module here
+            >>>   "non_traceable_module_class": [
+            >>>      NonTraceableModule
+            >>>   ],
+
+            >>>   # Additional fuser_method mapping
+            >>>   "additional_fuser_method_mapping": {
+            >>>      (torch.nn.Conv2d, torch.nn.BatchNorm2d): fuse_conv_bn
+            >>>   },
+
+            >>>   # Additioanl module mapping for qat
+            >>>   "additional_qat_module_mapping": {
+            >>>      torch.nn.intrinsic.ConvBn2d: torch.nn.qat.ConvBn2d
+            >>>   },
+
+            >>>   # Additional fusion patterns
+            >>>   "additional_fusion_pattern": {
+            >>>      (torch.nn.BatchNorm2d, torch.nn.Conv2d): ConvReluFusionhandler
+            >>>   },
+
+            >>>   # Additional quantization patterns
+            >>>   "additional_quant_pattern": {
+            >>>      torch.nn.Conv2d: ConvReluQuantizeHandler,
+            >>>      (torch.nn.ReLU, torch.nn.Conv2d): ConvReluQuantizeHandler,
+            >>>   }
+
+            >>>   # By default, inputs and outputs of the graph are assumed to be in
+            >>>   # fp32. Providing `input_quantized_idxs` will set the inputs with the
+            >>>   # corresponding indices to be quantized. Providing
+            >>>   # `output_quantized_idxs` will set the outputs with the corresponding
+            >>>   # indices to be quantized.
+            >>>   "input_quantized_idxs": [0],
+            >>>   "output_quantized_idxs": [0],
+
+            >>>   # Attributes that are not used in forward function will
+            >>>   # be removed when constructing GraphModule, this is a list of attributes
+            >>>   # to preserve as an attribute of the GraphModule even when they are
+            >>>   # not used in the code, these attributes will also persist through deepcopy
+            >>>   "preserved_attributes": ["preserved_attr"],
+            >>> }
+            ```
+
         equalization_qconfig_dict (`Dict[str, Any]`, *optional*):
             Refer to PyTorch documentation.
         backend_config_dict (`Dict[str, Any]`, *optional*):
@@ -170,7 +321,7 @@ def prepare_fx(
         tracer_cls = specialized_quantization_tracer_creator(get_concrete_args(model, input_names))
     orig_quantization_tracer = torch.ao.quantization.quantize_fx.QuantizationTracer
     torch.ao.quantization.quantize_fx.QuantizationTracer = tracer_cls
-    gm = orig_prepare_fx(
+    graph_module = orig_prepare_fx(
         model,
         qconfig_dict,
         prepare_custom_config_dict=prepare_custom_config_dict,
@@ -178,7 +329,7 @@ def prepare_fx(
         backend_config_dict=backend_config_dict,
     )
     torch.ao.quantization.quantize_fx.QuantizationTracer = orig_quantization_tracer
-    return gm
+    return graph_module
 
 
 @check_if_available
@@ -222,11 +373,11 @@ def prepare_qat_fx(
         tracer_cls = specialized_quantization_tracer_creator(get_concrete_args(model, input_names))
     orig_quantization_tracer = torch.ao.quantization.quantize_fx.QuantizationTracer
     torch.ao.quantization.quantize_fx.QuantizationTracer = tracer_cls
-    gm = orig_prepare_qat_fx(
+    graph_module = orig_prepare_qat_fx(
         model,
         qconfig_dict,
         prepare_custom_config_dict=prepare_custom_config_dict,
         backend_config_dict=backend_config_dict,
     )
     torch.ao.quantization.quantize_fx.QuantizationTracer = orig_quantization_tracer
-    return gm
+    return graph_module
