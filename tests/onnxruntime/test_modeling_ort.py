@@ -1,6 +1,8 @@
 import os
+import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 import torch
 from transformers import (
@@ -66,6 +68,18 @@ class ORTModelIntergrationTest(unittest.TestCase):
             folder_contents = os.listdir(tmpdirname)
             self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
             self.assertTrue(CONFIG_NAME in folder_contents)
+
+    def test_save_model_with_different_name(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            test_model_name = "model-test.onnx"
+            local_model_path = str(Path(f"tests/{self.LOCAL_MODEL_PATH}").joinpath("model.onnx").absolute())
+            # copy two models to simulate a optimization
+            shutil.copy(local_model_path, os.path.join(tmpdirname, test_model_name))
+            shutil.copy(local_model_path, os.path.join(tmpdirname, "model.onnx"))
+
+            model = ORTModel.from_pretrained(tmpdirname, file_name=test_model_name)
+
+            self.assertEqual(model.latest_model_name, test_model_name)
 
     @require_hf_token
     def test_save_model_from_hub(self):
