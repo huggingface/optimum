@@ -72,7 +72,7 @@ class ORTModelIntergrationTest(unittest.TestCase):
     def test_save_model_with_different_name(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             test_model_name = "model-test.onnx"
-            local_model_path = str(Path(f"tests/{self.LOCAL_MODEL_PATH}").joinpath("model.onnx").absolute())
+            local_model_path = str(Path(self.LOCAL_MODEL_PATH).joinpath("model.onnx").absolute())
             # copy two models to simulate a optimization
             shutil.copy(local_model_path, os.path.join(tmpdirname, test_model_name))
             shutil.copy(local_model_path, os.path.join(tmpdirname, "model.onnx"))
