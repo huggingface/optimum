@@ -19,17 +19,18 @@ import unittest
 from functools import partial
 from pathlib import Path
 
-from transformers import AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from transformers.onnx import validate_model_outputs
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
+from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTModelForSequenceClassification, ORTQuantizer
 from optimum.onnxruntime.configuration import (
     AutoCalibrationConfig,
     AutoQuantizationConfig,
     OptimizationConfig,
     QuantizationConfig,
 )
+from transformers.onnx.features import FeaturesManager
 
 
 class TestORTConfig(unittest.TestCase):
@@ -100,7 +101,7 @@ class TestORTOptimizer(unittest.TestCase):
 
 class TestORTQuantizer(unittest.TestCase):
     def test_dynamic_quantization(self):
-        model_names = {"bert-base-cased", "distilbert-base-uncased", "facebook/bart-base", "gpt2", "roberta-base"}
+        model_names = {"bert-base-cased", "distilbert-base-uncased"}  # , "facebook/bart-base", "gpt2", "roberta-base"}
 
         qconfig = QuantizationConfig(
             is_static=False,
@@ -117,21 +118,28 @@ class TestORTQuantizer(unittest.TestCase):
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
+                    model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+                    model.save_pretrained(tmp_dir)
                     model_path = output_dir.joinpath("model.onnx")
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
-                    quantizer = ORTQuantizer.from_pretrained(model_name, feature="sequence-classification")
+
+                    quantizer = ORTQuantizer(model_path)
                     quantizer.export(
-                        onnx_model_path=model_path,
                         onnx_quantized_model_output_path=q8_model_path,
                         calibration_tensors_range=None,
                         quantization_config=qconfig,
                     )
+
+                    _, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(
+                        model, feature=model.pipeline_task
+                    )
+                    _onnx_config = onnx_config_factory(model.config)
                     validate_model_outputs(
-                        quantizer._onnx_config,
-                        quantizer.tokenizer,
-                        quantizer.model,
+                        _onnx_config,
+                        AutoTokenizer.from_pretrained(model_name),
+                        AutoModelForSequenceClassification.from_pretrained(model_name),
                         q8_model_path,
-                        list(quantizer._onnx_config.outputs.keys()),
+                        list(_onnx_config.outputs.keys()),
                         atol=8e-1,
                     )
                     gc.collect()
@@ -157,13 +165,18 @@ class TestORTQuantizer(unittest.TestCase):
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     output_dir = Path(tmp_dir)
+                    model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+                    model.save_pretrained(tmp_dir)
+                    tokenizer = AutoTokenizer.from_pretrained(model_name)
                     model_path = output_dir.joinpath("model.onnx")
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
-                    quantizer = ORTQuantizer.from_pretrained(model_name, feature="sequence-classification")
+
+                    quantizer = ORTQuantizer(model_path)
+
                     calibration_dataset = quantizer.get_calibration_dataset(
                         "glue",
                         dataset_config_name="sst2",
-                        preprocess_function=partial(preprocess_function, tokenizer=quantizer.tokenizer),
+                        preprocess_function=partial(preprocess_function, tokenizer=tokenizer),
                         num_samples=40,
                         dataset_split="train",
                     )
@@ -171,20 +184,23 @@ class TestORTQuantizer(unittest.TestCase):
                     ranges = quantizer.fit(
                         dataset=calibration_dataset,
                         calibration_config=calibration_config,
-                        onnx_model_path=model_path,
                     )
                     quantizer.export(
-                        onnx_model_path=model_path,
                         onnx_quantized_model_output_path=q8_model_path,
                         calibration_tensors_range=ranges,
                         quantization_config=qconfig,
                     )
+
+                    _, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(
+                        model, feature=model.pipeline_task
+                    )
+                    _onnx_config = onnx_config_factory(model.config)
                     validate_model_outputs(
-                        quantizer._onnx_config,
-                        quantizer.tokenizer,
-                        quantizer.model,
+                        _onnx_config,
+                        tokenizer,
+                        AutoModelForSequenceClassification.from_pretrained(model_name),
                         q8_model_path,
-                        list(quantizer._onnx_config.outputs.keys()),
+                        list(_onnx_config.outputs.keys()),
                         atol=5e-1,
                     )
                     gc.collect()

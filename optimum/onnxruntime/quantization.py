@@ -81,9 +81,7 @@ class ORTQuantizer(ABC):
     """
 
     @staticmethod
-    def from_pretrained(
-        model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
-    ) -> "ORTQuantizer":
+    def from_pretrained(model_name_or_path: Union[str, os.PathLike], opset: Optional[int] = None) -> "ORTQuantizer":
         """
         Instantiate a `ORTQuantizer` from a pretrained pytorch model and tokenizer.
 
@@ -98,40 +96,21 @@ class ORTQuantizer(ABC):
         Returns:
             An instance of `ORTQuantizer`.
         """
-        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-        model_class = FeaturesManager.get_model_class_for_feature(feature)
-        model = model_class.from_pretrained(model_name_or_path)
-
-        return ORTQuantizer(tokenizer, model, feature, opset)
+        pass
 
     def __init__(
         self,
-        tokenizer: PreTrainedTokenizer,
-        model: PreTrainedModel,
-        feature: str = "default",
-        opset: Optional[int] = None,
+        model_name_or_path: Union[str, os.PathLike],
     ):
         """
         Args:
-            tokenizer (`PreTrainedTokenizer`):
-                The tokenizer used to preprocess the data.
-            model (`PreTrainedModel`):
-                The model to optimize.
-            feature (`str`, defaults to `"default"`):
-                Feature to use when exporting the model.
-            opset (`int`, *optional*):
-                ONNX opset version to export the model with.
+            model_name_or_path (`Union[str, os.PathLike]`):
+                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
         """
         super().__init__()
-
-        self.tokenizer = tokenizer
-        self.model = model
-
-        self.feature = feature
-
-        self._model_type, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
-        self._onnx_config = onnx_config_factory(self.model.config)
-        self.opset = self._onnx_config.default_onnx_opset if opset is None else opset
+        self.model_name_or_path = model_name_or_path
+        if not isinstance(self.model_name_or_path, Path):
+            self.model_name_or_path = Path(self.model_name_or_path)
 
         self._calibrator = None
 
@@ -139,7 +118,6 @@ class ORTQuantizer(ABC):
         self,
         dataset: Dataset,
         calibration_config: CalibrationConfig,
-        onnx_model_path: Union[str, os.PathLike, Path],
         onnx_augmented_model_name: str = "augmented_model.onnx",
         operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
@@ -183,7 +161,6 @@ class ORTQuantizer(ABC):
         self.partial_fit(
             dataset,
             calibration_config,
-            onnx_model_path,
             onnx_augmented_model_name,
             operators_to_quantize,
             batch_size,
@@ -197,7 +174,6 @@ class ORTQuantizer(ABC):
         self,
         dataset: Dataset,
         calibration_config: CalibrationConfig,
-        onnx_model_path: Union[str, os.PathLike],
         onnx_augmented_model_name: str = "augmented_model.onnx",
         operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
@@ -231,20 +207,11 @@ class ORTQuantizer(ABC):
         Returns:
             The dictionary mapping the nodes name to their quantization ranges.
         """
-        if not isinstance(onnx_model_path, Path):
-            onnx_model_path = Path(onnx_model_path)
-
-        # Export the model to ONNX IR
-        if not onnx_model_path.exists():
-            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
-
-            LOGGER.info(f"Exported model to ONNX at: {onnx_model_path.as_posix()}")
-
         # If no calibrator, then create one
         if calibration_config.method is not None:
             LOGGER.info(f"Creating calibrator: {calibration_config.method}({calibration_config})")
             self._calibrator = calibration_config.create_calibrator(
-                onnx_model_path=onnx_model_path.as_posix(),
+                onnx_model_path=self.model_name_or_path.as_posix(),
                 use_external_data_format=use_external_data_format,
                 augmented_model_name=onnx_augmented_model_name,
                 operators_to_quantize=operators_to_quantize,
@@ -273,7 +240,6 @@ class ORTQuantizer(ABC):
 
     def export(
         self,
-        onnx_model_path: Union[str, os.PathLike],
         onnx_quantized_model_output_path: Union[str, os.PathLike],
         quantization_config: QuantizationConfig,
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
@@ -301,13 +267,6 @@ class ORTQuantizer(ABC):
         Returns:
             The path of the resulting quantized model.
         """
-        if not isinstance(onnx_model_path, Path):
-            onnx_model_path = Path(onnx_model_path)
-
-        # Export the model if it has not already been exported to ONNX IR (useful for dynamic quantization)
-        if not onnx_model_path.exists():
-            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
-
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
 
         if not quantization_config.is_static:
@@ -328,7 +287,7 @@ class ORTQuantizer(ABC):
 
         if preprocessor is not None:
             LOGGER.info("Preprocessor detected, collecting nodes to include/exclude")
-            nodes_to_quantize, nodes_to_exclude = preprocessor.collect(onnx_model_path)
+            nodes_to_quantize, nodes_to_exclude = preprocessor.collect(self.model_name_or_path)
 
             nodes_to_quantize.update(quantization_config.nodes_to_quantize)
             nodes_to_exclude.update(quantization_config.nodes_to_exclude)
@@ -336,7 +295,7 @@ class ORTQuantizer(ABC):
             quantization_config.nodes_to_quantize = list(nodes_to_quantize)
             quantization_config.nodes_to_exclude = list(nodes_to_exclude)
 
-        onnx_model = onnx.load(onnx_model_path)
+        onnx_model = onnx.load(self.model_name_or_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
         quantizer = quantizer_factory(
             model=onnx_model,
@@ -425,6 +384,8 @@ class ORTQuantizer(ABC):
         return self.clean_calibration_dataset(processed_calib_dataset)
 
     def clean_calibration_dataset(self, dataset: Dataset) -> Dataset:
-        ignored_columns = list(set(dataset.column_names) - set(self._onnx_config.inputs.keys()))
+        model = onnx.load(self.model_name_or_path)
+        model_inputs = {input.name for input in model.graph.input}
+        ignored_columns = list(set(dataset.column_names) - model_inputs)
 
         return dataset.remove_columns(ignored_columns)
