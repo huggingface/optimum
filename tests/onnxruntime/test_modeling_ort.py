@@ -31,7 +31,7 @@ from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
 
 
-class ORTModelIntergrationTest(unittest.TestCase):
+class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
@@ -53,6 +53,10 @@ class ORTModelIntergrationTest(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
         self.assertEqual("Not Found", context.exception.response.reason)
+
+    def test_model_on_cpu(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
+        self.assertEqual(model.device, torch.device("cpu"))
 
     @require_hf_token
     def test_load_model_from_hub_private(self):
@@ -94,7 +98,7 @@ class ORTModelIntergrationTest(unittest.TestCase):
             )
 
 
-class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
+class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -172,8 +176,16 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertTrue(isinstance(outputs["answer"], str))
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pp.device, onnx_model.device)
 
-class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
+
+class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -246,6 +258,14 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pp.device, onnx_model.device)
+
     def test_pipeline_zero_shot_classification(self):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             "typeform/distilbert-base-uncased-mnli", from_transformers=True
@@ -262,7 +282,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
         self.assertTrue(any(isinstance(label, str) for label in outputs["labels"]))
 
 
-class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
+class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -332,8 +352,16 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pp.device, onnx_model.device)
 
-class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
+
+class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
         "bert": "hf-internal-testing/tiny-random-bert",
@@ -403,8 +431,16 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pp.device, onnx_model.device)
 
-class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
+
+class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "gpt2": "hf-internal-testing/tiny-random-gpt2",
         "distilgpt2": "distilgpt2",
@@ -495,3 +531,11 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pp.device, onnx_model.device)
