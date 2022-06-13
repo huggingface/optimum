@@ -18,3 +18,7 @@
   - local: onnxruntime/trainer
     title: Trainer
   title: ONNX Runtime
+- sections:
+  - local: benchmark
+    title: Benchmark Optimum models
+  title: API Reference

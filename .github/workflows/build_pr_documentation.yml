@@ -47,7 +47,7 @@ jobs:
           cd optimum
           apt install -y libopencv-dev python3-opencv
           pip install --upgrade protobuf
-          pip install .[dev,onnxruntime]
+          pip install .[dev,onnxruntime,benchmark]
           cd ..
 
       - name: Comment PR
