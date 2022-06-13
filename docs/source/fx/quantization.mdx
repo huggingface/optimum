@@ -14,6 +14,10 @@ specific language governing permissions and limitations under the License.
 
 ## FX graph mode quantization API
 
-The following functions are adapted versions of what is provided in PyTorch [to perform graph mode quantization](https://pytorch.org/docs/stable/quantization-support.html#torch-quantization-quantize-fx) to make quantization on 🤗 Transformers models possible.
+The following functions are adapted versions for 🤗 Transformers models, of what is provided in PyTorch [to perform graph mode quantization](https://pytorch.org/docs/stable/quantization-support.html#torch-quantization-quantize-fx).
 
-[[autodoc]] fx.quantization
+[[autodoc]] fx.quantization.fuse_fx
+
+[[autodoc]] fx.quantization.prepare_fx
+
+[[autodoc]] fx.quantization.prepare_qat_fx

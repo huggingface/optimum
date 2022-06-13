@@ -22,6 +22,7 @@ from torch.quantization.quantize_fx import Scope, ScopeContextManager
 from torch.quantization.quantize_fx import fuse_fx as orig_fuse_fx
 from torch.quantization.quantize_fx import prepare_fx as orig_prepare_fx
 from torch.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
+from transformers import PreTrainedModel
 from transformers.utils.fx import HFTracer, check_if_model_is_supported, get_concrete_args, symbolic_trace
 
 from .utils import check_if_available
@@ -29,7 +30,6 @@ from .utils import check_if_available
 
 if TYPE_CHECKING:
     from torch.fx import Graph
-    from transformers import PreTrainedModel
 
 
 class QuantizationTracer(HFTracer):
@@ -96,14 +96,15 @@ def specialized_quantization_tracer_creator(concrete_args: Dict[str, Any]) -> Ty
 
 @check_if_available
 def fuse_fx(
-    model: Union["PreTrainedModel", GraphModule],
+    model: Union[PreTrainedModel, GraphModule],
     fuse_custom_config_dict: Optional[Dict[str, Any]] = None,
     input_names: Optional[List[str]] = None,
     check: bool = True,
 ) -> GraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.fuse_fx, refer to the PyTorch documentation
-    for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.fuse_fx.html.
+    Transformers models compatible version of torch.quantization.quantize_fx.fuse_fx, refer to the
+    [PyTorch documentation](https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.fuse_fx.html) for
+    more details.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
@@ -122,9 +123,11 @@ def fuse_fx(
     Example:
 
         ```python
-        >>> from torch.ao.quantization import fuse_fx
-        >>> m = Model().eval()
-        >>> m = fuse_fx(m)
+        >>> from transformers import BertModel
+        >>> from optimum.fx.quantization import fuse_fx
+
+        >>> model = BertModel.from_pretrained("bert-base-uncased")
+        >>> model = fuse_fx(model)
         ```
     """
     if not isinstance(model, GraphModule):
@@ -141,7 +144,7 @@ def fuse_fx(
 
 @check_if_available
 def prepare_fx(
-    model: Union["PreTrainedModel", GraphModule],
+    model: Union[PreTrainedModel, GraphModule],
     qconfig_dict: Any,
     prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
     equalization_qconfig_dict: Optional[Dict[str, Any]] = None,
@@ -150,8 +153,9 @@ def prepare_fx(
     check: bool = True,
 ) -> ObservedGraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.prepare_fx, refer to the PyTorch
-    documentation for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_fx.html#torch.quantization.quantize_fx.prepare_fx.
+    Transformers models compatible version of torch.quantization.quantize_fx.prepare_fx, refer to the [PyTorch
+    documentation](https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_fx.html#torch.quantization.quantize_fx.prepare_fx)
+    for more details.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
@@ -183,20 +187,16 @@ def prepare_fx(
         ```python
         >>> import torch
         >>> from torch.ao.quantization import get_default_qconfig
+        >>> from transformers import BertForSequenceClassification
         >>> from optimum.fx.quantization import prepare_fx
 
-        >>> transformers_model.eval()
-        >>> qconfig = get_default_qconfig('fbgemm')
-        >>> def calibrate(model, data_loader):
-        >>>     model.eval()
-        >>>     with torch.no_grad():
-        >>>         for image, target in data_loader:
-        >>>             model(image)
+        >>> model = BertForSequenceClassification.from_pretrained("textattack/bert-base-uncased-SST-2")
+        >>> model.eval()
 
+        >>> # Prepare the model
+        >>> qconfig = get_default_qconfig('fbgemm')
         >>> qconfig_dict = {"": qconfig}
-        >>> prepared_model = prepare_fx(transformers_model, qconfig_dict)
-        >>> # Run calibration
-        >>> calibrate(prepared_model, sample_inference_data)
+        >>> prepared_model = prepare_fx(model, qconfig_dict)
         ```
     """
     if check:
@@ -222,7 +222,7 @@ def prepare_fx(
 
 @check_if_available
 def prepare_qat_fx(
-    model: Union["PreTrainedModel", GraphModule],
+    model: Union[PreTrainedModel, GraphModule],
     qconfig_dict: Any,
     prepare_custom_config_dict: Optional[Dict[str, Any]] = None,
     backend_config_dict: Optional[Dict[str, Any]] = None,
@@ -230,8 +230,9 @@ def prepare_qat_fx(
     check: bool = True,
 ) -> ObservedGraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.prepare_qat_fx, refer to the PyTorch
-    documentation for more details: https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_qat_fx.html#torch.quantization.quantize_fx.prepare_qat_fx.
+    Transformers models compatible version of torch.quantization.quantize_fx.prepare_qat_fx, refer to the [PyTorch
+    documentation](https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_qat_fx.html#torch.quantization.quantize_fx.prepare_qat_fx)
+    for more details.
 
     Args:
         model (`PreTrainedModel` or `torch.fx.GraphModule`):
@@ -260,19 +261,16 @@ def prepare_qat_fx(
         ```python
         >>> import torch
         >>> from torch.ao.quantization import get_default_qat_qconfig
-        >>> from optimum.fx.quantization import prepare_fx
+        >>> from transformers import BertForSequenceClassification
+        >>> from optimum.fx.quantization import prepare_qat_fx
 
+        >>> model = BertForSequenceClassification.from_pretrained("textattack/bert-base-uncased-SST-2")
+        >>> model.train()
+
+        >>> # Prepare the model
         >>> qconfig = get_default_qat_qconfig('fbgemm')
-        >>> def train_loop(model, train_data):
-        >>>     model.train()
-        >>>     for image, target in data_loader:
-        >>>         ...
-
-        >>> transformers_model.train()
         >>> qconfig_dict = {"": qconfig}
-        >>> prepared_model = prepare_fx(transformers_model, qconfig_dict)
-        >>> # Run calibration
-        >>> train_loop(prepared_model, train_loop)
+        >>> prepared_model = prepare_qat_fx(model, qconfig_dict)
         ```
     """
     if check:
