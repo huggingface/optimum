@@ -15,14 +15,15 @@ limitations under the License.
 -->
 
 # 🤗 Optimum Notebooks
+🤗  [Optimum](https://github.com/huggingface/optimum) is an extension of 🤗 [Transformers](https://github.com/huggingface/transformers), providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardwares.
 
-You can find here a list of the official notebooks provided by Hugging Face leveraging the usage of the
-Optimum library for different provider.
+You can find here a list of the official notebooks, leveraging the usage of the Optimum library for different providers.
 
 ## Hugging Face's notebooks 🤗
 
 ### PyTorch Examples
 
-| Notebook     |      Description      |   |
-|:----------|:-------------|------:|
-| [How to quantize a model for text classification](https://github.com/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb) | Show how to apply [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) quantization on a model for any GLUE task. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb)|
+| Notebook     |      Description      |   |   |
+|:----------|:-------------|:-------------|------:|
+| [How to quantize a model with ONNX Runtime for text classification](https://github.com/huggingface/notebooks/blob/master/examples/text_classification_quantization_ort.ipynb)| Show how to apply static and dynamic quantization on a model using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for any GLUE task. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/text_classification_quantization_ort.ipynb)| [![Open in AWS Studio](https://studiolab.sagemaker.aws/studiolab.svg)](https://studiolab.sagemaker.aws/import/github/huggingface/notebooks/blob/master/examples/text_classification_quantization_ort.ipynb)|
+| [How to quantize a model with Intel Neural Compressor for text classification](https://github.com/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb)| Show how to apply static, dynamic and aware training quantization on a model using [Intel Neural Compressor (INC)](https://github.com/intel/neural-compressor) for any GLUE task. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb)| [![Open in AWS Studio](https://studiolab.sagemaker.aws/studiolab.svg)](https://studiolab.sagemaker.aws/import/github/huggingface/notebooks/blob/master/examples/text_classification_quantization_inc.ipynb)|

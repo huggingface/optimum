@@ -12,316 +12,419 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import copy
 import logging
 import os
-from enum import Enum
+from abc import ABC
+from collections import defaultdict
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import numpy
-import torch
 from datasets import Dataset, load_dataset
-from torch.utils.data import DataLoader, RandomSampler
-from transformers import AutoTokenizer, PretrainedConfig, default_data_collator
-from transformers.onnx import OnnxConfig, export
+from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 
 import onnx
-from onnxruntime.quantization import (
-    CalibrationDataReader,
-    CalibrationMethod,
-    QuantFormat,
-    QuantType,
-    quantize_dynamic,
-    quantize_static,
-)
-from optimum.onnxruntime.configuration import ORTConfig
-from optimum.onnxruntime.utils import generate_identified_filename
+from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
+from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
+from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
+from optimum.onnxruntime import ORTQuantizableOperator
+from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
+from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 
 
-logger = logging.getLogger(__name__)
-
-
-class ORTQuantizationMode(Enum):
-    DYNAMIC = "dynamic"
-    STATIC = "static"
-
-
-SUPPORTED_QUANT_MODE = set([approach.value for approach in ORTQuantizationMode])
-
-CALIB_METHOD = {"minmax": "MinMax", "entropy": "Entropy"}
-
-Q_FORMAT = {"operator": "QOperator", "qdq": "QDQ"}
-
-Q_TYPE = {"int8": "QInt8", "uint8": "QUInt8"}
+LOGGER = logging.getLogger(__name__)
 
 
 class ORTCalibrationDataReader(CalibrationDataReader):
-    def __init__(self, calib_dataloader: DataLoader):
-        self._iter = iter([{key: data[key].numpy() for key in data} for data in calib_dataloader])
+    """ """
+
+    __slots__ = ["batch_size", "dataset", "_dataset_iter"]
+
+    def __init__(self, dataset: Dataset, batch_size: int = 1):
+        if dataset is None:
+            raise ValueError("Provided dataset is None.")
+
+        if batch_size <= 0:
+            raise ValueError(f"Provided batch_size should be >= 1 (got: {batch_size}).")
+
+        self.dataset = dataset
+        self.batch_size = batch_size
+
+        self._dataset_iter = iter(self.dataset)
 
     def get_next(self):
-        return next(self._iter, None)
+        featurized_samples = None
+        try:
+            if self.batch_size == 1:
+                featurized_samples = {key: [value] for key, value in next(self._dataset_iter).items()}
+            else:
+                featurized_samples = defaultdict(list)
+                for _ in range(self.batch_size):
+                    sample = next(self._dataset_iter)
+
+                    for name, value in sample.items():
+                        featurized_samples[name] += [value]
+
+        except StopIteration:
+            pass
+        finally:
+            if featurized_samples is not None and len(featurized_samples) > 0:
+                return featurized_samples
+            else:
+                return None
 
 
-class ORTQuantizer:
-    def __init__(
-        self,
-        ort_config: Union[str, ORTConfig],
-        calib_dataset: Optional[Dataset] = None,
-        dataset_name: Optional[str] = None,
-        dataset_config_name: Optional[str] = None,
-        data_files: Optional[str] = None,
-        preprocess_function: Optional[Callable] = None,
-        **kwargs
-    ):
-        """
-        Args:
-            ort_config (`Union[ORTConfig, str]`):
-                Configuration file containing all the information related to the model quantization.
-                Can be either:
-                    - an instance of the class :class:`ORTConfig`,
-                    - a string valid as input to :func:`ORTConfig.from_pretrained`.
-            calib_dataset (`Dataset`, `optional`):
-                Dataset to use for the calibration step.
-            dataset_name (`str`, `optional`):
-                Dataset repository name on the Hugging Face Hub or path to a local directory containing data files to
-                load to use for the calibration step.
-            dataset_config_name (`str`, `optional`):
-                Name of the dataset configuration.
-            data_files (`str`, `optional`):
-                Path to source data files.
-            preprocess_function (`Callable`, `optional`):
-                Processing function to apply to each example after loading dataset.
-            cache_dir (`str`, `optional`):
-                Path to a directory in which a downloaded configuration should be cached if the standard cache should
-                not be used.
-            force_download (`bool`, `optional`, defaults to `False`):
-                Whether or not to force to (re-)download the configuration files and override the cached versions if
-                they exist.
-            resume_download (`bool`, `optional`, defaults to `False`):
-                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
-                exists.
-            revision(`str`, `optional`):
-                The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
-                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
-                identifier allowed by git.
-        """
-        config_kwargs_default = [
-            ("cache_dir", None),
-            ("force_download", False),
-            ("resume_download", False),
-            ("revision", None),
-        ]
-        ort_config_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in config_kwargs_default}
-        self.cache_dir = ort_config_kwargs.get("cache_dir")
-        if not isinstance(ort_config, ORTConfig):
-            ort_config = ORTConfig.from_pretrained(ort_config, **ort_config_kwargs)
-        self.ort_config = ort_config
-        self.quantization_approach = ORTQuantizationMode(ort_config.quantization_approach)
-        self.activation_type = QuantType[Q_TYPE.get(ort_config.activation_type)]
-        self.weight_type = QuantType[Q_TYPE.get(ort_config.weight_type)]
-        self.quant_format = QuantFormat[Q_FORMAT.get(ort_config.quant_format)]
-        self.calibrate_method = CalibrationMethod[CALIB_METHOD.get(ort_config.calibration_method)]
-        self.seed = ort_config.seed
-        self.calib_dataset = calib_dataset
-        self.dataset_name = dataset_name
-        self.dataset_config_name = dataset_config_name
-        self.data_files = data_files
-        self.preprocess_function = preprocess_function
-        self.onnx_config = None
-        self.tokenizer = None
-        self.model = None
+class ORTQuantizer(ABC):
+    """
+    Handles the ONNX Runtime quantization process for models shared on huggingface.co/models.
+    """
 
-    def export(
-        self,
-        model_name_or_path: Union[str, os.PathLike],
-        output_path: Union[str, os.PathLike],
-        feature: str = "default",
-        **kwargs
-    ) -> None:
+    @staticmethod
+    def from_pretrained(
+        model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
+    ) -> "ORTQuantizer":
         """
-        Loads and exports a model to an ONNX Intermediate Representation (IR).
+        Instantiate a `ORTQuantizer` from a pretrained pytorch model and tokenizer.
 
         Args:
             model_name_or_path (`Union[str, os.PathLike]`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            output_path (`os.PathLike`):
-                The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            feature (`str`):
+                Feature to use when exporting the model.
+            opset (`int`, *optional*):
+                ONNX opset version to export the model with.
+
+        Returns:
+            An instance of `ORTQuantizer`.
+        """
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        model_class = FeaturesManager.get_model_class_for_feature(feature)
+        model = model_class.from_pretrained(model_name_or_path)
+
+        return ORTQuantizer(tokenizer, model, feature, opset)
+
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizer,
+        model: PreTrainedModel,
+        feature: str = "default",
+        opset: Optional[int] = None,
+    ):
+        """
+        Args:
+            tokenizer (`PreTrainedTokenizer`):
+                The tokenizer used to preprocess the data.
+            model (`PreTrainedModel`):
+                The model to optimize.
             feature (`str`, defaults to `"default"`):
                 Feature to use when exporting the model.
-            cache_dir (`str`, `optional`):
-                Path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
-            force_download (`bool`, `optional`, defaults to `False`):
-                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
-                cached versions if they exist.
-            resume_download (`bool`, `optional`, defaults to `False`):
-                Whether or not to delete incompletely received file. Attempts to resume the download if such a file
-                exists.
-            revision(`str`, `optional`):
-                The specific version to use. It can be a branch name, a tag name, or a commit id, since we use a
-                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
-                identifier allowed by git.
+            opset (`int`, *optional*):
+                ONNX opset version to export the model with.
         """
-        kwargs_default = [
-            ("cache_dir", None),
-            ("force_download", False),
-            ("resume_download", False),
-            ("revision", None),
-        ]
-        model_kwargs = {name: kwargs.get(name, default_value) for (name, default_value) in kwargs_default}
-        tokenizer_kwargs = copy.deepcopy(model_kwargs)
-        output_path = Path(output_path)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
-        model_class = FeaturesManager.get_model_class_for_feature(feature)
-        self.model = model_class.from_pretrained(model_name_or_path, **model_kwargs)
-        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
-        self.onnx_config = model_onnx_config(self.model.config)
-        opset = self.onnx_config.default_onnx_opset if self.ort_config.opset is None else self.ort_config.opset
-        _ = export(self.tokenizer, self.model, self.onnx_config, opset, output_path)
+        super().__init__()
+
+        self.tokenizer = tokenizer
+        self.model = model
+
+        self.feature = feature
+
+        self._model_type, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
+        self._onnx_config = onnx_config_factory(self.model.config)
+        self.opset = self._onnx_config.default_onnx_opset if opset is None else opset
+
+        self._calibrator = None
 
     def fit(
         self,
-        model_name_or_path: Union[str, os.PathLike],
-        output_dir: Union[str, os.PathLike],
-        feature: str = "default",
-        config: Optional[PretrainedConfig] = None,
-        **kwargs
-    ) -> None:
+        dataset: Dataset,
+        calibration_config: CalibrationConfig,
+        onnx_model_path: Union[str, os.PathLike, Path],
+        onnx_augmented_model_name: str = "augmented_model.onnx",
+        operators_to_quantize: Optional[List[NodeType]] = None,
+        batch_size: int = 1,
+        use_external_data_format: bool = False,
+        use_gpu: bool = False,
+        force_symmetric_range: bool = False,
+    ) -> Dict[str, Tuple[float, float]]:
         """
-        Applies ONNX Runtime quantization on a given model and saves the resulting model.
+        Perform the calibration step and collect the quantization ranges.
 
         Args:
-            model_name_or_path (`Union[str, os.PathLike]`):
-                Repository name in the Hugging Face Hub, path to a local directory hosting the model or path to a
-                pre-existing onnx model.
-            output_dir (`Union[str, os.PathLike]`):
-                The output directory where the quantized model will be saved.
-            feature (`str`, defaults to `"default"`):
-                Feature to use when exporting the model.
-            config (`PretrainedConfig`, `optional`):
-                 A configuration associated to the pre-existing ONNX model.
-        """
-        model_path = Path(model_name_or_path)
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        if not model_path.is_file():
-            model_path = output_dir.joinpath("model.onnx")
-            self.export(model_name_or_path, model_path, feature=feature, **kwargs)
-        elif self.onnx_config is None and self.quantization_approach == ORTQuantizationMode.STATIC:
-            if config is None:
-                raise ValueError(
-                    "A configuration `config` associated to the model must be provided when applying static "
-                    "quantization on a pre-existing ONNX model."
-                )
-            if not isinstance(config, PretrainedConfig):
-                raise TypeError(
-                    f"The configuration `config` associated to the pre-existing ONNX model is of type {type(config)}, "
-                    f"which is not an instance of `PretrainedConfig`."
-                )
-            model_onnx_config = FeaturesManager._SUPPORTED_MODEL_TYPE[config.model_type][feature]
-            self.onnx_config = model_onnx_config(config)
+            dataset (`Dataset`):
+                The dataset to use when performing the calibration step.
+            calibration_config (`CalibrationConfig`):
+                The configuration containing the parameters related to the calibration step.
+            onnx_model_path (`Union[str, os.PathLike]`):
+                The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            onnx_augmented_model_name (`Union[str, os.PathLike]`):
+                The path used to save the augmented model used to collect the quantization ranges.
+            operators_to_quantize (`list`, *optional*):
+                List of the operators types to quantize.
+            batch_size (`int`, defaults to 1):
+                The batch size to use when collecting the quantization ranges values.
+            use_external_data_format (`bool`, defaults to `False`):
+                Whether uto se external data format to store model which size is >= 2Gb.
+            use_gpu (`bool`, defaults to `False`):
+                Whether to use the GPU when collecting the quantization ranges values.
+            force_symmetric_range (`bool`, defaults to `False`):
+                Whether to make the quantization ranges symmetric.
 
-        q_model_path = generate_identified_filename(model_path, "-quantized")
-        if self.quantization_approach == ORTQuantizationMode.DYNAMIC:
-            quantize_dynamic(
-                model_path,
-                q_model_path,
-                per_channel=self.ort_config.per_channel,
-                reduce_range=self.ort_config.reduce_range,
-                activation_type=self.activation_type,
-                weight_type=self.weight_type,
-                optimize_model=self.ort_config.optimize_model,
-                use_external_data_format=self.ort_config.use_external_data_format,
+        Returns:
+            The dictionary mapping the nodes name to their quantization ranges.
+        """
+        # If a dataset is provided, then we are in a static quantization mode
+        LOGGER.info(
+            f"Using static quantization schema ("
+            f"dataset: {calibration_config.dataset_name}, method: {calibration_config.method}"
+            f")"
+        )
+
+        self.partial_fit(
+            dataset,
+            calibration_config,
+            onnx_model_path,
+            onnx_augmented_model_name,
+            operators_to_quantize,
+            batch_size,
+            use_external_data_format,
+            use_gpu,
+            force_symmetric_range,
+        )
+        return self.compute_ranges()
+
+    def partial_fit(
+        self,
+        dataset: Dataset,
+        calibration_config: CalibrationConfig,
+        onnx_model_path: Union[str, os.PathLike],
+        onnx_augmented_model_name: str = "augmented_model.onnx",
+        operators_to_quantize: Optional[List[NodeType]] = None,
+        batch_size: int = 1,
+        use_external_data_format: bool = False,
+        use_gpu: bool = False,
+        force_symmetric_range: bool = False,
+    ):
+        """
+        Perform the calibration step and collect the quantization ranges.
+
+        Args:
+            dataset (`Dataset`):
+                The dataset to use when performing the calibration step.
+            calibration_config (`CalibrationConfig`):
+                The configuration containing the parameters related to the calibration step.
+            onnx_model_path (`Union[str, os.PathLike]`):
+                The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            onnx_augmented_model_name (`Union[str, os.PathLike]`):
+                The path used to save the augmented model used to collect the quantization ranges.
+            operators_to_quantize (`list`, *optional*):
+                List of the operators types to quantize.
+            batch_size (`int`, defaults to 1):
+                The batch size to use when collecting the quantization ranges values.
+            use_external_data_format (`bool`, defaults to `False`):
+                Whether uto se external data format to store model which size is >= 2Gb.
+            use_gpu (`bool`, defaults to `False`):
+                Whether to use the GPU when collecting the quantization ranges values.
+            force_symmetric_range (`bool`, defaults to `False`):
+                Whether to make the quantization ranges symmetric.
+
+        Returns:
+            The dictionary mapping the nodes name to their quantization ranges.
+        """
+        if not isinstance(onnx_model_path, Path):
+            onnx_model_path = Path(onnx_model_path)
+
+        # Export the model to ONNX IR
+        if not onnx_model_path.exists():
+            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
+
+            LOGGER.info(f"Exported model to ONNX at: {onnx_model_path.as_posix()}")
+
+        # If no calibrator, then create one
+        if calibration_config.method is not None:
+            LOGGER.info(f"Creating calibrator: {calibration_config.method}({calibration_config})")
+            self._calibrator = calibration_config.create_calibrator(
+                onnx_model_path=onnx_model_path.as_posix(),
+                use_external_data_format=use_external_data_format,
+                augmented_model_name=onnx_augmented_model_name,
+                operators_to_quantize=operators_to_quantize,
+                force_symmetric_range=force_symmetric_range,
             )
-        elif self.quantization_approach == ORTQuantizationMode.STATIC:
-            calib_dataset = self.calib_dataset if self.calib_dataset is not None else self.get_calib_dataset()
-            calib_dataloader = self.get_calib_dataloader(calib_dataset)
-            calib_data_reader = self.get_data_reader(calib_dataloader)
-            quantize_static(
-                model_path,
-                q_model_path,
-                calib_data_reader,
-                quant_format=self.quant_format,
-                per_channel=self.ort_config.per_channel,
-                reduce_range=self.ort_config.reduce_range,
-                activation_type=self.activation_type,
-                weight_type=self.weight_type,
-                optimize_model=self.ort_config.optimize_model,
-                use_external_data_format=self.ort_config.use_external_data_format,
-                calibrate_method=self.calibrate_method,
-                nodes_to_quantize=self.ort_config.nodes_to_quantize,
-                nodes_to_exclude=self.ort_config.nodes_to_exclude,
-                extra_options=self.ort_config.extra_options,
-            )
-        else:
+
+        if use_gpu:
+            self._calibrator.set_execution_providers(execution_providers=["CUDAExecutionProvider"])
+
+        LOGGER.info("Collecting tensors statistics...")
+        reader = ORTCalibrationDataReader(dataset, batch_size)
+        self._calibrator.collect_data(reader)
+
+    def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
+        """
+        Returns:
+            The dictionary mapping the nodes name to their quantization ranges.
+        """
+        if self._calibrator is None:
             raise ValueError(
-                f"Unknown quantization approach: `quantization_approach` was set to {self.quantization_approach}. "
-                f"Supported quantization approaches are " + ", ".join(SUPPORTED_QUANT_MODE)
+                "Calibrator is None, please call `partial_fit` or `fit` method at least ones to compute ranges."
             )
 
-    def get_calib_dataset(self) -> Dataset:
+        LOGGER.info("Computing calibration ranges")
+        return self._calibrator.compute_range()
+
+    def export(
+        self,
+        onnx_model_path: Union[str, os.PathLike],
+        onnx_quantized_model_output_path: Union[str, os.PathLike],
+        quantization_config: QuantizationConfig,
+        calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
+        use_external_data_format: bool = False,
+        preprocessor: Optional[QuantizationPreprocessor] = None,
+    ) -> Path:
         """
-        Returns the calibration :class:`~datasets.arrow_dataset.Dataset` to use for the post-training static
-        quantization calibration step.
+        Quantize a model given the optimization specifications defined in `quantization_config`.
+
+        Args:
+            onnx_model_path (`Union[str, os.PathLike]`):
+                The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            onnx_quantized_model_output_path (`Union[str, os.PathLike]`):
+                The path used to save the quantized model exported to an ONNX Intermediate Representation (IR).
+            quantization_config (`QuantizationConfig`):
+                The configuration containing the parameters related to quantization.
+            calibration_tensors_range (`Dict[NodeName, Tuple[float, float]]`, *optional*):
+                The dictionary mapping the nodes name to their quantization ranges, used and required only when applying
+                static quantization.
+            use_external_data_format (`bool`, defaults to `False`):
+                Whether to use external data format to store model which size is >= 2Gb.
+            preprocessor (`QuantizationPreprocessor`, *optional*):
+                The preprocessor to use to collect the nodes to include or exclude from quantization.
+
+        Returns:
+            The path of the resulting quantized model.
         """
-        if self.dataset_name is None:
+        if not isinstance(onnx_model_path, Path):
+            onnx_model_path = Path(onnx_model_path)
+
+        # Export the model if it has not already been exported to ONNX IR (useful for dynamic quantization)
+        if not onnx_model_path.exists():
+            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
+
+        use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
+
+        if not quantization_config.is_static:
+            if quantization_config.mode != QuantizationMode.IntegerOps:
+                LOGGER.warning(
+                    f"ONNX Runtime dynamic quantization mode should be QuantizationMode.IntegerOps "
+                    f"(got: {quantization_config.mode})."
+                )
+            if quantization_config.activations_dtype != QuantType.QUInt8:
+                LOGGER.warning(
+                    f"ONNX Runtime dynamic quantization activations data type should be QuantType.QUInt8 "
+                    f"(got: {quantization_config.activations_dtype})."
+                )
+
+        LOGGER.info(
+            f"Creating {'static' if quantization_config.is_static else 'dynamic'} quantizer: {quantization_config}"
+        )
+
+        if preprocessor is not None:
+            LOGGER.info("Preprocessor detected, collecting nodes to include/exclude")
+            nodes_to_quantize, nodes_to_exclude = preprocessor.collect(onnx_model_path)
+
+            nodes_to_quantize.update(quantization_config.nodes_to_quantize)
+            nodes_to_exclude.update(quantization_config.nodes_to_exclude)
+
+            quantization_config.nodes_to_quantize = list(nodes_to_quantize)
+            quantization_config.nodes_to_exclude = list(nodes_to_exclude)
+
+        onnx_model = onnx.load(onnx_model_path)
+        quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
+        quantizer = quantizer_factory(
+            model=onnx_model,
+            static=quantization_config.is_static,
+            per_channel=quantization_config.per_channel,
+            mode=quantization_config.mode,
+            weight_qType=quantization_config.weights_dtype,
+            input_qType=quantization_config.activations_dtype,
+            tensors_range=calibration_tensors_range,
+            reduce_range=quantization_config.reduce_range,
+            nodes_to_quantize=quantization_config.nodes_to_quantize,
+            nodes_to_exclude=quantization_config.nodes_to_exclude,
+            op_types_to_quantize=[
+                operator.value if isinstance(operator, ORTQuantizableOperator) else operator
+                for operator in quantization_config.operators_to_quantize
+            ],
+            extra_options={
+                "WeightSymmetric": quantization_config.weights_symmetric,
+                "ActivationSymmetric": quantization_config.activations_symmetric,
+                "EnableSubgraph": False,
+                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
+            },
+        )
+
+        LOGGER.info("Quantizing model...")
+        quantizer.quantize_model()
+
+        LOGGER.info(
+            f"Saving quantized model at: {onnx_quantized_model_output_path} (external data format: "
+            f"{use_external_data_format})"
+        )
+        quantizer.model.save_model_to_file(onnx_quantized_model_output_path, use_external_data_format)
+
+        return Path(onnx_quantized_model_output_path)
+
+    def get_calibration_dataset(
+        self,
+        dataset_name: str,
+        num_samples: int = 100,
+        dataset_config_name: Optional[str] = None,
+        dataset_split: Optional[str] = None,
+        preprocess_function: Optional[Callable] = None,
+        preprocess_batch: bool = True,
+        seed: int = 2016,
+    ) -> Dataset:
+        """
+        Create the calibration `datasets.Dataset` to use for the post-training static quantization calibration step
+
+        Args:
+            dataset_name (`str`):
+                The dataset repository name on the Hugging Face Hub or path to a local directory containing data files
+                to load to use for the calibration step.
+            num_samples (`int`, defaults to 100):
+                The maximum number of samples composing the calibration dataset.
+            dataset_config_name (`str`, *optional*):
+                The name of the dataset configuration.
+            dataset_split (`str`, *optional*):
+                Which split of the dataset to use to perform the calibration step.
+            preprocess_function (`Callable`, *optional*):
+                Processing function to apply to each example after loading dataset.
+            preprocess_batch (`int`, defaults to `True`):
+                Whether the `preprocess_function` should be batched.
+            seed (`int`, defaults to 2016):
+                The random seed to use when shuffling the calibration dataset.
+        Returns:
+            The calibration `datasets.Dataset` to use for the post-training static quantization calibration
+            step.
+        """
+        if dataset_name is None:
             raise ValueError(
                 "ORTQuantizer: Static quantization calibration step requires a dataset_name if no calib_dataset is "
                 "provided."
             )
-        if self.preprocess_function is None:
-            raise ValueError(
-                "ORTQuantizer: Processing function to apply after loading the dataset used for static quantization "
-                "calibration step was not provided."
-            )
-        calib_dataset = load_dataset(
-            self.dataset_name,
-            name=self.dataset_config_name,
-            data_files=self.data_files,
-            split=self.ort_config.split,
-            cache_dir=self.cache_dir,
-        )
-        calib_dataset = calib_dataset.map(self.preprocess_function, batched=True)
-        return calib_dataset
 
-    def get_calib_dataloader(self, calib_dataset: Optional[Dataset] = None) -> DataLoader:
-        """
-        Returns the calibration :class:`~torch.utils.data.DataLoader`.
-        Args:
-            calib_dataset (`torch.utils.data.Dataset`, `optional`):
-                If provided, will override `self.calib_dataset`.
-        """
-        if calib_dataset is None and self.calib_dataset is None:
-            raise ValueError("ORTQuantizer: static quantization calibration step requires a calib_dataset.")
+        calib_dataset = load_dataset(dataset_name, name=dataset_config_name, split=dataset_split)
 
-        calib_dataset = calib_dataset if calib_dataset is not None else self.calib_dataset
+        if num_samples is not None:
+            num_samples = min(num_samples, len(calib_dataset))
+            calib_dataset = calib_dataset.shuffle(seed=seed).select(range(num_samples))
 
-        if self.ort_config.max_samples is not None and len(calib_dataset) > self.ort_config.max_samples:
-            calib_dataset = calib_dataset.select(range(self.ort_config.max_samples))
+        if preprocess_function is not None:
+            processed_calib_dataset = calib_dataset.map(preprocess_function, batched=preprocess_batch)
+        else:
+            processed_calib_dataset = calib_dataset
 
-        ignored_columns = list(set(calib_dataset.column_names) - set(self.onnx_config.inputs.keys()))
-        calib_dataset = calib_dataset.remove_columns(ignored_columns)
+        return self.clean_calibration_dataset(processed_calib_dataset)
 
-        generator = torch.Generator()
-        generator.manual_seed(self.seed)
-        sampler = RandomSampler(calib_dataset, generator=generator)
+    def clean_calibration_dataset(self, dataset: Dataset) -> Dataset:
+        ignored_columns = list(set(dataset.column_names) - set(self._onnx_config.inputs.keys()))
 
-        return DataLoader(
-            calib_dataset,
-            batch_size=self.ort_config.calib_batch_size,
-            sampler=sampler,
-            collate_fn=default_data_collator,
-        )
-
-    @staticmethod
-    def get_data_reader(calib_dataloader: DataLoader) -> ORTCalibrationDataReader:
-        """
-        Returns the calibration :class:`~optimum.onnxruntime.quantization.ORTCalibrationDataReader`.
-        Args:
-            calib_dataloader (`torch.utils.data.DataLoader`):
-                Calibration dataloader to use for the post-training static quantization calibration step.
-        """
-        return ORTCalibrationDataReader(calib_dataloader)
+        return dataset.remove_columns(ignored_columns)

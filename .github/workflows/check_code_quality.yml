@@ -15,6 +15,10 @@ on:
       - "tests/**.py"
       - "examples/**.py"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
@@ -38,8 +42,7 @@ jobs:
       run: |
         source venv/bin/activate
         pip install --upgrade pip
-        pip install isort
-        pip install black
+        pip install .[quality]
     - name: Check style with black
       run: |
         source venv/bin/activate

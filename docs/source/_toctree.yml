@@ -1,0 +1,24 @@
+- sections:
+  - local: index
+    title: 🤗 Optimum
+  - local: quickstart
+    title: Quickstart
+  - local: pipelines
+    title: Pipelines for inference
+  title: Get started
+- sections:
+  - local: onnxruntime/modeling_ort
+    title: Inference
+  - local: onnxruntime/configuration
+    title: Configuration
+  - local: onnxruntime/optimization
+    title: Optimization
+  - local: onnxruntime/quantization
+    title: Quantization
+  - local: onnxruntime/trainer
+    title: Trainer
+  title: ONNX Runtime
+- sections:
+  - local: benchmark
+    title: Benchmark Optimum models
+  title: API Reference

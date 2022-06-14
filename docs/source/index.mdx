@@ -1,0 +1,74 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# 🤗 Optimum
+
+🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardware.
+
+The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
+As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
+
+
+## Integration with Hardware Partners
+
+🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
+
+To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
+- [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu).
+- [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - [HPUs](https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html) are designed to maximize training throughput and efficiency. [More information here](https://habana.ai/training/).
+- [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate end-to-end pipelines on Intel architectures. More information [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
+- More to come soon! :star:
+
+## Optimizing models towards inference
+
+Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
+platforms.
+
+Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with Intel [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) (INC).
+
+|              Features              | ONNX Runtime  | Intel Neural Compressor |
+|:----------------------------------:|:-------------:|:-----------------------:|
+| Post-training Dynamic Quantization |       ✅       |            ✅           |
+| Post-training Static Quantization  |       ✅       |            ✅           |
+| Quantization Aware Training (QAT)  | Stay tuned! ⭐ |            ✅           |
+|              Pruning               |      N/A       |            ✅           |
+
+
+## Installation
+
+🤗 Optimum can be installed using `pip` as follows:
+
+```bash
+python -m pip install optimum
+```
+
+If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
+
+| Accelerator                                                                                                            | Installation                                 |
+|:-----------------------------------------------------------------------------------------------------------------------|:---------------------------------------------|
+| [ONNX runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]` |
+| [Intel Neural Compressor (INC)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) | `python -m pip install optimum[intel]`       |
+| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`   |
+| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`      |
+
+
+If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
+
+```bash
+python -m pip install git+https://github.com/huggingface/optimum.git
+```
+
+For the acclerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
+
+```bash
+python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
+```
