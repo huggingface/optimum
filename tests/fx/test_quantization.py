@@ -20,7 +20,7 @@ from torch.ao.quantization.quantize_fx import prepare_fx as orig_prepare_fx
 from torch.ao.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
 from transformers import PretrainedConfig
 
-from optimum.fx.utils import are_fx_features_available
+from optimum.fx.quantization.utils import are_fx_features_available
 
 
 if are_fx_features_available():
