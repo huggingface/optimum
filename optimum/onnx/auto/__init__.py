@@ -29,7 +29,7 @@ _import_structure = {
 }
 
 if TYPE_CHECKING:
-    from .configuration_onnx_auto import ONNX_CONFIG_MAPPING, AutoOnnxConfig
+    from .configuration_onnx_auto import ONNX_CONFIG_MAPPING, ONNX_MODEL_NAMES_MAPPING, AutoOnnxConfig
 else:
     import sys
 

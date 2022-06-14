@@ -53,9 +53,8 @@ PYTORCH_EXPORT_SEQ2SEQ_WITH_PAST_MODELS = {
 }
 
 PYTORCH_MODELS_UNSUPPORTED = {
-    ("electra", "google/electra-base-generator"),
     ("deberta", "microsoft/deberta-base"),
-    ("hubert", "facebook/hubert-base-ls960"),
+    ("operta", "optimum/operta-base"),
 }
 
 

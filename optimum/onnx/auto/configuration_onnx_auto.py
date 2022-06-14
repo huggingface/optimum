@@ -14,11 +14,11 @@
 # limitations under the License.
 """ Auto ONNX Config class."""
 import re
-import warnings
 from collections import OrderedDict
 from typing import Optional
 
 from transformers.configuration_utils import PretrainedConfig
+from transformers.dynamic_module_utils import get_class_from_dynamic_module
 from transformers.models.auto.configuration_auto import (
     CONFIG_MAPPING,
     MODEL_NAMES_MAPPING,
@@ -26,7 +26,6 @@ from transformers.models.auto.configuration_auto import (
     _get_class_name,
     _LazyConfigMapping,
 )
-from transformers.models.auto.dynamic import get_class_from_dynamic_module
 from transformers.onnx.config import OnnxConfig
 from transformers.onnx.features import FeaturesManager
 from transformers.utils import logging
@@ -36,15 +35,20 @@ logger = logging.get_logger(__name__)
 
 ONNX_SUPPORTED_MODELS = FeaturesManager._SUPPORTED_MODEL_TYPE.keys()
 
-ONNX_CONFIG_MAPPING_NAMES = OrderedDict(
+ONNX_CONFIG_MAPPING_NAMES = dict(
     [
-        (key, FeaturesManager._SUPPORTED_MODEL_TYPE[key]["default"].func.__self__.__name__)
+        (
+            key,
+            FeaturesManager._SUPPORTED_MODEL_TYPE[key][
+                next(iter(FeaturesManager.get_supported_features_for_model_type(key).keys()))
+            ].func.__self__.__name__,
+        )
         for key in ONNX_SUPPORTED_MODELS
         if key in CONFIG_MAPPING.keys()
     ]
 )
 
-ONNX_MODEL_NAMES_MAPPING = OrderedDict(
+ONNX_MODEL_NAMES_MAPPING = dict(
     [(key, MODEL_NAMES_MAPPING[key]) for key in ONNX_SUPPORTED_MODELS if key in CONFIG_MAPPING.keys()]
 )
 
@@ -67,10 +71,11 @@ def check_supported_model_task_or_raise(model_type: str, model_name: Optional[st
 
 def config_class_to_model_type(config):
     """Converts a onnx config class name to the corresponding model type"""
-    for key, cls in ONNX_CONFIG_MAPPING_NAMES.items():
-        if cls == config:
-            return key
-    return None
+    res = dict(map(reversed, ONNX_CONFIG_MAPPING_NAMES.items()))
+    if config in res.keys():
+        return res[config]
+    else:
+        return None
 
 
 ONNX_CONFIG_MAPPING = _LazyConfigMapping(ONNX_CONFIG_MAPPING_NAMES)
