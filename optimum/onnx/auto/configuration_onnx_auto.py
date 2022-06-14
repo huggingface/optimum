@@ -287,7 +287,7 @@ class AutoOnnxConfig(AutoConfig):
     @staticmethod
     def register(model_type, config):
         """
-        Register a new onnx configuration for this class.
+        Register a new ONNX configuration for this class. Or better! Propose a PR or open an issue at https://github.com/huggingface/optimum/.
 
         Args:
             model_type (`str`): The model type like "bert" or "gpt".

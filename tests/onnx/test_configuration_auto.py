@@ -24,12 +24,12 @@ if is_torch_available() or is_tf_available():
     from transformers.onnx.features import FeaturesManager
 
 from transformers.onnx import OnnxConfig
-from transformers.testing_utils import require_torch
+from transformers.testing_utils import require_torch, slow
 
 from optimum.onnx.auto.configuration_onnx_auto import AutoOnnxConfig
 
 
-PYTORCH_EXPORT_MODELS = {
+PYTORCH_MODELS = {
     ("albert", "hf-internal-testing/tiny-albert"),
     ("bert", "bert-base-cased"),
     ("ibert", "kssteven/ibert-roberta-base"),
@@ -40,50 +40,53 @@ PYTORCH_EXPORT_MODELS = {
     ("layoutlm", "microsoft/layoutlm-base-uncased"),
 }
 
-PYTORCH_EXPORT_WITH_PAST_MODELS = {
+PYTORCH_WITH_PAST_MODELS = {
     ("gpt2", "gpt2"),
     ("gpt-neo", "EleutherAI/gpt-neo-125M"),
 }
 
-PYTORCH_EXPORT_SEQ2SEQ_WITH_PAST_MODELS = {
+PYTORCH_SEQ2SEQ_WITH_PAST_MODELS = {
     ("bart", "facebook/bart-base"),
     ("mbart", "sshleifer/tiny-mbart"),
     ("t5", "t5-small"),
     ("marian", "Helsinki-NLP/opus-mt-en-de"),
 }
 
-PYTORCH_MODELS_UNSUPPORTED = {
-    ("deberta", "microsoft/deberta-base"),
-    ("operta", "optimum/operta-base"),
+PYTORCH_UNSUPPORTED_MODELS = {
+    ("deberta", "microsoft/deberta-base", "sequence-classification"),
+    ("bert", "bert-base-cased", "unk-task"),
+    ("operta", "optimum/operta-base", "default"),
 }
 
 
-def _get_models_to_test(export_models_list):
+def _get_models_to_test(models_list):
     models_to_test = []
     if is_torch_available() or is_tf_available():
-        for (name, model) in export_models_list:
-            for feature, onnx_config_class_constructor in FeaturesManager.get_supported_features_for_model_type(
-                name
-            ).items():
-                models_to_test.append((f"{name}_{feature}", name, model, feature, onnx_config_class_constructor))
+        for (name, model) in models_list:
+            for feature, _ in FeaturesManager.get_supported_features_for_model_type(name).items():
+                models_to_test.append((f"{name}_{feature}", model, feature))
         return sorted(models_to_test)
-    else:
-        # Returning some dummy test that should not be ever called because of the @require_torch / @require_tf
-        # decorators.
-        # The reason for not returning an empty list is because parameterized.expand complains when it's empty.
-        return [("dummy", "dummy", "dummy", "dummy", OnnxConfig.from_model_config)]
+
+
+def _get_invalid_models_to_test(models_list):
+    models_to_test = []
+    if is_torch_available() or is_tf_available():
+        for (name, model, feature) in models_list:
+            models_to_test.append((f"{name}_{feature}", model, feature))
+        return sorted(models_to_test)
 
 
 class AutoOnnxConfigTest(unittest.TestCase):
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
+    @parameterized.expand(_get_models_to_test(PYTORCH_MODELS), skip_on_empty=True)
     @require_torch
-    def test_config_from_supported_model(self, test_name, name, model_name, feature, onnx_config_class_constructor):
+    def test_config_from_supported_model(self, test_name, model_name, feature):
         config = AutoOnnxConfig.from_pretrained(model_name, task=feature)
         self.assertIsInstance(config, OnnxConfig)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_MODELS_UNSUPPORTED))
+    @parameterized.expand(_get_invalid_models_to_test(PYTORCH_UNSUPPORTED_MODELS))
     @require_torch
-    def test_config_from_unsupported_model(self, test_name, name, model_name, feature, onnx_config_class_constructor):
+    @unittest.skip("Skip intended to fail tests.")
+    def test_config_from_unsupported_model(self, test_name, model_name, feature):
         config = AutoOnnxConfig.from_pretrained(model_name, task=feature)
         self.assertIsInstance(config, OnnxConfig)
 
