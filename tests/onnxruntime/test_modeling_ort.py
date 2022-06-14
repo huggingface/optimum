@@ -27,7 +27,7 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.utils import CONFIG_NAME
-from optimum.utils.testing_utils import require_hf_token
+from optimum.utils.testing_utils import require_hf_token, require_torch_gpu
 from parameterized import parameterized
 
 
@@ -177,12 +177,28 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         self.assertTrue(isinstance(outputs["answer"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_and_model_device(self, *args, **kwargs):
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pp.device, onnx_model.device)
+        self.assertEqual(pp.device, pp.model.device)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, device=0)
+        question = "Whats my name?"
+        context = "My Name is Philipp and I live in Nuremberg."
+        outputs = pp(question, context)
+        # check model device
+        self.assertEqual(pp.model.device, torch.device("cuda"))
+        # compare model output class
+        self.assertGreaterEqual(outputs["score"], 0.0)
+        self.assertTrue(isinstance(outputs["answer"], str))
 
 
 class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
