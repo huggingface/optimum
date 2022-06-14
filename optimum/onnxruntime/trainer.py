@@ -1268,7 +1268,7 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        if parse(transformers.__version__) > parse("4.19.2"):
+        if parse(transformers.__version__) >= parse("4.20.0"):
             _ = export(
                 preprocessor=self.tokenizer,
                 model=model,

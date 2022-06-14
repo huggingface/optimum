@@ -37,6 +37,7 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
     AutoTokenizer,
+    BertForSequenceClassification,
     DataCollatorForTokenClassification,
     DataCollatorWithPadding,
     TrainingArguments,
@@ -45,6 +46,9 @@ from transformers import (
 )
 from transformers.onnx.features import FeaturesManager
 from transformers.testing_utils import (
+    ENDPOINT_STAGING,
+    PASS,
+    USER,
     is_staging_test,
     require_deepspeed,
     require_fairscale,
@@ -59,18 +63,20 @@ from transformers.testing_utils import (
     slow,
 )
 
+from huggingface_hub import Repository, delete_repo, login
 from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
 from optimum.utils.testing_utils import require_ort_training
 from parameterized import parameterized
+from requests.exceptions import HTTPError
 
 
 nltk.download("punkt")
 
 _MODELS_TO_TEST = {
     ("bert", "bert-base-cased"),
-    ("distilbert", "distilbert-base-cased"),
-    ("roberta", "roberta-base"),
-    ("gpt2", "gpt2"),
+    # ("distilbert", "distilbert-base-cased"),
+    # ("roberta", "roberta-base"),
+    # ("gpt2", "gpt2"),
 }
 
 _TASKS_DATASETS_CONFIGS = {
@@ -110,6 +116,42 @@ def _get_data_collator(data_metric_config, tokenizer=None):
         raise KeyError("You need to pass either `data_collator` or `data_collator_class` to create the data collator.")
 
     return data_collator
+
+
+def get_ort_trainer(
+    model_name,
+    feature,
+    data_metric_config,
+    training_args,
+    max_seq_length=None,
+    max_train_samples=None,
+    max_valid_samples=None,
+    max_test_samples=None,
+):
+
+    (model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics,) = load_and_prepare(
+        feature
+    )(
+        model_name,
+        data_metric_config,
+        max_seq_length,
+        max_train_samples=max_train_samples,
+        max_valid_samples=max_valid_samples,
+        max_test_samples=max_test_samples,
+    )
+
+    trainer = ORTTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=valid_dataset,
+        compute_metrics=compute_metrics,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        feature=feature,
+    )
+
+    return trainer, test_dataset
 
 
 def load_and_prepare(feature):
@@ -254,6 +296,7 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
     return model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics
 
 
+@unittest.skip("Skip basic tests of `ORTTrainer`.")
 @require_torch
 @require_ort_training
 class ORTTrainerIntegrationTest(unittest.TestCase):
@@ -272,39 +315,6 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
         self.warmup_steps = 500
         self.weight_decay = 0.01
 
-    def _get_ort_trainer(self, model_name, feature, data_metric_config, training_args):
-
-        (
-            model,
-            tokenizer,
-            data_collator,
-            train_dataset,
-            valid_dataset,
-            test_dataset,
-            compute_metrics,
-        ) = load_and_prepare(feature)(
-            model_name,
-            data_metric_config,
-            self.max_seq_length,
-            max_train_samples=self.max_train_samples,
-            max_valid_samples=self.max_valid_samples,
-            max_test_samples=self.max_test_samples,
-        )
-
-        trainer = ORTTrainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=valid_dataset,
-            compute_metrics=compute_metrics,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
-            feature=feature,
-        )
-
-        return trainer, test_dataset
-
-    @unittest.skip("Skip")
     @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_inference_with_ort(self, test_name, model_name, feature, data_metric_config):
 
@@ -319,7 +329,17 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
             )
-            trainer, test_dataset = self._get_ort_trainer(model_name, feature, data_metric_config, training_args)
+
+            trainer, test_dataset = get_ort_trainer(
+                model_name,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
 
             train_result = trainer.train()
             trainer.save_model()
@@ -332,7 +352,6 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             print("Prediction results:\n", prediction)
             gc.collect()
 
-    @unittest.skip("Skip")
     @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_inference_with_pytorch(self, test_name, model_name, feature, data_metric_config):
 
@@ -347,7 +366,17 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
             )
-            trainer, test_dataset = self._get_ort_trainer(model_name, feature, data_metric_config, training_args)
+
+            trainer, test_dataset = get_ort_trainer(
+                model_name,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
 
             train_result = trainer.train()
             trainer.save_model()
@@ -360,7 +389,6 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             print("Prediction results:\n", prediction)
             gc.collect()
 
-    @unittest.skip("Skip")
     @parameterized.expand(
         _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
     )
@@ -368,17 +396,18 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-                fp16=True,
+            training_args = TrainingArguments("..")
+
+            trainer, test_dataset = get_ort_trainer(
+                model_name,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
             )
-            trainer, test_dataset = self._get_ort_trainer(model_name, feature, data_metric_config, training_args)
 
             train_result = trainer.train()
             trainer.save_model()
@@ -391,7 +420,6 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             print("Prediction results:\n", prediction)
             gc.collect()
 
-    @unittest.skip("Skip")
     @require_torch_bf16
     @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
@@ -407,7 +435,17 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 logging_dir=tmp_dir,
                 bf16=True,
             )
-            trainer, test_dataset = self._get_ort_trainer(model_name, feature, data_metric_config, training_args)
+
+            trainer, test_dataset = get_ort_trainer(
+                model_name,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
 
             train_result = trainer.train()
             trainer.save_model()
@@ -424,22 +462,156 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 @require_torch
 @is_staging_test
 class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
-    pass
+    def setUp(self):
+        super().setUp()
+        self.training_args = TrainingArguments("..")
+
+        self.max_seq_length = 128
+        self.max_train_samples = 200
+        self.max_valid_samples = 50
+        self.max_test_samples = 20
+
+    @classmethod
+    def setUpClass(cls):
+        cls._token = login(username=USER, password=PASS)
+
+    @classmethod
+    def tearDownClass(cls):
+        for model in ["test-trainer", "test-trainer-epoch", "test-trainer-step"]:
+            try:
+                delete_repo(token=cls._token, name=model)
+            except HTTPError:
+                pass
+
+        try:
+            delete_repo(token=cls._token, name="test-trainer-org", organization="valid_org")
+        except HTTPError:
+            pass
+
+    def test_push_to_hub(
+        self,
+        test_name="bert_sequence-classification",
+        model_name="bert-base-cased",
+        feature="sequence-classification",
+        data_metric_config=_TASKS_DATASETS_CONFIGS["sequence-classification"],
+    ):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                push_to_hub=True,
+            )
+            trainer, test_dataset = get_ort_trainer(
+                model_name,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+
+            trainer.push_to_hub()
 
 
-@unittest.skip("Skip")
+@unittest.skip("Skip DeepSpeed tests.")
 @slow
-@require_torch
 @require_deepspeed
 class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
-    def test_trainer_ds_stage1(self, test_name, model_name, feature, data_metric_config):
-        pass
+    def setUp(self):
+        super().setUp()
+        args = TrainingArguments("..")
+        self.n_epochs = min(args.num_train_epochs, 1)
+        self.per_device_train_batch_size = args.per_device_train_batch_size
+        self.per_device_eval_batch_size = args.per_device_eval_batch_size
 
-    def test_trainer_ds_stage2(self, test_name, model_name, feature, data_metric_config):
-        pass
+        self.max_seq_length = 128
+        self.max_train_samples = 200
+        self.max_valid_samples = 50
+        self.max_test_samples = 20
 
-    def test_trainer_ds_stage2_bf16(self, test_name, model_name, feature, data_metric_config):
-        pass
+        self.warmup_steps = 500
+        self.weight_decay = 0.01
+
+    @parameterized.expand(
+        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+    )
+    def test_trainer_fp16_ds_stage1(self, test_name, model_name, feature, data_metric_config):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                num_train_epochs=self.n_epochs,
+                per_device_train_batch_size=self.per_device_train_batch_size,
+                per_device_eval_batch_size=self.per_device_eval_batch_size,
+                warmup_steps=self.warmup_steps,
+                weight_decay=self.weight_decay,
+                logging_dir=tmp_dir,
+                fp16=True,
+                deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_1.json",
+            )
+
+            trainer, test_dataset = get_ort_trainer(
+                model_name,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+
+            train_result = trainer.train()
+            trainer.save_model()
+            train_metrics = train_result.metrics
+            eval_metrics = trainer.evaluate()
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            prediction = trainer.predict(test_dataset)
+            print("Training metrics:\n", train_metrics)
+            print("Evaluation metrics:\n", eval_metrics)
+            print("Prediction results:\n", prediction)
+            gc.collect()
+
+    @parameterized.expand(
+        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+    )
+    def test_trainer_fp16_ds_stage2(self, test_name, model_name, feature, data_metric_config):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                num_train_epochs=self.n_epochs,
+                per_device_train_batch_size=self.per_device_train_batch_size,
+                per_device_eval_batch_size=self.per_device_eval_batch_size,
+                warmup_steps=self.warmup_steps,
+                weight_decay=self.weight_decay,
+                logging_dir=tmp_dir,
+                fp16=True,
+                deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
+            )
+
+            trainer, test_dataset = get_ort_trainer(
+                model_name,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+
+            train_result = trainer.train()
+            trainer.save_model()
+            train_metrics = train_result.metrics
+            eval_metrics = trainer.evaluate()
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            prediction = trainer.predict(test_dataset)
+            print("Training metrics:\n", train_metrics)
+            print("Evaluation metrics:\n", eval_metrics)
+            print("Prediction results:\n", prediction)
+            gc.collect()
 
 
 @unittest.skip("Skip")
