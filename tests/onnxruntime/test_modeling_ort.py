@@ -15,6 +15,7 @@ from transformers import (
     PretrainedConfig,
     pipeline,
 )
+from transformers.testing_utils import require_torch_gpu
 
 import onnxruntime
 from optimum.onnxruntime import (
@@ -27,7 +28,7 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.utils import CONFIG_NAME
-from optimum.utils.testing_utils import require_hf_token, require_torch_gpu
+from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
 
 
@@ -177,14 +178,6 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         self.assertTrue(isinstance(outputs["answer"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pp.device, pp.model.device)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     @require_torch_gpu
     def test_pipeline_on_gpu(self, *args, **kwargs):
         model_arch, model_id = args
@@ -195,10 +188,18 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         context = "My Name is Philipp and I live in Nuremberg."
         outputs = pp(question, context)
         # check model device
-        self.assertEqual(pp.model.device, torch.device("cuda"))
+        self.assertEqual(pp.model.device.type, "cuda")
         # compare model output class
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertTrue(isinstance(outputs["answer"], str))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pp.device, pp.model.device)
 
 
 class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
@@ -275,7 +276,22 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_and_model_device(self, *args, **kwargs):
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer, device=0)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pp(text)
+        # check model device
+        self.assertEqual(pp.model.device.type, "cuda")
+        # compare model output class
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -369,7 +385,21 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_and_model_device(self, *args, **kwargs):
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer, device=0)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pp(text)
+        # check model device
+        self.assertEqual(pp.model.device.type, "cuda")
+        # compare model output class
+        self.assertTrue(any(item["score"] > 0.0 for item in outputs))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -448,7 +478,21 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_and_model_device(self, *args, **kwargs):
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pp(text)
+        # check model device
+        self.assertEqual(pp.model.device.type, "cuda")
+        # compare model output class
+        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -549,7 +593,22 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_and_model_device(self, *args, **kwargs):
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        pp = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live"
+        outputs = pp(text)
+        # check model device
+        self.assertEqual(pp.model.device.type, "cuda")
+        # compare model output class
+        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
+        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
