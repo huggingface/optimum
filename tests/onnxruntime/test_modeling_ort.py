@@ -188,7 +188,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         context = "My Name is Philipp and I live in Nuremberg."
         outputs = pp(question, context)
         # check model device
-        self.assertEqual(pp.model.device.type, "cuda")
+        self.assertEqual(pp.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertTrue(isinstance(outputs["answer"], str))
@@ -285,7 +285,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         text = "My Name is Philipp and i live in Germany."
         outputs = pp(text)
         # check model device
-        self.assertEqual(pp.model.device.type, "cuda")
+        self.assertEqual(pp.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
@@ -394,7 +394,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         text = "My Name is Philipp and i live in Germany."
         outputs = pp(text)
         # check model device
-        self.assertEqual(pp.model.device.type, "cuda")
+        self.assertEqual(pp.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
 
@@ -487,7 +487,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         text = "My Name is Philipp and i live in Germany."
         outputs = pp(text)
         # check model device
-        self.assertEqual(pp.model.device.type, "cuda")
+        self.assertEqual(pp.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
 
@@ -602,7 +602,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         text = "My Name is Philipp and i live"
         outputs = pp(text)
         # check model device
-        self.assertEqual(pp.model.device.type, "cuda")
+        self.assertEqual(pp.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
