@@ -57,7 +57,16 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_model_on_cpu(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
-        self.assertEqual(model.device, torch.device("cpu"))
+        cpu = torch.device("cpu")
+        model.to(cpu)
+        self.assertEqual(model.device, cpu)
+
+    @require_torch_gpu
+    def test_model_on_gpu(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
+        gpu = torch.device("cuda")
+        model.to(gpu)
+        self.assertEqual(model.device, gpu)
 
     @require_hf_token
     def test_load_model_from_hub_private(self):
