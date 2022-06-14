@@ -56,7 +56,7 @@ jobs:
           sudo apt -y update && sudo apt install -y libopencv-dev python3-opencv
           sudo pip install --upgrade pip && sudo pip install --upgrade protobuf
           pip install .[onnxruntime-gpu]
-      - name: Run tests
+      - name: Run all tests on GPU
         run: |
           python -m pytest tests/onnxruntime/
 
