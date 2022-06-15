@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+from typing import List, Optional
 
 from transformers import is_tf_available, is_torch_available
 
@@ -59,11 +60,13 @@ PYTORCH_UNSUPPORTED_MODELS = {
 }
 
 
-def _get_models_to_test(models_list):
+def _get_models_to_test(models_list, excluded: Optional[List[str]] = None):
     models_to_test = []
     if is_torch_available() or is_tf_available():
         for (name, model) in models_list:
             for feature, _ in FeaturesManager.get_supported_features_for_model_type(name).items():
+                if excluded and any(key in excluded for key in [name, feature]):
+                    continue
                 models_to_test.append((f"{name}_{feature}", model, feature))
         return sorted(models_to_test)
 
@@ -77,7 +80,9 @@ def _get_invalid_models_to_test(models_list):
 
 
 class AutoOnnxConfigTest(unittest.TestCase):
-    @parameterized.expand(_get_models_to_test(PYTORCH_MODELS), skip_on_empty=True)
+    @parameterized.expand(
+        _get_models_to_test(PYTORCH_MODELS, excluded=["next-sentence-prediction"]), skip_on_empty=True
+    )
     @require_torch
     def test_config_from_supported_model(self, test_name, model_name, feature):
         config = AutoOnnxConfig.from_pretrained(model_name, task=feature)
