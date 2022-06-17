@@ -52,6 +52,7 @@ class TestORTOptimizer(unittest.TestCase):
             "gpt2",
             "roberta-base",
             "google/electra-small-discriminator",
+            "microsoft/deberta-base",
             "microsoft/deberta-v2-xlarge",
         }
         optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
