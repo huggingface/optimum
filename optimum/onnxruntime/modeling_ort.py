@@ -52,7 +52,7 @@ ONNX_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (`torch.Tensor` of shape `({0})`):
             Indices of input sequence tokens in the vocabulary.
-            Indices can be obtained using [`AutoTokenizer`](https://huggingface.co/docs/transformers/autoclass_tutorial#autotokenizer). 
+            Indices can be obtained using [`AutoTokenizer`](https://huggingface.co/docs/transformers/autoclass_tutorial#autotokenizer).
             See [`PreTrainedTokenizer.encode`](https://huggingface.co/docs/transformers/main_classes/tokenizer#transformers.PreTrainedTokenizerBase.encode) and
             [`PreTrainedTokenizer.__call__`](https://huggingface.co/docs/transformers/main_classes/tokenizer#transformers.PreTrainedTokenizerBase.__call__) for details.
             [What are input IDs?](https://huggingface.co/docs/transformers/glossary#input-ids)
@@ -305,6 +305,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         super().__init__(*args, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -328,6 +329,8 @@ class ORTModelForFeatureExtraction(ORTModel):
         }
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        # filter invalid inputs
+        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -414,6 +417,8 @@ class ORTModelForQuestionAnswering(ORTModel):
         }
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        # filter invalid inputs
+        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -492,7 +497,7 @@ class ORTModelForSequenceClassification(ORTModel):
         super().__init__(*args, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -517,6 +522,8 @@ class ORTModelForSequenceClassification(ORTModel):
 
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        # filter invalid inputs
+        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -579,6 +586,7 @@ class ORTModelForTokenClassification(ORTModel):
         super().__init__(*args, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -602,6 +610,8 @@ class ORTModelForTokenClassification(ORTModel):
         }
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        # filter invalid inputs
+        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -664,6 +674,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
 
     @property
     def device(self) -> torch.device:
@@ -701,6 +712,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "input_ids": input_ids.cpu().detach().numpy(),
             "attention_mask": attention_mask.cpu().detach().numpy(),
         }
+        # filter invalid inputs
+        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
