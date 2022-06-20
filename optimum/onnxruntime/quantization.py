@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset, load_dataset
-from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer, PreTrainedModel
+from transformers import AutoFeatureExtractor, AutoTokenizer, PreTrainedModel
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 from transformers.onnx.utils import get_preprocessor
@@ -107,14 +107,14 @@ class ORTQuantizer(ABC):
 
     def __init__(
         self,
-        preprocessor: Union[AutoTokenizer, AutoFeatureExtractor, AutoProcessor],
+        preprocessor: Union[AutoTokenizer, AutoFeatureExtractor],
         model: PreTrainedModel,
         feature: str = "default",
         opset: Optional[int] = None,
     ):
         """
         Args:
-            preprocessor (`Union[AutoTokenizer, AutoFeatureExtractor, AutoProcessor]`):
+            preprocessor (`Union[AutoTokenizer, AutoFeatureExtractor]`):
                 The preprocessor used to preprocess the data.
             model (`PreTrainedModel`):
                 The model to optimize.
@@ -279,7 +279,7 @@ class ORTQuantizer(ABC):
         quantization_config: QuantizationConfig,
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
-        quantization_preprocessor: Optional[QuantizationPreprocessor] = None,
+        preprocessor: Optional[QuantizationPreprocessor] = None,
     ) -> Path:
         """
         Quantize a model given the optimization specifications defined in `quantization_config`.
@@ -296,7 +296,7 @@ class ORTQuantizer(ABC):
                 static quantization.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model which size is >= 2Gb.
-            quantization_preprocessor (`QuantizationPreprocessor`, *optional*):
+            preprocessor (`QuantizationPreprocessor`, *optional*):
                 The preprocessor to use to collect the nodes to include or exclude from quantization.
 
         Returns:
@@ -327,9 +327,9 @@ class ORTQuantizer(ABC):
             f"Creating {'static' if quantization_config.is_static else 'dynamic'} quantizer: {quantization_config}"
         )
 
-        if quantization_preprocessor is not None:
+        if preprocessor is not None:
             LOGGER.info("Preprocessor detected, collecting nodes to include/exclude")
-            nodes_to_quantize, nodes_to_exclude = quantization_preprocessor.collect(onnx_model_path)
+            nodes_to_quantize, nodes_to_exclude = preprocessor.collect(onnx_model_path)
 
             nodes_to_quantize.update(quantization_config.nodes_to_quantize)
             nodes_to_exclude.update(quantization_config.nodes_to_exclude)
