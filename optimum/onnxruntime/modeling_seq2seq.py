@@ -584,13 +584,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     def get_encoder(self) -> ORTEncoder:
         return self.encoder
 
-    @property
-    def device(self) -> torch.device:
-        # By default, ONNX Runtime places inputs and outputs on CPU (even though not optimal when the latter are
-        # consumed by a device other than CPU. When preparing the decoder_input_ids for generation, the latter should
-        # be placed on the same device as the other inputs (CPU). Needed for version of transformers < 4.19.0
-        return torch.device("cpu")
-
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
     def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
