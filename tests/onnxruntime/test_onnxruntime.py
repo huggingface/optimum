@@ -53,7 +53,7 @@ class TestORTOptimizer(unittest.TestCase):
             "roberta-base",
             "google/electra-small-discriminator",
             "microsoft/deberta-base",
-            "microsoft/deberta-v2-xlarge",
+            "microsoft/deberta-v3-xsmall",
         }
         optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
         for model_name in model_names:
