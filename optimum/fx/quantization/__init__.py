@@ -1,4 +1,4 @@
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -11,9 +11,4 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
-from .neural_compressor.configuration import IncConfig, IncPruningConfig, IncQuantizationConfig
-from .neural_compressor.optimization import IncOptimizer
-from .neural_compressor.pruning import IncPruner, IncPruningMode
-from .neural_compressor.quantization import IncQuantizationMode, IncQuantizer
-from .neural_compressor.trainer import IncTrainer
+from .functions import fuse_fx, prepare_fx, prepare_qat_fx

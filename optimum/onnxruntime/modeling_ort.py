@@ -167,6 +167,7 @@ class ORTModel(OptimizedModel):
             config = PretrainedConfig.from_dict(config_dict)
             model = ORTModel.load_model(os.path.join(model_id, model_file_name))
             kwargs["model_save_dir"] = Path(model_id)
+            kwargs["latest_model_name"] = model_file_name
         # load model from hub
         else:
             # download model

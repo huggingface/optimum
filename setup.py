@@ -40,19 +40,13 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "protobuf==3.20.1",
     ],  # "transformers[sentencepiece]>4.17.0"],
-    "intel": [
-        "pycocotools",
-        "neural_compressor>=1.9",
-        "datasets>=1.2.1",
-        "pandas<1.4.0",
-        "transformers >= 4.15.0, < 4.17.0",
-    ],
+    "intel": "optimum-intel",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
-    "benchmarks": ["pydantic"],
+    "benchmark": ["optuna", "tqdm"],
 }
 
 setup(
