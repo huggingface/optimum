@@ -5,22 +5,26 @@ import unittest
 from pathlib import Path
 
 import torch
+from PIL import Image
 from transformers import (
     AutoModel,
     AutoModelForCausalLM,
+    AutoModelForImageClassification,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
-    AutoTokenizer,
     PretrainedConfig,
     pipeline,
 )
+from transformers.onnx.utils import get_preprocessor
 
 import onnxruntime
+import requests
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
+    ORTModelForImageClassification,
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
@@ -128,7 +132,7 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
     def test_model_call(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -145,7 +149,7 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         trfs_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -162,7 +166,7 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
@@ -199,7 +203,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForSequenceClassification.from_pretrained("t5-small", from_transformers=Tru)
+            model = ORTModelForSequenceClassification.from_pretrained("t5-small")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -207,7 +211,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
     def test_model_forward_call(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -221,7 +225,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         trfs_model = AutoModelForSequenceClassification.from_pretrained(model_id)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -237,7 +241,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         pp = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
         outputs = pp(text)
@@ -250,7 +254,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             "typeform/distilbert-base-uncased-mnli", from_transformers=True
         )
-        tokenizer = AutoTokenizer.from_pretrained("typeform/distilbert-base-uncased-mnli")
+        tokenizer = get_preprocessor("typeform/distilbert-base-uncased-mnli")
         pp = pipeline("zero-shot-classification", model=onnx_model, tokenizer=tokenizer)
         sequence_to_classify = "Who are you voting for in 2020?"
         candidate_labels = ["Europe", "public health", "politics", "elections"]
@@ -286,7 +290,7 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForTokenClassification.from_pretrained("t5-small", from_transformers=Tru)
+            model = ORTModelForTokenClassification.from_pretrained("t5-small")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -294,7 +298,7 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
     def test_model_call(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -308,7 +312,7 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         trfs_model = AutoModelForTokenClassification.from_pretrained(model_id)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -324,7 +328,7 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         pp = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
         outputs = pp(text)
@@ -357,7 +361,7 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForFeatureExtraction.from_pretrained("google/vit-base-patch16-224", from_transformers=Tru)
+            model = ORTModelForFeatureExtraction.from_pretrained("google/vit-base-patch16-224")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -365,7 +369,7 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
     def test_model_call(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -379,7 +383,7 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         trfs_model = AutoModel.from_pretrained(model_id)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -395,7 +399,7 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         pp = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live in Germany."
         outputs = pp(text)
@@ -419,7 +423,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
+            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224")
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -427,7 +431,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
     def test_model_call(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -440,7 +444,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
     def test_generate_utils(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(
             text,
@@ -455,7 +459,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
     def test_generate_utils_with_input_ids(self, *args, **kwargs):
         model_arch, model_id = args
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(
             text,
@@ -471,7 +475,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         trfs_model = AutoModelForCausalLM.from_pretrained(model_id)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
@@ -487,7 +491,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
     def test_pipeline(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
         pp = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
         outputs = pp(text)
@@ -495,3 +499,63 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+
+class ORTModelForImageClassificationIntergrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "vit": "hf-internal-testing/tiny-random-vit",
+    }
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_supported_transformers_architectures(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            model = ORTModelForImageClassification.from_pretrained("facebook/convnext-tiny-224")
+
+        self.assertTrue("Unrecognized configuration class", context.exception)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_model_forward_call(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=image, return_tensors="pt")
+        outputs = model(**inputs)
+        self.assertTrue("logits" in outputs)
+        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_compare_to_transformers(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        trfs_model = AutoModelForImageClassification.from_pretrained(model_id)
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=image, return_tensors="pt")
+        with torch.no_grad():
+            trtfs_outputs = trfs_model(**inputs)
+        onnx_outputs = onnx_model(**inputs)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        pp = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pp(url)
+
+        # compare model output class
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(isinstance(outputs[0]["label"], str))

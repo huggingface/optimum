@@ -12,7 +12,7 @@ specific language governing permissions and limitations under the License.
 
 # Optimum pipelines for inference
 
-The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification.
+The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as question answering or image classification.
 Even if you don't have experience with a specific modality or understand the code powering the models, you can still use them with the [`~pipelines.pipeline`] function!
 
 <Tip>
@@ -31,11 +31,12 @@ Currenlty supported tasks are:
 * `question-answering`
 * `zero-shot-classification`
 * `text-generation`
+* `image-classification`
 
 ## Optimum pipeline usage
 
-While each task has an associated pipeline class, it is simpler to use the general [`~pipelines.pipeline`] function which wraps all the task-specific pipelines in one object. 
-The [`~pipelines.pipeline`] function automatically loads a default model and tokenizer capable of inference for your task. 
+While each task has an associated pipeline class, it is simpler to use the general [`~pipelines.pipeline`] function which wraps all the task-specific pipelines in one object.
+The [`~pipelines.pipeline`] function automatically loads a default model and tokenizer/feature-extractor capable of inference for your task.
 
 1. Start by creating a pipeline by specifying an inference task:
 
@@ -46,7 +47,7 @@ The [`~pipelines.pipeline`] function automatically loads a default model and tok
 
 ```
 
-2. Pass your input text to the [`~pipelines.pipeline`] function:
+2. Pass your input text/image to the [`~pipelines.pipeline`] function:
 
 ```python
 >>> classifier("I like you. I love you.")
@@ -57,9 +58,9 @@ _Note: The default models used in the [`~pipelines.pipeline`] function are not o
 
 ### Using vanilla Transformers model and converting to ONNX
 
-The [`~pipelines.pipeline`] function accepts any supported model from the [Model Hub](https://huggingface.co/models). 
-There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
-Once you've picked an appropriate model, load it with the `from_pretrained("{model_id}",from_transformers=True)` method associated with the `ORTModelFor*` 
+The [`~pipelines.pipeline`] function accepts any supported model from the [Model Hub](https://huggingface.co/models).
+There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task.
+Once you've picked an appropriate model, load it with the `from_pretrained("{model_id}",from_transformers=True)` method associated with the `ORTModelFor*`
 `AutoTokenizer' class. For example, here's how you can load the [`~onnxruntime.ORTModelForQuestionAnswering`] class for question answering:
 
 ```python
@@ -80,10 +81,10 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 
 ### Using Optimum models
 
-The [`~pipelines.pipeline`] function is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with ONNX Runtime. 
-There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task. 
+The [`~pipelines.pipeline`] function is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with ONNX Runtime.
+There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task.
 Once you've picked an appropriate model, load it with the `from_pretrained()` method associated with the corresponding `ORTModelFor*`
-and `AutoTokenizer' class. For example, here's how you can load an optimized model for question answering:
+and `AutoTokenizer'/`AutoFeatureExtractor` class. For example, here's how you can load an optimized model for question answering:
 
 ```python
 >>> from transformers import AutoTokenizer
@@ -132,7 +133,7 @@ Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] a
     onnx_quantized_model_output_path=save_path / "model-quantized.onnx",
     quantization_config=qconfig,
     )
->>> quantizer.model.config.save_pretrained(save_path) # saves config.json 
+>>> quantizer.model.config.save_pretrained(save_path) # saves config.json
 
 # load optimized model from local path or repository
 >>> model = ORTModelForSequenceClassification.from_pretrained(save_path,file_name="model-quantized.onnx")
@@ -176,7 +177,7 @@ Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] a
     onnx_optimized_model_output_path=save_path / "model-optimized.onnx",
     optimization_config=optimization_config,
 )
->>> optimizer.model.config.save_pretrained(save_path) # saves config.json 
+>>> optimizer.model.config.save_pretrained(save_path) # saves config.json
 
 # load optimized model from local path or repository
 >>> model = ORTModelForSequenceClassification.from_pretrained(save_path,file_name="model-optimized.onnx")
@@ -198,8 +199,8 @@ Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] a
 ## Transformers pipeline usage
 
 The [`~pipelines.pipeline`] function is just a light wrapper around the `transformers.pipeline` function to enable checks for supported tasks and additional features
-, like quantization and optimization. This being said you can use the `transformers.pipeline` and just replace your `AutoFor*` with the optimum 
- `ORTModelFor*` class. 
+, like quantization and optimization. This being said you can use the `transformers.pipeline` and just replace your `AutoFor*` with the optimum
+ `ORTModelFor*` class.
 
 ```diff
 from transformers import AutoTokenizer, pipeline
@@ -207,7 +208,7 @@ from transformers import AutoTokenizer, pipeline
 +from optimum.onnxruntime import ORTModelForQuestionAnswering
 
 -model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
-+model = ORTModelForQuestionAnswering.from_transformers("optimum/roberta-base-squad2")
++model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
 tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)

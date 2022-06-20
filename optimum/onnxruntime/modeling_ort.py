@@ -9,10 +9,10 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForCausalLM,
+    AutoModelForImageClassification,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
-    AutoTokenizer,
     PretrainedConfig,
 )
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
@@ -20,11 +20,13 @@ from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutputWithCrossAttentions,
+    ImageClassifierOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
 from transformers.onnx import FeaturesManager, export
+from transformers.onnx.utils import get_preprocessor
 
 import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
@@ -37,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
+_FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
 
 ONNX_MODEL_START_DOCSTRING = r"""
     This model inherits from [~`onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
@@ -52,7 +55,7 @@ ONNX_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (`torch.Tensor` of shape `({0})`):
             Indices of input sequence tokens in the vocabulary.
-            Indices can be obtained using [`AutoTokenizer`](https://huggingface.co/docs/transformers/autoclass_tutorial#autotokenizer). 
+            Indices can be obtained using [`AutoTokenizer`](https://huggingface.co/docs/transformers/autoclass_tutorial#autotokenizer).
             See [`PreTrainedTokenizer.encode`](https://huggingface.co/docs/transformers/main_classes/tokenizer#transformers.PreTrainedTokenizerBase.encode) and
             [`PreTrainedTokenizer.__call__`](https://huggingface.co/docs/transformers/main_classes/tokenizer#transformers.PreTrainedTokenizerBase.__call__) for details.
             [What are input IDs?](https://huggingface.co/docs/transformers/glossary#input-ids)
@@ -234,14 +237,14 @@ class ORTModel(OptimizedModel):
                 task = "default"
         # 2. convert to temp dir
         # FIXME: transformers.onnx conversion doesn't support private models
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        preprocessor = get_preprocessor(model_id)
         model = FeaturesManager.get_model_from_feature(task, model_id)
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
         onnx_config = model_onnx_config(model.config)
 
         # export model
         export(
-            preprocessor=tokenizer,
+            preprocessor=preprocessor,
             model=model,
             config=onnx_config,
             opset=onnx_config.default_onnx_opset,
@@ -730,3 +733,87 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         else:
             # Ensure attention mask is on the same device as the input IDs
             return torch.ones(inputs.shape[:2], dtype=torch.long, device=inputs.device)
+
+
+IMAGE_CLASSIFICATION_SAMPLE = r"""
+    Example of image classification:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from transformers import {processor_class}
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = preprocessor(images=image, return_tensors="pt")
+
+    >>> outputs = model(**inputs)
+    >>> logits = outputs.logits
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_image_classifier = pipeline("image-classification", model=model, feature_extractor=preprocessor)
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> pred = onnx_image_classifier(url)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model for image-classification tasks.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForImageClassification(ORTModel):
+    """
+    Image Classification model for ONNX.
+    """
+
+    # used in from_transformers to export model to onnx
+    pipeline_task = "image-classification"
+    auto_model_class = AutoModelForImageClassification
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # create {name:idx} dict for model outputs
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + FEAUTRE_EXTRACTION_SAMPLE.format(
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
+            model_class="ORTModelForImageClassification",
+            checkpoint="optimum/vit-base-patch16-224",
+        )
+    )
+    def forward(
+        self,
+        pixel_values: torch.Tensor,
+        **kwargs,
+    ):
+        # converts pytorch inputs into numpy inputs for onnx
+        onnx_inputs = {
+            "pixel_values": pixel_values.cpu().detach().numpy(),
+        }
+        # run inference
+        outputs = self.model.run(None, onnx_inputs)
+        # converts output to namedtuple for pipelines post-processing
+        return ImageClassifierOutput(
+            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+        )

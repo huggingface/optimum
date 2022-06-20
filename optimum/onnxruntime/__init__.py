@@ -53,6 +53,7 @@ from .model import ORTModel
 from .modeling_ort import (
     ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
+    ORTModelForImageClassification,
     ORTModelForQuestionAnswering,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
