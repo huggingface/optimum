@@ -44,7 +44,7 @@ class ORTModelIntergrationTest(unittest.TestCase):
         self.LOCAL_MODEL_PATH = "assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
-        self.ONNX_SEQ2SEQ_MODEL_ID = "echarlaix/t5-small-onnx"
+        self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
