@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import torch
@@ -22,6 +23,7 @@ from torch.quantization.quantize_fx import Scope, ScopeContextManager
 from torch.quantization.quantize_fx import fuse_fx as orig_fuse_fx
 from torch.quantization.quantize_fx import prepare_fx as orig_prepare_fx
 from torch.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
+from tqdm import tqdm
 from transformers import PreTrainedModel
 from transformers.utils.fx import HFTracer, check_if_model_is_supported, get_concrete_args, symbolic_trace
 
@@ -291,3 +293,35 @@ def prepare_qat_fx(
     )
     torch.ao.quantization.quantize_fx.QuantizationTracer = orig_quantization_tracer
     return graph_module
+
+
+def _check_inputs_and_model_inputs_match(model: torch.nn.Module, inputs: Dict[str, Any]):
+    sig = signature(model.forward)
+    return set(inputs.keys()) <= set(sig.parameters.keys())
+
+
+def _filter_model_inputs(model: torch.nn.Module, inputs: Dict[str, Any]):
+    sig = signature(model.forward)
+    return {k: v for k, v in inputs.items() if k in sig.parameters}
+
+
+def calibrate(model: ObservedGraphModule, dataloader: torch.utils.data.DataLoader):
+    model.eval()
+    filter_inputs = not _check_inputs_and_model_inputs_match(model, next(iter(dataloader)))
+    with torch.no_grad():
+        for inputs in tqdm(dataloader):
+            if filter_inputs:
+                inputs = _filter_model_inputs(model, inputs)
+
+
+def calibrate_qat(
+    model: ObservedGraphModule, dataloader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer
+):
+    model.train()
+    filter_inputs = not _check_inputs_and_model_inputs_match(model, next(iter(dataloader)))
+    for inputs in tqdm(dataloader):
+        if filter_inputs:
+            inputs = _filter_model_inputs(model, inputs)
+        loss, _ = model(**inputs)
+        loss.backward()
+        optimizer.step()
