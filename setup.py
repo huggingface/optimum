@@ -19,7 +19,7 @@ REQUIRED_PKGS = [
     "torch>=1.9",
     "packaging",
     "numpy",
-    "huggingface_hub>=0.4.0",
+    "huggingface_hub>=0.4.0, <0.8.0",
 ]
 
 TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]
