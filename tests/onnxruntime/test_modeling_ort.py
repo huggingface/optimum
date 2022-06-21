@@ -17,6 +17,7 @@ from transformers import (
 )
 
 import onnxruntime
+from huggingface_hub.utils import EntryNotFoundError
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
@@ -50,9 +51,8 @@ class ORTModelIntergrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_without_onnx_model(self):
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(EntryNotFoundError):
             ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
-        self.assertEqual("Not Found", context.exception.response.reason)
 
     @require_hf_token
     def test_load_model_from_hub_private(self):
