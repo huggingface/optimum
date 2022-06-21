@@ -126,7 +126,7 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             model = ORTModelForQuestionAnswering.from_pretrained("t5-small", from_transformers=True)
 
-        self.assertIn("Unrecognized configuration class", context.exception)
+        self.assertIn("Unrecognized configuration class", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -205,7 +205,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             model = ORTModelForSequenceClassification.from_pretrained("t5-small", from_transformers=True)
 
-        self.assertIn("Unrecognized configuration class", context.exception)
+        self.assertIn("Unrecognized configuration class", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_forward_call(self, *args, **kwargs):
@@ -292,7 +292,7 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             model = ORTModelForTokenClassification.from_pretrained("t5-small", from_transformers=True)
 
-        self.assertIn("Unrecognized configuration class", context.exception)
+        self.assertIn("Unrecognized configuration class", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -419,7 +419,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
 
-        self.assertIn("Unrecognized configuration class", context.exception)
+        self.assertIn("Unrecognized configuration class", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -511,7 +511,7 @@ class ORTModelForImageClassificationIntergrationTest(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             model = ORTModelForImageClassification.from_pretrained("t5-small", from_transformers=True)
 
-        self.assertIn("Unrecognized configuration class", context.exception)
+        self.assertIn("Unrecognized configuration class", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_forward_call(self, *args, **kwargs):
