@@ -329,8 +329,14 @@ class ORTModelForFeatureExtraction(ORTModel):
         }
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
         # filter invalid inputs
-        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
+        if onnx_inputs.keys() != self.model_inputs.keys():
+            filtered_onnx_inputs = {key: onnx_inputs[key] for key in onnx_inputs if key in self.model_inputs}
+            invalid_inputs = onnx_inputs.keys() - filtered_onnx_inputs.keys()
+            logger.warning(f"{invalid_inputs} are not valid inputs for the model and they will be ignored.")
+            onnx_inputs = filtered_onnx_inputs
+
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -417,8 +423,15 @@ class ORTModelForQuestionAnswering(ORTModel):
         }
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
         # filter invalid inputs
-        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
+        if onnx_inputs.keys() != self.model_inputs.keys():
+            filtered_onnx_inputs = {key: onnx_inputs[key] for key in onnx_inputs if key in self.model_inputs}
+            logger.warning(
+                f"{onnx_inputs.keys() - filtered_onnx_inputs.keys()} are not valid inputs for the model and they will be ignored."
+            )
+            onnx_inputs = filtered_onnx_inputs
+
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -522,8 +535,15 @@ class ORTModelForSequenceClassification(ORTModel):
 
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
         # filter invalid inputs
-        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
+        if onnx_inputs.keys() != self.model_inputs.keys():
+            filtered_onnx_inputs = {key: onnx_inputs[key] for key in onnx_inputs if key in self.model_inputs}
+            logger.warning(
+                f"{onnx_inputs.keys() - filtered_onnx_inputs.keys()} are not valid inputs for the model and they will be ignored."
+            )
+            onnx_inputs = filtered_onnx_inputs
+
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -610,8 +630,15 @@ class ORTModelForTokenClassification(ORTModel):
         }
         if token_type_ids is not None:
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
         # filter invalid inputs
-        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
+        if onnx_inputs.keys() != self.model_inputs.keys():
+            filtered_onnx_inputs = {key: onnx_inputs[key] for key in onnx_inputs if key in self.model_inputs}
+            logger.warning(
+                f"{onnx_inputs.keys() - filtered_onnx_inputs.keys()} are not valid inputs for the model and they will be ignored."
+            )
+            onnx_inputs = filtered_onnx_inputs
+
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
@@ -712,8 +739,15 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "input_ids": input_ids.cpu().detach().numpy(),
             "attention_mask": attention_mask.cpu().detach().numpy(),
         }
+
         # filter invalid inputs
-        onnx_inputs = {key: onnx_inputs[key] for key in self.model_inputs if key in onnx_inputs}
+        if onnx_inputs.keys() != self.model_inputs.keys():
+            filtered_onnx_inputs = {key: onnx_inputs[key] for key in onnx_inputs if key in self.model_inputs}
+            logger.warning(
+                f"{onnx_inputs.keys() - filtered_onnx_inputs.keys()} are not valid inputs for the model and they will be ignored."
+            )
+            onnx_inputs = filtered_onnx_inputs
+
         # run inference
         outputs = self.model.run(None, onnx_inputs)
         # converts output to namedtuple for pipelines post-processing
