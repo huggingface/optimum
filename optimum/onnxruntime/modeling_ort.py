@@ -333,8 +333,9 @@ class ORTModelForFeatureExtraction(ORTModel):
         # filter invalid inputs
         if onnx_inputs.keys() != self.model_inputs.keys():
             filtered_onnx_inputs = {key: onnx_inputs[key] for key in onnx_inputs if key in self.model_inputs}
-            invalid_inputs = onnx_inputs.keys() - filtered_onnx_inputs.keys()
-            logger.warning(f"{invalid_inputs} are not valid inputs for the model and they will be ignored.")
+            logger.warning(
+                f"{onnx_inputs.keys() - filtered_onnx_inputs.keys()} are not valid inputs for the model and they will be ignored."
+            )
             onnx_inputs = filtered_onnx_inputs
 
         # run inference
