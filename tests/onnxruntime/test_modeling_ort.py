@@ -124,7 +124,7 @@ class ORTModelForQuestionAnsweringIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForQuestionAnswering.from_pretrained("t5-small")
+            model = ORTModelForQuestionAnswering.from_pretrained("t5-small", from_transformers=True)
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -203,7 +203,7 @@ class ORTModelForSequenceClassificationIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForSequenceClassification.from_pretrained("t5-small")
+            model = ORTModelForSequenceClassification.from_pretrained("t5-small", from_transformers=True)
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -290,7 +290,7 @@ class ORTModelForTokenClassificationIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForTokenClassification.from_pretrained("t5-small")
+            model = ORTModelForTokenClassification.from_pretrained("t5-small", from_transformers=True)
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -361,7 +361,7 @@ class ORTModelForFeatureExtractionIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForFeatureExtraction.from_pretrained("google/vit-base-patch16-224")
+            model = ORTModelForFeatureExtraction.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -423,7 +423,7 @@ class ORTModelForCausalLMIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224")
+            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 
@@ -515,7 +515,9 @@ class ORTModelForImageClassificationIntergrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForImageClassification.from_pretrained("facebook/convnext-tiny-224")
+            model = ORTModelForImageClassification.from_pretrained(
+                "facebook/convnext-tiny-224", from_transformers=True
+            )
 
         self.assertTrue("Unrecognized configuration class", context.exception)
 

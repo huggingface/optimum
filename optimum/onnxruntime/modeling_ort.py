@@ -255,7 +255,7 @@ class ORTModel(OptimizedModel):
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
 
-FEAUTRE_EXTRACTION_SAMPLE = r"""
+FEAUTRE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
 
     ```python
@@ -304,14 +304,14 @@ class ORTModelForFeatureExtraction(ORTModel):
     pipeline_task = "default"
     auto_model_class = AutoModel
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + FEAUTRE_EXTRACTION_SAMPLE.format(
+        + FEAUTRE_EXTRACTION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForFeatureExtraction",
             checkpoint="optimum/all-MiniLM-L6-v2",
@@ -339,7 +339,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         )
 
 
-QUESTION_ANSWERING_SAMPLE = r"""
+QUESTION_ANSWERING_EXAMPLE = r"""
     Example of question answering:
 
     ```python
@@ -390,14 +390,14 @@ class ORTModelForQuestionAnswering(ORTModel):
     pipeline_task = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + QUESTION_ANSWERING_SAMPLE.format(
+        + QUESTION_ANSWERING_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForQuestionAnswering",
             checkpoint="optimum/roberta-base-squad2",
@@ -426,7 +426,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         )
 
 
-SEQUENCE_CLASSIFICATION_SAMPLE = r"""
+SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
     Example of single-label classification:
 
     ```python
@@ -491,15 +491,15 @@ class ORTModelForSequenceClassification(ORTModel):
     pipeline_task = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + SEQUENCE_CLASSIFICATION_SAMPLE.format(
+        + SEQUENCE_CLASSIFICATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForSequenceClassification",
             checkpoint="optimum/distilbert-base-uncased-finetuned-sst-2-english",
@@ -528,7 +528,7 @@ class ORTModelForSequenceClassification(ORTModel):
         )
 
 
-TOKEN_CLASSIFICATION_SAMPLE = r"""
+TOKEN_CLASSIFICATION_EXAMPLE = r"""
     Example of token classification:
 
     ```python
@@ -578,14 +578,14 @@ class ORTModelForTokenClassification(ORTModel):
     pipeline_task = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + TOKEN_CLASSIFICATION_SAMPLE.format(
+        + TOKEN_CLASSIFICATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForTokenClassification",
             checkpoint="optimum/bert-base-NER",
@@ -613,7 +613,7 @@ class ORTModelForTokenClassification(ORTModel):
         )
 
 
-TEXT_GENERATION_SAMPLE = r"""
+TEXT_GENERATION_EXAMPLE = r"""
     Example of text generation:
 
     ```python
@@ -662,8 +662,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     pipeline_task = "causal-lm"
     auto_model_class = AutoModelForCausalLM
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
@@ -687,7 +687,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + TEXT_GENERATION_SAMPLE.format(
+        + TEXT_GENERATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForCausalLM",
             checkpoint="optimum/gpt2",
@@ -735,7 +735,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             return torch.ones(inputs.shape[:2], dtype=torch.long, device=inputs.device)
 
 
-IMAGE_CLASSIFICATION_SAMPLE = r"""
+IMAGE_CLASSIFICATION_EXAMPLE = r"""
     Example of image classification:
 
     ```python
@@ -789,14 +789,14 @@ class ORTModelForImageClassification(ORTModel):
     pipeline_task = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + FEAUTRE_EXTRACTION_SAMPLE.format(
+        + FEAUTRE_EXTRACTION_EXAMPLE.format(
             processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForImageClassification",
             checkpoint="optimum/vit-base-patch16-224",
