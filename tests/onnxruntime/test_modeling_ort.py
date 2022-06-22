@@ -16,8 +16,8 @@ from transformers import (
     PretrainedConfig,
     pipeline,
 )
-from transformers.testing_utils import require_torch_gpu
 from transformers.onnx.utils import get_preprocessor
+from transformers.testing_utils import require_torch_gpu
 
 import onnxruntime
 import requests
