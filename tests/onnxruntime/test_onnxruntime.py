@@ -53,7 +53,7 @@ class TestORTOptimizer(unittest.TestCase):
             "roberta-base",
             "google/electra-small-discriminator",
         }
-        optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
         for model_name in model_names:
             with self.subTest(model_name=model_name):
                 with tempfile.TemporaryDirectory() as tmp_dir:
