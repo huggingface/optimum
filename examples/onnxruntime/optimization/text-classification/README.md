@@ -22,13 +22,13 @@ The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/exam
 allows us to apply graph optimizations and fusion using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as 
 the ones from the [GLUE benchmark](https://gluebenchmark.com/).
 
-The following example applies graph optimization on a DistilBERT fine-tuned on the sst-2 task.
+The following example applies graph optimization on a DistilBERT fine-tuned on the sst-2 task. Here the optimization level is selected to be 1, enabling basic optimizations such as redundant node eliminations and constant folding. Higher optimization level will result in hardware dependent optimized graph.
 
 ```bash
 python run_glue.py \
     --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english \
     --task_name sst2 \
-    --optimization_level 99 \
+    --optimization_level 1 \
     --do_eval \
     --output_dir /tmp/optimized_distilbert_sst2
 ```
