@@ -18,11 +18,12 @@ limitations under the License.
 
 The script [`run_swag.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/quantization/multiple-choice/run_swag.py) allows us to apply graph optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for multiple choice tasks.
 
-The following example applies graph optimizations on a BERT fine-tuned on the SWAG dataset.
+The following example applies graph optimizations on a BERT fine-tuned on the SWAG dataset. Here the optimization level is selected to be 1, enabling basic optimizations such as redundant node eliminations and constant folding. Higher optimization level will result in hardware dependent optimized graph.
 
 ```bash
 python run_swag.py \
     --model_name_or_path ehdwns1516/bert-base-uncased_SWAG \
+    --optimization_level 1 \
     --do_eval \
     --output_dir /tmp/optimized_bert_swag
 ```
