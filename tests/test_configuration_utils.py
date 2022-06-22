@@ -16,9 +16,9 @@ import os
 import tempfile
 import unittest
 
-from transformers.testing_utils import PASS, USER, is_staging_test
+from transformers.testing_utils import TOKEN, USER, is_staging_test
 
-from huggingface_hub import delete_repo, login
+from huggingface_hub import HfFolder, delete_repo, set_access_token
 from optimum.configuration_utils import BaseConfig
 from requests.exceptions import HTTPError
 
@@ -47,22 +47,24 @@ class ConfigTester(unittest.TestCase):
 class ConfigPushToHubTester(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._token = login(username=USER, password=PASS)
+        cls._token = TOKEN
+        set_access_token(TOKEN)
+        HfFolder.save_token(TOKEN)
 
     @classmethod
     def tearDownClass(cls):
         try:
-            delete_repo(token=cls._token, name="optimum-test-base-config")
+            delete_repo(token=cls._token, repo_id="optimum-test-base-config")
         except HTTPError:
             pass
 
         try:
-            delete_repo(token=cls._token, name="optimum-test-base-config-org", organization="valid_org")
+            delete_repo(token=cls._token, repo_id="valid_org/optimum-test-base-config-org")
         except HTTPError:
             pass
 
         try:
-            delete_repo(token=cls._token, name="optimum-test-base-dynamic-config")
+            delete_repo(token=cls._token, repo_id="optimum-test-base-dynamic-config")
         except HTTPError:
             pass
 
