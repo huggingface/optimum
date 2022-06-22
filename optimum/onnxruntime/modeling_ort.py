@@ -32,7 +32,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, _is_gpu_available
+from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
 
 
 logger = logging.getLogger(__name__)
@@ -88,11 +88,33 @@ class ORTModel(OptimizedModel):
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
+        self._device = get_device_for_provider(self.model.get_providers()[0])
 
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.base_model_prefix, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
+
+    @property
+    def device(self) -> torch.device:
+        """
+        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
+        device).
+        """
+        return self._device
+
+    @device.setter
+    def device(self, value):
+        self._device = value
+
+    def to(self, device):
+        """
+        Changes the ONNX Runtime provider according to the device.
+        """
+        self.device = device
+        provider = get_provider_for_device(self.device)
+        self.model.set_providers([provider])
+        return self
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError
@@ -100,16 +122,16 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def load_model(path: Union[str, Path], provider=None):
         """
-        loads ONNX Inference session with Provider. Default Provider is if CUDAExecutionProvider GPU available else `CPUExecutionProvider`
+        Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
+
         Arguments:
             path (`str` or `Path`):
-                Directory from which to load
+                Directory from which to load the model.
             provider(`str`, *optional*):
-                Onnxruntime provider to use for loading the model, defaults to `CUDAExecutionProvider` if GPU is
-                available else `CPUExecutionProvider`
+                ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
         if provider is None:
-            provider = "CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"
+            provider = "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])
 
@@ -333,10 +355,9 @@ class ORTModelForFeatureExtraction(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return BaseModelOutput(
-            last_hidden_state=torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]),
-        )
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
 QUESTION_ANSWERING_EXAMPLE = r"""
@@ -419,10 +440,12 @@ class ORTModelForQuestionAnswering(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
+        end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return QuestionAnsweringModelOutput(
-            start_logits=torch.from_numpy(outputs[self.model_outputs["start_logits"]]),
-            end_logits=torch.from_numpy(outputs[self.model_outputs["end_logits"]]),
+            start_logits=start_logits,
+            end_logits=end_logits,
         )
 
 
@@ -522,9 +545,10 @@ class ORTModelForSequenceClassification(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+            logits=logits,
         )
 
 
@@ -607,9 +631,10 @@ class ORTModelForTokenClassification(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return TokenClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+            logits=logits,
         )
 
 
@@ -668,14 +693,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
-    @property
-    def device(self) -> torch.device:
-        """
-        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
-        device).
-        """
-        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
         """
         Implement in subclasses of [`PreTrainedModel`] for custom behavior to prepare inputs in the generate method.
@@ -706,9 +723,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         }
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return CausalLMOutputWithCrossAttentions(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+            logits=logits,
         )
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490

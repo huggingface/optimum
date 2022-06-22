@@ -154,8 +154,10 @@ Then let's take a look at applying _graph optimizations_ techniques such as oper
 ```python
 from optimum.onnxruntime.configuration import OptimizationConfig
 
-# optimization_config=99 enables all available graph optimisations
-optimization_config = OptimizationConfig(optimization_level=99)
+# Here the optimization level is selected to be 1, enabling basic optimizations such as redundant
+# node eliminations and constant folding. Higher optimization level will result in a hardware
+# dependent optimized graph.
+optimization_config = OptimizationConfig(optimization_level=1)
 ```
 
 Next, we load an _optimizer_ to apply these optimisations to our model:
