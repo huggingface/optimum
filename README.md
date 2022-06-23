@@ -124,8 +124,6 @@ tokenizer = AutoTokenizer.from_pretrained(save_directory)
 cls_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
 
 results = cls_pipeline("I love burritos!")
-
-print(results)
 ```
 
 Similarly, you can apply static quantization by simply setting `is_static` to `True` when instantiating the `QuantizationConfig` object:
