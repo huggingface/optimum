@@ -3,6 +3,7 @@ import os
 
 from datasets import load_metric
 from transformers import pipeline as _transformers_pipeline
+from transformers import AutoTokenizer
 from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
@@ -39,6 +40,8 @@ class OnnxRuntimeRun(Run):
             opset=run_config["framework_args"]["opset"],
         )
 
+        if not isinstance(quantizer.preprocessor, AutoTokenizer):
+            raise NotImplementedError("Only tokenizer preprocessor is supported for now.")
         self.tokenizer = copy.deepcopy(quantizer.preprocessor)
 
         self.batch_sizes = run_config["batch_sizes"]
