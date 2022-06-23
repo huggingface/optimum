@@ -107,12 +107,14 @@ class TextClassificationProcessing(DatasetProcessing):
 
             # we manually unroll the pipeline since it is broken
             # see https://github.com/huggingface/transformers/issues/17305
+            inps = {"text": inputs[self.data_keys["primary"]]}
             if self.data_keys["secondary"]:
-                inps = [inputs[self.data_keys["primary"]], inputs[self.data_keys["secondary"]]]
-            else:
-                inps = inputs[self.data_keys["primary"]]
-            tokenized_inputs = pipeline.preprocess([inps])
+                inps["text_pair"] = inputs[self.data_keys["secondary"]]
+
+            kwargs = {"padding": "max_length"}
+            tokenized_inputs = pipeline.preprocess(inps, **kwargs)
             model_outputs = pipeline.forward(tokenized_inputs)
+
             # preds is a dict. No processing function is applied as not needed for score in the regression case
             preds = pipeline.postprocess(model_outputs, function_to_apply=ClassificationFunction.NONE)
 
@@ -131,7 +133,13 @@ class TextClassificationProcessing(DatasetProcessing):
         return all_labels, all_preds
 
     def get_metrics(self, predictions: List, references: List, metric: Metric):
-        return metric.compute(predictions=predictions, references=references)
+        metrics_res = metric.compute(predictions=predictions, references=references)
+
+        # try to get a good default here
+        if not isinstance(metrics_res, dict):
+            metrics_res = {metric.name: metrics_res}
+
+        return metrics_res
 
     def get_pipeline_kwargs(self):
         return {}

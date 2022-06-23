@@ -16,7 +16,7 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        max_eval_samples = 20  # TODO remove this
+        max_eval_samples = 100  # TODO remove this
 
         # Preprocessing the raw_datasets
         def preprocess_function(

@@ -262,4 +262,13 @@ class Run(_RunDefaults, _RunBase):
 class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
     """Class holding the parameters to launch a run."""
 
-    pass
+    def __post_init__(self):
+        # to support python 3.8 that does not support nested initialization of dataclass from dict
+        if isinstance(self.dataset, dict):
+            self.dataset = DatasetArgs(**self.dataset)
+        if isinstance(self.framework_args, dict):
+            self.framework_args = FrameworkArgs(**self.framework_args)
+        if isinstance(self.calibration, dict):
+            self.calibration = Calibration(**self.calibration)
+        if isinstance(self.task_args, dict):
+            self.task_args = TaskArgs(**self.task_args)

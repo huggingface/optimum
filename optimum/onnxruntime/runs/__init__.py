@@ -161,8 +161,8 @@ class OnnxRuntimeRun(Run):
             optimized_metrics_dict = self.processor.get_metrics(
                 predictions=all_preds_optimized, references=all_labels, metric=metric
             )
-            self.return_body["evaluation"]["others"]["baseline"][metric_name] = baseline_metrics_dict
-            self.return_body["evaluation"]["others"]["optimized"][metric_name] = optimized_metrics_dict
+            self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
+            self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
 
     def finalize(self):
         if os.path.isfile(self.quantized_model_path):
