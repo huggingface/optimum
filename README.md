@@ -69,7 +69,7 @@ At its core, 🤗 Optimum uses configuration objects to define parameters for op
 
 ### Exporting Transformers models to ONNX
 
-Before applying quantization or optimization, we need first need to export our vanilla transformers model to the ONNX format.
+Before applying quantization or optimization, we first need to export our model to the ONNX format.
 
 ```python
 import os
@@ -92,7 +92,7 @@ tokenizer.save_pretrained(save_directory)
 
 ### Quantization
 
-Let's see now how we can apply dynamic quantization with ONNX Runtime:
+Now let's see now how we can apply dynamic quantization with ONNX Runtime:
 
 ```python
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
