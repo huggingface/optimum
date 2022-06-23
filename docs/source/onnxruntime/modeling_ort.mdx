@@ -12,13 +12,13 @@ specific language governing permissions and limitations under the License.
 
 # Optimum Inference with ONNX Runtime
 
-Optimum is a utility package for building and running inference with accelerated runtime like ONNX Runtime. 
-Optimum can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines 
+Optimum is a utility package for building and running inference with accelerated runtime like ONNX Runtime.
+Optimum can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines
 to run accelerated inference without rewriting your APIs.
 
 ## Switching from Transformers to Optimum Inference
 
-The Optimum Inference models are API compatible with Hugging Face Transformers models. This means you can just replace your `AutoModelForXxx` class with the corresponding `ORTModelForXxx` class in `optimum`. For example, this is how you can use a question answering model in `optimum`: 
+The Optimum Inference models are API compatible with Hugging Face Transformers models. This means you can just replace your `AutoModelForXxx` class with the corresponding `ORTModelForXxx` class in `optimum`. For example, this is how you can use a question answering model in `optimum`:
 
 ```diff
 from transformers import AutoTokenizer, pipeline
@@ -55,8 +55,8 @@ Optimum Inference also includes methods to convert vanilla Transformers models t
 
 ### Working with the Hugging Face Model Hub
 
-The Optimum model classes like [`~onnxruntime.ORTModelForSequenceClassification`] are integrated with the [Hugging Face Model Hub](https://hf.co/models), which means you can not only 
-load model from the Hub, but also push your models to the Hub with `push_to_hub()` method. Below is an example which downloads a vanilla Transformers model 
+The Optimum model classes like [`~onnxruntime.ORTModelForSequenceClassification`] are integrated with the [Hugging Face Model Hub](https://hf.co/models), which means you can not only
+load model from the Hub, but also push your models to the Hub with `push_to_hub()` method. Below is an example which downloads a vanilla Transformers model
 from the Hub and converts it to an optimum onnxruntime model and pushes it back into a new repository.
 
 <!-- TODO: Add Quantizer into example when UX improved -->
@@ -103,4 +103,8 @@ from the Hub and converts it to an optimum onnxruntime model and pushes it back 
 ## ORTModelForSeq2SeqLM
 
 [[autodoc]] onnxruntime.modeling_seq2seq.ORTModelForSeq2SeqLM
+
+## ORTModelForImageClassification
+
+[[autodoc]] onnxruntime.modeling_ort.ORTModelForImageClassification
 

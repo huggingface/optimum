@@ -20,9 +20,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset, load_dataset
-from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+from transformers import AutoFeatureExtractor, AutoTokenizer, PreTrainedModel
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
+from transformers.onnx.utils import get_preprocessor
 
 import onnx
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
@@ -85,7 +86,7 @@ class ORTQuantizer(ABC):
         model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
     ) -> "ORTQuantizer":
         """
-        Instantiate a `ORTQuantizer` from a pretrained pytorch model and tokenizer.
+        Instantiate a `ORTQuantizer` from a pretrained pytorch model and preprocessor.
 
         Args:
             model_name_or_path (`Union[str, os.PathLike]`):
@@ -98,23 +99,23 @@ class ORTQuantizer(ABC):
         Returns:
             An instance of `ORTQuantizer`.
         """
-        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        preprocessor = get_preprocessor(model_name_or_path)
         model_class = FeaturesManager.get_model_class_for_feature(feature)
         model = model_class.from_pretrained(model_name_or_path)
 
-        return ORTQuantizer(tokenizer, model, feature, opset)
+        return ORTQuantizer(preprocessor, model, feature, opset)
 
     def __init__(
         self,
-        tokenizer: PreTrainedTokenizer,
+        preprocessor: Union[AutoTokenizer, AutoFeatureExtractor],
         model: PreTrainedModel,
         feature: str = "default",
         opset: Optional[int] = None,
     ):
         """
         Args:
-            tokenizer (`PreTrainedTokenizer`):
-                The tokenizer used to preprocess the data.
+            preprocessor (`Union[AutoTokenizer, AutoFeatureExtractor]`):
+                The preprocessor used to preprocess the data.
             model (`PreTrainedModel`):
                 The model to optimize.
             feature (`str`, defaults to `"default"`):
@@ -124,7 +125,7 @@ class ORTQuantizer(ABC):
         """
         super().__init__()
 
-        self.tokenizer = tokenizer
+        self.preprocessor = preprocessor
         self.model = model
 
         self.feature = feature
@@ -236,7 +237,7 @@ class ORTQuantizer(ABC):
 
         # Export the model to ONNX IR
         if not onnx_model_path.exists():
-            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
+            export(self.preprocessor, self.model, self._onnx_config, self.opset, onnx_model_path)
 
             LOGGER.info(f"Exported model to ONNX at: {onnx_model_path.as_posix()}")
 
@@ -306,7 +307,7 @@ class ORTQuantizer(ABC):
 
         # Export the model if it has not already been exported to ONNX IR (useful for dynamic quantization)
         if not onnx_model_path.exists():
-            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
+            export(self.preprocessor, self.model, self._onnx_config, self.opset, onnx_model_path)
 
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
 
