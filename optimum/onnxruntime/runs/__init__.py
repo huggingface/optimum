@@ -40,6 +40,7 @@ class OnnxRuntimeRun(Run):
             opset=run_config["framework_args"]["opset"],
         )
 
+        print(quantizer.preprocessor)
         if not isinstance(quantizer.preprocessor, AutoTokenizer):
             raise NotImplementedError("Only tokenizer preprocessor is supported for now.")
         self.tokenizer = copy.deepcopy(quantizer.preprocessor)
