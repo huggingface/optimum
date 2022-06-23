@@ -125,7 +125,7 @@ class MergeLinears(ReversibleTransformation):
                 [linear_nodes[0].target.rsplit(".", maxsplit=1)[0], merged_linear_name]
             )
             merged_linear_node = graph.call_module(fully_qualified_merged_linear_name, args=(input_node,))
-            merged_linear_node.was_merged = True
+            merged_linear_node.was_transformed = "MergeLinears"
 
         accum_out_features = list(itertools.accumulate([0] + out_features))
         for idx, node in enumerate(linear_nodes):
@@ -196,8 +196,8 @@ class MergeLinears(ReversibleTransformation):
         named_modules = dict(graph_module.named_modules())
         for node in graph_module.graph.nodes:
             if node.op == "call_module":
-                was_merged = getattr(node, "was_merged", False)
-                if was_merged:
+                was_merged = getattr(node, "was_transformed", "")
+                if was_merged == "MergeLinears":
                     self._unmerge_linears(graph_module, node, named_modules[node.target])
 
         if lint_and_recompile:
@@ -206,30 +206,37 @@ class MergeLinears(ReversibleTransformation):
         return graph_module
 
 
-def change_truediv_to_mul_when_possible(graph_module: "GraphModule", lint_and_recompile: bool = True):
+class ChangeTrueDivMulByInverse(ReversibleTransformation):
     """
     Transformation that changes truediv nodes to multiplication of the inverse when the denominator is static.
     For example, that is sometimes the case for the scaling factor in attention layers.
-
-    Args:
-        graph_module (`torch.fx.GraphModule`):
-            The module to transform.
-        lint_and_recompile (`bool`, defaults to `True`):
-            Whether the transformed module should be linted and recompiled.
-            This can be set to `False` when chaining transformations together to perform this operation only once.
-
-    Returns:
-        `torch.fx.GraphModule`: The transformed module.
     """
-    graph = graph_module.graph
-    for node in graph.nodes:
-        if node.op == "call_function" and node.target == operator.truediv:
-            x, y = node.args
-            if not isinstance(y, torch.fx.Node):
-                node.target = operator.mul
+
+    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+        print(graph_module)
+        graph = graph_module.graph
+        for node in graph.nodes:
+            if node.op == "call_function" and node.target == operator.truediv:
+                x, y = node.args
+                if not isinstance(y, torch.fx.Node):
+                    node.target = operator.mul
+                    node.args = (x, 1 / y)
+                    node.was_transformed = "ChangeTrueDivMulByInverse"
+
+        if lint_and_recompile:
+            graph.lint()
+            graph_module.recompile()
+        return graph_module
+
+    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+        graph = graph_module.graph
+        for node in graph.nodes:
+            if getattr(node, "was_merged", "") == "ChangeTrueDivMulByInverse":
+                node.target = operator.truediv
+                x, y = node.args
                 node.args = (x, 1 / y)
 
-    if lint_and_recompile:
-        graph.lint()
-        graph_module.recompile()
-    return graph_module
+        if lint_and_recompile:
+            graph.lint()
+            graph_module.recompile()
+        return graph_module
