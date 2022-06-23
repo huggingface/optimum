@@ -82,6 +82,31 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model.to(gpu)
         self.assertEqual(model.device, gpu)
 
+    def test_seq2seq_model_on_cpu(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+        cpu = torch.device("cpu")
+        model.to(cpu)
+        self.assertEqual(model.device, cpu)
+        self.assertEqual(model.encoder._device, cpu)
+        self.assertEqual(model.decoder._device, cpu)
+        self.assertEqual(model.decoder_with_past._device, cpu)
+        self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
+
+    @require_torch_gpu
+    def test_seq2seq_model_on_gpu(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+        gpu = torch.device("cuda")
+        model.to(gpu)
+        self.assertEqual(model.device, gpu)
+        self.assertEqual(model.encoder._device, gpu)
+        self.assertEqual(model.decoder._device, gpu)
+        self.assertEqual(model.decoder_with_past._device, gpu)
+        self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
+
     @require_hf_token
     def test_load_model_from_hub_private(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, use_auth_token=os.environ.get("HF_AUTH_TOKEN", None))
@@ -657,7 +682,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         self.assertEqual(pp.device, onnx_model.device)
 
 
-class ORTModelForSeq2SeqLMIntergrationTest(unittest.TestCase):
+class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "t5": "t5-small",
         "bart": "facebook/bart-base",
