@@ -17,6 +17,7 @@ import copy
 import functools
 import itertools
 import operator
+import warnings
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Callable, List, Union
 
@@ -114,6 +115,11 @@ class MergeLinears(ReversibleTransformation):
         out_features = [linear.out_features for linear in linears]
         total_out_features = sum(out_features)
         use_bias = any(hasattr(linear, "bias") for linear in linears)
+        if use_bias and not all(hasattr(linear, "bias") for linear in linears):
+            warnings.warn(
+                "Not all the linear layers that are merged contain a bias, but some do. By merging, this is equivalent "
+                "to adding a bias to the layers missing one."
+            )
         merged_linear = torch.nn.Linear(in_features, total_out_features, bias=use_bias)
 
         with torch.no_grad():
@@ -207,8 +213,7 @@ class MergeLinears(ReversibleTransformation):
         named_modules = dict(graph_module.named_modules())
         for node in graph_module.graph.nodes:
             if node.op == "call_module":
-                was_merged = getattr(node, "was_transformed", "")
-                if was_merged == "MergeLinears":
+                if getattr(node, "was_transformed", "") == "MergeLinears":
                     self._unmerge_linears(graph_module, node, named_modules[node.target])
 
         if lint_and_recompile:
@@ -258,10 +263,16 @@ class DeepCopy(ReversibleTransformation):
     """
 
     def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
-        return copy.deepcopy(graph_module)
+        clone = copy.deepcopy(graph_module)
+        # This is needed because copy.deepcopy does not take care of it
+        # Without these attributes, the reverse transformation cannot be done.
+        for n1, n2 in zip(graph_module.graph.nodes, clone.graph.nodes):
+            if hasattr(n1, "was_transformed"):
+                n2.was_transformed = n1.was_transformed
+        return clone
 
     def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
-        return copy.deepcopy(graph_module)
+        return self.transform(graph_module, lint_and_recompile=lint_and_recompile)
 
 
 class LintAndRecompile(ReversibleTransformation):
@@ -284,14 +295,14 @@ def compose(*args: Transformation, inplace: bool = True) -> Callable[["GraphModu
     """
     Composes a list of transformations together.
     """
-    transformations = list(args)
-    if inplace:
-        transformations.insert(0, DeepCopy())
+    transformations = list(reversed(args))
+    if not inplace:
+        transformations.append(DeepCopy())
 
     def map_fn(transformation):
         def partial_func(graph_module, reverse=False):
             if isinstance(transformation, ReversibleTransformation):
-                return transformation(graph_module, lint_and_recompile=False, reverse=reverse)
+                return transformation(graph_module, lint_and_recompile=True, reverse=reverse)
             if reverse:
                 raise ValueError(
                     "You cannot compose with reverse=True because at least one of the transformations is not reversible."
@@ -301,7 +312,7 @@ def compose(*args: Transformation, inplace: bool = True) -> Callable[["GraphModu
 
         return partial_func
 
-    transformations.append(LintAndRecompile())
+    transformations.insert(0, LintAndRecompile())
 
     def reduce_fn(f, g):
         def composition(graph_module, reverse=False):

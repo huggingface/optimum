@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, BertModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
 
-from optimum.fx.optimization import ChangeTrueDivToMulByInverse, MergeLinears
+from optimum.fx.optimization import ChangeTrueDivToMulByInverse, MergeLinears, compose
 from optimum.fx.utils import are_fx_features_available
 from parameterized import parameterized
 
@@ -104,6 +104,27 @@ class TransformationTester(unittest.TestCase):
                 torch.allclose(orig_named_parameters[name], restored_named_parameters[name]),
                 f"the {name} parameter does not match between the original and the restored models",
             )
+
+    def _check_compose_works(self, inplace):
+        _, traced = get_bert_model()
+        transformed = MergeLinears()(ChangeTrueDivToMulByInverse()(traced))
+
+        _, traced = get_bert_model()
+        composition = compose(ChangeTrueDivToMulByInverse(), MergeLinears(), inplace=inplace)
+        transformed_with_composition = composition(traced)
+
+        self.assertEqual(transformed.code, transformed_with_composition.code)
+
+        restored = MergeLinears()(ChangeTrueDivToMulByInverse()(transformed, reverse=True), reverse=True)
+        restored_with_composition = composition(transformed_with_composition, reverse=True)
+
+        self.assertEqual(restored.code, restored_with_composition.code)
+
+    def test_compose_inplace(self):
+        self._check_compose_works(True)
+
+    def test_compose_deepcopy(self):
+        self._check_compose_works(False)
 
 
 def test_merge_linears():
