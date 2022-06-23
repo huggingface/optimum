@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from torch.fx import GraphModule, Node
 
 
+# TODO: is it useful?
+# Maybe try model.get_submodule(target)
 def _find_parent(model: torch.nn.Module, module: torch.nn.Module) -> torch.nn.Module:
     """Finds the parent module of module in model"""
     parent = None
@@ -41,6 +43,10 @@ def _find_parent(model: torch.nn.Module, module: torch.nn.Module) -> torch.nn.Mo
 
 
 class ReversibleTransformation(ABC):
+    """
+    A torch.fx graph transformation that is reversible.
+    """
+
     @abstractmethod
     def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
         """
@@ -211,14 +217,13 @@ class MergeLinears(ReversibleTransformation):
         return graph_module
 
 
-class ChangeTrueDivMulByInverse(ReversibleTransformation):
+class ChangeTrueDivToMulByInverse(ReversibleTransformation):
     """
     Transformation that changes truediv nodes to multiplication of the inverse when the denominator is static.
     For example, that is sometimes the case for the scaling factor in attention layers.
     """
 
     def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
-        print(graph_module)
         graph = graph_module.graph
         for node in graph.nodes:
             if node.op == "call_function" and node.target == operator.truediv:
@@ -226,7 +231,7 @@ class ChangeTrueDivMulByInverse(ReversibleTransformation):
                 if not isinstance(y, torch.fx.Node):
                     node.target = operator.mul
                     node.args = (x, 1 / y)
-                    node.was_transformed = "ChangeTrueDivMulByInverse"
+                    node.was_transformed = "ChangeTrueDivToMulByInverse"
 
         if lint_and_recompile:
             graph.lint()
@@ -236,7 +241,7 @@ class ChangeTrueDivMulByInverse(ReversibleTransformation):
     def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
         graph = graph_module.graph
         for node in graph.nodes:
-            if getattr(node, "was_merged", "") == "ChangeTrueDivMulByInverse":
+            if getattr(node, "was_transformed", "") == "ChangeTrueDivToMulByInverse":
                 node.target = operator.truediv
                 x, y = node.args
                 node.args = (x, 1 / y)
@@ -275,37 +280,33 @@ class LintAndRecompile(ReversibleTransformation):
         return graph_module
 
 
-def compose(
-    *args: Transformation, reverse: bool = False, inplace: bool = True
-) -> Callable[["GraphModule"], "GraphModule"]:
+def compose(*args: Transformation, inplace: bool = True) -> Callable[["GraphModule"], "GraphModule"]:
     """
     Composes a list of transformations together.
     """
     transformations = list(args)
-    if reverse and not all((isinstance(t, ReversibleTransformation) for t in transformations)):
-        raise ValueError(
-            "You cannot compose with reverse=True because at least one of the transformations is not reversible."
-        )
-
     if inplace:
         transformations.insert(0, DeepCopy())
 
     def map_fn(transformation):
-        if isinstance(transformation, ReversibleTransformation):
-
-            def partial_func(graph_module):
+        def partial_func(graph_module, reverse=False):
+            if isinstance(transformation, ReversibleTransformation):
                 return transformation(graph_module, lint_and_recompile=False, reverse=reverse)
+            if reverse:
+                raise ValueError(
+                    "You cannot compose with reverse=True because at least one of the transformations is not reversible."
+                )
 
-            return partial_func
+            return transformation(graph_module, lint_and_recompile=False)
 
-        return functools.partial(transformation, lint_and_recompile=False)
+        return partial_func
 
     transformations.append(LintAndRecompile())
 
     def reduce_fn(f, g):
-        def composition(graph_module):
-            return f(g(graph_module))
+        def composition(graph_module, reverse=False):
+            return f(g(graph_module, reverse=reverse), reverse=reverse)
 
         return composition
 
-    return functools.reduce(reduce_fn, map(map_fn, transformations), lambda x: x)
+    return functools.reduce(reduce_fn, map(map_fn, transformations))
