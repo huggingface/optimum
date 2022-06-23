@@ -440,10 +440,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
         end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return QuestionAnsweringModelOutput(
-            start_logits=start_logits,
-            end_logits=end_logits,
-        )
+        return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
 
 
 SEQUENCE_CLASSIFICATION_SAMPLE = r"""
@@ -544,9 +541,7 @@ class ORTModelForSequenceClassification(ORTModel):
         outputs = self.model.run(None, onnx_inputs)
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return SequenceClassifierOutput(
-            logits=logits,
-        )
+        return SequenceClassifierOutput(logits=logits)
 
 
 TOKEN_CLASSIFICATION_SAMPLE = r"""
@@ -630,9 +625,7 @@ class ORTModelForTokenClassification(ORTModel):
         outputs = self.model.run(None, onnx_inputs)
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return TokenClassifierOutput(
-            logits=logits,
-        )
+        return TokenClassifierOutput(logits=logits)
 
 
 TEXT_GENERATION_SAMPLE = r"""
@@ -722,9 +715,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         outputs = self.model.run(None, onnx_inputs)
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return CausalLMOutputWithCrossAttentions(
-            logits=logits,
-        )
+        return CausalLMOutputWithCrossAttentions(logits=logits)
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(
