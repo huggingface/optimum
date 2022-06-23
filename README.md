@@ -72,6 +72,7 @@ At its core, 🤗 Optimum uses configuration objects to define parameters for op
 Before applying quantization or optimization, we need first need to export our vanilla transformers model to the ONNX format.
 
 ```python
+import os
 from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import AutoTokenizer
 
@@ -136,7 +137,12 @@ qconfig = AutoQuantizationConfig.arm64(is_static=True, per_channel=False)
 Static quantization relies on feeding batches of data through the model to estimate the activation quantization parameters ahead of inference time. To support this, 🤗 Optimum allows you to provide a _calibration dataset_. The calibration dataset can be a simple `Dataset` object from the 🤗 Datasets library, or any dataset that's hosted on the Hugging Face Hub. For this example, we'll pick the [`sst2`](https://huggingface.co/datasets/glue/viewer/sst2/test) dataset that the model was originally trained on:
 
 ```python
+from functools import partial
 from optimum.onnxruntime.configuration import AutoCalibrationConfig
+
+# Define the processing function to apply to each example after loading the dataset
+def preprocess_fn(ex, tokenizer):
+    return tokenizer(ex["sentence"])
 
 # Create the calibration dataset
 calibration_dataset = quantizer.get_calibration_dataset(
@@ -155,7 +161,7 @@ ranges = quantizer.fit(
     onnx_model_path=onnx_path,
     operators_to_quantize=qconfig.operators_to_quantize,
 )
-# Quantize the same way we did for dynamic quantization!
+# Apply static quantization on the model
 quantizer.export(
     onnx_model_path=onnx_path,
     onnx_quantized_model_output_path=os.path.join(save_directory, "model-quantized.onnx"),
