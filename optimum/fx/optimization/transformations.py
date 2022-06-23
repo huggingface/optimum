@@ -42,7 +42,7 @@ class ReversibleTransformation(ABC):
     @abstractmethod
     def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
         """
-        Apply the transformation to graph_module.
+        Applies the transformation to graph_module.
 
         Args:
             graph_module (`torch.fx.GraphModule`):
@@ -59,7 +59,7 @@ class ReversibleTransformation(ABC):
     @abstractmethod
     def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
         """
-        Apply the reverse transformation to graph_module.
+        Applies the reverse transformation to graph_module.
 
         Args:
             graph_module (`torch.fx.GraphModule`):
