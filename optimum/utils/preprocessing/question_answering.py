@@ -87,9 +87,7 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         kwargs = {"padding": "max_length"}
         for _, inputs in enumerate(eval_dataset):
             preds = pipeline(
-                question=inputs[self.data_keys["question"]],
-                context=inputs[self.data_keys["context"]],
-                **kwargs
+                question=inputs[self.data_keys["question"]], context=inputs[self.data_keys["context"]], **kwargs
             )
 
             preds = {"prediction_text": preds["answer"], "id": inputs["id"]}

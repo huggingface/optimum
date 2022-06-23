@@ -2,8 +2,8 @@ import copy
 import os
 
 from datasets import load_metric
-from transformers import pipeline as _transformers_pipeline
 from transformers import PreTrainedTokenizerBase
+from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
