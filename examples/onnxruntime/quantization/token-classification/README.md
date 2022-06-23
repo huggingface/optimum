@@ -17,7 +17,7 @@ limitations under the License.
 # Token classification
 
 
-The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/token-classification/run_ner.py)
+The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/quantization/token-classification/run_ner.py)
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
 optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for token classification tasks. 
 
