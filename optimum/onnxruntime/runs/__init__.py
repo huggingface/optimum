@@ -39,7 +39,7 @@ class OnnxRuntimeRun(Run):
             opset=run_config["framework_args"]["opset"],
         )
 
-        self.tokenizer = copy.deepcopy(quantizer.tokenizer)
+        self.tokenizer = copy.deepcopy(quantizer.preprocessor)
 
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]

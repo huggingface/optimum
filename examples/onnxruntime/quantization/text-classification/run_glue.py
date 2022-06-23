@@ -378,7 +378,7 @@ def main():
 
     # Run the tokenizer on the dataset
     preprocessed_datasets = raw_datasets.map(
-        partial(preprocess_function, tokenizer=quantizer.tokenizer, max_length=data_args.max_seq_length),
+        partial(preprocess_function, tokenizer=quantizer.preprocessor, max_length=data_args.max_seq_length),
         batched=True,
         load_from_cache_file=not data_args.overwrite_cache,
         desc="Running tokenizer on dataset",

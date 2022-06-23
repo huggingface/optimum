@@ -104,7 +104,7 @@ ds = Dataset.from_dict({"sentence": ["I love burritos!"]})
 def preprocess_fn(ex, tokenizer):
     return tokenizer(ex["sentence"])
 
-tokenized_ds = ds.map(partial(preprocess_fn, tokenizer=quantizer.tokenizer))
+tokenized_ds = ds.map(partial(preprocess_fn, tokenizer=quantizer.preprocessor))
 ort_outputs = ort_model.evaluation_loop(tokenized_ds)
 # Extract logits!
 ort_outputs.predictions
@@ -125,7 +125,7 @@ from optimum.onnxruntime.configuration import AutoCalibrationConfig
 calibration_dataset = quantizer.get_calibration_dataset(
     "glue",
     dataset_config_name="sst2",
-    preprocess_function=partial(preprocess_fn, tokenizer=quantizer.tokenizer),
+    preprocess_function=partial(preprocess_fn, tokenizer=quantizer.preprocessor),
     num_samples=50,
     dataset_split="train",
 )

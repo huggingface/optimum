@@ -536,7 +536,7 @@ def main():
         if optim_args.num_calibration_samples is not None:
             calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
         calibration_dataset = calibration_dataset.map(
-            partial(prepare_train_features, tokenizer=quantizer.tokenizer),
+            partial(prepare_train_features, tokenizer=quantizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
@@ -554,7 +554,7 @@ def main():
             # We will select sample from whole data
             eval_examples = eval_examples.select(range(data_args.max_eval_samples))
         eval_dataset = eval_examples.map(
-            partial(prepare_validation_features, tokenizer=quantizer.tokenizer),
+            partial(prepare_validation_features, tokenizer=quantizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
@@ -574,7 +574,7 @@ def main():
             predict_examples = predict_examples.select(range(data_args.max_predict_samples))
         # Predict Feature Creation
         predict_dataset = predict_examples.map(
-            partial(prepare_validation_features, tokenizer=quantizer.tokenizer),
+            partial(prepare_validation_features, tokenizer=quantizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
