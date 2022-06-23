@@ -571,7 +571,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=False)
+            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
