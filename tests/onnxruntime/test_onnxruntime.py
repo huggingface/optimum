@@ -13,17 +13,15 @@
 #  limitations under the License.
 
 import gc
-import os
 import tempfile
 import unittest
 from functools import partial
 from pathlib import Path
 
-from transformers import AutoTokenizer
 from transformers.onnx import validate_model_outputs
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
+from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer
 from optimum.onnxruntime.configuration import (
     AutoCalibrationConfig,
     AutoQuantizationConfig,
@@ -68,7 +66,7 @@ class TestORTOptimizer(unittest.TestCase):
                     )
                     validate_model_outputs(
                         optimizer._onnx_config,
-                        optimizer.tokenizer,
+                        optimizer.preprocessor,
                         optimizer.model,
                         optimized_model_path,
                         list(optimizer._onnx_config.outputs.keys()),
@@ -128,7 +126,7 @@ class TestORTQuantizer(unittest.TestCase):
                     )
                     validate_model_outputs(
                         quantizer._onnx_config,
-                        quantizer.tokenizer,
+                        quantizer.preprocessor,
                         quantizer.model,
                         q8_model_path,
                         list(quantizer._onnx_config.outputs.keys()),
@@ -163,7 +161,7 @@ class TestORTQuantizer(unittest.TestCase):
                     calibration_dataset = quantizer.get_calibration_dataset(
                         "glue",
                         dataset_config_name="sst2",
-                        preprocess_function=partial(preprocess_function, tokenizer=quantizer.tokenizer),
+                        preprocess_function=partial(preprocess_function, tokenizer=quantizer.preprocessor),
                         num_samples=40,
                         dataset_split="train",
                     )
@@ -181,7 +179,7 @@ class TestORTQuantizer(unittest.TestCase):
                     )
                     validate_model_outputs(
                         quantizer._onnx_config,
-                        quantizer.tokenizer,
+                        quantizer.preprocessor,
                         quantizer.model,
                         q8_model_path,
                         list(quantizer._onnx_config.outputs.keys()),
