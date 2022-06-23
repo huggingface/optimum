@@ -35,4 +35,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m unittest discover --start-directory benchmark/onnxruntime --pattern 'testmac*.py'
+        python -m unittest discover --start-directory benchmark/onnxruntime --pattern 'test_*.py'
