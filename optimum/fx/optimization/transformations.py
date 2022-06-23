@@ -12,11 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections
+import copy
+import functools
 import itertools
 import operator
 from abc import ABC, abstractmethod
-from collections import defaultdict
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Callable, List, Union
 
 import torch
 
@@ -78,6 +80,9 @@ class ReversibleTransformation(ABC):
     ) -> "GraphModule":
         func = self.transform if not reverse else self.reverse
         return func(graph_module, lint_and_recompile=lint_and_recompile)
+
+
+Transformation = Union[Callable[["GraphModule", bool], "GraphModule"], ReversibleTransformation]
 
 
 class MergeLinears(ReversibleTransformation):
@@ -170,7 +175,7 @@ class MergeLinears(ReversibleTransformation):
         graph_module.graph.erase_node(merged_linear_node)
 
     def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
-        candidates = defaultdict(list)
+        candidates = collections.defaultdict(list)
         named_modules = dict(graph_module.named_modules())
         for node in graph_module.graph.nodes:
             if node.op == "call_module":
@@ -240,3 +245,67 @@ class ChangeTrueDivMulByInverse(ReversibleTransformation):
             graph.lint()
             graph_module.recompile()
         return graph_module
+
+
+class DeepCopy(ReversibleTransformation):
+    """
+    Transformation that does nothing except making a deepcopy of the graph module.
+    """
+
+    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+        return copy.deepcopy(graph_module)
+
+    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+        return copy.deepcopy(graph_module)
+
+
+class LintAndRecompile(ReversibleTransformation):
+    """
+    Transformation that does nothing except linting and recompiling the graph module.
+    """
+
+    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+        graph_module.graph.lint()
+        graph_module.recompile()
+        return graph_module
+
+    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+        graph_module.graph.lint()
+        graph_module.recompile()
+        return graph_module
+
+
+def compose(
+    *args: Transformation, reverse: bool = False, inplace: bool = True
+) -> Callable[["GraphModule"], "GraphModule"]:
+    """
+    Composes a list of transformations together.
+    """
+    transformations = list(args)
+    if reverse and not all((isinstance(t, ReversibleTransformation) for t in transformations)):
+        raise ValueError(
+            "You cannot compose with reverse=True because at least one of the transformations is not reversible."
+        )
+
+    if inplace:
+        transformations.insert(0, DeepCopy())
+
+    def map_fn(transformation):
+        if isinstance(transformation, ReversibleTransformation):
+
+            def partial_func(graph_module):
+                return transformation(graph_module, lint_and_recompile=False, reverse=reverse)
+
+            return partial_func
+
+        return functools.partial(transformation, lint_and_recompile=False)
+
+    transformations.append(LintAndRecompile())
+
+    def reduce_fn(f, g):
+        def composition(graph_module):
+            return f(g(graph_module))
+
+        return composition
+
+    return functools.reduce(reduce_fn, map(map_fn, transformations), lambda x: x)
