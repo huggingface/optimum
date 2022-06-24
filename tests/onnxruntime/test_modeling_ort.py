@@ -761,6 +761,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         "t5": "t5-small",
         "bart": "facebook/bart-base",
         "marian": "sshleifer/tiny-marian-en-de",
+        "mbart": "sshleifer/tiny-mbart",
+        "m2m_100": "valhalla/m2m100_tiny_random",
+        "longt5": "google/long-t5-local-base",
+        "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
