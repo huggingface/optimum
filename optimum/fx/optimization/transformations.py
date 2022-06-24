@@ -249,7 +249,7 @@ class DeepCopy(ReversibleTransformation):
 
     def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
         clone = copy.deepcopy(graph_module)
-        # This is needed because copy.deepcopy does not take care of it
+        # This is needed because copy.deepcopy does not take care of it.
         # Without these attributes, the reverse transformation cannot be done.
         for n1, n2 in zip(graph_module.graph.nodes, clone.graph.nodes):
             if hasattr(n1, "was_transformed"):
