@@ -63,7 +63,7 @@ jobs:
         then
           echo "VERSION=main" >> $GITHUB_ENV
         else
-          "VERSION=v$version" >> $GITHUB_ENV
+          echo "VERSION=v$version" >> $GITHUB_ENV
         fi
 
       - name: Setup git
