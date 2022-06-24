@@ -134,6 +134,14 @@ class TransformationTester(unittest.TestCase):
     def test_compose_deepcopy(self):
         self._check_compose_works(False)
 
+    def test_compose_preserves(self):
+        _, traced = get_bert_model()
+        composition = compose(ChangeTrueDivToMulByInverse(), MergeLinears())
+        self.assertTrue(composition.preserves_computation)
+
+        composition = compose(DummyTransformation(), ChangeTrueDivToMulByInverse(), MergeLinears())
+        self.assertFalse(composition.preserves_computation)
+
 
 def test_merge_linears():
     _, traced = get_bert_model()
