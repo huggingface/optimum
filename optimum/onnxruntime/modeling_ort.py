@@ -137,7 +137,7 @@ class ORTModel(OptimizedModel):
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
-        Save a model and its configuration file to a directory, so that it can be re-loaded using the
+        Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the latest_model_name.
         Arguments:
             save_directory (`str` or `Path`):
@@ -164,7 +164,7 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ):
         """
-        Load a model and its configuration file from a directory or the HF Hub.
+        Loads a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
         Arguments:
             model_id (`str` or `Path`):

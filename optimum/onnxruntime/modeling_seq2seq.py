@@ -58,10 +58,10 @@ ONNX_INPUTS_DOCSTRING = r"""
             is an instance of the configuration associated to the model. Initializing with a config file does
             not load the weights associated with the model, only the configuration.
         encoder_file_name(`str`, *optional*):
-            The encoder model file name overwriting the default file name, allowing to save the encoder model with
+            The encoder model file name. Overwrites the default file name and allows one to save the encoder model with
             a different name.
         decoder_file_name(`str`, *optional*):
-            The decoder model file name overwriting the default file name, allowing to save the decoder model with
+            The decoder model file name. Overwrites the default file name and allows one to save the decoder model with
             a different name.
         decoder_with_past_file_name(`str`, *optional*):
             The decoder with past key values model file name overwriting the default file name, allowing to save
@@ -187,7 +187,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         provider: str = None,
     ):
         """
-        Create an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
+        Creates an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
         Three inference sessions will be created for respectively the encoder, decoder and decoder with past key values
         models. The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
 
@@ -218,7 +218,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         **kwargs
     ):
         """
-        Save the model encoder, decoder and decoder with past key values as well as its configuration file to a
+        Saves the model encoder, decoder and decoder with past key values as well as its configuration file to a
         directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForSeq2SeqLM.from_pretrained`] class method.
 
@@ -226,11 +226,11 @@ class ORTModelForConditionalGeneration(ORTModel):
             save_directory (`str` or `Path`):
                 The directory where to save the model files.
             encoder_file_name(`str`, *optional*):
-                The encoder model file name overwriting the default file name, allowing to save the encoder model with
-                a different name.
+                The encoder model file name. Overwrites the default file name and allows one to save the encoder model
+                with a different name.
             decoder_file_name(`str`, *optional*):
-                The decoder model file name overwriting the default file name, allowing to save the decoder model with
-                a different name.
+                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
+                with a different name.
             decoder_with_past_file_name(`str`, *optional*):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
@@ -262,7 +262,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         **kwargs,
     ):
         """
-        Load a model and its configuration file from a directory or the HF Hub.
+        Loads a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
 
         Arguments:
@@ -280,11 +280,11 @@ class ORTModelForConditionalGeneration(ORTModel):
                 Whether or not to force the (re-)download of the model weights and configuration files, overriding the
                 cached versions if they exist.
             encoder_file_name(`str`, *optional*):
-                The encoder model file name overwriting the default file name, allowing to save the encoder model with
-                a different name.
+                The encoder model file name. Overwrites the default file name and allows one to save the encoder model
+                with a different name.
             decoder_file_name(`str`, *optional*):
-                The decoder model file name overwriting the default file name, allowing to save the decoder model with
-                a different name.
+                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
+                with a different name.
             decoder_with_past_file_name(`str`, *optional*):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
@@ -344,7 +344,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         **kwargs,
     ):
         """
-        Export through the ONNX format a vanilla Transformers model using `transformers.onnx.export_onnx`.
+        Exports through the ONNX format a vanilla Transformers model using `transformers.onnx.export_onnx`.
 
         Arguments:
             model_id (`str` or `Path`):
