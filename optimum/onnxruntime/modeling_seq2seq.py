@@ -113,7 +113,7 @@ SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 
-TRANSLATION_SAMPLE = r"""
+TRANSLATION_EXAMPLE = r"""
     Example of text generation:
 
     ```python
@@ -543,7 +543,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
     @add_start_docstrings_to_model_forward(
         SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
-        + TRANSLATION_SAMPLE.format(
+        + TRANSLATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForSeq2SeqLM",
             checkpoint="optimum/t5-small",
