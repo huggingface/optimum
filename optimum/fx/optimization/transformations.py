@@ -19,7 +19,7 @@ import itertools
 import operator
 import warnings
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, List
+from typing import TYPE_CHECKING, List
 
 import torch
 
@@ -94,6 +94,11 @@ class Transformation(ABC):
 class ReversibleTransformation(Transformation):
     """
     A torch.fx graph transformation that is reversible.
+
+    Attributes:
+        preserves_computation (`bool`, defaults to `False`):
+            Whether the transformation preserves the graph computation, if `True`, the original and the transformed
+            graph should produce the same outputs.
     """
 
     @abstractmethod
@@ -145,6 +150,7 @@ class ReversibleTransformation(Transformation):
         >>> )
         >>> transformation = {self.__class__.__name__}()
         >>> transformed_model = transformation(traced)
+        >>> restored_model = transformation(transformed_model, reverse=True)
         ```
         """
         func = self.transform if not reverse else self.reverse
@@ -350,9 +356,34 @@ class LintAndRecompile(ReversibleTransformation):
         return graph_module
 
 
-def compose(*args: Transformation, inplace: bool = True) -> Callable[["GraphModule"], "GraphModule"]:
+def compose(*args: Transformation, inplace: bool = True) -> Transformation:
     """
     Composes a list of transformations together.
+
+    Args:
+        args (`[~optimum.fx.optimization.Transformation]`):
+            The transformations to compose together.
+        inplace (`bool`, defaults to `True`):
+            Whether the resulting transformation should be inplace, or create a new graph module.
+
+    Returns:
+        The composition transformation object.
+
+    Example:
+
+    ```python
+    >>> from transformers import BertModel
+    >>> from transformers.utils.fx import symbolic_trace
+    >>> from optimum.fx.optimization import ChangeTrueDivToMulByInverse, MergeLinears, compose
+
+    >>> model = BertModel.from_pretrained("bert-base-uncased")
+    >>> traced = symbolic_trace(
+    >>>     model,
+    >>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
+    >>> )
+    >>> composition = compose(ChangeTrueDivToMulByInverse(), MergeLinears())
+    >>> transformed_model = composition(traced)
+    ```
     """
     transformations = list(reversed(args))
 
