@@ -30,9 +30,9 @@ ONNX_WEIGHTS_NAME = "model.onnx"
 OPTIMIZED_ONNX_WEIGHTS_NAME = "optimized_model.onnx"
 QUANTIZED_ONNX_WEIGHTS_NAME = "q8_model.onnx"
 
-ONNX_ENCODER_NAME = "encoder.onnx"
-ONNX_DECODER_NAME = "decoder.onnx"
-ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past.onnx"
+ONNX_ENCODER_NAME = "encoder_model.onnx"
+ONNX_DECODER_NAME = "decoder_model.onnx"
+ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 
 
 def _is_gpu_available():
