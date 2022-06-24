@@ -137,10 +137,10 @@ TRANSLATION_EXAMPLE = r"""
 
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_summarization = pipeline("translation_en_to_de", model=model, tokenizer=tokenizer)
+    >>> onnx_translation = pipeline("translation_en_to_de", model=model, tokenizer=tokenizer)
 
     >>> text = "My name is Eustache."
-    >>> pred = onnx_summarization(text)
+    >>> pred = onnx_translation(text)
     ```
 """
 
@@ -153,6 +153,7 @@ TRANSLATION_EXAMPLE = r"""
 )
 class ORTModelForConditionalGeneration(ORTModel):
     # Used in from_transformers to export model to onnx
+    base_model_prefix = "onnx_model"
     pipeline_task = "seq2seq-lm"
     auto_model_class = AutoModelForSeq2SeqLM
 
@@ -170,23 +171,25 @@ class ORTModelForConditionalGeneration(ORTModel):
         self.encoder = ORTEncoder(session=encoder_session, device=self._device)
         self.decoder = ORTDecoder(session=decoder_session, device=self._device)
         self.decoder_with_past = ORTDecoder(session=decoder_with_past_session, device=self._device)
-        self.encoder_file_name = kwargs.get("encoder", ONNX_ENCODER_NAME)
-        self.decoder_file_name = kwargs.get("decoder", ONNX_DECODER_NAME)
-        self.decoder_file_with_past_name = kwargs.get("decoder_with_past", ONNX_DECODER_WITH_PAST_NAME)
+        self.encoder_file_name = kwargs.get("last_encoder_name", ONNX_ENCODER_NAME)
+        self.decoder_file_name = kwargs.get("last_decoder_name", ONNX_DECODER_NAME)
+        self.decoder_file_with_past_name = kwargs.get("last_decoder_with_past_name", ONNX_DECODER_WITH_PAST_NAME)
+        # registers the ORTModelForXXX classes into the transformers AutoModel classes
+        # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
+        AutoConfig.register(self.base_model_prefix, AutoConfig)
+        self.auto_model_class.register(AutoConfig, self.__class__)
 
     @staticmethod
     def load_model(
         encoder_path: Union[str, Path],
         decoder_path: Union[str, Path],
         decoder_with_past_path: Union[str, Path],
-        config: transformers.PretrainedConfig,
         provider: str = None,
     ):
         """
         Create an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
         Three inference sessions will be created for respectively the encoder, decoder and decoder with past key values
-        models. The default execution provider of the inference sessions is `"CUDAExecutionProvider"` if a GPU is
-        available else `"CPUExecutionProvider"`.
+        models. The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
 
         Arguments:
             encoder_path (`str` or `Path`):
@@ -195,13 +198,11 @@ class ORTModelForConditionalGeneration(ORTModel):
                 The path of the decoder ONNX model.
             decoder_with_past_path (`str` or `Path`):
                 The path of the decoder with past key values ONNX model.
-            config (`transformers.PretrainedConfig`):
-                An instance of the configuration associated to the model.
             provider(`str`, *optional*):
                 The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
         """
         if provider is None:
-            provider = "CUDAExecutionProvider"
+            provider = "CPUExecutionProvider"
 
         encoder_session = onnxruntime.InferenceSession(str(encoder_path), providers=[provider])
         decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=[provider])
@@ -302,12 +303,11 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=os.path.join(model_id, encoder_file_name),
                 decoder_path=os.path.join(model_id, decoder_file_name),
                 decoder_with_past_path=os.path.join(model_id, decoder_with_past_file_name),
-                config=config,
             )
             kwargs["model_save_dir"] = Path(model_id)
-            kwargs["encoder"] = encoder_file_name
-            kwargs["decoder"] = decoder_file_name
-            kwargs["decoder_with_past"] = decoder_with_past_file_name
+            kwargs["last_encoder_name"] = encoder_file_name
+            kwargs["last_decoder_name"] = decoder_file_name
+            kwargs["last_decoder_with_past_name"] = decoder_with_past_file_name
         # Load model from hub
         else:
             default_file_names = [ONNX_ENCODER_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME]
@@ -322,13 +322,12 @@ class ORTModelForConditionalGeneration(ORTModel):
                     cache_dir=cache_dir,
                     force_download=force_download,
                 )
-                kwargs[default_file_name.split(".")[0]] = Path(model_cache_path).name
+                kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             model = cls.load_model(
-                encoder_path=kwargs["model_save_dir"].joinpath(kwargs["encoder"]),
-                decoder_path=kwargs["model_save_dir"].joinpath(kwargs["decoder"]),
-                decoder_with_past_path=kwargs["model_save_dir"].joinpath(kwargs["decoder_with_past"]),
-                config=config,
+                encoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_encoder_name"]),
+                decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_name"]),
+                decoder_with_past_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_with_past_name"]),
             )
 
         return cls(*model, config=config, **kwargs)
