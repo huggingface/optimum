@@ -28,21 +28,6 @@ if TYPE_CHECKING:
     from torch.fx import GraphModule, Node
 
 
-# TODO: is it useful?
-# Maybe try model.get_submodule(target)
-def _find_parent(model: torch.nn.Module, module: torch.nn.Module) -> torch.nn.Module:
-    """Finds the parent module of module in model"""
-    parent = None
-    for mod in model.children():
-        if mod is module:
-            return model
-        parent = _find_parent(mod, module)
-        if parent is not None:
-            break
-
-    return parent
-
-
 class ReversibleTransformation(ABC):
     """
     A torch.fx graph transformation that is reversible.
@@ -131,16 +116,15 @@ class MergeLinears(ReversibleTransformation):
 
         linear_module_names = [MergeLinears._get_linear_module_name(node) for node in linear_nodes]
         merged_linear_name = "-".join(linear_module_names + ["merged"])
-        parent_module = _find_parent(graph_module, linears[0])
+        fully_qualified_parent_name = linear_nodes[0].target.rsplit(".", maxsplit=1)[0]
+        parent_module = graph_module.get_submodule(fully_qualified_parent_name)
         parent_module.add_module(merged_linear_name, merged_linear)
         for name in linear_module_names:
             delattr(parent_module, name)
 
         graph = graph_module.graph
         with graph.inserting_after(input_node):
-            fully_qualified_merged_linear_name = ".".join(
-                [linear_nodes[0].target.rsplit(".", maxsplit=1)[0], merged_linear_name]
-            )
+            fully_qualified_merged_linear_name = ".".join([fully_qualified_parent_name, merged_linear_name])
             merged_linear_node = graph.call_module(fully_qualified_merged_linear_name, args=(input_node,))
             merged_linear_node.was_transformed = "MergeLinears"
 
@@ -170,7 +154,8 @@ class MergeLinears(ReversibleTransformation):
             torch.nn.Linear(in_features, out_feat, bias=hasattr(merged_linear, "bias")) for out_feat in out_features
         ]
 
-        parent_module = _find_parent(graph_module, merged_linear)
+        fully_qualified_parent_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
+        parent_module = graph_module.get_submodule(fully_qualified_parent_name)
         parent_module_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
         for name, node, linear in zip(linear_module_names, output_nodes, linears):
             with torch.no_grad():
