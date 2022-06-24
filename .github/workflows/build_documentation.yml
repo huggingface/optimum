@@ -51,10 +51,20 @@ jobs:
           sudo pip install --upgrade pip && sudo pip install --upgrade protobuf
           pip install git+https://github.com/huggingface/doc-builder
           cd optimum
-          echo "VERSION=$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)" >> $GITHUB_ENV
           pip install .[dev,onnxruntime,benchmark]
           python -c "from optimum import intel; print(dir(intel))" 
           cd ..
+
+      - name: Set env variables
+        run: |
+        version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
+
+        if [[ $version == *.dev0 ]]
+        then
+          echo "VERSION=main" >> $GITHUB_ENV
+        else
+          "VERSION=v$version" >> $GITHUB_ENV
+        fi
 
       - name: Setup git
         run: |
@@ -67,8 +77,14 @@ jobs:
 
       - name: Make documentation
         run: |
+          if [[ $ver == *.dev0 ]] 
+          then
+            version="main"
+          else
+            version=ver
+          fi
           cd doc-builder &&
-          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build --clean --version v${{ env.VERSION }} --html &&
+          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build --clean --version ${{ env.VERSION }} --html &&
           cd ..
         env:
           NODE_OPTIONS: --max-old-space-size=6656
