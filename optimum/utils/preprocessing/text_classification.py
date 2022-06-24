@@ -73,7 +73,7 @@ class TextClassificationProcessing(DatasetProcessing):
             calibration_dataset = raw_datasets[self.calibration_split].map(
                 partial(
                     preprocess_function,
-                    tokenizer=self.tokenizer,
+                    tokenizer=self.preprocessor,
                     data_keys=self.data_keys,
                 ),
                 batched=True,
