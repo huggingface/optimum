@@ -758,10 +758,10 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "t5": "t5-small",
-        "bart": "facebook/bart-base",
+        "t5": "hf-internal-testing/tiny-random-t5",
+        "bart": "hf-internal-testing/tiny-random-bart",
+        "mbart": "hf-internal-testing/tiny-random-mbart",
         "marian": "sshleifer/tiny-marian-en-de",
-        "mbart": "sshleifer/tiny-mbart",
         "m2m_100": "valhalla/m2m100_tiny_random",
         "longt5": "google/long-t5-local-base",
         "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
@@ -788,7 +788,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        decoder_start_token_id = model.config.decoder_start_token_id
+        decoder_start_token_id = model.config.decoder_start_token_id if model_arch != "mbart" else 2
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         outputs = model(**tokens, **decoder_inputs)
         self.assertTrue("logits" in outputs)
@@ -829,7 +829,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens, **decoder_inputs)
         # Compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
