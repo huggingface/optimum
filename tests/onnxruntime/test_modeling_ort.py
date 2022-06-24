@@ -198,10 +198,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         outputs = model(**tokens)
         self.assertTrue("start_logits" in outputs)
         self.assertTrue("end_logits" in outputs)
@@ -244,12 +241,12 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, device=0)
+        pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, device=0)
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
-        outputs = pp(question, context)
+        outputs = pipe(question, context)
         # check model device
-        self.assertEqual(pp.model.device.type.lower(), "cuda")
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertTrue(isinstance(outputs["answer"], str))
@@ -259,8 +256,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pp.device, pp.model.device)
+        pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pipe.device, pipe.model.device)
 
 
 class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
@@ -309,10 +306,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         transformers_model = AutoModelForSequenceClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
         onnx_outputs = onnx_model(**tokens)
@@ -339,11 +333,11 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer, device=0)
+        pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live in Germany."
-        outputs = pp(text)
+        outputs = pipe(text)
         # check model device
-        self.assertEqual(pp.model.device.type.lower(), "cuda")
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
@@ -353,8 +347,8 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pp.device, onnx_model.device)
+        pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pipe.device, onnx_model.device)
 
     def test_pipeline_zero_shot_classification(self):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
@@ -407,10 +401,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         outputs = model(**tokens)
         self.assertTrue("logits" in outputs)
         self.assertIsInstance(outputs.logits, torch.Tensor)
@@ -421,10 +412,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         transformers_model = AutoModelForTokenClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
@@ -450,11 +438,11 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer, device=0)
+        pipe = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live in Germany."
-        outputs = pp(text)
+        outputs = pipe(text)
         # check model device
-        self.assertEqual(pp.model.device.type.lower(), "cuda")
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
 
@@ -463,8 +451,8 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pp.device, onnx_model.device)
+        pipe = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pipe.device, onnx_model.device)
 
 
 class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
@@ -494,10 +482,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         outputs = model(**tokens)
         self.assertTrue("last_hidden_state" in outputs)
         self.assertIsInstance(outputs.last_hidden_state, torch.Tensor)
@@ -508,10 +493,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         transformers_model = AutoModel.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
@@ -539,11 +521,11 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live in Germany."
-        outputs = pp(text)
+        outputs = pipe(text)
         # check model device
-        self.assertEqual(pp.model.device.type.lower(), "cuda")
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
 
@@ -552,8 +534,8 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pp.device, onnx_model.device)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pipe.device, onnx_model.device)
 
 
 class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
@@ -580,10 +562,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         outputs = model(**tokens)
         self.assertTrue("logits" in outputs)
         self.assertIsInstance(outputs.logits, torch.Tensor)
@@ -594,10 +573,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
-        tokens = tokenizer(
-            text,
-            return_tensors="pt",
-        )
+        tokens = tokenizer(text, return_tensors="pt")
         outputs = model.generate(**tokens)
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
@@ -609,10 +585,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
-        tokens = tokenizer(
-            text,
-            return_tensors="pt",
-        )
+        tokens = tokenizer(text, return_tensors="pt")
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
@@ -624,10 +597,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
@@ -654,11 +624,11 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
-        outputs = pp(text)
+        outputs = pipe(text)
         # check model device
-        self.assertEqual(pp.model.device.type.lower(), "cuda")
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
@@ -668,8 +638,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pp = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pp.device, onnx_model.device)
+        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pipe.device, onnx_model.device)
 
 
 class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
@@ -723,9 +693,9 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
-        pp = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        outputs = pp(url)
+        outputs = pipe(url)
 
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
@@ -737,11 +707,11 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
-        pp = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        outputs = pp(url)
+        outputs = pipe(url)
         # check model device
-        self.assertEqual(pp.model.device.type.lower(), "cuda")
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
 
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
@@ -752,8 +722,8 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
-        pp = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
-        self.assertEqual(pp.device, onnx_model.device)
+        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        self.assertEqual(pipe.device, onnx_model.device)
 
 
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
