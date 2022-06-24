@@ -1,7 +1,9 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
+
+from transformers import FeatureExtractionMixin, PreTrainedTokenizerBase
 
 from datasets import Dataset
-from transformers import Pipeline, PretrainedConfig, PreTrainedTokenizerBase
+from transformers import Pipeline, PretrainedConfig
 
 
 class DatasetProcessing:
@@ -9,7 +11,7 @@ class DatasetProcessing:
         self,
         dataset_path: str,
         dataset_name: str,
-        tokenizer: PreTrainedTokenizerBase,
+        preprocessor: Union[FeatureExtractionMixin, PreTrainedTokenizerBase],
         eval_split: str,
         static_quantization: bool,
         data_keys: Dict[str, str],
@@ -26,7 +28,7 @@ class DatasetProcessing:
         Args:
             dataset_path (`str`): Dataset path (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.path)
             dataset_name (`str`): Dataset name (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.name)
-            tokenizer (`PreTrainedTokenizerBase`): Tokenizer used for evaluation.
+            preprocessor (`Union[FeatureExtractionMixin, PreTrainedTokenizerBase]`): Preprocessor used for evaluation.
             eval_split (`str`): Dataset split used for evaluation (e.g. "test").
             static_quantization (`bool`): Static quantization is used.
             data_keys (`Dict[str, str]`): Map "primary" and "secondary" to data column names.
@@ -44,7 +46,7 @@ class DatasetProcessing:
         self.dataset_name = dataset_name
         self.calibration_split = calibration_split
         self.eval_split = eval_split
-        self.tokenizer = tokenizer
+        self.preprocessor = preprocessor
         self.num_calibration_samples = num_calibration_samples
         self.static_quantization = static_quantization
         self.data_keys = data_keys

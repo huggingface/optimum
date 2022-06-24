@@ -17,6 +17,9 @@ class TextClassificationProcessing(DatasetProcessing):
         self.config = kwargs["config"]
         self.label_to_id = None
 
+        if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
+            raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
+
     def load_datasets(self):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
@@ -70,7 +73,7 @@ class TextClassificationProcessing(DatasetProcessing):
             calibration_dataset = raw_datasets[self.calibration_split].map(
                 partial(
                     preprocess_function,
-                    tokenizer=self.tokenizer,
+                    tokenizer=self.preprocessor,
                     data_keys=self.data_keys,
                 ),
                 batched=True,
@@ -79,7 +82,7 @@ class TextClassificationProcessing(DatasetProcessing):
             )
 
             columns_to_remove = raw_datasets.column_names[self.calibration_split]
-            columns_to_remove = [name for name in columns_to_remove if name not in self.tokenizer.model_input_names]
+            columns_to_remove = [name for name in columns_to_remove if name not in self.preprocessor.model_input_names]
             calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
 
             if self.num_calibration_samples is not None:
