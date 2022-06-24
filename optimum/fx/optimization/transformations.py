@@ -19,7 +19,7 @@ import itertools
 import operator
 import warnings
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, List, Union
+from typing import TYPE_CHECKING, Callable, List
 
 import torch
 
@@ -28,15 +28,35 @@ if TYPE_CHECKING:
     from torch.fx import GraphModule, Node
 
 
-class ReversibleTransformation(ABC):
+class Transformation(ABC):
     """
-    A torch.fx graph transformation that is reversible.
+    A torch.fx graph transformation.
+
+    Attributes:
+        preserves_computation (`bool`, defaults to `False`):
+            Whether the transformation preserves the graph computation, if `True`, the original and the transformed
+            graph should produce the same outputs.
     """
 
+    preserves_computation: bool = False
+
     @abstractmethod
-    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
         """
         Applies the transformation to graph_module.
+
+        Args:
+            graph_module (`torch.fx.GraphModule`):
+                The module to transform.
+
+        Returns:
+            `torch.fx.GraphModule`: The transformed module.
+        """
+        raise NotImplementedError("The transform method needs to be implemented.")
+
+    def __call__(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+        f"""
+        {self.__doc__}
 
         Args:
             graph_module (`torch.fx.GraphModule`):
@@ -47,11 +67,37 @@ class ReversibleTransformation(ABC):
 
         Returns:
             `torch.fx.GraphModule`: The transformed module.
+
+        Example:
+
+        ```python
+        >>> from transformers import BertModel
+        >>> from transformers.utils.fx import symbolic_trace
+        >>> from optimum.fx.optimization import {self.__class__.__name__}
+
+        >>> model = BertModel.from_pretrained("bert-base-uncased")
+        >>> traced = symbolic_trace(
+        >>>     model,
+        >>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
+        >>> )
+        >>> transformation = {self.__class__.__name__}()
+        >>> transformed_model = transformation(traced)
+        ```
         """
-        raise NotImplementedError("The transform method needs to be implemented.")
+        graph_module = self.transform(graph_module)
+        if lint_and_recompile:
+            graph_module.graph.lint()
+            graph_module.recompile()
+        return graph_module
+
+
+class ReversibleTransformation(Transformation):
+    """
+    A torch.fx graph transformation that is reversible.
+    """
 
     @abstractmethod
-    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    def reverse(self, graph_module: "GraphModule") -> "GraphModule":
         """
         Applies the reverse transformation to graph_module.
 
@@ -70,17 +116,51 @@ class ReversibleTransformation(ABC):
     def __call__(
         self, graph_module: "GraphModule", lint_and_recompile: bool = True, reverse: bool = False
     ) -> "GraphModule":
+        f"""
+        {self.__doc__}
+
+        Args:
+            graph_module (`torch.fx.GraphModule`):
+                The module to transform.
+            lint_and_recompile (`bool`, defaults to `True`):
+                Whether the transformed module should be linted and recompiled.
+                This can be set to `False` when chaining transformations together to perform this operation only once.
+            reverse (`bool`, defaults to `False`):
+                If `True`, the reverse transformation is performed.
+
+        Returns:
+            `torch.fx.GraphModule`: The transformed module.
+
+        Example:
+
+        ```python
+        >>> from transformers import BertModel
+        >>> from transformers.utils.fx import symbolic_trace
+        >>> from optimum.fx.optimization import {self.__class__.__name__}
+
+        >>> model = BertModel.from_pretrained("bert-base-uncased")
+        >>> traced = symbolic_trace(
+        >>>     model,
+        >>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
+        >>> )
+        >>> transformation = {self.__class__.__name__}()
+        >>> transformed_model = transformation(traced)
+        ```
+        """
         func = self.transform if not reverse else self.reverse
-        return func(graph_module, lint_and_recompile=lint_and_recompile)
-
-
-Transformation = Union[Callable[["GraphModule", bool], "GraphModule"], ReversibleTransformation]
+        graph_module = func(graph_module)
+        if lint_and_recompile:
+            graph_module.graph.lint()
+            graph_module.recompile()
+        return graph_module
 
 
 class MergeLinears(ReversibleTransformation):
     """
     Transformation that merges linear layers that take the same input into one big linear layer.
     """
+
+    preserves_computation = True
 
     @staticmethod
     def _get_bias(linear: torch.nn.Linear) -> torch.Tensor:
@@ -171,7 +251,7 @@ class MergeLinears(ReversibleTransformation):
         delattr(parent_module, merged_linear_name)
         graph_module.graph.erase_node(merged_linear_node)
 
-    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
         candidates = collections.defaultdict(list)
         named_modules = dict(graph_module.named_modules())
         for node in graph_module.graph.nodes:
@@ -189,21 +269,15 @@ class MergeLinears(ReversibleTransformation):
             linear_nodes, linears = list(zip(*t))
             self._merge_linears(graph_module, input_node, linear_nodes, linears)
 
-        if lint_and_recompile:
-            graph_module.graph.lint()
-            graph_module.recompile()
         return graph_module
 
-    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    def reverse(self, graph_module: "GraphModule") -> "GraphModule":
         named_modules = dict(graph_module.named_modules())
         for node in graph_module.graph.nodes:
             if node.op == "call_module":
                 if getattr(node, "was_transformed", "") == "MergeLinears":
                     self._unmerge_linears(graph_module, node, named_modules[node.target])
 
-        if lint_and_recompile:
-            graph_module.graph.lint()
-            graph_module.recompile()
         return graph_module
 
 
@@ -213,7 +287,9 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
     For example, that is sometimes the case for the scaling factor in attention layers.
     """
 
-    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
         graph = graph_module.graph
         for node in graph.nodes:
             if node.op == "call_function" and node.target == operator.truediv:
@@ -223,12 +299,9 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
                     node.args = (x, 1 / y)
                     node.was_transformed = "ChangeTrueDivToMulByInverse"
 
-        if lint_and_recompile:
-            graph.lint()
-            graph_module.recompile()
         return graph_module
 
-    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    def reverse(self, graph_module: "GraphModule") -> "GraphModule":
         graph = graph_module.graph
         for node in graph.nodes:
             if getattr(node, "was_transformed", "") == "ChangeTrueDivToMulByInverse":
@@ -236,9 +309,6 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
                 x, y = node.args
                 node.args = (x, 1 / y)
 
-        if lint_and_recompile:
-            graph.lint()
-            graph_module.recompile()
         return graph_module
 
 
@@ -247,7 +317,9 @@ class DeepCopy(ReversibleTransformation):
     Transformation that does nothing except making a deepcopy of the graph module.
     """
 
-    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
         clone = copy.deepcopy(graph_module)
         # This is needed because copy.deepcopy does not take care of it.
         # Without these attributes, the reverse transformation cannot be done.
@@ -256,8 +328,8 @@ class DeepCopy(ReversibleTransformation):
                 n2.was_transformed = n1.was_transformed
         return clone
 
-    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
-        return self.transform(graph_module, lint_and_recompile=lint_and_recompile)
+    def reverse(self, graph_module: "GraphModule") -> "GraphModule":
+        return self.transform(graph_module)
 
 
 class LintAndRecompile(ReversibleTransformation):
@@ -265,12 +337,14 @@ class LintAndRecompile(ReversibleTransformation):
     Transformation that does nothing except linting and recompiling the graph module.
     """
 
-    def transform(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
         graph_module.graph.lint()
         graph_module.recompile()
         return graph_module
 
-    def reverse(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
+    def reverse(self, graph_module: "GraphModule") -> "GraphModule":
         graph_module.graph.lint()
         graph_module.recompile()
         return graph_module
@@ -281,28 +355,49 @@ def compose(*args: Transformation, inplace: bool = True) -> Callable[["GraphModu
     Composes a list of transformations together.
     """
     transformations = list(reversed(args))
+
+    composition_preserves_computation = all(t.preserves_computation for t in transformations)
+    composition_is_reversible = all((isinstance(t, ReversibleTransformation) for t in transformations))
+
     if not inplace:
         transformations.append(DeepCopy())
 
-    def map_fn(transformation):
-        def partial_func(graph_module, reverse=False):
-            if isinstance(transformation, ReversibleTransformation):
-                return transformation(graph_module, lint_and_recompile=True, reverse=reverse)
-            if reverse:
-                raise ValueError(
-                    "You cannot compose with reverse=True because at least one of the transformations is not reversible."
-                )
+    if not composition_is_reversible:
 
-            return transformation(graph_module, lint_and_recompile=False)
+        def reduce_fn(f, g):
+            def composition(graph_module, lint_and_recompile=False):
+                return f(g(graph_module, lint_and_recompile=lint_and_recompile))
 
-        return partial_func
+            return composition
 
-    transformations.insert(0, LintAndRecompile())
+        class ComposeTransformation(Transformation):
+            preserves_computation = composition_preserves_computation
 
-    def reduce_fn(f, g):
-        def composition(graph_module, reverse=False):
-            return f(g(graph_module, reverse=reverse), reverse=reverse)
+            def transform(self, graph_module):
+                return functools.reduce(reduce_fn, transformations)(graph_module)
 
-        return composition
+    else:
 
-    return functools.reduce(reduce_fn, map(map_fn, transformations))
+        def make_reduce_fn(reverse):
+            def reduce_fn(f, g):
+                def composition(graph_module, lint_and_recompile=False, reverse=reverse):
+                    return f(
+                        g(graph_module, lint_and_recompile=lint_and_recompile, reverse=reverse),
+                        lint_and_recompile=lint_and_recompile,
+                        reverse=reverse,
+                    )
+
+                return composition
+
+            return reduce_fn
+
+        class ComposeTransformation(ReversibleTransformation):
+            preserves_computation = composition_preserves_computation
+
+            def transform(self, graph_module):
+                return functools.reduce(make_reduce_fn(False), transformations)(graph_module)
+
+            def reverse(self, graph_module):
+                return functools.reduce(make_reduce_fn(True), transformations)(graph_module)
+
+    return ComposeTransformation()

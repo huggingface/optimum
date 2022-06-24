@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, BertModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
 
-from optimum.fx.optimization import ChangeTrueDivToMulByInverse, MergeLinears, compose
+from optimum.fx.optimization import ChangeTrueDivToMulByInverse, MergeLinears, Transformation, compose
 from optimum.fx.utils import are_fx_features_available
 from parameterized import parameterized
 
@@ -28,7 +28,15 @@ from parameterized import parameterized
 _MODEL_NAME = "hf-internal-testing/tiny-random-bert"
 
 
-_TRANSFORMATIONS_TO_TEST = ()
+class DummyTransformation(Transformation):
+    def transform(self, graph_module):
+        for node in graph_module.graph.nodes:
+            if node.op == "call_function" and node.target == operator.mul:
+                node.target = operator.add
+        return graph_module
+
+
+_TRANSFORMATIONS_TO_TEST = ((DummyTransformation(),),)
 _REVERSIBLE_TRANSFORMATIONS_TO_TEST = (
     (MergeLinears(),),
     (ChangeTrueDivToMulByInverse(),),
@@ -62,16 +70,16 @@ class TransformationTester(unittest.TestCase):
         inputs = tokenizer("This is a test.", return_tensors="pt")
         model_output = model(**inputs)
         transformed_output = transformed(**inputs)
-
         model_output = self.flatten_output(model_output)
         transformed_output = self.flatten_output(transformed_output)
-        num_outputs = len(model_output)
 
-        for i in range(num_outputs):
-            self.assertTrue(
-                torch.allclose(model_output[i], transformed_output[i]),
-                f"transformed {i}th output doesn't match model {i}th output for {transformation.__class__.__name__}",
-            )
+        if transformation.preserves_computation:
+            num_outputs = len(model_output)
+            for i in range(num_outputs):
+                self.assertTrue(
+                    torch.allclose(model_output[i], transformed_output[i]),
+                    f"transformed {i}th output doesn't match model {i}th output for {transformation.__class__.__name__}",
+                )
         return inputs, model, transformed, model_output
 
     @parameterized.expand(_TRANSFORMATIONS_TO_TEST, skip_on_empty=True)
