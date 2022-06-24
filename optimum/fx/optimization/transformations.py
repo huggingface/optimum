@@ -209,7 +209,7 @@ class MergeLinears(ReversibleTransformation):
 
 class ChangeTrueDivToMulByInverse(ReversibleTransformation):
     """
-    Transformation that changes truediv nodes to multiplication of the inverse when the denominator is static.
+    Transformation that changes truediv nodes to multiplication by the inverse when the denominator is static.
     For example, that is sometimes the case for the scaling factor in attention layers.
     """
 
