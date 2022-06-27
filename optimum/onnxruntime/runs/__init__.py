@@ -112,7 +112,7 @@ class OnnxRuntimeRun(Run):
 
         # pytorch benchmark
         torch_benchmark = TimeBenchmark(
-            self.torch_model, input_length, batch_size, model_input_names=model_input_names
+            self.torch_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
         )
         baseline_time_metrics = torch_benchmark.execute()
 
@@ -145,7 +145,6 @@ class OnnxRuntimeRun(Run):
             model=self.torch_model,
             tokenizer=self.preprocessor,
             feature_extractor=self.preprocessor,
-            feature_extractor=None,
             **kwargs,
         )
 

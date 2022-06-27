@@ -14,7 +14,7 @@ else:
 
 
 class APIFeaturesManager:
-    _SUPPORTED_TASKS = ["text-classification", "token-classification", "question-answering"]
+    _SUPPORTED_TASKS = ["text-classification", "token-classification", "question-answering", "image-classification"]
 
     @staticmethod
     def check_supported_model_task_pair(model_type: str, task: str):

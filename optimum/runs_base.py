@@ -15,6 +15,7 @@ import optuna
 from optimum import version as optimum_version
 
 from .utils.preprocessing import (
+    ImageClassificationProcessing,
     QuestionAnsweringProcessing,
     TextClassificationProcessing,
     TokenClassificationProcessing,
@@ -239,7 +240,8 @@ class TimeBenchmark:
         if "token_type_ids" in self.model_input_names:
             inputs["token_type_ids"] = torch.ones(self.batch_size, self.input_length, dtype=torch.int64)
         if "pixel_values" in self.model_input_names:
-            inputs["pixel_values"] = torch.rand(self.batch_size, self.input_length, self.input_length, dtype=torch.float32)
+            # TODO support grayscale?
+            inputs["pixel_values"] = torch.rand(self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32)
         
         if np.any([k not in checked_inputs for k in self.model_input_names]):
             raise NotImplementedError(f"At least an input in {self.model_input_names} has no dummy generation for time benchmark.")
@@ -265,4 +267,5 @@ task_processing_map = {
     "text-classification": TextClassificationProcessing,
     "token-classification": TokenClassificationProcessing,
     "question-answering": QuestionAnsweringProcessing,
+    "image-classification": ImageClassificationProcessing,
 }
