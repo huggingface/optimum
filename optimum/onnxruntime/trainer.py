@@ -1293,6 +1293,14 @@ class ORTTrainer(Trainer):
             )
 
     def _wrap_model(self, model, training=True):
+        if self.args.use_ipex:
+            raise NotImplementedError(
+                "The optimization with IPEX(Intel® Extension for PyTorch) is not supported by `ORTTrainer` yet."
+            )
+
+        if self.args.jit_mode_eval:
+            raise NotImplementedError("The inference with PyTorch jit trace is not supported by `ORTTrainer` yet.")
+
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(
                 "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet."
