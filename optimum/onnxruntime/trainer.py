@@ -39,8 +39,9 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import transformers
+from packaging import version
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, IterableDataset
+from torch.utils.data import DataLoader, Dataset, IterableDataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from transformers import PreTrainedModel, __version__
 from transformers.configuration_utils import PretrainedConfig
@@ -80,7 +81,10 @@ from transformers.trainer_utils import (
     ShardedDDPOption,
     TrainOutput,
     denumpify_detensorize,
+    enable_full_determinism,
+    find_executable_batch_size,
     get_last_checkpoint,
+    has_length,
     set_seed,
     speed_metrics,
 )
@@ -132,6 +136,7 @@ class ORTTrainer(Trainer):
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
+        preprocess_logits_for_metrics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
         onnx_model_path: Union[str, os.PathLike] = None,
     ):
 
@@ -146,6 +151,7 @@ class ORTTrainer(Trainer):
             compute_metrics=compute_metrics,
             callbacks=callbacks,
             optimizers=optimizers,
+            preprocess_logits_for_metrics=preprocess_logits_for_metrics,
         )
 
         self.feature = feature
@@ -177,9 +183,9 @@ class ORTTrainer(Trainer):
             kwargs:
                 Additional keyword arguments used to hide deprecated arguments
         """
-        from torch_ort import ORTModule
 
-        resume_from_checkpoint = None if not resume_from_checkpoint else resume_from_checkpoint
+        if resume_from_checkpoint is False:
+            resume_from_checkpoint = None
 
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
@@ -209,7 +215,7 @@ class ORTTrainer(Trainer):
         model_reloaded = False
         if self.model_init is not None:
             # Seed must be set before instantiating the model when using model_init.
-            set_seed(args.seed)
+            enable_full_determinism(self.args.seed) if self.args.full_determinism else set_seed(self.args.seed)
             self.model = self.call_model_init(trial)
             model_reloaded = True
             # Reinitializes optimizer and scheduler
@@ -221,33 +227,8 @@ class ORTTrainer(Trainer):
             if resume_from_checkpoint is None:
                 raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
 
-        if resume_from_checkpoint is not None:
-            if not os.path.isfile(os.path.join(resume_from_checkpoint, WEIGHTS_NAME)):
-                raise ValueError(f"Can't find a valid checkpoint at {resume_from_checkpoint}")
-
-            logger.info(f"Loading model from {resume_from_checkpoint}).")
-
-            if os.path.isfile(os.path.join(resume_from_checkpoint, CONFIG_NAME)):
-                config = PretrainedConfig.from_json_file(os.path.join(resume_from_checkpoint, CONFIG_NAME))
-                checkpoint_version = config.transformers_version
-                if checkpoint_version is not None and checkpoint_version != __version__:
-                    logger.warn(
-                        f"You are resuming training from a checkpoint trained with {checkpoint_version} of "
-                        f"Transformers but your current version is {__version__}. This is not recommended and could "
-                        "yield to errors or unwanted behaviors."
-                    )
-
-            if args.deepspeed:
-                # will be resumed in deepspeed_init
-                pass
-            else:
-                # We load the model state dict on the CPU to avoid an OOM error.
-                state_dict = torch.load(os.path.join(resume_from_checkpoint, WEIGHTS_NAME), map_location="cpu")
-                # If the model is on the GPU, it still works!
-                self._load_state_dict_in_model(state_dict)
-
-                # release memory
-                del state_dict
+        if resume_from_checkpoint is not None and not is_sagemaker_mp_enabled():
+            self._load_from_checkpoint(resume_from_checkpoint)
 
         # If model was re-initialized, put it on the right device and update self.model_wrapped
         if model_reloaded:
@@ -255,8 +236,22 @@ class ORTTrainer(Trainer):
                 self._move_model_to_device(self.model, args.device)
             self.model_wrapped = self.model
 
-        # Keeping track whether we can can len() on the dataset or not
-        train_dataset_is_sized = isinstance(self.train_dataset, collections.abc.Sized)
+        inner_training_loop = find_executable_batch_size(
+            self._inner_training_loop, self._train_batch_size, args.auto_find_batch_size
+        )
+        return inner_training_loop(
+            args=args,
+            resume_from_checkpoint=resume_from_checkpoint,
+            trial=trial,
+            ignore_keys_for_eval=ignore_keys_for_eval,
+        )
+
+    def _inner_training_loop(
+        self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None
+    ):
+        from torch_ort import ORTModule
+
+        self._train_batch_size = batch_size
 
         # Data loader and number of training steps
         train_dataloader = self.get_train_dataloader()
@@ -266,40 +261,55 @@ class ORTTrainer(Trainer):
         # number of training steps per epoch: num_update_steps_per_epoch
         # total number of training steps to execute: max_steps
         total_train_batch_size = args.train_batch_size * args.gradient_accumulation_steps * args.world_size
-        if train_dataset_is_sized:
-            num_update_steps_per_epoch = len(train_dataloader) // args.gradient_accumulation_steps
+
+        len_dataloader = None
+        if has_length(train_dataloader):
+            len_dataloader = len(train_dataloader)
+            num_update_steps_per_epoch = len_dataloader // args.gradient_accumulation_steps
             num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1)
             if args.max_steps > 0:
                 max_steps = args.max_steps
                 num_train_epochs = args.max_steps // num_update_steps_per_epoch + int(
                     args.max_steps % num_update_steps_per_epoch > 0
                 )
-                # May be slightly incorrect if the last batch in the training datalaoder has a smaller size but it's
+                # May be slightly incorrect if the last batch in the training dataloader has a smaller size but it's
                 # the best we can do.
                 num_train_samples = args.max_steps * total_train_batch_size
             else:
                 max_steps = math.ceil(args.num_train_epochs * num_update_steps_per_epoch)
                 num_train_epochs = math.ceil(args.num_train_epochs)
-                num_train_samples = len(self.train_dataset) * args.num_train_epochs
-        else:
-            # see __init__. max_steps is set when the dataset has no __len__
+                num_train_samples = self.num_examples(train_dataloader) * args.num_train_epochs
+        elif args.max_steps > 0:  # Rely on max_steps when dataloader does not have a working size
+
             max_steps = args.max_steps
             # Setting a very large number of epochs so we go as many times as necessary over the iterator.
             num_train_epochs = sys.maxsize
             num_update_steps_per_epoch = max_steps
+            num_examples = total_train_batch_size * args.max_steps
             num_train_samples = args.max_steps * total_train_batch_size
+        else:
+            raise ValueError(
+                "args.max_steps must be set to a positive value if dataloader does not have a length, was"
+                f" {args.max_steps}"
+            )
 
         if DebugOption.UNDERFLOW_OVERFLOW in self.args.debug:
             if self.args.n_gpu > 1:
                 # nn.DataParallel(model) replicates the model, creating new variables and module
                 # references registered here no longer work on other gpus, breaking the module
                 raise ValueError(
-                    "Currently --debug underflow_overflow is not supported under DP. Please use DDP (torch.distributed.launch)."
+                    "Currently --debug underflow_overflow is not supported under DP. Please use DDP"
+                    " (torch.distributed.launch)."
                 )
             else:
                 debug_overflow = DebugUnderflowOverflow(self.model)  # noqa
 
-        delay_optimizer_creation = self.sharded_ddp is not None and self.sharded_ddp != ShardedDDPOption.SIMPLE
+        delay_optimizer_creation = (
+            self.sharded_ddp is not None
+            and self.sharded_ddp != ShardedDDPOption.SIMPLE
+            or is_sagemaker_mp_enabled()
+            or self.fsdp is not None
+        )
 
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
@@ -314,8 +324,8 @@ class ORTTrainer(Trainer):
 
             if args.bf16:
                 warnings.warn(
-                    "ONNX Runtime doesn't support BF16 when executing `Aten` operators. The execution will fail if"
-                    "there are any `Aten` op in the IR. Support for this in ONNX Runtime is currently in progress, stay tuned!",
+                    "ONNX Runtime doesn't support BF16 when executing some operators. The execution will fail if there are any"
+                    " op which doesn't support BF16 in the IR.",
                     RuntimeWarning,
                 )
 
@@ -340,6 +350,9 @@ class ORTTrainer(Trainer):
 
         model = self._wrap_model(self.model_wrapped)
 
+        if is_sagemaker_mp_enabled() and resume_from_checkpoint is not None:
+            self._load_from_checkpoint(resume_from_checkpoint, model)
+
         # for the rest of this function `model` is the outside model, whether it was wrapped or not
         if model is not self.model:
             self.model_wrapped = model
@@ -355,9 +368,6 @@ class ORTTrainer(Trainer):
         # self.model_wrapped is DDP(ORTModule(Transformers Model)), Deepspeed(ORTModule(Transformers Model)), etc.
 
         # Train!
-        num_examples = (
-            self.num_examples(train_dataloader) if train_dataset_is_sized else total_train_batch_size * args.max_steps
-        )
 
         logger.info("***** Running training *****")
         logger.info(f"  Num examples = {num_examples}")
@@ -428,14 +438,23 @@ class ORTTrainer(Trainer):
         # Skip the first epochs_trained epochs to get the random state of the dataloader at the right point.
         if not args.ignore_data_skip:
             for epoch in range(epochs_trained):
-                # We just need to begin an iteration to create the randomization of the sampler.
-                for _ in train_dataloader:
-                    break
+                is_random_sampler = hasattr(train_dataloader, "sampler") and isinstance(
+                    train_dataloader.sampler, RandomSampler
+                )
+                if version.parse(torch.__version__) < version.parse("1.11") or not is_random_sampler:
+                    # We just need to begin an iteration to create the randomization of the sampler.
+                    # That was before PyTorch 1.11 however...
+                    for _ in train_dataloader:
+                        break
+                else:
+                    # Otherwise we need to call the whooooole sampler cause there is some random operation added
+                    # AT THE VERY END!
+                    _ = list(train_dataloader.sampler)
 
         for epoch in range(epochs_trained, num_train_epochs):
             if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
                 train_dataloader.sampler.set_epoch(epoch)
-            elif isinstance(train_dataloader.dataset, IterableDatasetShard):
+            elif hasattr(train_dataloader, "dataset") and isinstance(train_dataloader.dataset, IterableDatasetShard):
                 train_dataloader.dataset.set_epoch(epoch)
 
             # Reset the past mems state at the beginning of each epoch if necessary.
@@ -443,9 +462,14 @@ class ORTTrainer(Trainer):
                 self._past = None
 
             steps_in_epoch = (
-                len(train_dataloader) if train_dataset_is_sized else args.max_steps * args.gradient_accumulation_steps
+                len(train_dataloader)
+                if len_dataloader is not None
+                else args.max_steps * args.gradient_accumulation_steps
             )
             self.control = self.callback_handler.on_epoch_begin(args, self.state, self.control)
+
+            if epoch == epochs_trained and resume_from_checkpoint is not None and steps_trained_in_current_epoch == 0:
+                self._load_rng_state(resume_from_checkpoint)
 
             step = -1
             for step, inputs in enumerate(train_dataloader):
@@ -505,7 +529,9 @@ class ORTTrainer(Trainer):
                             # AMP: gradients need unscaling
                             self.scaler.unscale_(self.optimizer)
 
-                        if hasattr(self.optimizer, "clip_grad_norm"):
+                        if is_sagemaker_mp_enabled() and args.fp16:
+                            self.optimizer.clip_master_grads(args.max_grad_norm)
+                        elif hasattr(self.optimizer, "clip_grad_norm"):
                             # Some optimizers (like the sharded optimizer) have a specific way to do gradient clipping
                             self.optimizer.clip_grad_norm(args.max_grad_norm)
                         elif hasattr(model, "clip_grad_norm_"):
@@ -576,40 +602,7 @@ class ORTTrainer(Trainer):
             if args.local_rank != -1:
                 dist.barrier()
 
-            logger.info(
-                f"Loading best model from {self.state.best_model_checkpoint} (score: {self.state.best_metric})."
-            )
-
-            best_model_path = os.path.join(self.state.best_model_checkpoint, WEIGHTS_NAME)
-            if os.path.exists(best_model_path):
-                if self.deepspeed:
-
-                    if self.model_wrapped is not None:
-                        # this removes the pre-hooks from the previous engine
-                        self.model_wrapped.destroy()
-                        self.model_wrapped = None
-
-                    # temp hack until Deepspeed fixes the problem with resume from an existing engine that did some stepping
-                    deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
-                        self,
-                        num_training_steps=self.args.max_steps,
-                        resume_from_checkpoint=self.state.best_model_checkpoint,
-                    )
-                    self.model = deepspeed_engine.module
-                    self.model_wrapped = deepspeed_engine
-                    self.deepspeed = deepspeed_engine
-                    self.optimizer = optimizer
-                    self.lr_scheduler = lr_scheduler
-                else:
-                    # We load the model state dict on the CPU to avoid an OOM error.
-                    state_dict = torch.load(best_model_path, map_location="cpu")
-                    # If the model is on the GPU, it still works!
-                    self._load_state_dict_in_model(state_dict)
-            else:
-                logger.warn(
-                    f"Could not locate the best model at {best_model_path}, if you are running a distributed training "
-                    "on multiple nodes, you should activate `--save_on_each_node`."
-                )
+            self._load_best_model()
 
         # add remaining tr_loss
         self._total_loss_scalar += tr_loss.item()
@@ -628,7 +621,7 @@ class ORTTrainer(Trainer):
 
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
-        # Update the `session_options` for inference
+        # ONNX Runtime - Update the `session_options` for inference
         while hasattr(model, "module") and not isinstance(model, ORTModule):
             model = model.module
         inference_manager = model._torch_module._execution_manager._inference_manager
@@ -1168,7 +1161,7 @@ class ORTTrainer(Trainer):
         with torch.no_grad():
             if is_sagemaker_mp_enabled():
                 raise NotImplementedError(
-                    "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
+                    "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet."
                 )
             else:
                 if has_labels:
@@ -1302,7 +1295,7 @@ class ORTTrainer(Trainer):
     def _wrap_model(self, model, training=True):
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(
-                "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
+                "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet."
             )
 
         # already initialized its own DDP and AMP
