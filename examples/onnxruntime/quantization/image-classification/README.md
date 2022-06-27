@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Image image_classification
+# Image classification
 
 The script [`run_image_classification.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/quantization/image_classification/run_image_classification.py) allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for image classification tasks.
 
