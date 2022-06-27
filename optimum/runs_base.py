@@ -2,14 +2,13 @@ import os
 import subprocess
 from contextlib import contextmanager
 from time import perf_counter_ns
+from typing import Set
 
 import numpy as np
 import torch
 import transformers
 from datasets import Dataset
 from tqdm import trange
-
-from typing import Set
 
 import optuna
 from optimum import version as optimum_version
@@ -241,10 +240,14 @@ class TimeBenchmark:
             inputs["token_type_ids"] = torch.ones(self.batch_size, self.input_length, dtype=torch.int64)
         if "pixel_values" in self.model_input_names:
             # TODO support grayscale?
-            inputs["pixel_values"] = torch.rand(self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32)
-        
+            inputs["pixel_values"] = torch.rand(
+                self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32
+            )
+
         if np.any([k not in checked_inputs for k in self.model_input_names]):
-            raise NotImplementedError(f"At least an input in {self.model_input_names} has no dummy generation for time benchmark.")
+            raise NotImplementedError(
+                f"At least an input in {self.model_input_names} has no dummy generation for time benchmark."
+            )
 
         # Warmup
         outputs = []

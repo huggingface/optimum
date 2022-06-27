@@ -1,9 +1,7 @@
 from typing import Dict, List, Optional, Union
 
-from transformers import FeatureExtractionMixin, PreTrainedTokenizerBase
-
 from datasets import Dataset
-from transformers import Pipeline, PretrainedConfig
+from transformers import FeatureExtractionMixin, Pipeline, PretrainedConfig, PreTrainedTokenizerBase
 
 
 class DatasetProcessing:

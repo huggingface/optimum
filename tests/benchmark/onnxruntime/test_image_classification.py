@@ -25,7 +25,6 @@ class TestImageClassification(unittest.TestCase):
 
         subprocess.run(
             f"python3 examples/pytorch/image-classification/run_image_classification.py"
-            #f"python3 /tmp/2022-06-27T11:20:17.689617_imageclassification/transformers/examples/pytorch/image-classification/run_image_classification.py"
             f" --model_name_or_path nateraw/vit-base-beans"
             f" --dataset_name beans"
             f" --do_eval"

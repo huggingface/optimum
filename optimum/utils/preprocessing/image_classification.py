@@ -2,13 +2,9 @@ from functools import partial
 from typing import Dict, List
 
 import torch
-
 from datasets import Dataset, Metric, load_dataset
-from transformers import ImageClassificationPipeline
-
-from transformers import FeatureExtractionMixin
-
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
+from transformers import FeatureExtractionMixin, ImageClassificationPipeline
 
 from .base import DatasetProcessing
 
@@ -23,8 +19,9 @@ class ImageClassificationProcessing(DatasetProcessing):
         super().__init__(**kwargs)
 
         if not isinstance(self.preprocessor, FeatureExtractionMixin):
-            raise ValueError(f"Preprocessor is expected to be a feature extractor, provided {type(self.preprocessor)}.")
-
+            raise ValueError(
+                f"Preprocessor is expected to be a feature extractor, provided {type(self.preprocessor)}."
+            )
 
     def load_datasets(self):
         # Downloading and loading a dataset from the hub.
@@ -34,12 +31,12 @@ class ImageClassificationProcessing(DatasetProcessing):
 
         normalize = Normalize(mean=self.preprocessor.image_mean, std=self.preprocessor.image_std)
         transforms = Compose(
-        [
-            Resize(self.preprocessor.size),
-            CenterCrop(self.preprocessor.size),
-            ToTensor(),
-            normalize,
-        ]
+            [
+                Resize(self.preprocessor.size),
+                CenterCrop(self.preprocessor.size),
+                ToTensor(),
+                normalize,
+            ]
         )
 
         # Preprocessing the raw_datasets
@@ -49,7 +46,7 @@ class ImageClassificationProcessing(DatasetProcessing):
                 transforms(image.convert("RGB")).to(torch.float32).numpy() for image in examples["image"]
             ]
             return examples
-        
+
         eval_dataset = raw_datasets[self.eval_split]
         if max_eval_samples is not None:
             eval_dataset = eval_dataset.shuffle(seed=42).select(range(max_eval_samples))
@@ -76,7 +73,6 @@ class ImageClassificationProcessing(DatasetProcessing):
             columns_to_remove = [name for name in columns_to_remove if name not in self.tokenizer.model_input_names]
             calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
 
-
             datasets_dict["calibration"] = calibration_dataset
 
         return datasets_dict
@@ -87,7 +83,7 @@ class ImageClassificationProcessing(DatasetProcessing):
         for _, inputs in enumerate(eval_dataset):
             pred = pipeline(inputs[self.data_keys["primary"]])
 
-            pred_label = max(pred, key=lambda x:x["score"])["label"]
+            pred_label = max(pred, key=lambda x: x["score"])["label"]
             pred_index = pipeline.model.config.label2id[pred_label]
             all_preds.append(pred_index)
 
@@ -101,6 +97,6 @@ class ImageClassificationProcessing(DatasetProcessing):
             metrics_res = {metric.name: metrics_res}
 
         return metrics_res
-        
+
     def get_pipeline_kwargs(self):
         return {}
