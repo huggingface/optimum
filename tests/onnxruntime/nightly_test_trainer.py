@@ -14,15 +14,7 @@
 # limitations under the License.
 
 import gc
-import json
-import math
-import os
-import random
-import re
-import subprocess
-import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
@@ -40,15 +32,13 @@ from transformers import (
     BertForSequenceClassification,
     DataCollatorForTokenClassification,
     DataCollatorWithPadding,
+    IntervalStrategy,
     TrainingArguments,
     default_data_collator,
     is_torch_available,
 )
 from transformers.onnx.features import FeaturesManager
 from transformers.testing_utils import (
-    ENDPOINT_STAGING,
-    PASS,
-    USER,
     is_staging_test,
     require_deepspeed,
     require_fairscale,
@@ -63,11 +53,9 @@ from transformers.testing_utils import (
     slow,
 )
 
-from huggingface_hub import Repository, delete_repo, login
 from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
 from optimum.utils.testing_utils import require_hf_token, require_ort_training
 from parameterized import parameterized
-from requests.exceptions import HTTPError
 
 
 nltk.download("punkt")
@@ -127,6 +115,7 @@ def get_ort_trainer(
     max_train_samples=None,
     max_valid_samples=None,
     max_test_samples=None,
+    **kwargs,
 ):
 
     (model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics,) = load_and_prepare(
@@ -298,7 +287,7 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
 
 @unittest.skip("Skip basic tests of `ORTTrainer`.")
 @require_torch
-@require_ort_training
+# @require_ort_training
 class ORTTrainerIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -459,22 +448,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             gc.collect()
 
 
-@require_torch
-@is_staging_test
 class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self.training_args = TrainingArguments("..")
-
-        self.max_seq_length = 128
-        self.max_train_samples = 200
-        self.max_valid_samples = 50
-        self.max_test_samples = 20
-
-    @classmethod
-    def setUpClass(cls):
-        cls._token = login(username=USER, password=PASS)
-
     @require_hf_token
     def test_push_to_hub(
         self,
@@ -502,7 +476,7 @@ class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
             trainer.push_to_hub()
 
 
-@unittest.skip("Skip DeepSpeed tests.")
+@unittest.skip("Skip DeepSpeed tests of ORTTrainer.")
 @slow
 @require_deepspeed
 class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
@@ -602,15 +576,70 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             gc.collect()
 
 
-@unittest.skip("Skip")
-@require_torch
+# @unittest.skip("Skip the hyperparameter search with Optuna")
 @require_optuna
 class ORTTrainerHyperParameterOptunaIntegrationTest(unittest.TestCase):
-    pass
+    def setUp(self):
+        self.model_name = "bert-base-cased"
+        self.feature = "sequence-classification"
+
+        self.max_seq_length = 128
+        self.max_train_samples = 200
+        self.max_valid_samples = 50
+        self.max_test_samples = 20
+
+    def test_hyperparameter_search(self):
+        def hp_space(trial):
+            return {
+                "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
+                "num_train_epochs": trial.suggest_int("num_train_epochs", 1, 5),
+                "seed": trial.suggest_int("seed", 1, 40),
+                "per_device_train_batch_size": trial.suggest_categorical(
+                    "per_device_train_batch_size", [4, 8, 16, 32, 64]
+                ),
+            }
+
+        def model_init():
+            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                logging_steps=1,
+                evaluation_strategy=IntervalStrategy.EPOCH,
+                save_strategy=IntervalStrategy.EPOCH,
+                disable_tqdm=True,
+                load_best_model_at_end=True,
+                logging_dir="runs",
+                run_name="test",
+            )
+
+            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
+                self.feature
+            )(
+                self.model_name,
+                _TASKS_DATASETS_CONFIGS[self.feature],
+                self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+            trainer = ORTTrainer(
+                model=None,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=valid_dataset,
+                compute_metrics=compute_metrics,
+                tokenizer=tokenizer,
+                data_collator=data_collator,
+                feature=self.feature,
+                model_init=model_init,
+            )
+
+            trainer.hyperparameter_search(direction="minimize", hp_space=hp_space, n_trials=4)
 
 
 @unittest.skip("Skip")
-@require_torch
 @require_ray
 class ORTTrainerHyperParameterRayIntegrationTest(unittest.TestCase):
     pass
@@ -618,7 +647,6 @@ class ORTTrainerHyperParameterRayIntegrationTest(unittest.TestCase):
 
 @unittest.skip("Skip")
 @slow
-@require_torch
 @require_sigopt
 class ORTTrainerHyperParameterSigOptIntegrationTest(unittest.TestCase):
     pass
@@ -634,6 +662,10 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
 @require_torch
 @require_wandb
 class ORTTrainerHyperParameterWandbIntegrationTest(unittest.TestCase):
+    pass
+
+
+class TrainerOptimizerChoiceTest(unittest.TestCase):
     pass
 
 

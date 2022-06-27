@@ -1299,7 +1299,7 @@ class ORTTrainer(Trainer):
                 output=model_path,
             )
 
-    def _wrap_model(self, model, training=True):
+    def _wrap_model(self, model, training=True, dataloader=None):
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(
                 "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet. Stay tuned!"
