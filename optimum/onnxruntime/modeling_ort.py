@@ -137,7 +137,7 @@ class ORTModel(OptimizedModel):
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
-        Save a model and its configuration file to a directory, so that it can be re-loaded using the
+        Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the latest_model_name.
         Arguments:
             save_directory (`str` or `Path`):
@@ -164,7 +164,7 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ):
         """
-        Load a model and its configuration file from a directory or the HF Hub.
+        Loads a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
         Arguments:
             model_id (`str` or `Path`):
@@ -443,10 +443,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
         end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return QuestionAnsweringModelOutput(
-            start_logits=start_logits,
-            end_logits=end_logits,
-        )
+        return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
 
 
 SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
@@ -547,9 +544,7 @@ class ORTModelForSequenceClassification(ORTModel):
         outputs = self.model.run(None, onnx_inputs)
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return SequenceClassifierOutput(
-            logits=logits,
-        )
+        return SequenceClassifierOutput(logits=logits)
 
 
 TOKEN_CLASSIFICATION_EXAMPLE = r"""
@@ -633,9 +628,7 @@ class ORTModelForTokenClassification(ORTModel):
         outputs = self.model.run(None, onnx_inputs)
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return TokenClassifierOutput(
-            logits=logits,
-        )
+        return TokenClassifierOutput(logits=logits)
 
 
 TEXT_GENERATION_EXAMPLE = r"""
@@ -725,9 +718,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         outputs = self.model.run(None, onnx_inputs)
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return CausalLMOutputWithCrossAttentions(
-            logits=logits,
-        )
+        return CausalLMOutputWithCrossAttentions(logits=logits)
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(
