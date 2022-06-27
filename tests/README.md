@@ -15,4 +15,4 @@ If you are using vscode you might have hare time discovering the test for the "t
 }
 ```
 
-This snippet will discover all base tests and the tests inside the `tests/onnxruntime` folder. If you want the `intel` tests as well add them. 
+This snippet will discover all base tests and the tests inside the `tests/onnxruntime` folder.

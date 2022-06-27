@@ -341,7 +341,7 @@ def main():
             calibration_dataset = calibration_dataset.select(range(num_calibration_samples))
         with training_args.main_process_first(desc="Running tokenizer on the calibration dataset"):
             calibration_dataset = calibration_dataset.map(
-                partial(preprocess_function, tokenizer=quantizer.tokenizer),
+                partial(preprocess_function, tokenizer=quantizer.preprocessor),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
@@ -424,7 +424,7 @@ def main():
             eval_dataset = eval_dataset.select(range(max_eval_samples))
         with training_args.main_process_first(desc="Running tokenizer on the validation dataset"):
             eval_dataset = eval_dataset.map(
-                partial(preprocess_function, tokenizer=quantizer.tokenizer),
+                partial(preprocess_function, tokenizer=quantizer.preprocessor),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,

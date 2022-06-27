@@ -46,7 +46,7 @@ from transformers import PreTrainedModel, __version__
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, deepspeed_reinit, is_deepspeed_zero3_enabled
+from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     CONFIG_NAME,
@@ -583,16 +583,23 @@ class ORTTrainer(Trainer):
             best_model_path = os.path.join(self.state.best_model_checkpoint, WEIGHTS_NAME)
             if os.path.exists(best_model_path):
                 if self.deepspeed:
+
+                    if self.model_wrapped is not None:
+                        # this removes the pre-hooks from the previous engine
+                        self.model_wrapped.destroy()
+                        self.model_wrapped = None
+
                     # temp hack until Deepspeed fixes the problem with resume from an existing engine that did some stepping
-                    deepspeed_engine, optimizer, lr_scheduler = deepspeed_reinit(self)
+                    deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
+                        self,
+                        num_training_steps=self.args.max_steps,
+                        resume_from_checkpoint=self.state.best_model_checkpoint,
+                    )
                     self.model = deepspeed_engine.module
                     self.model_wrapped = deepspeed_engine
                     self.deepspeed = deepspeed_engine
                     self.optimizer = optimizer
                     self.lr_scheduler = lr_scheduler
-                    self.deepspeed.load_checkpoint(
-                        self.state.best_model_checkpoint, load_optimizer_states=True, load_lr_scheduler_states=True
-                    )
                 else:
                     # We load the model state dict on the CPU to avoid an OOM error.
                     state_dict = torch.load(best_model_path, map_location="cpu")
