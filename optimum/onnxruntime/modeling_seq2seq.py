@@ -171,9 +171,9 @@ class ORTModelForConditionalGeneration(ORTModel):
         self.encoder = ORTEncoder(session=encoder_session, device=self._device)
         self.decoder = ORTDecoder(session=decoder_session, device=self._device)
         self.decoder_with_past = ORTDecoder(session=decoder_with_past_session, device=self._device)
-        self.encoder_file_name = kwargs.get("last_encoder_name", ONNX_ENCODER_NAME)
-        self.decoder_file_name = kwargs.get("last_decoder_name", ONNX_DECODER_NAME)
-        self.decoder_file_with_past_name = kwargs.get("last_decoder_with_past_name", ONNX_DECODER_WITH_PAST_NAME)
+        self.encoder_file_name = kwargs.get("last_encoder_model_name", ONNX_ENCODER_NAME)
+        self.decoder_file_name = kwargs.get("last_decoder_model_name", ONNX_DECODER_NAME)
+        self.decoder_file_with_past_name = kwargs.get("last_decoder_with_past_model_name", ONNX_DECODER_WITH_PAST_NAME)
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.base_model_prefix, AutoConfig)
@@ -325,9 +325,9 @@ class ORTModelForConditionalGeneration(ORTModel):
                 kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             model = cls.load_model(
-                encoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_encoder_name"]),
-                decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_name"]),
-                decoder_with_past_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_with_past_name"]),
+                encoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_encoder_model_name"]),
+                decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
+                decoder_with_past_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_with_past_model_name"]),
             )
 
         return cls(*model, config=config, **kwargs)
