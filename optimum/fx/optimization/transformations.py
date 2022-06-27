@@ -28,14 +28,68 @@ if TYPE_CHECKING:
     from torch.fx import GraphModule, Node
 
 
+_ATTRIBUTES_DOCSTRING = r"""
+Attributes:
+    preserves_computation (`bool`, defaults to `False`):
+        Whether the transformation preserves the graph computation or not. If `True`, the original and the
+        transformed graph should produce the same outputs.
+"""
+_EXAMPLE_DOCSTRING = r"""
+```python
+>>> from transformers import BertModel
+>>> from transformers.utils.fx import symbolic_trace
+>>> from optimum.fx.optimization import {class_name}
+
+>>> model = BertModel.from_pretrained("bert-base-uncased")
+>>> traced = symbolic_trace(
+>>>     model,
+>>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
+>>> )
+>>> transformation = {class_name}()
+>>> transformed_model = transformation(traced)
+```
+"""
+_REVERSIBLE_EXAMPLE_DOCSTRING = r"""
+```python
+>>> from transformers import BertModel
+>>> from transformers.utils.fx import symbolic_trace
+>>> from optimum.fx.optimization import {class_name}
+
+>>> model = BertModel.from_pretrained("bert-base-uncased")
+>>> traced = symbolic_trace(
+>>>     model,
+>>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
+>>> )
+>>> transformation = {class_name}()
+>>> transformed_model = transformation(traced)
+>>> restored_model = transformation(transformed_model, reverse=True)
+```
+"""
+
+
+def add_docstring(add_example=True):
+    def wrapper(class_):
+        example_docstring = _EXAMPLE_DOCSTRING
+        if "ReversibleTransformation" in map(lambda cls: cls.__name__, class_.mro()):
+            example_docstring = _REVERSIBLE_EXAMPLE_DOCSTRING
+        new_doc = [f"{class_.__doc__}", f"{_ATTRIBUTES_DOCSTRING}"]
+        if add_example:
+            new_doc.append("Example:")
+            new_doc.append(f"\t{example_docstring.format(class_name=class_.__name__)}")
+
+        class_.__doc__ = "\n".join(new_doc)
+        return class_
+
+    return wrapper
+
+
+@add_docstring(add_example=False)
 class Transformation(ABC):
     """
     A torch.fx graph transformation.
 
-    Attributes:
-        preserves_computation (`bool`, defaults to `False`):
-            Whether the transformation preserves the graph computation, if `True`, the original and the transformed
-            graph should produce the same outputs.
+    It  must implemement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] method, and be used as a
+    callable.
     """
 
     preserves_computation: bool = False
@@ -43,21 +97,18 @@ class Transformation(ABC):
     @abstractmethod
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
         """
-        Applies the transformation to graph_module.
-
         Args:
             graph_module (`torch.fx.GraphModule`):
                 The module to transform.
 
         Returns:
-            `torch.fx.GraphModule`: The transformed module.
+            `torch.fx.GraphModule`:
+                The transformed module.
         """
         raise NotImplementedError("The transform method needs to be implemented.")
 
     def __call__(self, graph_module: "GraphModule", lint_and_recompile: bool = True) -> "GraphModule":
-        f"""
-        {self.__doc__}
-
+        """
         Args:
             graph_module (`torch.fx.GraphModule`):
                 The module to transform.
@@ -66,23 +117,8 @@ class Transformation(ABC):
                 This can be set to `False` when chaining transformations together to perform this operation only once.
 
         Returns:
-            `torch.fx.GraphModule`: The transformed module.
-
-        Example:
-
-        ```python
-        >>> from transformers import BertModel
-        >>> from transformers.utils.fx import symbolic_trace
-        >>> from optimum.fx.optimization import {self.__class__.__name__}
-
-        >>> model = BertModel.from_pretrained("bert-base-uncased")
-        >>> traced = symbolic_trace(
-        >>>     model,
-        >>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
-        >>> )
-        >>> transformation = {self.__class__.__name__}()
-        >>> transformed_model = transformation(traced)
-        ```
+            `torch.fx.GraphModule`:
+                The transformed module.
         """
         graph_module = self.transform(graph_module)
         if lint_and_recompile:
@@ -91,39 +127,32 @@ class Transformation(ABC):
         return graph_module
 
 
+@add_docstring(add_example=False)
 class ReversibleTransformation(Transformation):
     """
     A torch.fx graph transformation that is reversible.
 
-    Attributes:
-        preserves_computation (`bool`, defaults to `False`):
-            Whether the transformation preserves the graph computation, if `True`, the original and the transformed
-            graph should produce the same outputs.
+    It must implemement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] and
+    [`~optimum.fx.optimization.ReversibleTransformation.reverse`] methods, and be used as a callable.
     """
 
     @abstractmethod
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
         """
-        Applies the reverse transformation to graph_module.
-
         Args:
             graph_module (`torch.fx.GraphModule`):
                 The module to transform.
-            lint_and_recompile (`bool`, defaults to `True`):
-                Whether the transformed module should be linted and recompiled.
-                This can be set to `False` when chaining transformations together to perform this operation only once.
 
         Returns:
-            `torch.fx.GraphModule`: The transformed module.
+            `torch.fx.GraphModule`:
+                The reverse transformed module.
         """
         raise NotImplementedError("The reverse transform method needs to be implemented.")
 
     def __call__(
         self, graph_module: "GraphModule", lint_and_recompile: bool = True, reverse: bool = False
     ) -> "GraphModule":
-        f"""
-        {self.__doc__}
-
+        """
         Args:
             graph_module (`torch.fx.GraphModule`):
                 The module to transform.
@@ -134,24 +163,9 @@ class ReversibleTransformation(Transformation):
                 If `True`, the reverse transformation is performed.
 
         Returns:
-            `torch.fx.GraphModule`: The transformed module.
+            `torch.fx.GraphModule`:
+                The transformed module.
 
-        Example:
-
-        ```python
-        >>> from transformers import BertModel
-        >>> from transformers.utils.fx import symbolic_trace
-        >>> from optimum.fx.optimization import {self.__class__.__name__}
-
-        >>> model = BertModel.from_pretrained("bert-base-uncased")
-        >>> traced = symbolic_trace(
-        >>>     model,
-        >>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
-        >>> )
-        >>> transformation = {self.__class__.__name__}()
-        >>> transformed_model = transformation(traced)
-        >>> restored_model = transformation(transformed_model, reverse=True)
-        ```
         """
         func = self.transform if not reverse else self.reverse
         graph_module = func(graph_module)
@@ -161,6 +175,7 @@ class ReversibleTransformation(Transformation):
         return graph_module
 
 
+@add_docstring()
 class MergeLinears(ReversibleTransformation):
     """
     Transformation that merges linear layers that take the same input into one big linear layer.
@@ -287,9 +302,10 @@ class MergeLinears(ReversibleTransformation):
         return graph_module
 
 
+@add_docstring()
 class ChangeTrueDivToMulByInverse(ReversibleTransformation):
     """
-    Transformation that changes truediv nodes to multiplication by the inverse when the denominator is static.
+    Transformation that changes truediv nodes to multiplication by the inverse nodes when the denominator is static.
     For example, that is sometimes the case for the scaling factor in attention layers.
     """
 
@@ -361,7 +377,7 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
     Composes a list of transformations together.
 
     Args:
-        args (`[~optimum.fx.optimization.Transformation]`):
+        args ([`~optimum.fx.optimization.Transformation`]):
             The transformations to compose together.
         inplace (`bool`, defaults to `True`):
             Whether the resulting transformation should be inplace, or create a new graph module.
