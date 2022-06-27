@@ -11,7 +11,6 @@ from optimum.utils.runs import RunConfig
 
 
 class TestQuestionAnswering(unittest.TestCase):
-    """
     def test_eval_transformers(self):
         tps = datetime.now().isoformat()
         dir_path = f"/tmp/{tps}_questionanswering"
@@ -78,7 +77,6 @@ class TestQuestionAnswering(unittest.TestCase):
         print(eval_dict)
 
         self.assertEqual(transformers_f1, optimum_benchmark_f1)
-    """
 
     def test_eval_optimum(self):
         tps = datetime.now().isoformat()
