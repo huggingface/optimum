@@ -137,8 +137,7 @@ class Evaluation:
         # validate `others`
         assert "baseline" in self.others
         assert "optimized" in self.others
-        for metric_name, metric_dict in self.others["baseline"].items():
-            assert metric_dict.keys() == self.others["optimized"][metric_name].keys()
+        assert self.others["baseline"].keys() == self.others["optimized"].keys()
 
 
 @generate_doc_dataclass
