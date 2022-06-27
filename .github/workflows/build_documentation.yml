@@ -52,11 +52,12 @@ jobs:
           pip install git+https://github.com/huggingface/doc-builder
           cd optimum
           pip install .[dev,onnxruntime,benchmark]
-          python -c "from optimum import intel; print(dir(intel))" 
+          python -c "from optimum import intel; print(dir(intel))"
           cd ..
 
       - name: Set env variables
         run: |
+          cd optimum
           version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
 
           if [[ $version == *.dev0 ]]
@@ -65,6 +66,8 @@ jobs:
           else
             echo "VERSION=v$version" >> $GITHUB_ENV
           fi
+
+          cd ..
 
       - name: Setup git
         run: |
