@@ -58,8 +58,9 @@ from .modeling_ort import (
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
 )
+from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .optimization import ORTOptimizer
 from .quantization import ORTQuantizer
 from .trainer import ORTTrainer
 from .trainer_seq2seq import ORTSeq2SeqTrainer
-from .utils import ONNX_WEIGHTS_NAME
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, ONNX_WEIGHTS_NAME
