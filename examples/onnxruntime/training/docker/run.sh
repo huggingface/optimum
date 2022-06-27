@@ -15,9 +15,10 @@ GPU_DEVICES=${2:-"all"}
 python -m torch_ort.configure
 
 # Install dependencies
+pip install --upgrade pip setuptools wheel
 pip install transformers datasets
 pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized
-pip install fairscale deepspeed mpi4py
+pip install fairscale deepspeed
 
 # Install apex
 # git clone https://github.com/NVIDIA/apex \
