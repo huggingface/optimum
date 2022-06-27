@@ -57,14 +57,14 @@ jobs:
 
       - name: Set env variables
         run: |
-        version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
+          version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
 
-        if [[ $version == *.dev0 ]]
-        then
-          echo "VERSION=main" >> $GITHUB_ENV
-        else
-          echo "VERSION=v$version" >> $GITHUB_ENV
-        fi
+          if [[ $version == *.dev0 ]]
+          then
+            echo "VERSION=main" >> $GITHUB_ENV
+          else
+            echo "VERSION=v$version" >> $GITHUB_ENV
+          fi
 
       - name: Setup git
         run: |
