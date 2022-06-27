@@ -1341,9 +1341,14 @@ class ORTTrainer(Trainer):
                     " used in `ORTTrainer`. Use `--sharded_ddp simpe` or deepspeed stage 2 if you want"
                     "the gradient to be sharded."
                 )
+        # Distributed training using PyTorch FSDP
+        elif self.fsdp is not None:
+            raise NotImplementedError(
+                "PyTorch's distrubuted data parallel features are not supported by `ORTTrainer` yet."
+            )
         elif is_sagemaker_dp_enabled():
-            model = nn.parallel.DistributedDataParallel(
-                model, device_ids=[int(os.getenv("SMDATAPARALLEL_LOCAL_RANK"))]
+            raise NotImplementedError(
+                "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet."
             )
         elif self.args.local_rank != -1:
             kwargs = {}
