@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from transformers.feature_extraction_utils import FeatureExtractionMixin
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
@@ -318,6 +317,8 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         is_pair: bool = False,
         framework: Optional[TensorType] = None,
     ) -> Mapping[str, Any]:
+        import torch
+
         common_inputs = {}
         dummy_input = super().generate_dummy_inputs(
             tokenizer, batch_size=batch_size, seq_length=seq_length, is_pair=is_pair, framework=framework
