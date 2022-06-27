@@ -31,9 +31,7 @@ import transformers
 from datasets import load_dataset, load_metric
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import (
-    AutoConfig,
     AutoFeatureExtractor,
-    AutoModelForImageClassification,
     EvalPrediction,
     HfArgumentParser,
     TrainingArguments,
@@ -118,10 +116,6 @@ class ModelArguments:
     execution_provider: str = field(
         default="CPUExecutionProvider",
         metadata={"help": "ONNX Runtime execution provider to use for inference."},
-    )
-    ignore_mismatched_sizes: bool = field(
-        default=False,
-        metadata={"help": "Whether or not to enable to load a pretrained model whose head dimensions are different."},
     )
 
 
@@ -255,27 +249,7 @@ def main():
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.0.0/en/image_process#imagefolder.
 
-    # Prepare label mappings.
-    # We'll include these in the model's config to get human readable labels in the Inference API.
-    labels = dataset["train"].features["labels"].names
-    label2id = {label: str(i) for i, label in enumerate(labels)}
-    id2label = {str(i): label for i, label in enumerate(labels)}
-
-    # Load pretrained model and feature extractor
-    config = AutoConfig.from_pretrained(
-        model_args.model_name_or_path,
-        num_labels=len(labels),
-        i2label=id2label,
-        label2id=label2id,
-        finetuning_task="image-classification",
-    )
     feature_extractor = AutoFeatureExtractor.from_pretrained(model_args.model_name_or_path)
-    model = AutoModelForImageClassification.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
-    )
 
     # Define torchvision transforms to be applied to each image.
     normalize = Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std)
@@ -307,8 +281,8 @@ def main():
         return result
 
     # Create the quantizer
-    quantizer = ORTQuantizer(
-        preprocessor=feature_extractor, model=model, feature="image-classification", opset=optim_args.opset
+    quantizer = ORTQuantizer.from_pretrained(
+        model_name_or_path=model_args.model_name_or_path, feature="image-classification", opset=optim_args.opset
     )
 
     apply_static_quantization = optim_args.quantization_approach == "static"
