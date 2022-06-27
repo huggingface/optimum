@@ -52,6 +52,7 @@ class DatasetProcessing:
         self.data_keys = data_keys
         self.ref_keys = ref_keys
         self.task_args = task_args
+        self.config = config
 
     def load_datasets(self):
         """Load calibration dataset if needed, and evaluation dataset.

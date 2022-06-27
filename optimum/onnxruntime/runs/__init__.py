@@ -130,11 +130,12 @@ class OnnxRuntimeRun(Run):
     def launch_eval(self):
         kwargs = self.processor.get_pipeline_kwargs()
 
+        # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
         ort_pipeline = _optimum_pipeline(
             task=self.task,
             model=self.ort_model,
-            tokenizer=self.tokenizer,
-            feature_extractor=None,
+            tokenizer=self.preprocessor,
+            feature_extractor=self.preprocessor,
             accelerator="ort",
             **kwargs,
         )
@@ -142,7 +143,8 @@ class OnnxRuntimeRun(Run):
         transformers_pipeline = _transformers_pipeline(
             task=self.task,
             model=self.torch_model,
-            tokenizer=self.tokenizer,
+            tokenizer=self.preprocessor,
+            feature_extractor=self.preprocessor,
             feature_extractor=None,
             **kwargs,
         )

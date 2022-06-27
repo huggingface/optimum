@@ -10,7 +10,6 @@ from .base import DatasetProcessing
 class QuestionAnsweringProcessing(DatasetProcessing):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = kwargs["config"]
 
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
             raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")

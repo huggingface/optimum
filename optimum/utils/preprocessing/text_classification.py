@@ -14,7 +14,6 @@ class TextClassificationProcessing(DatasetProcessing):
             kwargs["data_keys"]["secondary"] = None
 
         super().__init__(**kwargs)
-        self.config = kwargs["config"]
         self.label_to_id = None
 
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
