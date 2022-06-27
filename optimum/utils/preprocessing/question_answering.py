@@ -14,9 +14,6 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
             raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
 
-        if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
-            raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
-
     def load_datasets(self):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
