@@ -442,6 +442,7 @@ class ORTEncoder:
         self.session = session
         self._device = device
         self.main_input_name = "input_ids"
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
 
     @add_start_docstrings_to_model_forward(ENCODER_INPUTS_DOCSTRING)
@@ -452,10 +453,11 @@ class ORTEncoder:
         **kwargs,
     ) -> BaseModelOutput:
 
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
+        onnx_inputs = {"input_ids": input_ids.cpu().detach().numpy()}
+
+        # Add the attention_mask inputs when needed
+        if "attention_mask" in self.input_names:
+            onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
 
         # Run inference
         outputs = self.session.run(None, onnx_inputs)

@@ -728,9 +728,14 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "t5": "t5-small",
-        "bart": "facebook/bart-base",
+        "t5": "hf-internal-testing/tiny-random-t5",
+        "bart": "hf-internal-testing/tiny-random-bart",
+        "mbart": "hf-internal-testing/tiny-random-mbart",
         "marian": "sshleifer/tiny-marian-en-de",
+        "m2m_100": "valhalla/m2m100_tiny_random",
+        "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+        # TODO: Find LongT5 model with absolute tolerance of <1e-4 when comparing outputs with vanilla transformer model
+        # "longt5": "google/long-t5-local-base",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
@@ -754,7 +759,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        decoder_start_token_id = model.config.decoder_start_token_id
+        decoder_start_token_id = model.config.decoder_start_token_id if model_arch != "mbart" else 2
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         outputs = model(**tokens, **decoder_inputs)
         self.assertTrue("logits" in outputs)
@@ -789,7 +794,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         transformers_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        decoder_start_token_id = transformers_model.config.decoder_start_token_id
+        decoder_start_token_id = transformers_model.config.decoder_start_token_id if model_arch != "mbart" else 2
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
         with torch.no_grad():
