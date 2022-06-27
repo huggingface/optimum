@@ -65,7 +65,7 @@ from transformers.testing_utils import (
 
 from huggingface_hub import Repository, delete_repo, login
 from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
-from optimum.utils.testing_utils import require_ort_training
+from optimum.utils.testing_utils import require_hf_token, require_ort_training
 from parameterized import parameterized
 from requests.exceptions import HTTPError
 
@@ -475,19 +475,7 @@ class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
     def setUpClass(cls):
         cls._token = login(username=USER, password=PASS)
 
-    @classmethod
-    def tearDownClass(cls):
-        for model in ["test-trainer", "test-trainer-epoch", "test-trainer-step"]:
-            try:
-                delete_repo(token=cls._token, name=model)
-            except HTTPError:
-                pass
-
-        try:
-            delete_repo(token=cls._token, name="test-trainer-org", organization="valid_org")
-        except HTTPError:
-            pass
-
+    @require_hf_token
     def test_push_to_hub(
         self,
         test_name="bert_sequence-classification",
