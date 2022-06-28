@@ -267,6 +267,7 @@ class ORTTrainer(Trainer):
             len_dataloader = len(train_dataloader)
             num_update_steps_per_epoch = len_dataloader // args.gradient_accumulation_steps
             num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1)
+            num_examples = self.num_examples(train_dataloader)
             if args.max_steps > 0:
                 max_steps = args.max_steps
                 num_train_epochs = args.max_steps // num_update_steps_per_epoch + int(
