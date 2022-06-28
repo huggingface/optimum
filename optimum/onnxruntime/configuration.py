@@ -20,7 +20,6 @@ from typing import Dict, List, Optional, Tuple, Union
 from datasets import Dataset
 from packaging.version import Version, parse
 
-from onnxruntime import GraphOptimizationLevel
 from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator

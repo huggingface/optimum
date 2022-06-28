@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import gc
-import os
 import tempfile
 import unittest
 from functools import partial
@@ -21,12 +20,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from transformers import AutoTokenizer
 
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizableOperator, ORTQuantizer
+from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer
 from optimum.onnxruntime.configuration import (
     AutoCalibrationConfig,
     AutoQuantizationConfig,
@@ -60,7 +58,7 @@ class ORTOptimizerTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_optimize(self, *args, **kwargs):
         model_type, model_name = args
-        optimization_config = OptimizationConfig(optimization_level=99, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
@@ -73,9 +71,9 @@ class ORTOptimizerTest(unittest.TestCase):
             )
             input = "This is a sample input"
             with torch.no_grad():
-                original_outputs = optimizer.model(**optimizer.tokenizer(input, return_tensors="pt"))
+                original_outputs = optimizer.model(**optimizer.preprocessor(input, return_tensors="pt"))
             session = InferenceSession(optimized_model_path.as_posix(), providers=["CPUExecutionProvider"])
-            optimized_outputs = session.run(None, dict(optimizer.tokenizer(input, return_tensors="np")))
+            optimized_outputs = session.run(None, dict(optimizer.preprocessor(input, return_tensors="np")))
             self.assertTrue(np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=1e-4))
             gc.collect()
 
@@ -173,7 +171,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             calibration_dataset = quantizer.get_calibration_dataset(
                 "glue",
                 dataset_config_name="sst2",
-                preprocess_function=partial(preprocess_function, tokenizer=quantizer.tokenizer),
+                preprocess_function=partial(preprocess_function, tokenizer=quantizer.preprocessor),
                 num_samples=40,
                 dataset_split="train",
             )

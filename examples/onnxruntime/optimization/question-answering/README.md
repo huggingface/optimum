@@ -22,13 +22,13 @@ allows us to apply graph optimizations using [ONNX Runtime](https://github.com/m
 Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along 
 the flag `--version_2_with_negative`.
 
-The following example applies graph optimizations on a DistilBERT fine-tuned on the SQuAD1.0 dataset.
+The following example applies graph optimizations on a DistilBERT fine-tuned on the SQuAD1.0 dataset. Here the optimization level is selected to be 1, enabling basic optimizations such as redundant node eliminations and constant folding. Higher optimization level will result in hardware dependent optimized graph.
 
 ```bash
 python run_qa.py \
     --model_name_or_path distilbert-base-uncased-distilled-squad \
     --dataset_name squad \
-    --optimization_level 99 \
+    --optimization_level 1 \
     --do_eval \
     --output_dir /tmp/optimized_distilbert_squad
 ```

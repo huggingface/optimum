@@ -59,4 +59,4 @@ We observe the gain of ONNX Runtime compared to PyTorch as follow:
 __Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
 *[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
-*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/docs/install.md).*  
+*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*  

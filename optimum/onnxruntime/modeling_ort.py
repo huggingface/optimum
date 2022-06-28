@@ -9,10 +9,10 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForCausalLM,
+    AutoModelForImageClassification,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
-    AutoTokenizer,
     PretrainedConfig,
 )
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
@@ -20,23 +20,26 @@ from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutputWithCrossAttentions,
+    ImageClassifierOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
 from transformers.onnx import FeaturesManager, export
+from transformers.onnx.utils import get_preprocessor
 
 import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, _is_gpu_available
+from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
 
 
 logger = logging.getLogger(__name__)
 
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
+_FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
 
 ONNX_MODEL_START_DOCSTRING = r"""
     This model inherits from [~`onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
@@ -52,7 +55,7 @@ ONNX_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (`torch.Tensor` of shape `({0})`):
             Indices of input sequence tokens in the vocabulary.
-            Indices can be obtained using [`AutoTokenizer`](https://huggingface.co/docs/transformers/autoclass_tutorial#autotokenizer). 
+            Indices can be obtained using [`AutoTokenizer`](https://huggingface.co/docs/transformers/autoclass_tutorial#autotokenizer).
             See [`PreTrainedTokenizer.encode`](https://huggingface.co/docs/transformers/main_classes/tokenizer#transformers.PreTrainedTokenizerBase.encode) and
             [`PreTrainedTokenizer.__call__`](https://huggingface.co/docs/transformers/main_classes/tokenizer#transformers.PreTrainedTokenizerBase.__call__) for details.
             [What are input IDs?](https://huggingface.co/docs/transformers/glossary#input-ids)
@@ -85,11 +88,33 @@ class ORTModel(OptimizedModel):
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
+        self._device = get_device_for_provider(self.model.get_providers()[0])
 
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.base_model_prefix, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
+
+    @property
+    def device(self) -> torch.device:
+        """
+        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
+        device).
+        """
+        return self._device
+
+    @device.setter
+    def device(self, value):
+        self._device = value
+
+    def to(self, device):
+        """
+        Changes the ONNX Runtime provider according to the device.
+        """
+        self.device = device
+        provider = get_provider_for_device(self.device)
+        self.model.set_providers([provider])
+        return self
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError
@@ -97,22 +122,22 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def load_model(path: Union[str, Path], provider=None):
         """
-        loads ONNX Inference session with Provider. Default Provider is if CUDAExecutionProvider GPU available else `CPUExecutionProvider`
+        Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
+
         Arguments:
             path (`str` or `Path`):
-                Directory from which to load
+                Directory from which to load the model.
             provider(`str`, *optional*):
-                Onnxruntime provider to use for loading the model, defaults to `CUDAExecutionProvider` if GPU is
-                available else `CPUExecutionProvider`
+                ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
         if provider is None:
-            provider = "CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"
+            provider = "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
-        Save a model and its configuration file to a directory, so that it can be re-loaded using the
+        Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the latest_model_name.
         Arguments:
             save_directory (`str` or `Path`):
@@ -139,7 +164,7 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ):
         """
-        Load a model and its configuration file from a directory or the HF Hub.
+        Loads a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
         Arguments:
             model_id (`str` or `Path`):
@@ -167,6 +192,7 @@ class ORTModel(OptimizedModel):
             config = PretrainedConfig.from_dict(config_dict)
             model = ORTModel.load_model(os.path.join(model_id, model_file_name))
             kwargs["model_save_dir"] = Path(model_id)
+            kwargs["latest_model_name"] = model_file_name
         # load model from hub
         else:
             # download model
@@ -233,14 +259,14 @@ class ORTModel(OptimizedModel):
                 task = "default"
         # 2. convert to temp dir
         # FIXME: transformers.onnx conversion doesn't support private models
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        preprocessor = get_preprocessor(model_id)
         model = FeaturesManager.get_model_from_feature(task, model_id)
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
         onnx_config = model_onnx_config(model.config)
 
         # export model
         export(
-            preprocessor=tokenizer,
+            preprocessor=preprocessor,
             model=model,
             config=onnx_config,
             opset=onnx_config.default_onnx_opset,
@@ -251,7 +277,7 @@ class ORTModel(OptimizedModel):
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
 
-FEAUTRE_EXTRACTION_SAMPLE = r"""
+FEAUTRE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
 
     ```python
@@ -300,14 +326,14 @@ class ORTModelForFeatureExtraction(ORTModel):
     pipeline_task = "default"
     auto_model_class = AutoModel
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + FEAUTRE_EXTRACTION_SAMPLE.format(
+        + FEAUTRE_EXTRACTION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForFeatureExtraction",
             checkpoint="optimum/all-MiniLM-L6-v2",
@@ -329,13 +355,12 @@ class ORTModelForFeatureExtraction(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return BaseModelOutput(
-            last_hidden_state=torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]),
-        )
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
-QUESTION_ANSWERING_SAMPLE = r"""
+QUESTION_ANSWERING_EXAMPLE = r"""
     Example of question answering:
 
     ```python
@@ -386,14 +411,14 @@ class ORTModelForQuestionAnswering(ORTModel):
     pipeline_task = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + QUESTION_ANSWERING_SAMPLE.format(
+        + QUESTION_ANSWERING_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForQuestionAnswering",
             checkpoint="optimum/roberta-base-squad2",
@@ -415,14 +440,13 @@ class ORTModelForQuestionAnswering(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
+        end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return QuestionAnsweringModelOutput(
-            start_logits=torch.from_numpy(outputs[self.model_outputs["start_logits"]]),
-            end_logits=torch.from_numpy(outputs[self.model_outputs["end_logits"]]),
-        )
+        return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
 
 
-SEQUENCE_CLASSIFICATION_SAMPLE = r"""
+SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
     Example of single-label classification:
 
     ```python
@@ -487,15 +511,15 @@ class ORTModelForSequenceClassification(ORTModel):
     pipeline_task = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + SEQUENCE_CLASSIFICATION_SAMPLE.format(
+        + SEQUENCE_CLASSIFICATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForSequenceClassification",
             checkpoint="optimum/distilbert-base-uncased-finetuned-sst-2-english",
@@ -518,13 +542,12 @@ class ORTModelForSequenceClassification(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return SequenceClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
-        )
+        return SequenceClassifierOutput(logits=logits)
 
 
-TOKEN_CLASSIFICATION_SAMPLE = r"""
+TOKEN_CLASSIFICATION_EXAMPLE = r"""
     Example of token classification:
 
     ```python
@@ -574,14 +597,14 @@ class ORTModelForTokenClassification(ORTModel):
     pipeline_task = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + TOKEN_CLASSIFICATION_SAMPLE.format(
+        + TOKEN_CLASSIFICATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForTokenClassification",
             checkpoint="optimum/bert-base-NER",
@@ -603,13 +626,12 @@ class ORTModelForTokenClassification(ORTModel):
             onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return TokenClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
-        )
+        return TokenClassifierOutput(logits=logits)
 
 
-TEXT_GENERATION_SAMPLE = r"""
+TEXT_GENERATION_EXAMPLE = r"""
     Example of text generation:
 
     ```python
@@ -658,19 +680,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     pipeline_task = "causal-lm"
     auto_model_class = AutoModelForCausalLM
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-
-    @property
-    def device(self) -> torch.device:
-        """
-        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
-        device).
-        """
-        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
         """
@@ -683,7 +697,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     @add_start_docstrings_to_model_forward(
         ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + TEXT_GENERATION_SAMPLE.format(
+        + TEXT_GENERATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForCausalLM",
             checkpoint="optimum/gpt2",
@@ -702,10 +716,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         }
         # run inference
         outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return CausalLMOutputWithCrossAttentions(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
-        )
+        return CausalLMOutputWithCrossAttentions(logits=logits)
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(
@@ -729,3 +742,87 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         else:
             # Ensure attention mask is on the same device as the input IDs
             return torch.ones(inputs.shape[:2], dtype=torch.long, device=inputs.device)
+
+
+IMAGE_CLASSIFICATION_EXAMPLE = r"""
+    Example of image classification:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from transformers import {processor_class}
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = preprocessor(images=image, return_tensors="pt")
+
+    >>> outputs = model(**inputs)
+    >>> logits = outputs.logits
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_image_classifier = pipeline("image-classification", model=model, feature_extractor=preprocessor)
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> pred = onnx_image_classifier(url)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model for image-classification tasks.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForImageClassification(ORTModel):
+    """
+    Image Classification model for ONNX.
+    """
+
+    # used in from_transformers to export model to onnx
+    pipeline_task = "image-classification"
+    auto_model_class = AutoModelForImageClassification
+
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
+        # create {name:idx} dict for model outputs
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + FEAUTRE_EXTRACTION_EXAMPLE.format(
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
+            model_class="ORTModelForImageClassification",
+            checkpoint="optimum/vit-base-patch16-224",
+        )
+    )
+    def forward(
+        self,
+        pixel_values: torch.Tensor,
+        **kwargs,
+    ):
+        # converts pytorch inputs into numpy inputs for onnx
+        onnx_inputs = {
+            "pixel_values": pixel_values.cpu().detach().numpy(),
+        }
+        # run inference
+        outputs = self.model.run(None, onnx_inputs)
+        # converts output to namedtuple for pipelines post-processing
+        return ImageClassifierOutput(
+            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+        )
