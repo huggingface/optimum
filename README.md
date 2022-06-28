@@ -92,7 +92,7 @@ tokenizer.save_pretrained(save_directory)
 
 ### Quantization
 
-Now let's see now how we can apply dynamic quantization with ONNX Runtime:
+Let's see now how we can apply dynamic quantization with ONNX Runtime:
 
 ```python
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
