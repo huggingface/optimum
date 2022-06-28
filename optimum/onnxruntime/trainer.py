@@ -817,7 +817,7 @@ class ORTTrainer(Trainer):
             self.model_wrapped = deepspeed_engine
             self.deepspeed = deepspeed_engine
 
-        model = self._wrap_model(self.model, training=False)
+        model = self._wrap_model(self.model, training=False, dataloader=dataloader)
 
         # if full fp16 or bf16 eval is wanted and this ``evaluation`` or ``predict`` isn't called
         # while ``train`` is running, cast it to the right dtype first and then put on device
@@ -827,10 +827,10 @@ class ORTTrainer(Trainer):
             elif args.bf16_full_eval:
                 model = model.to(dtype=torch.bfloat16, device=args.device)
 
-        batch_size = dataloader.batch_size
+        batch_size = self.args.eval_batch_size
 
         logger.info(f"***** Running {description} *****")
-        if isinstance(dataloader.dataset, collections.abc.Sized):
+        if has_length(dataloader):
             logger.info(f"  Num examples = {self.num_examples(dataloader)}")
         else:
             logger.info("  Num examples: Unknown")
@@ -840,7 +840,7 @@ class ORTTrainer(Trainer):
 
         self.callback_handler.eval_dataloader = dataloader
         # Do this before wrapping.
-        eval_dataset = dataloader.dataset
+        eval_dataset = getattr(dataloader, "dataset", None)
 
         if args.past_index >= 0:
             self._past = None
@@ -850,10 +850,13 @@ class ORTTrainer(Trainer):
         losses_host = None
         preds_host = None
         labels_host = None
+        inputs_host = None
+
         # losses/preds/labels on CPU (final containers)
         all_losses = None
         all_preds = None
         all_labels = None
+        all_inputs = None
         # Will be useful when we have an iterable dataset so don't know its length.
 
         observed_num_examples = 0
@@ -871,22 +874,33 @@ class ORTTrainer(Trainer):
             loss, logits, labels = self.prediction_step_ort(
                 model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
+            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
             # Update containers on host
             if loss is not None:
                 loss = loss.to(args.device)
                 losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
-            if logits is not None:
-                logits = logits.to(args.device)
-                logits = self._pad_across_processes(logits)
-                logits = self._nested_gather(logits)
-                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
                 labels = labels.to(args.device)
                 labels = self._pad_across_processes(labels)
                 labels = self._nested_gather(labels)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+            if inputs_decode is not None:
+                inputs_decode = self._pad_across_processes(inputs_decode)
+                inputs_decode = self._nested_gather(inputs_decode)
+                inputs_host = (
+                    inputs_decode
+                    if inputs_host is None
+                    else nested_concat(inputs_host, inputs_decode, padding_index=-100)
+                )
+            if logits is not None:
+                logits = logits.to(args.device)
+                logits = self._pad_across_processes(logits)
+                logits = self._nested_gather(logits)
+                if self.preprocess_logits_for_metrics is not None:
+                    logits = self.preprocess_logits_for_metrics(logits, labels)
+                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
 
             # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
@@ -897,6 +911,13 @@ class ORTTrainer(Trainer):
                 if preds_host is not None:
                     logits = nested_numpify(preds_host)
                     all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
+                if inputs_host is not None:
+                    inputs_decode = nested_numpify(inputs_host)
+                    all_inputs = (
+                        inputs_decode
+                        if all_inputs is None
+                        else nested_concat(all_inputs, inputs_decode, padding_index=-100)
+                    )
                 if labels_host is not None:
                     labels = nested_numpify(labels_host)
                     all_labels = (
@@ -904,7 +925,7 @@ class ORTTrainer(Trainer):
                     )
 
                 # Set back to None to begin a new accumulation
-                losses_host, preds_host, labels_host = None, None, None
+                losses_host, preds_host, inputs_host, labels_host = None, None, None, None
 
         if args.past_index and hasattr(self, "_past"):
             # Clean the state at the end of the evaluation loop
@@ -917,19 +938,27 @@ class ORTTrainer(Trainer):
         if preds_host is not None:
             logits = nested_numpify(preds_host)
             all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
+        if inputs_host is not None:
+            inputs_decode = nested_numpify(inputs_host)
+            all_inputs = (
+                inputs_decode if all_inputs is None else nested_concat(all_inputs, inputs_decode, padding_index=-100)
+            )
         if labels_host is not None:
             labels = nested_numpify(labels_host)
             all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
 
         # Number of samples
-        if not isinstance(eval_dataset, IterableDataset):
+        if has_length(eval_dataset):
             num_samples = len(eval_dataset)
         # The instance check is weird and does not actually check for the type, but whether the dataset has the right
         # methods. Therefore we need to make sure it also has the attribute.
         elif isinstance(eval_dataset, IterableDatasetShard) and hasattr(eval_dataset, "num_examples"):
             num_samples = eval_dataset.num_examples
         else:
-            num_samples = observed_num_examples
+            if has_length(dataloader):
+                num_samples = self.num_examples(dataloader)
+            else:  # both len(dataloader.dataset) and len(dataloader) fail
+                num_samples = observed_num_examples
 
         # Number of losses has been rounded to a multiple of batch_size and in a distributed training, the number of
         # samplers has been rounded to a multiple of batch_size, so we truncate.
@@ -939,10 +968,17 @@ class ORTTrainer(Trainer):
             all_preds = nested_truncate(all_preds, num_samples)
         if all_labels is not None:
             all_labels = nested_truncate(all_labels, num_samples)
+        if all_inputs is not None:
+            all_inputs = nested_truncate(all_inputs, num_samples)
 
         # Metrics!
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
-            metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
+            if args.include_inputs_for_metrics:
+                metrics = self.compute_metrics(
+                    EvalPrediction(predictions=all_preds, label_ids=all_labels, inputs=all_inputs)
+                )
+            else:
+                metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
         else:
             metrics = {}
 
@@ -1015,13 +1051,13 @@ class ORTTrainer(Trainer):
 
         args = self.args
 
-        if not isinstance(dataloader.dataset, collections.abc.Sized):
-            raise ValueError("dataset must implement __len__")
+        if not has_length(dataloader):
+            raise ValueError("dataloader must implement a working __len__")
+
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
         # if eval is called w/o train init deepspeed here
         if args.deepspeed and not self.deepspeed:
-
             # XXX: eval doesn't have `resume_from_checkpoint` arg but we should be able to do eval
             # from the checkpoint eventually
             deepspeed_engine, _, _ = deepspeed_init(self, num_training_steps=0, resume_from_checkpoint=None)
@@ -1034,7 +1070,7 @@ class ORTTrainer(Trainer):
             deepspeed_engine.optimizer.optimizer = None
             deepspeed_engine.lr_scheduler = None
 
-        model = self._wrap_model(self.model, training=False)
+        model = self._wrap_model(self.model, training=False, dataloader=dataloader)
 
         # if full fp16 or bf16 eval is wanted and this ``evaluation`` or ``predict`` isn't called
         # while ``train`` is running, cast it to the right dtype first and then put on device
@@ -1052,6 +1088,7 @@ class ORTTrainer(Trainer):
         losses_host: torch.Tensor = None
         preds_host: Union[torch.Tensor, List[torch.Tensor]] = None
         labels_host: Union[torch.Tensor, List[torch.Tensor]] = None
+        inputs_host: Union[torch.Tensor, List[torch.Tensor]] = None
 
         world_size = max(1, args.world_size)
 
@@ -1064,6 +1101,7 @@ class ORTTrainer(Trainer):
                 make_multiple_of = dataloader.sampler.batch_size
             preds_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
             labels_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+            inputs_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
 
         model.eval()
 
@@ -1076,6 +1114,8 @@ class ORTTrainer(Trainer):
             loss, logits, labels = self.prediction_step_ort(
                 model, self.infer_sess, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
+            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
+
             if loss is not None:
                 loss = loss.to(args.device)
                 losses = loss.repeat(batch_size)
@@ -1086,6 +1126,12 @@ class ORTTrainer(Trainer):
             if labels is not None:
                 labels = labels.to(args.device)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+            if inputs_decode is not None:
+                inputs_host = (
+                    inputs_decode
+                    if inputs_host is None
+                    else nested_concat(inputs_host, inputs_decode, padding_index=-100)
+                )
             self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
 
             # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
@@ -1094,9 +1140,10 @@ class ORTTrainer(Trainer):
                 if not prediction_loss_only:
                     preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
                     labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+                    inputs_gatherer.add_arrays(self._gather_and_numpify(inputs_host, "eval_inputs_ids"))
 
                 # Set back to None to begin a new accumulation
-                losses_host, preds_host, labels_host = None, None, None
+                losses_host, preds_host, labels_host, inputs_host = None, None, None, None
 
         if args.past_index and hasattr(self, "_past"):
             # Clean the state at the end of the evaluation loop
@@ -1107,13 +1154,20 @@ class ORTTrainer(Trainer):
         if not prediction_loss_only:
             preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
             labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+            inputs_gatherer.add_arrays(self._gather_and_numpify(inputs_host, "eval_inputs_ids"))
 
         eval_loss = eval_losses_gatherer.finalize()
         preds = preds_gatherer.finalize() if not prediction_loss_only else None
         label_ids = labels_gatherer.finalize() if not prediction_loss_only else None
+        inputs_ids = inputs_gatherer.finalize() if not prediction_loss_only else None
 
         if self.compute_metrics is not None and preds is not None and label_ids is not None:
-            metrics = self.compute_metrics(EvalPrediction(predictions=preds, label_ids=label_ids))
+            if args.include_inputs_for_metrics:
+                metrics = self.compute_metrics(
+                    EvalPrediction(predictions=preds, label_ids=label_ids, inputs=inputs_ids)
+                )
+            else:
+                metrics = self.compute_metrics(EvalPrediction(predictions=preds, label_ids=label_ids))
         else:
             metrics = {}
 
@@ -1165,7 +1219,7 @@ class ORTTrainer(Trainer):
                 )
             else:
                 if has_labels:
-                    with self.autocast_smart_context_manager():
+                    with self.compute_loss_context_manager():
                         loss, outputs = self.compute_loss_ort(
                             model, inputs, input_names, output_names, return_outputs=True
                         )
@@ -1177,7 +1231,7 @@ class ORTTrainer(Trainer):
                         logits = outputs[1:]
                 else:
                     loss = None
-                    with self.autocast_smart_context_manager():
+                    with self.compute_loss_context_manager():
                         input_feed = dict(
                             map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
                         )
@@ -1245,7 +1299,7 @@ class ORTTrainer(Trainer):
         Load and export a model to an ONNX Intermediate Representation (IR).
 
         Args:
-            onnx_model_path (`os.PathLike`):
+            model_path (`os.PathLike`):
                 The path used to save the model exported to an ONNX Intermediate Representation (IR).
             device (`str`, *optional*, defaults to `cpu`):
                 The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
@@ -1268,7 +1322,7 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        if parse(transformers.__version__) > parse("4.19.2"):
+        if parse(transformers.__version__) >= parse("4.20.0"):
             _ = export(
                 preprocessor=self.tokenizer,
                 model=model,
@@ -1292,7 +1346,7 @@ class ORTTrainer(Trainer):
                 output=model_path,
             )
 
-    def _wrap_model(self, model, training=True):
+    def _wrap_model(self, model, training=True, dataloader=None):
         if self.args.use_ipex:
             raise NotImplementedError(
                 "The optimization with IPEX(Intel® Extension for PyTorch) is not supported by `ORTTrainer` yet."
