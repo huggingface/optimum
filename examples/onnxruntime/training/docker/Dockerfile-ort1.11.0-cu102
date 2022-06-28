@@ -44,7 +44,7 @@ ENV PATH /opt/conda/envs/venv_ort/bin:$PATH
 ENV CONDA_DEFAULT_ENV $venv_ort
 
 # Install onnxruntime-training dependencies
-RUN pip3 install --upgrade pip
+RUN pip install --upgrade pip
 RUN pip install manimlib manimce
 RUN pip install onnx==1.10.2 ninja
 RUN pip install torch==1.9.0+cu102 torchvision==0.10.0+cu102 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
