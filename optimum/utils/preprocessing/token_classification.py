@@ -46,8 +46,6 @@ class TokenClassificationProcessing(DatasetProcessing):
         else:
             self.label_list = get_label_list(raw_datasets["train"][self.ref_keys[0]])
 
-        max_eval_samples = 100  # TODO remove this
-
         # Preprocessing the raw_datasets
         def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
             # Tokenize the texts
@@ -62,8 +60,8 @@ class TokenClassificationProcessing(DatasetProcessing):
             return tokenized_inputs
 
         eval_dataset = raw_datasets[self.eval_split]
-        if max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
 
         datasets_dict = {"eval": eval_dataset}
 

@@ -44,6 +44,8 @@ class OnnxRuntimeRun(Run):
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]
 
+        self.time_benchmark_args = run_config["time_benchmark_args"]
+
         self.model_path = "model.onnx"
         self.quantized_model_path = "quantized_model.onnx"
 
@@ -108,13 +110,23 @@ class OnnxRuntimeRun(Run):
 
         # onnxruntime benchmark
         ort_benchmark = TimeBenchmark(
-            self.ort_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
+            self.ort_model,
+            input_length=input_length,
+            batch_size=batch_size,
+            has_token_type_ids=has_token_type_ids,
+            warmup_runs=self.time_benchmark_args["warmup_runs"],
+            duration=self.time_benchmark_args["duration"],
         )
         optimized_time_metrics = ort_benchmark.execute()
 
         # pytorch benchmark
         torch_benchmark = TimeBenchmark(
-            self.torch_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
+            self.torch_model,
+            input_length=input_length,
+            batch_size=batch_size,
+            has_token_type_ids=has_token_type_ids,
+            warmup_runs=self.time_benchmark_args["warmup_runs"],
+            duration=self.time_benchmark_args["duration"],
         )
         baseline_time_metrics = torch_benchmark.execute()
 

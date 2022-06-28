@@ -57,15 +57,6 @@ class QuantizationApproach(str, Enum):
     dynamic = "dynamic"
 
 
-def cpu_info_command():
-    if platform.system() == "Linux":
-        return "lscpu"
-    elif platform.system() == "Darwin":
-        return "sysctl -a | grep machdep.cpu"
-    else:
-        raise NotImplementedError("OS not supported.")
-
-
 @generate_doc_dataclass
 @dataclass
 class Calibration:
@@ -117,31 +108,6 @@ class FrameworkArgs:
 
 @generate_doc_dataclass
 @dataclass
-class Versions:
-    transformers: str = field(metadata={"description": "Transformers version."})
-    optimum: str = field(metadata={"description": "Optimum version."})
-    optimum_hash: Optional[str] = field(
-        default=None, metadata={"description": "Optimum commit hash, in case the dev version is used."}
-    )
-    onnxruntime: Optional[str] = field(default=None, metadata={"description": "Onnx Runtime version."})
-    torch_ort: Optional[str] = field(default=None, metadata={"description": "Torch-ort version."})
-
-
-@generate_doc_dataclass
-@dataclass
-class Evaluation:
-    time: List[Dict] = field(metadata={"description": "Measures of inference time (latency, throughput)."})
-    others: Dict = field(metadata={"description": "Metrics measuring the performance on the given task."})
-
-    def __post_init__(self):
-        # validate `others`
-        assert "baseline" in self.others
-        assert "optimized" in self.others
-        assert self.others["baseline"].keys() == self.others["optimized"].keys()
-
-
-@generate_doc_dataclass
-@dataclass
 class DatasetArgs:
     """Parameters related to the dataset."""
 
@@ -171,6 +137,19 @@ class TaskArgs:
         metadata={
             "description": "Text classification specific. Set whether the task is regression (output = one float)."
         },
+    )
+
+
+@generate_doc_dataclass
+@dataclass
+class BenchmarkTimeArgs:
+    """Parameters related to time benchmark."""
+
+    duration: Optional[int] = field(
+        default=30, metadata={"description": "Duration in seconds of the time evaluation."}
+    )
+    warmup_runs: Optional[int] = field(
+        default=10, metadata={"description": "Number of warmup calls to forward() before the time evaluation."}
     )
 
 
@@ -216,6 +195,13 @@ class _RunDefaults:
         metadata={
             "description": "Whether the quantization is to be done with Quantization-Aware Training (not supported)."
         },
+    )
+    max_eval_samples: Optional[int] = field(
+        default=None,
+        metadata={"description": "Maximum number of samples to use from the evaluation dataset for evaluation."},
+    )
+    time_benchmark_args: Optional[BenchmarkTimeArgs] = field(
+        default=BenchmarkTimeArgs(), metadata={"description": "Parameters related to time benchmark."}
     )
 
 
