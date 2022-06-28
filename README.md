@@ -146,7 +146,7 @@ def preprocess_fn(ex, tokenizer):
 calibration_dataset = quantizer.get_calibration_dataset(
     "glue",
     dataset_config_name="sst2",
-    preprocess_function=partial(preprocess_fn, tokenizer=quantizer.tokenizer),
+    preprocess_function=partial(preprocess_fn, tokenizer=quantizer.preprocessor),
     num_samples=50,
     dataset_split="train",
 )

@@ -30,6 +30,10 @@ ONNX_WEIGHTS_NAME = "model.onnx"
 OPTIMIZED_ONNX_WEIGHTS_NAME = "optimized_model.onnx"
 QUANTIZED_ONNX_WEIGHTS_NAME = "q8_model.onnx"
 
+ONNX_ENCODER_NAME = "encoder_model.onnx"
+ONNX_DECODER_NAME = "decoder_model.onnx"
+ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
+
 
 def _is_gpu_available():
     """
@@ -57,6 +61,8 @@ class ORTConfigManager:
         "albert": ("num_attention_heads", "hidden_size", "bert"),
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
         "distilbert": ("n_heads", "dim", "bert"),
+        "deberta": ("num_attention_heads", "hidden_size", "bert"),
+        "deberta-v2": ("num_attention_heads", "hidden_size", "bert"),
         "electra": ("num_attention_heads", "hidden_size", "bert"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "bart": ("encoder_attention_heads", "d_model", "bart"),
