@@ -71,7 +71,7 @@ if is_onnxruntime_available():
         "zero-shot-classification": {
             "impl": ZeroShotClassificationPipeline,
             "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
-            "default": "distilbert-base-uncased-finetuned-sst-2-english",
+            "default": "facebook/bart-large-mnli",
         },
         "text-generation": {
             "impl": TextGenerationPipeline,
