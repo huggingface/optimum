@@ -57,6 +57,15 @@ class QuantizationApproach(str, Enum):
     dynamic = "dynamic"
 
 
+def cpu_info_command():
+    if platform.system() == "Linux":
+        return "lscpu"
+    elif platform.system() == "Darwin":
+        return "sysctl -a | grep machdep.cpu"
+    else:
+        raise NotImplementedError("OS not supported.")
+
+
 @generate_doc_dataclass
 @dataclass
 class Calibration:

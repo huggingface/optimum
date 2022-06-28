@@ -113,7 +113,7 @@ class OnnxRuntimeRun(Run):
             self.ort_model,
             input_length=input_length,
             batch_size=batch_size,
-            has_token_type_ids=has_token_type_ids,
+            model_input_names=model_input_names,
             warmup_runs=self.time_benchmark_args["warmup_runs"],
             duration=self.time_benchmark_args["duration"],
         )
@@ -124,7 +124,7 @@ class OnnxRuntimeRun(Run):
             self.torch_model,
             input_length=input_length,
             batch_size=batch_size,
-            has_token_type_ids=has_token_type_ids,
+            model_input_names=model_input_names,
             warmup_runs=self.time_benchmark_args["warmup_runs"],
             duration=self.time_benchmark_args["duration"],
         )
