@@ -22,6 +22,8 @@ RUN apt-get autoremove -y
 RUN apt-get update
 RUN apt-get install -y wget bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 git mercurial subversion && \
         apt-get clean
+RUN apt-get install sox ffmpeg libcairo2 libcairo2-dev
+RUN apt-get install texlive-full
 RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-x86_64.sh -O ~/anaconda.sh && \
         /bin/bash ~/anaconda.sh -b -p /opt/conda && \
         rm ~/anaconda.sh && \
@@ -42,6 +44,8 @@ ENV PATH /opt/conda/envs/venv_ort/bin:$PATH
 ENV CONDA_DEFAULT_ENV $venv_ort
 
 # Install onnxruntime-training dependencies
+RUN pip install --upgrade pip
+RUN pip install manimlib manimce
 RUN pip install onnx==1.10.2 ninja
 RUN pip install torch==1.9.0+cu102 torchvision==0.10.0+cu102 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install onnxruntime-training==1.11.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu102.html
