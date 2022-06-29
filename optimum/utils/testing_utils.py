@@ -16,6 +16,20 @@ def require_hf_token(test_case):
         return test_case
 
 
+def require_sigopt_token_and_project(test_case):
+    """
+    Decorator marking a test that requires sigopt API token.
+    """
+    use_auth_token = os.environ.get("SIGOPT_API_TOKEN", None)
+    has_sigopt_project = os.environ.get("SIGOPT_PROJECT", None)
+    if use_auth_token or has_sigopt_project is None:
+        return unittest.skip("test requires an environment variable `SIGOPT_API_TOKEN` and `SIGOPT_PROJECT`")(
+            test_case
+        )
+    else:
+        return test_case
+
+
 def require_ort_training(test_case):
     """
     Decorator marking a test that requires onnxruntime-training and torch_ort correctly installed and configured.

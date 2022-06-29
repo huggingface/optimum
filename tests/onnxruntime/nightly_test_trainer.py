@@ -47,14 +47,19 @@ from transformers.testing_utils import (
     require_ray,
     require_sigopt,
     require_torch,
-    require_torch_bf16,
     require_torch_gpu,
     require_wandb,
     slow,
 )
+from transformers.trainer_utils import (
+    default_hp_space_optuna,
+    default_hp_space_ray,
+    default_hp_space_sigopt,
+    default_hp_space_wandb,
+)
 
 from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
-from optimum.utils.testing_utils import require_hf_token, require_ort_training
+from optimum.utils.testing_utils import require_hf_token, require_ort_training, require_sigopt_token_and_project
 from parameterized import parameterized
 
 
@@ -409,7 +414,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             print("Prediction results:\n", prediction)
             gc.collect()
 
-    @require_torch_bf16
+    @slow
     @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -576,9 +581,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             gc.collect()
 
 
-# @unittest.skip("Skip the hyperparameter search with Optuna")
-@require_optuna
-class ORTTrainerHyperParameterOptunaIntegrationTest(unittest.TestCase):
+class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
     def setUp(self):
         self.model_name = "bert-base-cased"
         self.feature = "sequence-classification"
@@ -588,17 +591,9 @@ class ORTTrainerHyperParameterOptunaIntegrationTest(unittest.TestCase):
         self.max_valid_samples = 50
         self.max_test_samples = 20
 
-    def test_hyperparameter_search(self):
-        def hp_space(trial):
-            return {
-                "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
-                "num_train_epochs": trial.suggest_int("num_train_epochs", 1, 5),
-                "seed": trial.suggest_int("seed", 1, 40),
-                "per_device_train_batch_size": trial.suggest_categorical(
-                    "per_device_train_batch_size", [4, 8, 16, 32, 64]
-                ),
-            }
-
+    @unittest.skip("Skip the hyperparameter search with Optuna")
+    @require_optuna
+    def test_hyperparameter_search_optuna(self):
         def model_init():
             return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
 
@@ -636,36 +631,149 @@ class ORTTrainerHyperParameterOptunaIntegrationTest(unittest.TestCase):
                 model_init=model_init,
             )
 
-            trainer.hyperparameter_search(direction="minimize", hp_space=hp_space, n_trials=4)
+            trainer.hyperparameter_search(direction="minimize", hp_space=default_hp_space_optuna, n_trials=2)
+            gc.collect()
 
+    @unittest.skip("Skip the hyperparameter search with Ray")
+    @require_ray
+    def test_hyperparameter_search_ray(self):
+        def model_init():
+            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
 
-@unittest.skip("Skip")
-@require_ray
-class ORTTrainerHyperParameterRayIntegrationTest(unittest.TestCase):
-    pass
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                logging_steps=1,
+                evaluation_strategy=IntervalStrategy.EPOCH,
+                save_strategy=IntervalStrategy.EPOCH,
+                disable_tqdm=True,
+                load_best_model_at_end=True,
+                logging_dir="runs",
+                run_name="test",
+            )
 
+            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
+                self.feature
+            )(
+                self.model_name,
+                _TASKS_DATASETS_CONFIGS[self.feature],
+                self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+            trainer = ORTTrainer(
+                model=None,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=valid_dataset,
+                compute_metrics=compute_metrics,
+                tokenizer=tokenizer,
+                data_collator=data_collator,
+                feature=self.feature,
+                model_init=model_init,
+            )
 
-@unittest.skip("Skip")
-@slow
-@require_sigopt
-class ORTTrainerHyperParameterSigOptIntegrationTest(unittest.TestCase):
-    pass
+            trainer.hyperparameter_search(
+                direction="minimize", backend="ray", hp_space=default_hp_space_ray, n_trials=2
+            )
+            gc.collect()
+
+    @unittest.skip("Skip the hyperparameter search with SigOpt")
+    @require_sigopt
+    @require_sigopt_token_and_project
+    def test_hyperparameter_search_sigopt(self):
+        def model_init():
+            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                logging_steps=1,
+                evaluation_strategy=IntervalStrategy.EPOCH,
+                save_strategy=IntervalStrategy.EPOCH,
+                disable_tqdm=True,
+                load_best_model_at_end=True,
+                logging_dir="runs",
+                run_name="test",
+            )
+
+            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
+                self.feature
+            )(
+                self.model_name,
+                _TASKS_DATASETS_CONFIGS[self.feature],
+                self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+            trainer = ORTTrainer(
+                model=None,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=valid_dataset,
+                compute_metrics=compute_metrics,
+                tokenizer=tokenizer,
+                data_collator=data_collator,
+                feature=self.feature,
+                model_init=model_init,
+            )
+
+            trainer.hyperparameter_search(
+                direction="minimize", backend="sigopt", hp_space=default_hp_space_sigopt, n_trials=2
+            )
+            gc.collect()
+
+    @unittest.skip("Skip the hyperparameter search with WanB")
+    @require_wandb
+    def test_hyperparameter_search_wandb(self):
+        def model_init():
+            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                logging_steps=1,
+                evaluation_strategy=IntervalStrategy.EPOCH,
+                save_strategy=IntervalStrategy.EPOCH,
+                disable_tqdm=True,
+                load_best_model_at_end=True,
+                logging_dir="runs",
+                run_name="test",
+            )
+
+            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
+                self.feature
+            )(
+                self.model_name,
+                _TASKS_DATASETS_CONFIGS[self.feature],
+                self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+            trainer = ORTTrainer(
+                model=None,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=valid_dataset,
+                compute_metrics=compute_metrics,
+                tokenizer=tokenizer,
+                data_collator=data_collator,
+                feature=self.feature,
+                model_init=model_init,
+            )
+
+            trainer.hyperparameter_search(
+                direction="minimize", backend="wandb", hp_space=default_hp_space_wandb, n_trials=2, anonymous="must"
+            )
+            gc.collect()
 
 
 @unittest.skip("Skip")
 @require_torch
 class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
-    pass
-
-
-@unittest.skip("Skip")
-@require_torch
-@require_wandb
-class ORTTrainerHyperParameterWandbIntegrationTest(unittest.TestCase):
-    pass
-
-
-class TrainerOptimizerChoiceTest(unittest.TestCase):
     pass
 
 

@@ -18,6 +18,7 @@ python -m torch_ort.configure
 pip install transformers datasets
 pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized
 pip install fairscale deepspeed mpi4py
+# pip install optuna ray sigopt wandb # Hyper parameter search
 
 # Install apex
 # git clone https://github.com/NVIDIA/apex \
