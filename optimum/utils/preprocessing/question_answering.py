@@ -1,8 +1,8 @@
 from functools import partial
 from typing import Dict, List
 
-import tqdm
 from datasets import Dataset, Metric, load_dataset
+from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase, QuestionAnsweringPipeline
 
 from .base import DatasetProcessing
