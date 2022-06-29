@@ -107,7 +107,9 @@ class OnnxRuntimeRun(Run):
         model_input_names = set(self.preprocessor.model_input_names)
 
         # onnxruntime benchmark
-        ort_benchmark = TimeBenchmark(self.ort_model, input_length, batch_size, model_input_names=model_input_names)
+        ort_benchmark = TimeBenchmark(
+            self.ort_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
+        )
         optimized_time_metrics = ort_benchmark.execute()
 
         # pytorch benchmark
