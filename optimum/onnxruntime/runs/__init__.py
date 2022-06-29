@@ -2,6 +2,7 @@ import copy
 import os
 
 from datasets import load_metric
+from transformers import PreTrainedTokenizerBase
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
@@ -39,6 +40,8 @@ class OnnxRuntimeRun(Run):
             opset=run_config["framework_args"]["opset"],
         )
 
+        if not isinstance(quantizer.preprocessor, PreTrainedTokenizerBase):
+            raise NotImplementedError("Only tokenizer preprocessor is supported for now.")
         self.tokenizer = copy.deepcopy(quantizer.preprocessor)
 
         self.batch_sizes = run_config["batch_sizes"]
@@ -161,8 +164,8 @@ class OnnxRuntimeRun(Run):
             optimized_metrics_dict = self.processor.get_metrics(
                 predictions=all_preds_optimized, references=all_labels, metric=metric
             )
-            self.return_body["evaluation"]["others"]["baseline"][metric_name] = baseline_metrics_dict
-            self.return_body["evaluation"]["others"]["optimized"][metric_name] = optimized_metrics_dict
+            self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
+            self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
 
     def finalize(self):
         if os.path.isfile(self.quantized_model_path):

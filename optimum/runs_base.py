@@ -17,7 +17,7 @@ from .utils.preprocessing import (
     TextClassificationProcessing,
     TokenClassificationProcessing,
 )
-from .utils.runs import RunConfig
+from .utils.runs import RunConfig, cpu_info_command
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -68,7 +68,7 @@ class Run:
             sampler=optuna.samplers.GridSampler(search_space),
         )
 
-        cpu_info = subprocess.check_output(["lscpu"]).decode("utf-8")
+        cpu_info = subprocess.check_output([cpu_info_command()], shell=True).decode("utf-8")
 
         optimum_hash = None
         if "dev" in optimum_version.__version__:
