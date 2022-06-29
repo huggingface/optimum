@@ -445,6 +445,6 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
                 return functools.reduce(make_reduce_fn(False), transformations)(graph_module)
 
             def reverse(self, graph_module):
-                return functools.reduce(make_reduce_fn(True), transformations)(graph_module)
+                return functools.reduce(make_reduce_fn(True), reversed(transformations))(graph_module)
 
     return ComposeTransformation()
