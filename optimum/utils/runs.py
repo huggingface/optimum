@@ -276,3 +276,5 @@ class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
             self.calibration = Calibration(**self.calibration)
         if isinstance(self.task_args, dict):
             self.task_args = TaskArgs(**self.task_args)
+        if isinstance(self.time_benchmark_args, dict):
+            self.time_benchmark_args = BenchmarkTimeArgs(**self.time_benchmark_args)

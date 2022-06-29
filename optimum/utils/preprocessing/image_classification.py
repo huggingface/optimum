@@ -2,6 +2,7 @@ from functools import partial
 from typing import Dict, List
 
 import torch
+import tqdm
 from datasets import Dataset, Metric, load_dataset
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import FeatureExtractionMixin, ImageClassificationPipeline
@@ -80,7 +81,7 @@ class ImageClassificationProcessing(DatasetProcessing):
     def run_inference(self, eval_dataset: Dataset, pipeline: ImageClassificationPipeline):
         all_labels = [label for label in eval_dataset[self.ref_keys[0]]]
         all_preds = []
-        for _, inputs in enumerate(eval_dataset):
+        for _, inputs in enumerate(tqdm(eval_dataset, miniters=max(1, len(eval_dataset)))):
             pred = pipeline(inputs[self.data_keys["primary"]])
 
             pred_label = max(pred, key=lambda x: x["score"])["label"]

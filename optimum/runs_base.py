@@ -101,6 +101,8 @@ class Run:
                 "time": [],
                 "others": {"baseline": {}, "optimized": {}},
             },
+            "max_eval_samples": run_config["max_eval_samples"],
+            "time_benchmark_args": run_config["time_benchmark_args"],
         }
 
     def launch(self):
@@ -116,6 +118,7 @@ class Run:
             self.launch_eval()
         finally:
             self.finalize()
+            print("Finished run.")
 
         return self.return_body
 
@@ -257,15 +260,24 @@ class TimeBenchmark:
             output = self.model.forward(**inputs)
             outputs.append(output[0])
 
-        benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
-        while sum(self.latencies) < benchmark_duration_ns:
-            # TODO not trak GPU/CPU <--> numpy/torch, need to change the implementation of forward
-            with self.track():
-                self.model.forward(**inputs)
+        if self.benchmark_duration != 0:
+            benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
+            print(f"Running time tracking in {self.benchmark_duration:.1f}s.")
+            while sum(self.latencies) < benchmark_duration_ns:
+                # TODO not trak GPU/CPU <--> numpy/torch, need to change the implementation of forward
+                with self.track():
+                    self.model.forward(**inputs)
 
-        self.finalize(benchmark_duration_ns)
+            self.finalize(benchmark_duration_ns)
 
-        return self.to_dict()
+            return self.to_dict()
+        else:
+            benchmarks_stats = {
+                "nb_forwards": 0,
+                "throughput": -1,
+                "latency_mean": -1,
+            }
+            return benchmarks_stats
 
 
 task_processing_map = {
