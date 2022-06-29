@@ -73,8 +73,10 @@ class ORTOptimizerTest(unittest.TestCase):
             with torch.no_grad():
                 original_outputs = optimizer.model(**optimizer.preprocessor(input, return_tensors="pt"))
             session = InferenceSession(optimized_model_path.as_posix(), providers=["CPUExecutionProvider"])
-            optimized_outputs = session.run(None, dict(optimizer.preprocessor(input, return_tensors="np")))
-            self.assertTrue(np.allclose(original_outputs.logits.cpu().numpy(), optimized_outputs[0], atol=1e-4))
+            ort_input = dict(optimizer.preprocessor(input, return_tensors="np"))
+            ort_input = {k: v.astype(np.int64) for k, v in ort_input.items()}
+            ort_outputs = session.run(None, ort_input)
+            self.assertTrue(np.allclose(original_outputs.logits.cpu().numpy(), ort_outputs[0], atol=1e-4))
             gc.collect()
 
     def test_optimization_details(self):
@@ -104,7 +106,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         "bert-base-cased": 72,
         "roberta-base": 72,
         "distilbert-base-uncased": 36,
-        # "facebook/bart-base": 96,
+        "facebook/bart-base": 96,
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL.items())
