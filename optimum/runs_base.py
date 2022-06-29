@@ -284,4 +284,5 @@ task_processing_map = {
     "text-classification": TextClassificationProcessing,
     "token-classification": TokenClassificationProcessing,
     "question-answering": QuestionAnsweringProcessing,
+    "image-classification": ImageClassificationProcessing,
 }
