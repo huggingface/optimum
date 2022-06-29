@@ -15,6 +15,7 @@
 # limitations under the License.
 """
 Fine-tuning the library models for masked language modeling (BERT, ALBERT, RoBERTa...) on a text file or a dataset.
+
 Here is the full list of checkpoints on the hub that can be fine-tuned by this script:
 https://huggingface.co/models?filter=fill-mask
 """
@@ -48,7 +49,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
-
+from optimum.onnxruntime import ORTTrainer
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.20.0.dev0")
@@ -113,6 +114,10 @@ class ModelArguments:
                 "with private models)."
             )
         },
+    )
+    ort: bool = field(
+        default=False,
+        metadata={"help": "Will use ORT to accelerate training when set to true."},
     )
 
     def __post_init__(self):
@@ -535,20 +540,32 @@ def main():
         mlm_probability=data_args.mlm_probability,
         pad_to_multiple_of=8 if pad_to_multiple_of_8 else None,
     )
-
+    
     # Initialize our Trainer
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=eval_dataset if training_args.do_eval else None,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-        preprocess_logits_for_metrics=preprocess_logits_for_metrics
-        if training_args.do_eval and not is_torch_tpu_available()
-        else None,
-    )
+    # if ort flag exists, use the ORTTrainer -- otherwise, use the transformers Trainer
+    if model_args.ort:
+        trainer = ORTTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=eval_dataset if training_args.do_eval else None,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+        )
+    else:
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=eval_dataset if training_args.do_eval else None,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+            preprocess_logits_for_metrics=preprocess_logits_for_metrics
+            if training_args.do_eval and not is_torch_tpu_available()
+            else None,
+        )
 
     # Training
     if training_args.do_train:
