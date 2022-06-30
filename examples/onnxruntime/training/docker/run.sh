@@ -28,4 +28,4 @@ pip install fairscale deepspeed mpi4py
 # pip install bitsandbytes-cuda113
 
 # Run the test
-python -m unittest tests/onnxruntime/nightly_test_onnxruntime.py
+python -m unittest tests/onnxruntime/nightly_test_trainer.py
