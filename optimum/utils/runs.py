@@ -99,7 +99,7 @@ class Calibration:
 @generate_doc_dataclass
 @dataclass
 class FrameworkArgs:
-    opset: Optional[int] = field(default=15, metadata={"description": "ONNX opset version to export the model with."})
+    opset: Optional[int] = field(default=11, metadata={"description": "ONNX opset version to export the model with."})
     optimization_level: Optional[int] = field(default=0, metadata={"description": "ONNX optimization level."})
 
     def __post_init__(self):
