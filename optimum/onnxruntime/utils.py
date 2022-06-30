@@ -56,6 +56,7 @@ class ORTConfigManager:
         "bert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
+        "codegen": ("n_head", "n_embd", "gpt2"),
         "distilbert": ("n_heads", "dim", "bert"),
         "electra": ("num_attention_heads", "hidden_size", "bert"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
