@@ -30,11 +30,7 @@ def require_sigopt_token_and_project(test_case):
         return test_case
 
 
-def require_ort_training(test_case):
-    """
-    Decorator marking a test that requires onnxruntime-training and torch_ort correctly installed and configured.
-    These tests are skipped otherwise.
-    """
+def is_ort_training_available():
     is_ort_train_available = importlib.util.find_spec("onnxruntime.training") is not None
 
     if importlib.util.find_spec("torch_ort") is not None:
@@ -44,7 +40,15 @@ def require_ort_training(test_case):
         except subprocess.CalledProcessError:
             is_torch_ort_configured = False
 
+    return is_ort_train_available and is_torch_ort_configured
+
+
+def require_ort_training(test_case):
+    """
+    Decorator marking a test that requires onnxruntime-training and torch_ort correctly installed and configured.
+    These tests are skipped otherwise.
+    """
     return unittest.skipUnless(
-        is_ort_train_available and is_torch_ort_configured,
+        is_ort_training_available(),
         "test requires torch_ort correctly installed and configured",
     )(test_case)

@@ -57,6 +57,13 @@ from transformers.trainer_utils import (
     default_hp_space_sigopt,
     default_hp_space_wandb,
 )
+from transformers.training_args import OptimizerNames
+from transformers.utils import is_apex_available, is_bitsandbytes_available
+
+
+if is_torch_available():
+    import torch
+    import transformers.optimization
 
 from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
 from optimum.utils.testing_utils import require_hf_token, require_ort_training, require_sigopt_token_and_project
@@ -771,10 +778,135 @@ class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
             gc.collect()
 
 
-@unittest.skip("Skip")
+# List supported optimizers
+optim_test_params = []
+if is_torch_available():
+    default_adam_kwargs = {
+        "betas": (TrainingArguments.adam_beta1, TrainingArguments.adam_beta2),
+        "eps": TrainingArguments.adam_epsilon,
+        "lr": TrainingArguments.learning_rate,
+    }
+
+    optim_test_params = [
+        (
+            OptimizerNames.ADAMW_HF,
+            transformers.optimization.AdamW,
+            default_adam_kwargs,
+        ),
+        (
+            OptimizerNames.ADAMW_HF.value,
+            transformers.optimization.AdamW,
+            default_adam_kwargs,
+        ),
+        (
+            OptimizerNames.ADAMW_TORCH,
+            torch.optim.AdamW,
+            default_adam_kwargs,
+        ),
+        (
+            OptimizerNames.ADAFACTOR,
+            transformers.optimization.Adafactor,
+            {
+                "scale_parameter": False,
+                "relative_step": False,
+                "lr": TrainingArguments.learning_rate,
+            },
+        ),
+    ]
+
+    if is_apex_available():
+        import apex
+
+        optim_test_params.append(
+            (
+                OptimizerNames.ADAMW_APEX_FUSED,
+                apex.optimizers.FusedAdam,
+                default_adam_kwargs,
+            )
+        )
+
+    if is_bitsandbytes_available():
+        import bitsandbytes as bnb
+
+        optim_test_params.append(
+            (
+                OptimizerNames.ADAMW_BNB,
+                bnb.optim.Adam8bit,
+                default_adam_kwargs,
+            )
+        )
+
+
+# @unittest.skip("Skip the optimizer choice tests.")
 @require_torch
 class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
-    pass
+    def setUp(self):
+        super().setUp()
+        args = TrainingArguments("..")
+        self.n_epochs = min(args.num_train_epochs, 1)
+        self.per_device_train_batch_size = args.per_device_train_batch_size
+        self.per_device_eval_batch_size = args.per_device_eval_batch_size
+
+        self.max_seq_length = 128
+        self.max_train_samples = 200
+        self.max_valid_samples = 50
+        self.max_test_samples = 20
+
+        self.warmup_steps = 500
+        self.weight_decay = 0.01
+
+        self.model_name = "bert-base-cased"
+        self.feature = "sequence-classification"
+
+    def check_optim_and_kwargs(self, optim: OptimizerNames, mandatory_kwargs, expected_cls):
+        args = TrainingArguments(optim=optim, output_dir="None")
+        actual_cls, optim_kwargs = ORTTrainer.get_optimizer_cls_and_kwargs(args)
+        self.assertEqual(expected_cls, actual_cls)
+        self.assertIsNotNone(optim_kwargs)
+
+        for p, v in mandatory_kwargs.items():
+            self.assertTrue(p in optim_kwargs)
+            actual_v = optim_kwargs[p]
+            self.assertTrue(actual_v == v, f"Failed check for {p}. Expected {v}, but got {actual_v}.")
+
+    @parameterized.expand(optim_test_params, skip_on_empty=True)
+    def test_optim_supported(self, name: str, expected_cls, mandatory_kwargs):
+        # exercises all the valid --optim options
+        self.check_optim_and_kwargs(name, mandatory_kwargs, expected_cls)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            training_args = TrainingArguments(
+                optim=name,
+                output_dir=tmp_dir,
+                num_train_epochs=self.n_epochs,
+                per_device_train_batch_size=self.per_device_train_batch_size,
+                per_device_eval_batch_size=self.per_device_eval_batch_size,
+                warmup_steps=self.warmup_steps,
+                weight_decay=self.weight_decay,
+                logging_dir=tmp_dir,
+            )
+
+            trainer, test_dataset = get_ort_trainer(
+                self.model_name,
+                self.feature,
+                _TASKS_DATASETS_CONFIGS[self.feature],
+                training_args,
+                max_seq_length=self.max_seq_length,
+                max_train_samples=self.max_train_samples,
+                max_valid_samples=self.max_valid_samples,
+                max_test_samples=self.max_test_samples,
+            )
+
+            train_result = trainer.train()
+            trainer.save_model()
+            train_metrics = train_result.metrics
+            eval_metrics = trainer.evaluate(inference_with_ort=True)
+            prediction = trainer.predict(test_dataset, inference_with_ort=True)
+            print("Training metrics:\n", train_metrics)
+            print("Evaluation metrics:\n", eval_metrics)
+            print("Prediction results:\n", prediction)
+            gc.collect()
 
 
 if __name__ == "__main__":

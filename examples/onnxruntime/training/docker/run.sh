@@ -24,6 +24,8 @@ pip install fairscale deepspeed mpi4py
 # git clone https://github.com/NVIDIA/apex \
 #     && cd apex \
 #     && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+# Inatall bitsandbytes
+# pip install bitsandbytes-cuda113
 
 # Run the test
 python -m unittest tests/onnxruntime/nightly_test_onnxruntime.py
