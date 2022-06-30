@@ -16,7 +16,7 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        max_eval_samples = 20  # TODO remove this
+        max_eval_samples = 100  # TODO remove this
 
         # Preprocessing the raw_datasets
         def preprocess_function(
@@ -84,8 +84,11 @@ class QuestionAnsweringProcessing(DatasetProcessing):
     def run_inference(self, eval_dataset: Dataset, pipeline: QuestionAnsweringPipeline):
         all_labels = [{"id": inputs["id"], "answers": inputs[self.ref_keys[0]]} for inputs in eval_dataset]
         all_preds = []
+        kwargs = {"padding": "max_length"}
         for _, inputs in enumerate(eval_dataset):
-            preds = pipeline(question=inputs[self.data_keys["question"]], context=inputs[self.data_keys["context"]])
+            preds = pipeline(
+                question=inputs[self.data_keys["question"]], context=inputs[self.data_keys["context"]], **kwargs
+            )
 
             preds = {"prediction_text": preds["answer"], "id": inputs["id"]}
             all_preds.append(preds)

@@ -18,7 +18,7 @@ limitations under the License.
 
 ## GLUE tasks
 
-The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/text-classification/run_glue.py)
+The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/quantization/text-classification/run_glue.py)
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
 optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as 
 the ones from the [GLUE benchmark](https://gluebenchmark.com/).

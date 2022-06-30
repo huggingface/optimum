@@ -17,7 +17,7 @@ limitations under the License.
 # Question answering
 
 
-The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/pytorch/question-answering/run_qa.py)
+The script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/quantization/question-answering/run_qa.py)
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
 optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for question answering tasks.
 

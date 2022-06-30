@@ -1,3 +1,4 @@
+import platform
 from dataclasses import field
 from enum import Enum
 from typing import Dict, List, Optional, Union
@@ -54,6 +55,15 @@ class CalibrationMethods(str, Enum):
 class QuantizationApproach(str, Enum):
     static = "static"
     dynamic = "dynamic"
+
+
+def cpu_info_command():
+    if platform.system() == "Linux":
+        return "lscpu"
+    elif platform.system() == "Darwin":
+        return "sysctl -a | grep machdep.cpu"
+    else:
+        raise NotImplementedError("OS not supported.")
 
 
 @generate_doc_dataclass
@@ -262,4 +272,13 @@ class Run(_RunDefaults, _RunBase):
 class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
     """Class holding the parameters to launch a run."""
 
-    pass
+    def __post_init__(self):
+        # to support python 3.8 that does not support nested initialization of dataclass from dict
+        if isinstance(self.dataset, dict):
+            self.dataset = DatasetArgs(**self.dataset)
+        if isinstance(self.framework_args, dict):
+            self.framework_args = FrameworkArgs(**self.framework_args)
+        if isinstance(self.calibration, dict):
+            self.calibration = Calibration(**self.calibration)
+        if isinstance(self.task_args, dict):
+            self.task_args = TaskArgs(**self.task_args)
