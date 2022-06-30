@@ -47,12 +47,14 @@ from transformers import (
 )
 from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import check_min_version, send_example_telemetry
+from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
+from optimum.onnxruntime import ORTTrainer
 
-
-# Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.20.0.dev0")
+# Script requires transformers==4.16.0
+# Versions above it run into a Type error when running GPT2 with fp16 enabled. 
+# https://github.com/microsoft/onnxruntime/issues/11279 
+check_min_version("4.16.0")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
 
@@ -114,6 +116,14 @@ class ModelArguments:
             "help": (
                 "Will use the token generated when running `transformers-cli login` (necessary to use this script "
                 "with private models)."
+            )
+        },
+    )
+    ort: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Will use ORT to accelerate training when set to true."
             )
         },
     )
@@ -212,10 +222,6 @@ def main():
         model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-
-    # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
-    # information sent is the one passed as arguments along with your Python/PyTorch versions.
-    send_example_telemetry("run_clm", model_args, data_args)
 
     # Setup logging
     logging.basicConfig(
@@ -502,7 +508,12 @@ def main():
             return metric.compute(predictions=preds, references=labels)
 
     # Initialize our Trainer
-    trainer = Trainer(
+    if model_args.ort:
+        trainer_class = ORTTrainer
+    else:
+        trainer_class = Trainer
+
+    trainer = trainer_class(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
@@ -511,9 +522,6 @@ def main():
         # Data collator will default to DataCollatorWithPadding, so we change it.
         data_collator=default_data_collator,
         compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-        preprocess_logits_for_metrics=preprocess_logits_for_metrics
-        if training_args.do_eval and not is_torch_tpu_available()
-        else None,
     )
 
     # Training
