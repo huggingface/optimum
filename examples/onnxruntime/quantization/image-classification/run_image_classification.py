@@ -30,12 +30,7 @@ import torch
 import transformers
 from datasets import load_dataset, load_metric
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
-from transformers import (
-    AutoFeatureExtractor,
-    EvalPrediction,
-    HfArgumentParser,
-    TrainingArguments,
-)
+from transformers import AutoFeatureExtractor, EvalPrediction, HfArgumentParser, TrainingArguments
 from transformers.utils.versions import require_version
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
