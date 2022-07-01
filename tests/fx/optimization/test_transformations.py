@@ -243,7 +243,7 @@ def test_fuse_bias_in_linear():
     num_bias_in_linears = sum(
         int(mod.bias is not None) for mod in transformed.modules() if isinstance(mod, torch.nn.Linear)
     )
-    assert num_bias_in_linears == 0, "there should not be any bias left in any linear now"
+    assert num_bias_in_linears == 0, "there should not be any bias left in any linear module now"
 
 
 def test_change_truediv_to_mul_by_inverse():
