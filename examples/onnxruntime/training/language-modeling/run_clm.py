@@ -29,9 +29,8 @@ from itertools import chain
 from typing import Optional
 
 import datasets
-from datasets import load_dataset, load_metric
-
 import transformers
+from datasets import load_dataset, load_metric
 from transformers import (
     CONFIG_MAPPING,
     MODEL_FOR_CAUSAL_LM_MAPPING,
@@ -49,11 +48,13 @@ from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
+
 from optimum.onnxruntime import ORTTrainer
 
+
 # Script requires transformers==4.16.0
-# Versions above it run into a Type error when running GPT2 with fp16 enabled. 
-# https://github.com/microsoft/onnxruntime/issues/11279 
+# Versions above it run into a Type error when running GPT2 with fp16 enabled.
+# https://github.com/microsoft/onnxruntime/issues/11279
 check_min_version("4.16.0")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
@@ -120,12 +121,7 @@ class ModelArguments:
         },
     )
     ort: bool = field(
-        default=False,
-        metadata={
-            "help": (
-                "Will use ORT to accelerate training when set to true."
-            )
-        },
+        default=False, metadata={"help": ("Will use ORT to accelerate training when set to true.")},
     )
 
     def __post_init__(self):
@@ -191,8 +187,7 @@ class DataTrainingArguments:
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
     )
     keep_linebreaks: bool = field(
         default=True, metadata={"help": "Whether to keep line breaks when using TXT files or not."}
