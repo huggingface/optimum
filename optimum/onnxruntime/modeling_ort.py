@@ -148,9 +148,11 @@ class ORTModel(OptimizedModel):
         """
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
 
-        src_path = self.model_save_dir.joinpath(self.latest_model_name)
-        dst_path = Path(save_directory).joinpath(model_file_name)
-        shutil.copyfile(src_path, dst_path)
+        src_path = self.model_save_dir
+        dst_path = Path(save_directory)
+        
+        # TODO: only copy the onnx model and external data
+        shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
 
     @classmethod
     def _from_pretrained(
