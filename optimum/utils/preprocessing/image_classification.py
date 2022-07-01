@@ -12,7 +12,7 @@ from .base import DatasetProcessing
 class ImageClassificationProcessing(DatasetProcessing):
     def __init__(self, **kwargs):
         if "secondary" in kwargs["data_keys"]:
-            raise ValueError("Only one data column is supported for token-classification.")
+            raise ValueError("Only one data column is supported for image-classification.")
         else:
             kwargs["data_keys"]["secondary"] = None
 
@@ -92,7 +92,7 @@ class ImageClassificationProcessing(DatasetProcessing):
     def get_metrics(self, predictions: List, references: List, metric: Metric):
         metrics_res = metric.compute(predictions=predictions, references=references)
 
-        # try to get a good default here
+        # `metric.compute` may return a dict or a number
         if not isinstance(metrics_res, dict):
             metrics_res = {metric.name: metrics_res}
 

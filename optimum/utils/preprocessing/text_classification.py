@@ -137,7 +137,7 @@ class TextClassificationProcessing(DatasetProcessing):
     def get_metrics(self, predictions: List, references: List, metric: Metric):
         metrics_res = metric.compute(predictions=predictions, references=references)
 
-        # try to get a good default here
+        # `metric.compute` may return a dict or a number
         if not isinstance(metrics_res, dict):
             metrics_res = {metric.name: metrics_res}
 

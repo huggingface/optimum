@@ -97,8 +97,13 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         return all_labels, all_preds
 
     def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_dict = metric.compute(predictions=predictions, references=references)
-        return metrics_dict
+        metrics_res = metric.compute(predictions=predictions, references=references)
+
+        # `metric.compute` may return a dict or a number
+        if not isinstance(metrics_res, dict):
+            metrics_res = {metric.name: metrics_res}
+
+        return metrics_res
 
     def get_pipeline_kwargs(self):
         return {}

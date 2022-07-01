@@ -124,19 +124,20 @@ class TokenClassificationProcessing(DatasetProcessing):
         return all_labels, all_preds
 
     def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_dict = metric.compute(predictions=predictions, references=references)
+        metrics_res = metric.compute(predictions=predictions, references=references)
 
         if metric.name == "seqeval":
-            res_metrics = {
-                "precision": metrics_dict["overall_precision"],
-                "recall": metrics_dict["overall_recall"],
-                "f1": metrics_dict["overall_f1"],
-                "accuracy": metrics_dict["overall_accuracy"],
+            metrics_res = {
+                "precision": metrics_res["overall_precision"],
+                "recall": metrics_res["overall_recall"],
+                "f1": metrics_res["overall_f1"],
+                "accuracy": metrics_res["overall_accuracy"],
             }
-        else:
-            res_metrics = metrics_dict
+        # `metric.compute` may return a dict or a number
+        elif not isinstance(metrics_res, dict):
+            metrics_res = {metric.name: metrics_res}
 
-        return res_metrics
+        return metrics_res
 
     def get_pipeline_kwargs(self):
         res = {
