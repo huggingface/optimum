@@ -150,7 +150,7 @@ class ORTModel(OptimizedModel):
 
         src_path = self.model_save_dir
         dst_path = Path(save_directory)
-        
+
         # TODO: only copy the onnx model and external data
         shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
 
