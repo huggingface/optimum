@@ -371,7 +371,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id)
+        model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id, cache_dir=cache_dir)
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.pipeline_task)
         onnx_config = model_onnx_config(model.config)
         onnx_opset = onnx_config.default_onnx_opset

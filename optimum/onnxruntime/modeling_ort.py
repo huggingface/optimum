@@ -262,7 +262,7 @@ class ORTModel(OptimizedModel):
         # 2. convert to temp dir
         # FIXME: transformers.onnx conversion doesn't support private models
         preprocessor = get_preprocessor(model_id)
-        model = FeaturesManager.get_model_from_feature(task, model_id)
+        model = FeaturesManager.get_model_from_feature(task, model_id, cache_dir=cache_dir)
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
         onnx_config = model_onnx_config(model.config)
 
