@@ -170,6 +170,7 @@ class OptimizedModel(ABC):
         force_download: bool = True,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        onnx_cache_dir: Optional[str] = None,
         **model_kwargs,
     ):
         revision = None
@@ -200,6 +201,7 @@ class OptimizedModel(ABC):
         if from_transformers:
             return cls._from_transformers(
                 model_id=model_id,
+                save_dir=onnx_cache_dir,
                 revision=revision,
                 cache_dir=cache_dir,
                 force_download=force_download,
@@ -207,10 +209,11 @@ class OptimizedModel(ABC):
                 **model_kwargs,
             )
         else:
+            onnx_cache_dir = cache_dir if onnx_cache_dir is None else onnx_cache_dir
             return cls._from_pretrained(
                 model_id=model_id,
                 revision=revision,
-                cache_dir=cache_dir,
+                cache_dir=onnx_cache_dir,
                 force_download=force_download,
                 use_auth_token=use_auth_token,
                 **model_kwargs,
@@ -220,6 +223,7 @@ class OptimizedModel(ABC):
     def _from_transformers(
         cls,
         model_id: Union[str, os.PathLike],
+        save_dir: Optional[Union[str, Path]] = None,
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
         force_download: bool = True,
