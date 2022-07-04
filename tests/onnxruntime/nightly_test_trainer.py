@@ -1021,7 +1021,7 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
         modules = {
             "onnxruntime.training": mock,
             "onnxruntime.training.optim": mock.optimizers,
-            " onnxruntime.training.optim.FusedAdam": mock.optimizers.FusedAdam,
+            "onnxruntime.training.optim.FusedAdam": mock.optimizers.FusedAdam,
         }
         with patch.dict("sys.modules", modules):
             self.check_optim_and_kwargs(
