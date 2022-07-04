@@ -492,7 +492,16 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments("..")
+            training_args = TrainingArguments(
+                output_dir=tmp_dir,
+                num_train_epochs=self.n_epochs,
+                per_device_train_batch_size=self.per_device_train_batch_size,
+                per_device_eval_batch_size=self.per_device_eval_batch_size,
+                warmup_steps=self.warmup_steps,
+                weight_decay=self.weight_decay,
+                logging_dir=tmp_dir,
+                fp16=True,
+            )
 
             trainer, test_dataset = get_ort_trainer(
                 model_name,
