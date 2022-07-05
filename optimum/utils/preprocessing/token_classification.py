@@ -2,7 +2,6 @@ from functools import partial
 from typing import Dict, List, Optional
 
 from datasets import ClassLabel, Dataset, Metric, load_dataset
-from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase, TokenClassificationPipeline
 
 from .base import DatasetProcessing
@@ -93,7 +92,7 @@ class TokenClassificationProcessing(DatasetProcessing):
     def run_inference(self, eval_dataset: Dataset, pipeline: TokenClassificationPipeline):
         all_labels = [[self.label_list[l] for l in label if l != -100] for label in eval_dataset[self.ref_keys[0]]]
         all_preds = []
-        for i, data in enumerate(tqdm(eval_dataset, miniters=max(1, len(eval_dataset)))):
+        for i, data in enumerate(eval_dataset):
             inputs = " ".join(data[self.data_keys["primary"]])
             res = pipeline(inputs)
 
