@@ -130,6 +130,11 @@ class ORTQuantizer(ABC):
 
         self.feature = feature
 
+        if feature.startswith("image-"):
+            LOGGER.warning(
+                f"Static quantization using percentile or entropy is not supported for the task {feature}. To perform static quantization, use minmax calibration."
+            )
+
         self._model_type, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
         self._onnx_config = onnx_config_factory(self.model.config)
         self.opset = self._onnx_config.default_onnx_opset if opset is None else opset
