@@ -121,7 +121,8 @@ class ModelArguments:
         },
     )
     ort: bool = field(
-        default=False, metadata={"help": ("Will use ORT to accelerate training when set to true.")},
+        default=False,
+        metadata={"help": ("Will use ORT to accelerate training when set to true.")},
     )
 
     def __post_init__(self):
@@ -187,7 +188,8 @@ class DataTrainingArguments:
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None,
+        metadata={"help": "The number of processes to use for the preprocessing."},
     )
     keep_linebreaks: bool = field(
         default=True, metadata={"help": "Whether to keep line breaks when using TXT files or not."}
