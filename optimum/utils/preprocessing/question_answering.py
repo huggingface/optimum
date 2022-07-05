@@ -2,7 +2,6 @@ from functools import partial
 from typing import Dict, List
 
 from datasets import Dataset, Metric, load_dataset
-from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase, QuestionAnsweringPipeline
 
 from .base import DatasetProcessing
@@ -86,7 +85,7 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         all_labels = [{"id": inputs["id"], "answers": inputs[self.ref_keys[0]]} for inputs in eval_dataset]
         all_preds = []
         kwargs = {"padding": "max_length"}
-        for _, inputs in enumerate(tqdm(eval_dataset, miniters=max(1, len(eval_dataset)))):
+        for _, inputs in enumerate(eval_dataset):
             preds = pipeline(
                 question=inputs[self.data_keys["question"]], context=inputs[self.data_keys["context"]], **kwargs
             )

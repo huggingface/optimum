@@ -80,7 +80,7 @@ class ImageClassificationProcessing(DatasetProcessing):
     def run_inference(self, eval_dataset: Dataset, pipeline: ImageClassificationPipeline):
         all_labels = [label for label in eval_dataset[self.ref_keys[0]]]
         all_preds = []
-        for _, inputs in enumerate(tqdm(eval_dataset, miniters=max(1, len(eval_dataset)))):
+        for _, inputs in enumerate(eval_dataset):
             pred = pipeline(inputs[self.data_keys["primary"]])
 
             pred_label = max(pred, key=lambda x: x["score"])["label"]

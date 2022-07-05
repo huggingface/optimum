@@ -2,7 +2,6 @@ from functools import partial
 from typing import Dict, List
 
 from datasets import Dataset, Metric, load_dataset
-from tqdm import tqdm
 from transformers import PretrainedConfig, PreTrainedTokenizerBase, TextClassificationPipeline
 from transformers.pipelines.text_classification import ClassificationFunction
 
@@ -93,7 +92,7 @@ class TextClassificationProcessing(DatasetProcessing):
     def run_inference(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline):
         all_labels = []
         all_preds = []
-        for _, inputs in enumerate(tqdm(eval_dataset, miniters=max(1, len(eval_dataset)))):
+        for _, inputs in enumerate(eval_dataset):
             has_labels = all(inputs.get(k) is not None for k in self.ref_keys)
             if has_labels:
                 labels = tuple(inputs.get(name) for name in self.ref_keys)
