@@ -16,13 +16,16 @@ python -m torch_ort.configure
 
 # Install dependencies
 pip install transformers datasets
-pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn
+pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized
 pip install fairscale deepspeed mpi4py
+# pip install optuna ray sigopt wandb # Hyper parameter search
 
 # Install apex
 # git clone https://github.com/NVIDIA/apex \
 #     && cd apex \
 #     && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+# Inatall bitsandbytes
+# pip install bitsandbytes-cuda113
 
 # Run the test
-python -m unittest tests/onnxruntime/nightly_test_onnxruntime.py
+python -m unittest tests/onnxruntime/nightly_test_trainer.py
