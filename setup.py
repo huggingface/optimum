@@ -46,7 +46,7 @@ EXTRAS_REQUIRE = {
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
-    "benchmark": ["optuna", "tqdm", "sklearn", "seqeval"],
+    "benchmark": ["optuna", "tqdm", "sklearn", "seqeval", "torchvision"],
 }
 
 setup(

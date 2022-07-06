@@ -420,8 +420,10 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
         class ComposeTransformation(Transformation):
             preserves_computation = composition_preserves_computation
 
+            _composition = functools.reduce(reduce_fn, transformations)
+
             def transform(self, graph_module):
-                return functools.reduce(reduce_fn, transformations)(graph_module)
+                return ComposeTransformation._composition(graph_module)
 
     else:
 
@@ -441,10 +443,13 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
         class ComposeTransformation(ReversibleTransformation):
             preserves_computation = composition_preserves_computation
 
+            _composition = functools.reduce(make_reduce_fn(False), transformations)
+            _reverse_composition = functools.reduce(make_reduce_fn(True), reversed(transformations))
+
             def transform(self, graph_module):
-                return functools.reduce(make_reduce_fn(False), transformations)(graph_module)
+                return ComposeTransformation._composition(graph_module)
 
             def reverse(self, graph_module):
-                return functools.reduce(make_reduce_fn(True), transformations)(graph_module)
+                return ComposeTransformation._reverse_composition(graph_module)
 
     return ComposeTransformation()
