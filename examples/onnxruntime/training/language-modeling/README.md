@@ -35,7 +35,7 @@ python run_clm.py \
     --dataset_config_name wikitext-2-raw-v1 \
     --do_train \
     --output_dir /tmp/test-clm \
-    --fp16 --ort 
+    --fp16 
 ```
 
 __Note__
