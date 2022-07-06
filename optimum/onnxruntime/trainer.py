@@ -1159,7 +1159,7 @@ class ORTTrainer(Trainer):
                 )
             else:
                 if has_labels:
-                    with self.autocast_smart_context_manager():
+                    with self.compute_loss_context_manager():
                         loss, outputs = self.compute_loss_ort(inputs, input_names, output_names, return_outputs=True)
                         loss = torch.tensor(loss).mean()
 
