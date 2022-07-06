@@ -393,7 +393,7 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
 
 
 @require_torch
-@require_ort_training
+# @require_ort_training
 class ORTTrainerIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -440,11 +440,8 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             trainer.save_model()
             train_metrics = train_result.metrics
             eval_metrics = trainer.evaluate(inference_with_ort=True)
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             prediction = trainer.predict(test_dataset, inference_with_ort=True)
-            print("Training metrics:\n", train_metrics)
-            print("Evaluation metrics:\n", eval_metrics)
-            print("Prediction results:\n", prediction)
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
 
     @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
@@ -477,11 +474,8 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             trainer.save_model()
             train_metrics = train_result.metrics
             eval_metrics = trainer.evaluate()
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             prediction = trainer.predict(test_dataset)
-            print("Training metrics:\n", train_metrics)
-            print("Evaluation metrics:\n", eval_metrics)
-            print("Prediction results:\n", prediction)
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
 
     @slow
@@ -518,11 +512,8 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             trainer.save_model()
             train_metrics = train_result.metrics
             eval_metrics = trainer.evaluate()
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             prediction = trainer.predict(test_dataset)
-            print("Training metrics:\n", train_metrics)
-            print("Evaluation metrics:\n", eval_metrics)
-            print("Prediction results:\n", prediction)
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
 
     @unittest.skip("Skip BF6 test.")
@@ -558,11 +549,8 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             trainer.save_model()
             train_metrics = train_result.metrics
             eval_metrics = trainer.evaluate()
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             prediction = trainer.predict(test_dataset)
-            print("Training metrics:\n", train_metrics)
-            print("Evaluation metrics:\n", eval_metrics)
-            print("Prediction results:\n", prediction)
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
 
 
@@ -645,11 +633,8 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             trainer.save_model()
             train_metrics = train_result.metrics
             eval_metrics = trainer.evaluate()
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             prediction = trainer.predict(test_dataset)
-            print("Training metrics:\n", train_metrics)
-            print("Evaluation metrics:\n", eval_metrics)
-            print("Prediction results:\n", prediction)
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
 
     @parameterized.expand(
@@ -685,11 +670,8 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             trainer.save_model()
             train_metrics = train_result.metrics
             eval_metrics = trainer.evaluate()
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             prediction = trainer.predict(test_dataset)
-            print("Training metrics:\n", train_metrics)
-            print("Evaluation metrics:\n", eval_metrics)
-            print("Prediction results:\n", prediction)
+            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
 
 
@@ -1006,9 +988,6 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
             train_metrics = train_result.metrics
             eval_metrics = trainer.evaluate(inference_with_ort=True)
             prediction = trainer.predict(test_dataset, inference_with_ort=True)
-            print("Training metrics:\n", train_metrics)
-            print("Evaluation metrics:\n", eval_metrics)
-            print("Prediction results:\n", prediction)
             gc.collect()
 
     @unittest.skip("Skip ORT Fused Adam optimizer test.")  # Not merged yet.
@@ -1032,7 +1011,7 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
 
 
 @require_torch
-@require_ort_training
+# @require_ort_training
 class ORTSeq2SeqTrainerIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -1102,15 +1081,11 @@ class ORTSeq2SeqTrainerIntegrationTest(unittest.TestCase):
             trainer.save_model()
             train_metrics = train_result.metrics
             ort_eval_metrics = trainer.evaluate()
-            print(ort_eval_metrics)
+            ort_prediction = trainer.predict(test_dataset)
             # self.assertGreaterEqual(ort_eval_metrics["eval_rouge1"], 10)
             # self.assertGreaterEqual(ort_eval_metrics["eval_rouge2"], 2)
             # self.assertGreaterEqual(ort_eval_metrics["eval_rougeL"], 7)
             # self.assertGreaterEqual(ort_eval_metrics["eval_rougeLsum"], 7)
-            ort_prediction = trainer.predict(test_dataset)
-            print("Training metrics(ORT):\n", train_metrics)
-            print("Evaluation metrics:\n", ort_eval_metrics)
-            print("Prediction results):\n", ort_prediction)
             gc.collect()
 
 
