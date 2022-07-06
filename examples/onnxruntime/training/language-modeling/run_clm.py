@@ -120,10 +120,6 @@ class ModelArguments:
             )
         },
     )
-    ort: bool = field(
-        default=False,
-        metadata={"help": ("Will use ORT to accelerate training when set to true.")},
-    )
 
     def __post_init__(self):
         if self.config_overrides is not None and (self.config_name is not None or self.model_name_or_path is not None):
@@ -505,12 +501,7 @@ def main():
             return metric.compute(predictions=preds, references=labels)
 
     # Initialize our Trainer
-    if model_args.ort:
-        trainer_class = ORTTrainer
-    else:
-        trainer_class = Trainer
-
-    trainer = trainer_class(
+    trainer = ORTTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
