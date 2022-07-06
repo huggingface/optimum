@@ -378,7 +378,7 @@ def main():
 
     # Run the tokenizer on the dataset
     preprocessed_datasets = raw_datasets.map(
-        partial(preprocess_function, tokenizer=quantizer.tokenizer, max_length=data_args.max_seq_length),
+        partial(preprocess_function, tokenizer=quantizer.preprocessor, max_length=data_args.max_seq_length),
         batched=True,
         load_from_cache_file=not data_args.overwrite_cache,
         desc="Running tokenizer on dataset",
@@ -399,7 +399,8 @@ def main():
     )
 
     ranges = None
-    quantization_preprocessor = None
+    # Create a quantization preprocessor to determine the nodes to exclude
+    quantization_preprocessor = QuantizationPreprocessor()
     if apply_static_quantization:
         # Create the calibration dataset used for the calibration step
         calibration_dataset = preprocessed_datasets["train"]
@@ -443,8 +444,6 @@ def main():
             )
         ranges = quantizer.compute_ranges()
 
-        # Create a quantization preprocessor to determine the nodes to exclude when applying static quantization
-        quantization_preprocessor = QuantizationPreprocessor(model_path)
         # Exclude the nodes constituting LayerNorm
         quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
         # Exclude the nodes constituting GELU

@@ -448,7 +448,8 @@ def main():
     )
 
     ranges = None
-    quantization_preprocessor = None
+    # Create a quantization preprocessor to determine the nodes to exclude
+    quantization_preprocessor = QuantizationPreprocessor()
     if apply_static_quantization:
         # Preprocess the calibration dataset
         if "train" not in raw_datasets:
@@ -457,7 +458,7 @@ def main():
         if optim_args.num_calibration_samples is not None:
             calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
         calibration_dataset = calibration_dataset.map(
-            partial(tokenize_and_align_labels, tokenizer=quantizer.tokenizer),
+            partial(tokenize_and_align_labels, tokenizer=quantizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
@@ -501,8 +502,6 @@ def main():
             )
         ranges = quantizer.compute_ranges()
 
-        # Create a quantization preprocessor to determine the nodes to exclude when applying static quantization
-        quantization_preprocessor = QuantizationPreprocessor(model_path)
         # Exclude the nodes constituting LayerNorm
         quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
         # Exclude the nodes constituting GELU
@@ -540,7 +539,7 @@ def main():
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
         with training_args.main_process_first(desc="validation dataset map pre-processing"):
             eval_dataset = eval_dataset.map(
-                partial(tokenize_and_align_labels, tokenizer=quantizer.tokenizer),
+                partial(tokenize_and_align_labels, tokenizer=quantizer.preprocessor),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
@@ -571,7 +570,7 @@ def main():
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
         with training_args.main_process_first(desc="prediction dataset map pre-processing"):
             predict_dataset = predict_dataset.map(
-                partial(tokenize_and_align_labels, tokenizer=quantizer.tokenizer),
+                partial(tokenize_and_align_labels, tokenizer=quantizer.preprocessor),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,

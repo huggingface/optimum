@@ -19,29 +19,34 @@ REQUIRED_PKGS = [
     "torch>=1.9",
     "packaging",
     "numpy",
-    "huggingface_hub==0.4.0",
+    "huggingface_hub>=0.4.0",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
 EXTRAS_REQUIRE = {
     #  pip install -e ".[onnxruntime,dev,intel]"  git+https://github.com/huggingface/transformers.git@main --upgrade
-    "onnxruntime": ["onnx", "onnxruntime>=1.9.0", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
-    "onnxruntime-gpu": ["onnx", "onnxruntime-gpu>=1.9.0", "datasets>=1.2.1"],  # "transformers[sentencepiece]>4.17.0"],
-    "intel": [
-        "pycocotools",
-        "neural_compressor>=1.9",
+    "onnxruntime": [
+        "onnx",
+        "onnxruntime>=1.9.0",
         "datasets>=1.2.1",
-        "pandas<1.4.0",
-        "transformers >= 4.15.0, < 4.17.0",
-    ],
+        "protobuf==3.20.1",
+    ],  # "transformers[sentencepiece]>4.17.0"],
+    "onnxruntime-gpu": [
+        "onnx",
+        "onnxruntime-gpu>=1.9.0",
+        "datasets>=1.2.1",
+        "protobuf==3.20.1",
+    ],  # "transformers[sentencepiece]>4.17.0"],
+    "intel": "optimum-intel",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
+    "benchmark": ["optuna", "tqdm", "sklearn", "seqeval", "torchvision"],
 }
 
 setup(
