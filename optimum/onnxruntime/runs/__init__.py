@@ -2,7 +2,6 @@ import copy
 import os
 
 from datasets import load_metric
-from transformers import PreTrainedTokenizerBase
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
@@ -40,9 +39,7 @@ class OnnxRuntimeRun(Run):
             opset=run_config["framework_args"]["opset"],
         )
 
-        if not isinstance(quantizer.preprocessor, PreTrainedTokenizerBase):
-            raise NotImplementedError("Only tokenizer preprocessor is supported for now.")
-        self.tokenizer = copy.deepcopy(quantizer.preprocessor)
+        self.preprocessor = copy.deepcopy(quantizer.preprocessor)
 
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]
@@ -56,7 +53,7 @@ class OnnxRuntimeRun(Run):
             dataset_name=run_config["dataset"]["name"],
             calibration_split=run_config["dataset"]["calibration_split"],
             eval_split=run_config["dataset"]["eval_split"],
-            tokenizer=self.tokenizer,
+            preprocessor=self.preprocessor,
             data_keys=run_config["dataset"]["data_keys"],
             ref_keys=run_config["dataset"]["ref_keys"],
             task_args=run_config["task_args"],
@@ -107,15 +104,17 @@ class OnnxRuntimeRun(Run):
         batch_size = trial.suggest_categorical("batch_size", self.batch_sizes)
         input_length = trial.suggest_categorical("input_length", self.input_lengths)
 
-        has_token_type_ids = "token_type_ids" in self.tokenizer.model_input_names
+        model_input_names = set(self.preprocessor.model_input_names)
 
         # onnxruntime benchmark
-        ort_benchmark = TimeBenchmark(self.ort_model, input_length, batch_size, has_token_type_ids=has_token_type_ids)
+        ort_benchmark = TimeBenchmark(
+            self.ort_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
+        )
         optimized_time_metrics = ort_benchmark.execute()
 
         # pytorch benchmark
         torch_benchmark = TimeBenchmark(
-            self.torch_model, input_length, batch_size, has_token_type_ids=has_token_type_ids
+            self.torch_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
         )
         baseline_time_metrics = torch_benchmark.execute()
 
@@ -133,11 +132,12 @@ class OnnxRuntimeRun(Run):
     def launch_eval(self):
         kwargs = self.processor.get_pipeline_kwargs()
 
+        # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
         ort_pipeline = _optimum_pipeline(
             task=self.task,
             model=self.ort_model,
-            tokenizer=self.tokenizer,
-            feature_extractor=None,
+            tokenizer=self.preprocessor,
+            feature_extractor=self.preprocessor,
             accelerator="ort",
             **kwargs,
         )
@@ -145,8 +145,8 @@ class OnnxRuntimeRun(Run):
         transformers_pipeline = _transformers_pipeline(
             task=self.task,
             model=self.torch_model,
-            tokenizer=self.tokenizer,
-            feature_extractor=None,
+            tokenizer=self.preprocessor,
+            feature_extractor=self.preprocessor,
             **kwargs,
         )
 
