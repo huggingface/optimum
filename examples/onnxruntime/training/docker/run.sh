@@ -11,9 +11,6 @@ GPU_DEVICES=${2:-"all"}
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu10:latest $CMD
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu11:latest $CMD
 
-# Configure torch_ort
-python -m torch_ort.configure
-
 # Install dependencies
 pip install transformers datasets
 pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized
@@ -27,6 +24,9 @@ pip install --upgrade protobuf==3.20.1
 #     && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 # Inatall bitsandbytes
 # pip install bitsandbytes-cuda113
+
+# Configure torch_ort
+python -m torch_ort.configure
 
 # Run the test
 python -m unittest tests/onnxruntime/nightly_test_trainer.py
