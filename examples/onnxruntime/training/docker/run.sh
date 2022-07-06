@@ -18,6 +18,7 @@ python -m torch_ort.configure
 pip install transformers datasets
 pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn
 pip install fairscale deepspeed mpi4py
+pip install --upgrade protobuf==3.20.1
 
 # Install apex
 # git clone https://github.com/NVIDIA/apex \
