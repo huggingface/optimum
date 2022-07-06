@@ -266,7 +266,9 @@ class MergeLinears(ReversibleTransformation):
                 "Not all the linear layers that are merged contain a bias, but some do. By merging, this is equivalent "
                 "to adding a bias to the layers missing one."
             )
-        merged_linear = torch.nn.Linear(in_features, total_out_features, bias=use_bias)
+        merged_linear = torch.nn.Linear(
+            in_features, total_out_features, bias=use_bias, device=linears[0].device, dtype=linears[0].dtype
+        )
 
         with torch.no_grad():
             new_weight = torch.cat([linear.weight for linear in linears], dim=0)
@@ -312,7 +314,14 @@ class MergeLinears(ReversibleTransformation):
             out_features.append(slice_to_get.stop - slice_to_get.start)
 
         linears = [
-            torch.nn.Linear(in_features, out_feat, bias=hasattr(merged_linear, "bias")) for out_feat in out_features
+            torch.nn.Linear(
+                in_features,
+                out_feat,
+                bias=hasattr(merged_linear, "bias"),
+                device=merged_linear.device,
+                dtype=merged_linear.dtype,
+            )
+            for out_feat in out_features
         ]
 
         fully_qualified_parent_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
