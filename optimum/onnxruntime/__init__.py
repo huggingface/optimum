@@ -12,6 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 from enum import Enum
+from typing import TYPE_CHECKING
+
+from transformers.utils import _LazyModule
 
 
 class ORTQuantizableOperator(Enum):
@@ -47,20 +50,50 @@ AUTO_MINIMUM_SUPPORTED_ONNX_OPSET = None
 ORT_DEFAULT_CHANNEL_FOR_OPERATORS = {"MatMul": 1}
 ORT_FULLY_CONNECTED_OPERATORS = ["MatMul", "Add"]
 
+_import_structure = {
+    "configuration": ["ORTConfig"],
+    "model": ["ORTModel"],
+    "modeling_ort": [
+        "ORTModelForCausalLM",
+        "ORTModelForFeatureExtraction",
+        "ORTModelForImageClassification",
+        "ORTModelForQuestionAnswering",
+        "ORTModelForSequenceClassification",
+        "ORTModelForTokenClassification",
+    ],
+    "modeling_seq2seq": ["ORTModelForSeq2SeqLM"],
+    "optimization": ["ORTOptimizer"],
+    "quantization": ["ORTQuantizer"],
+    "trainer": ["ORTTrainer"],
+    "trainer_seq2seq": ["ORTSeq2SeqTrainer"],
+    "utils": ["ONNX_DECODER_NAME", "ONNX_DECODER_WITH_PAST_NAME", "ONNX_ENCODER_NAME", "ONNX_WEIGHTS_NAME"],
+}
 
-from .configuration import ORTConfig
-from .model import ORTModel
-from .modeling_ort import (
-    ORTModelForCausalLM,
-    ORTModelForFeatureExtraction,
-    ORTModelForImageClassification,
-    ORTModelForQuestionAnswering,
-    ORTModelForSequenceClassification,
-    ORTModelForTokenClassification,
-)
-from .modeling_seq2seq import ORTModelForSeq2SeqLM
-from .optimization import ORTOptimizer
-from .quantization import ORTQuantizer
-from .trainer import ORTTrainer
-from .trainer_seq2seq import ORTSeq2SeqTrainer
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, ONNX_WEIGHTS_NAME
+
+# Direct imports for type-checking
+if TYPE_CHECKING:
+    from .configuration import ORTConfig
+    from .model import ORTModel
+    from .modeling_ort import (
+        ORTModelForCausalLM,
+        ORTModelForFeatureExtraction,
+        ORTModelForImageClassification,
+        ORTModelForQuestionAnswering,
+        ORTModelForSequenceClassification,
+        ORTModelForTokenClassification,
+    )
+    from .modeling_seq2seq import ORTModelForSeq2SeqLM
+    from .optimization import ORTOptimizer
+    from .quantization import ORTQuantizer
+    from .trainer import ORTTrainer
+    from .trainer_seq2seq import ORTSeq2SeqTrainer
+    from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, ONNX_WEIGHTS_NAME
+else:
+    import sys
+
+    sys.modules[__name__] = _LazyModule(
+        __name__,
+        globals()["__file__"],
+        _import_structure,
+        module_spec=__spec__,
+    )
