@@ -20,9 +20,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset, load_dataset
-from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+from transformers import AutoFeatureExtractor, AutoTokenizer, PreTrainedModel
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
+from transformers.onnx.utils import get_preprocessor
 
 import onnx
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
@@ -94,7 +95,7 @@ class ORTQuantizer(ABC):
         cache_dir: Optional[str] = None,
     ) -> "ORTQuantizer":
         """
-        Instantiate a `ORTQuantizer` from a pretrained pytorch model and tokenizer.
+        Instantiate a `ORTQuantizer` from a pretrained pytorch model and preprocessor.
 
         Args:
             model_name_or_path (`Union[str, os.PathLike]`):

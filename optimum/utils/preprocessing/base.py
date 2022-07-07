@@ -1,7 +1,7 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from datasets import Dataset
-from transformers import Pipeline, PretrainedConfig, PreTrainedTokenizerBase
+from transformers import FeatureExtractionMixin, Pipeline, PretrainedConfig, PreTrainedTokenizerBase
 
 
 class DatasetProcessing:
@@ -9,7 +9,7 @@ class DatasetProcessing:
         self,
         dataset_path: str,
         dataset_name: str,
-        tokenizer: PreTrainedTokenizerBase,
+        preprocessor: Union[FeatureExtractionMixin, PreTrainedTokenizerBase],
         eval_split: str,
         static_quantization: bool,
         data_keys: Dict[str, str],
@@ -18,6 +18,7 @@ class DatasetProcessing:
         task_args: Optional[Dict] = None,
         num_calibration_samples: Optional[int] = None,
         calibration_split: Optional[str] = None,
+        max_eval_samples: Optional[int] = None,
     ):
         """Initialize the class in charge of loading datasets, running inference and evaluation.
 
@@ -26,7 +27,7 @@ class DatasetProcessing:
         Args:
             dataset_path (`str`): Dataset path (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.path)
             dataset_name (`str`): Dataset name (https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.name)
-            tokenizer (`PreTrainedTokenizerBase`): Tokenizer used for evaluation.
+            preprocessor (`Union[FeatureExtractionMixin, PreTrainedTokenizerBase]`): Preprocessor used for evaluation.
             eval_split (`str`): Dataset split used for evaluation (e.g. "test").
             static_quantization (`bool`): Static quantization is used.
             data_keys (`Dict[str, str]`): Map "primary" and "secondary" to data column names.
@@ -35,6 +36,7 @@ class DatasetProcessing:
             task_args(`Dict`, *optional*): Task-specific arguments.
             num_calibration_samples (`int`, *optional*): Number of calibration samples for static quantization. Defaults to None.
             calibration_split (`str`, *optional*): Calibration split (e.g. "train") for static quantization. Defaults to None.
+            max_eval_samples (`int`; *optional*): Maximum number of samples to use from the evaluation dataset for evaluation.
         """
 
         if len(ref_keys) != 1:
@@ -44,12 +46,14 @@ class DatasetProcessing:
         self.dataset_name = dataset_name
         self.calibration_split = calibration_split
         self.eval_split = eval_split
-        self.tokenizer = tokenizer
+        self.preprocessor = preprocessor
         self.num_calibration_samples = num_calibration_samples
         self.static_quantization = static_quantization
         self.data_keys = data_keys
         self.ref_keys = ref_keys
         self.task_args = task_args
+        self.config = config
+        self.max_eval_samples = max_eval_samples
 
     def load_datasets(self):
         """Load calibration dataset if needed, and evaluation dataset.

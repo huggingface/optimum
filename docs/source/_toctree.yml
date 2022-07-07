@@ -19,17 +19,9 @@
     title: Trainer
   title: ONNX Runtime
 - sections:
-  - local: intel/configuration
-    title: Configuration
-  - local: intel/optimization
+  - local: fx/optimization
     title: Optimization
-  - local: intel/quantization
-    title: Quantization
-  - local: intel/pruning
-    title: Pruning
-  - local: intel/trainer
-    title: Trainer
-  title: Intel Neural Compressor
+  title: Torch FX
 - sections:
   - local: benchmark
     title: Benchmark Optimum models

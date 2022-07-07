@@ -30,6 +30,10 @@ ONNX_WEIGHTS_NAME = "model.onnx"
 OPTIMIZED_ONNX_WEIGHTS_NAME = "optimized_model.onnx"
 QUANTIZED_ONNX_WEIGHTS_NAME = "q8_model.onnx"
 
+ONNX_ENCODER_NAME = "encoder_model.onnx"
+ONNX_DECODER_NAME = "decoder_model.onnx"
+ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
+
 
 def _is_gpu_available():
     """
@@ -56,7 +60,10 @@ class ORTConfigManager:
         "bert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
+        "codegen": ("n_head", "n_embd", "gpt2"),
         "distilbert": ("n_heads", "dim", "bert"),
+        "deberta": ("num_attention_heads", "hidden_size", "bert"),
+        "deberta-v2": ("num_attention_heads", "hidden_size", "bert"),
         "electra": ("num_attention_heads", "hidden_size", "bert"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "bart": ("encoder_attention_heads", "d_model", "bart"),
@@ -141,3 +148,17 @@ def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
         return OnnxConfigWithPastAndLoss(onnx_config)
     else:
         return OnnxConfigWithLoss(onnx_config)
+
+
+def get_device_for_provider(provider: str) -> torch.device:
+    """
+    Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
+    """
+    return torch.device("cuda") if provider == "CUDAExecutionProvider" else torch.device("cpu")
+
+
+def get_provider_for_device(device: torch.device) -> str:
+    """
+    Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
+    """
+    return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"

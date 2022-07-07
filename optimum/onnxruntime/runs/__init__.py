@@ -39,10 +39,12 @@ class OnnxRuntimeRun(Run):
             opset=run_config["framework_args"]["opset"],
         )
 
-        self.tokenizer = copy.deepcopy(quantizer.tokenizer)
+        self.preprocessor = copy.deepcopy(quantizer.preprocessor)
 
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]
+
+        self.time_benchmark_args = run_config["time_benchmark_args"]
 
         self.model_path = "model.onnx"
         self.quantized_model_path = "quantized_model.onnx"
@@ -53,7 +55,7 @@ class OnnxRuntimeRun(Run):
             dataset_name=run_config["dataset"]["name"],
             calibration_split=run_config["dataset"]["calibration_split"],
             eval_split=run_config["dataset"]["eval_split"],
-            tokenizer=self.tokenizer,
+            preprocessor=self.preprocessor,
             data_keys=run_config["dataset"]["data_keys"],
             ref_keys=run_config["dataset"]["ref_keys"],
             task_args=run_config["task_args"],
@@ -62,6 +64,7 @@ class OnnxRuntimeRun(Run):
             if self.static_quantization
             else None,
             config=quantizer.model.config,
+            max_eval_samples=run_config["max_eval_samples"],
         )
 
         self.metric_names = run_config["metrics"]
@@ -104,15 +107,29 @@ class OnnxRuntimeRun(Run):
         batch_size = trial.suggest_categorical("batch_size", self.batch_sizes)
         input_length = trial.suggest_categorical("input_length", self.input_lengths)
 
-        has_token_type_ids = "token_type_ids" in self.tokenizer.model_input_names
+        model_input_names = set(self.preprocessor.model_input_names)
 
         # onnxruntime benchmark
-        ort_benchmark = TimeBenchmark(self.ort_model, input_length, batch_size, has_token_type_ids=has_token_type_ids)
+        print("Running ONNX Runtime time benchmark.")
+        ort_benchmark = TimeBenchmark(
+            self.ort_model,
+            input_length=input_length,
+            batch_size=batch_size,
+            model_input_names=model_input_names,
+            warmup_runs=self.time_benchmark_args["warmup_runs"],
+            duration=self.time_benchmark_args["duration"],
+        )
         optimized_time_metrics = ort_benchmark.execute()
 
         # pytorch benchmark
+        print("Running Pytorch time benchmark.")
         torch_benchmark = TimeBenchmark(
-            self.torch_model, input_length, batch_size, has_token_type_ids=has_token_type_ids
+            self.torch_model,
+            input_length=input_length,
+            batch_size=batch_size,
+            model_input_names=model_input_names,
+            warmup_runs=self.time_benchmark_args["warmup_runs"],
+            duration=self.time_benchmark_args["duration"],
         )
         baseline_time_metrics = torch_benchmark.execute()
 
@@ -130,11 +147,12 @@ class OnnxRuntimeRun(Run):
     def launch_eval(self):
         kwargs = self.processor.get_pipeline_kwargs()
 
+        # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
         ort_pipeline = _optimum_pipeline(
             task=self.task,
             model=self.ort_model,
-            tokenizer=self.tokenizer,
-            feature_extractor=None,
+            tokenizer=self.preprocessor,
+            feature_extractor=self.preprocessor,
             accelerator="ort",
             **kwargs,
         )
@@ -142,17 +160,19 @@ class OnnxRuntimeRun(Run):
         transformers_pipeline = _transformers_pipeline(
             task=self.task,
             model=self.torch_model,
-            tokenizer=self.tokenizer,
-            feature_extractor=None,
+            tokenizer=self.preprocessor,
+            feature_extractor=self.preprocessor,
             **kwargs,
         )
 
         eval_dataset = self.get_eval_dataset()
 
         # may be better to avoid to get labels twice
+        print("Running inference...")
         all_labels, all_preds_baseline = self.processor.run_inference(eval_dataset, transformers_pipeline)
         _, all_preds_optimized = self.processor.run_inference(eval_dataset, ort_pipeline)
 
+        print("Computing metrics...")
         for metric_name in self.metric_names:
             metric = load_metric(metric_name)
             baseline_metrics_dict = self.processor.get_metrics(
@@ -161,8 +181,8 @@ class OnnxRuntimeRun(Run):
             optimized_metrics_dict = self.processor.get_metrics(
                 predictions=all_preds_optimized, references=all_labels, metric=metric
             )
-            self.return_body["evaluation"]["others"]["baseline"][metric_name] = baseline_metrics_dict
-            self.return_body["evaluation"]["others"]["optimized"][metric_name] = optimized_metrics_dict
+            self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
+            self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
 
     def finalize(self):
         if os.path.isfile(self.quantized_model_path):

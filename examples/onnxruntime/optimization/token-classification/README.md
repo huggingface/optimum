@@ -19,13 +19,13 @@ limitations under the License.
 The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/optimization/token-classification/run_ner.py)
 allows us to apply graph optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for token classification tasks. 
 
-The following example applies graph optimizations on a DistilBERT fine-tuned on the CoNLL-2003 task
+The following example applies graph optimizations on a DistilBERT fine-tuned on the CoNLL-2003 task. Here the optimization level is selected to be 1, enabling basic optimizations such as redundant node eliminations and constant folding. Higher optimization level will result in hardware dependent optimized graph.
 
 ```bash
 python run_ner.py \
     --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english \
     --dataset_name conll2003 \
-    --optimization_level 99 \
+    --optimization_level 1 \
     --do_eval \
     --output_dir /tmp/optimized_distilbert_conll2003
 ```

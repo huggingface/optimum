@@ -15,14 +15,14 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.15.0",
+    "transformers[sentencepiece]>=4.18.0",
     "torch>=1.9",
     "packaging",
     "numpy",
     "huggingface_hub>=0.4.0",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
@@ -40,19 +40,13 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "protobuf==3.20.1",
     ],  # "transformers[sentencepiece]>4.17.0"],
-    "intel": [
-        "pycocotools",
-        "neural_compressor>=1.9",
-        "datasets>=1.2.1",
-        "pandas<1.4.0",
-        "transformers >= 4.15.0, < 4.17.0",
-    ],
+    "intel": "optimum-intel",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
-    "benchmark": ["optuna", "tqdm"],
+    "benchmark": ["optuna", "tqdm", "sklearn", "seqeval", "torchvision"],
 }
 
 setup(

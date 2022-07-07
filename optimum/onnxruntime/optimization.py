@@ -16,9 +16,10 @@ import os
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer, PreTrainedModel
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
+from transformers.onnx.utils import get_preprocessor
 
 from onnx import load_model
 from onnxruntime.transformers.fusion_options import FusionOptions
@@ -41,7 +42,7 @@ class ORTOptimizer:
         model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
     ) -> "ORTOptimizer":
         """
-        Instantiate a `ORTOptimizer` from a pretrained pytorch model and tokenizer.
+        Instantiate a `ORTOptimizer` from a pretrained pytorch model and preprocessor.
 
         Args:
             model_name_or_path (`Union[str, os.PathLike]`):
@@ -54,22 +55,23 @@ class ORTOptimizer:
         Returns:
             An instance of `ORTOptimizer`.
         """
-        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        preprocessor = get_preprocessor(model_name_or_path)
         model_class = FeaturesManager.get_model_class_for_feature(feature)
         model = model_class.from_pretrained(model_name_or_path)
-        return ORTOptimizer(tokenizer, model, feature, opset)
+
+        return ORTOptimizer(preprocessor, model, feature, opset)
 
     def __init__(
         self,
-        tokenizer: PreTrainedTokenizer,
+        preprocessor: Union[AutoFeatureExtractor, AutoProcessor, AutoTokenizer],
         model: PreTrainedModel,
         feature: str = "default",
         opset: Optional[int] = None,
     ):
         """
         Args:
-            tokenizer (`PreTrainedTokenizer`):
-                The tokenizer used to preprocess the data.
+            preprocessor (`Union[AutoFeatureExtractor, AutoProcessor, AutoTokenizer]`):
+                The preprocessor used to preprocess the data.
             model (`PreTrainedModel`):
                 The model to optimize.
             feature (`str`, defaults to `"default"`):
@@ -79,7 +81,7 @@ class ORTOptimizer:
         """
         super().__init__()
 
-        self.tokenizer = tokenizer
+        self.preprocessor = preprocessor
         self.model = model
         self.feature = feature
         self._model_type, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
@@ -117,7 +119,7 @@ class ORTOptimizer:
 
         # Export the model if it has not already been exported to ONNX IR
         if not onnx_model_path.exists():
-            export(self.tokenizer, self.model, self._onnx_config, self.opset, onnx_model_path)
+            export(self.preprocessor, self.model, self._onnx_config, self.opset, onnx_model_path)
 
         ORTConfigManager.check_supported_model_or_raise(self._model_type)
         num_heads = getattr(self.model.config, ORTConfigManager.get_num_heads_name(self._model_type))
