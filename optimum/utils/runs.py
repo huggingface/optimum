@@ -260,6 +260,15 @@ class Run(_RunDefaults, _RunBase):
         # validate `aware_training`
         assert self.aware_training == False, "Quantization-Aware Training not supported."
 
+
+@generate_doc_dataclass
+@dataclass
+class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
+    """Class holding the parameters to launch a run."""
+
+    def __post_init__(self):
+        super().__post_init__()
+
         # to support python 3.8 that does not support nested initialization of dataclass from dict
         if isinstance(self.dataset, dict):
             self.dataset = DatasetArgs(**self.dataset)
@@ -271,12 +280,3 @@ class Run(_RunDefaults, _RunBase):
             self.task_args = TaskArgs(**self.task_args)
         if isinstance(self.time_benchmark_args, dict):
             self.time_benchmark_args = BenchmarkTimeArgs(**self.time_benchmark_args)
-
-
-@generate_doc_dataclass
-@dataclass
-class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
-    """Class holding the parameters to launch a run."""
-
-    def __post_init__(self):
-        super().__post_init__()
