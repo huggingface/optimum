@@ -17,7 +17,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# import tensorflow as tf
+import tensorflow as tf
 import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -98,14 +98,14 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                             "labels": torch.LongTensor([0, 0, 0]),
                         }
                     elif issubclass(type(model), TFPreTrainedModel):
-                        # inputs = {
-                        #     "input_ids": tf.constant(
-                        #         [[101, 100, 100, 100, 100, 100, 100, 102], [101, 100, 100, 100, 100, 100, 100, 102]]
-                        #     ),
-                        #     "token_type_ids": tf.constant([[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]),
-                        #     "attention_mask": tf.constant([[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]),
-                        #     "labels": tf.constant([0, 0], dtype=tf.int64),
-                        # }
+                        inputs = {
+                            "input_ids": tf.constant(
+                                [[101, 100, 100, 100, 100, 100, 100, 102], [101, 100, 100, 100, 100, 100, 100, 102]]
+                            ),
+                            "token_type_ids": tf.constant([[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]),
+                            "attention_mask": tf.constant([[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]),
+                            "labels": tf.constant([0, 0], dtype=tf.int64),
+                        }
                     input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
                     output_names = [output.name for output in ort_sess._outputs_meta]
                     input_feed = dict(
