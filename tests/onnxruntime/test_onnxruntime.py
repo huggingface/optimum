@@ -31,6 +31,7 @@ from optimum.onnxruntime.configuration import (
     QuantizationConfig,
 )
 from transformers.onnx.features import FeaturesManager
+from parameterized import parameterized
 
 
 class TestORTConfig(unittest.TestCase):
@@ -100,6 +101,43 @@ class TestORTOptimizer(unittest.TestCase):
 
 
 class TestORTQuantizer(unittest.TestCase):
+    LOAD_CONFIGURATION = {
+        "transformers_model": {
+            "model_name_or_path": "distilbert-base-uncased-finetuned-sst-2-english",
+            "from_transformers": True,
+            "task": "text-classification",
+        },
+        "optimum_model": {
+            "model_name_or_path": "optimum/distilbert-base-uncased-finetuned-sst-2-english",
+            "task": "text-classification",
+        },
+        "local_asset": {
+            "model_name_or_path": "tests/assets/onnx",
+            "task": "text-classification",
+        },
+        "ort_model_class": {
+            "model_name_or_path": ORTModelForSequenceClassification.from_pretrained(
+                "optimum/distilbert-base-uncased-finetuned-sst-2-english"
+            )
+        },
+    }
+
+    @parameterized.expand(LOAD_CONFIGURATION.items())
+    def test_from_pretrained_method(self, *args):
+        _, args = args
+        quantizer = ORTQuantizer.from_pretrained(**args)
+        self.assertIsInstance(quantizer, ORTQuantizer)
+
+    def test_fail_from_pretrained_method(self):
+        with self.assertRaises(Exception) as context:
+            ORTQuantizer.from_pretrained("bert-base-cased", from_transformers=True)
+
+        self.assertTrue("When using from_transformers, you need to provide a feature/task.", context.exception)
+        with self.assertRaises(Exception) as context:
+            ORTQuantizer.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
+
+        self.assertTrue("Unable to load model", context.exception)
+
     def test_dynamic_quantization(self):
         model_names = {"bert-base-cased", "distilbert-base-uncased"}  # , "facebook/bart-base", "gpt2", "roberta-base"}
 
@@ -120,13 +158,11 @@ class TestORTQuantizer(unittest.TestCase):
                     output_dir = Path(tmp_dir)
                     model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
                     model.save_pretrained(tmp_dir)
-                    model_path = output_dir.joinpath("model.onnx")
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
 
-                    quantizer = ORTQuantizer(model_path)
+                    quantizer = ORTQuantizer.from_pretrained(model)
                     quantizer.export(
                         onnx_quantized_model_output_path=q8_model_path,
-                        calibration_tensors_range=None,
                         quantization_config=qconfig,
                     )
 
@@ -168,10 +204,9 @@ class TestORTQuantizer(unittest.TestCase):
                     model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
                     model.save_pretrained(tmp_dir)
                     tokenizer = AutoTokenizer.from_pretrained(model_name)
-                    model_path = output_dir.joinpath("model.onnx")
                     q8_model_path = output_dir.joinpath("model-quantized.onnx")
 
-                    quantizer = ORTQuantizer(model_path)
+                    quantizer = ORTQuantizer.from_pretrained(model)
 
                     calibration_dataset = quantizer.get_calibration_dataset(
                         "glue",
