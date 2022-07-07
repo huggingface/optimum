@@ -15,7 +15,8 @@ from typing import Set, Tuple
 
 from onnx import ModelProto
 from onnxruntime.transformers.onnx_model import OnnxModel
-from optimum.onnxruntime.preprocessors import PreprocessorPass
+
+from .. import PreprocessorPass
 
 
 class ExcludeNodeFollowedBy(PreprocessorPass):

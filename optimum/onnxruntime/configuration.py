@@ -23,9 +23,9 @@ from packaging.version import Version, parse
 from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator
-from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORT_FULLY_CONNECTED_OPERATORS
 
 from ..configuration_utils import BaseConfig
+from . import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORT_FULLY_CONNECTED_OPERATORS
 
 
 NodeName = NodeType = str

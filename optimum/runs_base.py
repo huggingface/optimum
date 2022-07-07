@@ -11,8 +11,8 @@ from datasets import Dataset
 from tqdm import trange
 
 import optuna
-from optimum import version as optimum_version
 
+from . import version as optimum_version
 from .utils.preprocessing import (
     ImageClassificationProcessing,
     QuestionAnsweringProcessing,

@@ -2,11 +2,9 @@ from typing import Dict
 
 from datasets import Dataset
 
-from optimum.onnxruntime.configuration import AutoCalibrationConfig
-from optimum.runs_base import Calibrator
-
+from ...runs_base import Calibrator
 from .. import ORTQuantizer
-from ..configuration import QuantizationConfig
+from ..configuration import AutoCalibrationConfig, QuantizationConfig
 
 
 class OnnxRuntimeCalibrator(Calibrator):
