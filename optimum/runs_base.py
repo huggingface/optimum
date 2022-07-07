@@ -82,6 +82,7 @@ class Run:
         self.return_body = {
             "model_name_or_path": run_config["model_name_or_path"],
             "task": self.task,
+            "task_args": run_config["task_args"],
             "dataset": run_config["dataset"],
             "quantization_approach": run_config["quantization_approach"],
             "operators_to_quantize": run_config["operators_to_quantize"],
