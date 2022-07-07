@@ -62,6 +62,35 @@ quantizer = ORTQuantizer.from_pretrained(ort_model)
 quantizer.fit(...)
 ```
 
+## Dynmaic Quantization example 
+
+The `ORTQuantizer` class can be used to dynmaically quantize your onnx model. Below you will find an easy end-to-end example on how to dynamically quantize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
+    
+```python
+from optimum.onnxruntime import ORTQuantizer, ORTModelForSequenceClassification
+from optimum.onnxruntime.configuration import AutoQuantizationConfig
+
+model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+
+# load pytorch model and convert to onnx
+onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id,from_transformers=True)
+
+# create quantizer
+quantizer = ORTQuantizer.from_pretrained(onnx_model)
+
+# define quantize configuartion
+dqconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=False)
+
+# apply the quantization configuration to the model
+model_quantized_path = quantizer.export(
+    output_path="model-quantized.onnx",
+    quantization_config=dqconfig,
+)
+```
+
+## Static Quantization example 
+
+TODO:
 
 ## ORTQuantizer
 
