@@ -18,8 +18,6 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        max_eval_samples = 100  # TODO remove this
-
         # Preprocessing the raw_datasets
         def preprocess_function(
             examples,
@@ -53,8 +51,8 @@ class QuestionAnsweringProcessing(DatasetProcessing):
             return tokenized_examples
 
         eval_dataset = raw_datasets[self.eval_split]
-        if max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
 
         datasets_dict = {"eval": eval_dataset}
 
