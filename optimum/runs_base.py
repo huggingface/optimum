@@ -114,7 +114,7 @@ class Run:
             `dict`: Finalized run data with metrics stored in the "evaluation" key.
         """
         try:
-            self.study.optimize(self._launch_time, n_trials=100, timeout=600)
+            self.study.optimize(self._launch_time)
             self.launch_eval()
         finally:
             self.finalize()
@@ -255,10 +255,8 @@ class TimeBenchmark:
             )
 
         # Warmup
-        outputs = []
         for _ in trange(self.warmup_runs, desc="Warming up"):
-            output = self.model.forward(**inputs)
-            outputs.append(output[0])
+            self.model.forward(**inputs)
 
         if self.benchmark_duration != 0:
             benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
