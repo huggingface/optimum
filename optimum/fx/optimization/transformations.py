@@ -126,6 +126,42 @@ class Transformation(ABC):
             graph_module.recompile()
         return graph_module
 
+    @property
+    def signature(self):
+        """
+        Returns a hash that can be used to identify the transformation.
+        """
+        attributes_to_use_for_hashing = vars(self)
+        attributes_to_use_for_hashing[""] = self.__class__
+        hash_str = "_".join(f"k_{hash(v)}" for k, v in attributes_to_use_for_hashing.items())
+        return hash(hash_str)
+
+    def mark_as_transformed(self, node: "Node"):
+        """
+        Marks a node as transformed by this transformation.
+
+        Args:
+            node (`torch.fx.Node`):
+                The node to mark as transformed.
+        """
+        node_transformations = getattr(node, "transformations", set())
+        node_transformations.add(self.signature)
+        node.transformations = node_transformations
+
+    def transformed(self, node: "Node") -> bool:
+        """
+        Specifies whether this transformation transformed node or not.
+
+        Args:
+            node (`torch.fx.Node`):
+                The node to check.
+
+        Returns:
+            `bool`:
+                True if the node was transformed by this transformation, and False otherwise.
+        """
+        return self.signature in getattr(node, "transformations", set())
+
 
 @add_docstring(add_example=False)
 class ReversibleTransformation(Transformation):
@@ -173,6 +209,19 @@ class ReversibleTransformation(Transformation):
             graph_module.graph.lint()
             graph_module.recompile()
         return graph_module
+
+    def mark_as_restored(self, node: "Node"):
+        """
+        Marks a node as restored back to its original state.
+
+        Args:
+            node (`torch.fx.Node`):
+                The node to mark as restored.
+        """
+        node_transformations = getattr(node, "transformations", set())
+        if self.signature not in node_transformations:
+            raise ValueError("The node was not transformed by this transformation.")
+        node_transformations.remove(self.signature)
 
 
 @add_docstring()

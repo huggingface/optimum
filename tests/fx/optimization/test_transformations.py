@@ -20,7 +20,13 @@ from transformers import AutoTokenizer, BertModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
 
-from optimum.fx.optimization import ChangeTrueDivToMulByInverse, MergeLinears, Transformation, compose
+from optimum.fx.optimization import (
+    ChangeTrueDivToMulByInverse,
+    MergeLinears,
+    ReversibleTransformation,
+    Transformation,
+    compose,
+)
 from optimum.fx.utils import are_fx_features_available
 from parameterized import parameterized
 
@@ -29,6 +35,9 @@ _MODEL_NAME = "hf-internal-testing/tiny-random-bert"
 
 
 class DummyTransformation(Transformation):
+    def __init__(self, some_argument=None):
+        self.some_argument = some_argument
+
     def transform(self, graph_module):
         for node in graph_module.graph.nodes:
             if node.op == "call_function" and node.target == operator.mul:
@@ -141,6 +150,64 @@ class TransformationTester(unittest.TestCase):
 
         composition = compose(DummyTransformation(), ChangeTrueDivToMulByInverse(), MergeLinears())
         self.assertFalse(composition.preserves_computation)
+
+    def test_transformation_signature(self):
+        t1 = DummyTransformation()
+        t2 = DummyTransformation(some_argument=1)
+
+        # Same transformation
+        self.assertEqual(t1.signature, DummyTransformation().signature)
+        # Same transformation class, but different attributes
+        self.assertNotEqual(t1.signature, t2.signature)
+        # Different transformation class, but same attributes
+        DifferentTransformation = type("DifferentTransformation", (DummyTransformation,), {})
+        t3 = DifferentTransformation(some_argument=1)
+        self.assertNotEqual(t2.signature, t3.signature)
+
+    def test_transformation_mark_and_transformed(self):
+        _, traced = get_bert_model()
+
+        class MarkLinears(ReversibleTransformation):
+            def __init__(self, some_argument=None):
+                self.some_argument = some_argument
+
+            def transform(self, graph_module):
+                for node in graph_module.graph.nodes:
+                    if node.op == "call_module" and isinstance(
+                        graph_module.get_submodule(node.target), torch.nn.Linear
+                    ):
+                        self.mark_as_transformed(node)
+                return graph_module
+
+            def reverse(self, graph_module):
+                for node in graph_module.graph.nodes:
+                    if node.op == "call_module" and isinstance(
+                        graph_module.get_submodule(node.target), torch.nn.Linear
+                    ):
+                        self.mark_as_restored(node)
+                return graph_module
+
+        # Marked by one transform.
+        t1 = MarkLinears()
+        traced = t1(traced)
+        for node in traced.graph.nodes:
+            if node.op == "call_module" and isinstance(traced.get_submodule(node.target), torch.nn.Linear):
+                self.assertTrue(t1.transformed(node))
+        # Not marked by another transform.
+        t2 = MarkLinears(some_argument="test")
+        for node in traced.graph.nodes:
+            if node.op == "call_module" and isinstance(traced.get_submodule(node.target), torch.nn.Linear):
+                self.assertFalse(t2.transformed(node))
+        # And now marked by it.
+        traced = t2(traced)
+        for node in traced.graph.nodes:
+            if node.op == "call_module" and isinstance(traced.get_submodule(node.target), torch.nn.Linear):
+                self.assertTrue(t2.transformed(node))
+        # Reversed first transform, nodes should not be marked as transformed anymore.
+        traced = t1(traced, reverse=True)
+        for node in traced.graph.nodes:
+            if node.op == "call_module" and isinstance(traced.get_submodule(node.target), torch.nn.Linear):
+                self.assertFalse(t1.transformed(node))
 
 
 def test_merge_linears():
