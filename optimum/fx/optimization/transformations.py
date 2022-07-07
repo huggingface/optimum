@@ -150,17 +150,28 @@ class Transformation(ABC):
 
     def transformed(self, node: "Node") -> bool:
         """
-        Specifies whether this transformation transformed node or not.
-
         Args:
             node (`torch.fx.Node`):
                 The node to check.
 
         Returns:
             `bool`:
-                True if the node was transformed by this transformation, and False otherwise.
+                Specifies whether the node was transformed by this transformation or not.
         """
         return self.signature in getattr(node, "transformations", set())
+
+    def get_transformed_nodes(self, graph_module: "GraphModule") -> List["Node"]:
+        """
+        Args:
+            graph_module (`torch.fx.GraphModule`):
+                The graph_module to get the nodes from.
+
+        Returns:
+            `List[torch.fx.Node]`:
+                Gives the list of nodes that were transformed by the transformation.
+        """
+
+        return [node for node in graph_module.graph.nodes if self.transformed(node)]
 
 
 @add_docstring(add_example=False)
