@@ -1,3 +1,4 @@
+import platform
 from dataclasses import field
 from enum import Enum
 from typing import Dict, List, Optional, Union
@@ -13,7 +14,7 @@ else:
 
 
 class APIFeaturesManager:
-    _SUPPORTED_TASKS = ["text-classification", "token-classification", "question-answering"]
+    _SUPPORTED_TASKS = ["text-classification", "token-classification", "question-answering", "image-classification"]
 
     @staticmethod
     def check_supported_model_task_pair(model_type: str, task: str):
@@ -56,6 +57,15 @@ class QuantizationApproach(str, Enum):
     dynamic = "dynamic"
 
 
+def cpu_info_command():
+    if platform.system() == "Linux":
+        return "lscpu"
+    elif platform.system() == "Darwin":
+        return "sysctl -a | grep machdep.cpu"
+    else:
+        raise NotImplementedError("OS not supported.")
+
+
 @generate_doc_dataclass
 @dataclass
 class Calibration:
@@ -89,7 +99,7 @@ class Calibration:
 @generate_doc_dataclass
 @dataclass
 class FrameworkArgs:
-    opset: Optional[int] = field(default=15, metadata={"description": "ONNX opset version to export the model with."})
+    opset: Optional[int] = field(default=11, metadata={"description": "ONNX opset version to export the model with."})
     optimization_level: Optional[int] = field(default=0, metadata={"description": "ONNX optimization level."})
 
     def __post_init__(self):
@@ -103,32 +113,6 @@ class FrameworkArgs:
             2,
             99,
         ], f"Unsupported OnnxRuntime optimization level: {self.optimization_level}"
-
-
-@generate_doc_dataclass
-@dataclass
-class Versions:
-    transformers: str = field(metadata={"description": "Transformers version."})
-    optimum: str = field(metadata={"description": "Optimum version."})
-    optimum_hash: Optional[str] = field(
-        default=None, metadata={"description": "Optimum commit hash, in case the dev version is used."}
-    )
-    onnxruntime: Optional[str] = field(default=None, metadata={"description": "Onnx Runtime version."})
-    torch_ort: Optional[str] = field(default=None, metadata={"description": "Torch-ort version."})
-
-
-@generate_doc_dataclass
-@dataclass
-class Evaluation:
-    time: List[Dict] = field(metadata={"description": "Measures of inference time (latency, throughput)."})
-    others: Dict = field(metadata={"description": "Metrics measuring the performance on the given task."})
-
-    def __post_init__(self):
-        # validate `others`
-        assert "baseline" in self.others
-        assert "optimized" in self.others
-        for metric_name, metric_dict in self.others["baseline"].items():
-            assert metric_dict.keys() == self.others["optimized"][metric_name].keys()
 
 
 @generate_doc_dataclass
@@ -162,6 +146,19 @@ class TaskArgs:
         metadata={
             "description": "Text classification specific. Set whether the task is regression (output = one float)."
         },
+    )
+
+
+@generate_doc_dataclass
+@dataclass
+class BenchmarkTimeArgs:
+    """Parameters related to time benchmark."""
+
+    duration: Optional[int] = field(
+        default=30, metadata={"description": "Duration in seconds of the time evaluation."}
+    )
+    warmup_runs: Optional[int] = field(
+        default=10, metadata={"description": "Number of warmup calls to forward() before the time evaluation."}
     )
 
 
@@ -207,6 +204,13 @@ class _RunDefaults:
         metadata={
             "description": "Whether the quantization is to be done with Quantization-Aware Training (not supported)."
         },
+    )
+    max_eval_samples: Optional[int] = field(
+        default=None,
+        metadata={"description": "Maximum number of samples to use from the evaluation dataset for evaluation."},
+    )
+    time_benchmark_args: Optional[BenchmarkTimeArgs] = field(
+        default=BenchmarkTimeArgs(), metadata={"description": "Parameters related to time benchmark."}
     )
 
 
@@ -262,4 +266,15 @@ class Run(_RunDefaults, _RunBase):
 class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
     """Class holding the parameters to launch a run."""
 
-    pass
+    def __post_init__(self):
+        # to support python 3.8 that does not support nested initialization of dataclass from dict
+        if isinstance(self.dataset, dict):
+            self.dataset = DatasetArgs(**self.dataset)
+        if isinstance(self.framework_args, dict):
+            self.framework_args = FrameworkArgs(**self.framework_args)
+        if isinstance(self.calibration, dict):
+            self.calibration = Calibration(**self.calibration)
+        if isinstance(self.task_args, dict):
+            self.task_args = TaskArgs(**self.task_args)
+        if isinstance(self.time_benchmark_args, dict):
+            self.time_benchmark_args = BenchmarkTimeArgs(**self.time_benchmark_args)

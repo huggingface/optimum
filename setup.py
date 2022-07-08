@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.15.0",
+    "transformers[sentencepiece]>=4.18.0",
     "torch>=1.9",
     "packaging",
     "numpy",
@@ -46,7 +46,7 @@ EXTRAS_REQUIRE = {
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
-    "benchmark": ["optuna", "tqdm"],
+    "benchmark": ["optuna", "tqdm", "sklearn", "seqeval", "torchvision"],
 }
 
 setup(

@@ -25,7 +25,7 @@ from torch.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
 from transformers import PreTrainedModel
 from transformers.utils.fx import HFTracer, check_if_model_is_supported, get_concrete_args, symbolic_trace
 
-from .utils import check_if_available
+from ..utils import check_if_available
 
 
 if TYPE_CHECKING:

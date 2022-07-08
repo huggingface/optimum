@@ -2,6 +2,7 @@ import os
 import subprocess
 from contextlib import contextmanager
 from time import perf_counter_ns
+from typing import Set
 
 import numpy as np
 import torch
@@ -13,11 +14,12 @@ import optuna
 from optimum import version as optimum_version
 
 from .utils.preprocessing import (
+    ImageClassificationProcessing,
     QuestionAnsweringProcessing,
     TextClassificationProcessing,
     TokenClassificationProcessing,
 )
-from .utils.runs import RunConfig
+from .utils.runs import RunConfig, cpu_info_command
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -68,7 +70,7 @@ class Run:
             sampler=optuna.samplers.GridSampler(search_space),
         )
 
-        cpu_info = subprocess.check_output(["lscpu"]).decode("utf-8")
+        cpu_info = subprocess.check_output([cpu_info_command()], shell=True).decode("utf-8")
 
         optimum_hash = None
         if "dev" in optimum_version.__version__:
@@ -99,6 +101,8 @@ class Run:
                 "time": [],
                 "others": {"baseline": {}, "optimized": {}},
             },
+            "max_eval_samples": run_config["max_eval_samples"],
+            "time_benchmark_args": run_config["time_benchmark_args"],
         }
 
     def launch(self):
@@ -110,10 +114,11 @@ class Run:
             `dict`: Finalized run data with metrics stored in the "evaluation" key.
         """
         try:
-            self.study.optimize(self._launch_time, n_trials=100, timeout=600)
+            self.study.optimize(self._launch_time)
             self.launch_eval()
         finally:
             self.finalize()
+            print("Finished run.")
 
         return self.return_body
 
@@ -178,18 +183,21 @@ def ns_to_ms(ns_time):
 
 
 class TimeBenchmark:
-    def __init__(self, model, batch_size: int, input_length: int, has_token_type_ids: bool):
+    def __init__(
+        self, model, batch_size: int, input_length: int, model_input_names: Set[str], warmup_runs: int, duration: float
+    ):
         self.batch_size = batch_size
         self.input_length = input_length
-        self.has_token_type_ids = has_token_type_ids
         self.model = model
 
-        # TODO fix
-        self.warmup_runs = 2
-        self.benchmark_duration = 2
+        # in seconds
+        self.warmup_runs = warmup_runs
+        self.benchmark_duration = duration
 
         self.latencies = []
         self.throughput = float("-inf")
+
+        self.model_input_names = model_input_names
 
     @property
     def num_runs(self) -> int:
@@ -226,32 +234,53 @@ class TimeBenchmark:
         return benchmarks_stats
 
     def execute(self):
-        inputs = {
-            "input_ids": torch.randint(high=1000, size=(self.batch_size, self.input_length)),
-            "attention_mask": torch.ones(self.batch_size, self.input_length, dtype=torch.int64),
-        }
-        if self.has_token_type_ids:
+        inputs = {}
+
+        checked_inputs = {"input_ids", "attention_mask", "token_type_ids", "pixel_values"}
+        if "input_ids" in self.model_input_names:
+            inputs["input_ids"] = torch.randint(high=1000, size=(self.batch_size, self.input_length))
+        if "attention_mask" in self.model_input_names:
+            inputs["attention_mask"] = torch.ones(self.batch_size, self.input_length, dtype=torch.int64)
+        if "token_type_ids" in self.model_input_names:
             inputs["token_type_ids"] = torch.ones(self.batch_size, self.input_length, dtype=torch.int64)
+        if "pixel_values" in self.model_input_names:
+            # TODO support grayscale?
+            inputs["pixel_values"] = torch.rand(
+                self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32
+            )
+
+        if np.any([k not in checked_inputs for k in self.model_input_names]):
+            raise NotImplementedError(
+                f"At least an input in {self.model_input_names} has no dummy generation for time benchmark."
+            )
 
         # Warmup
-        outputs = []
         for _ in trange(self.warmup_runs, desc="Warming up"):
-            output = self.model.forward(**inputs)
-            outputs.append(output[0])
+            self.model.forward(**inputs)
 
-        benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
-        while sum(self.latencies) < benchmark_duration_ns:
-            # TODO not trak GPU/CPU <--> numpy/torch, need to change the implementation of forward
-            with self.track():
-                self.model.forward(**inputs)
+        if self.benchmark_duration != 0:
+            benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
+            print(f"Running time tracking in {self.benchmark_duration:.1f}s.")
+            while sum(self.latencies) < benchmark_duration_ns:
+                # TODO not trak GPU/CPU <--> numpy/torch, need to change the implementation of forward
+                with self.track():
+                    self.model.forward(**inputs)
 
-        self.finalize(benchmark_duration_ns)
+            self.finalize(benchmark_duration_ns)
 
-        return self.to_dict()
+            return self.to_dict()
+        else:
+            benchmarks_stats = {
+                "nb_forwards": 0,
+                "throughput": -1,
+                "latency_mean": -1,
+            }
+            return benchmarks_stats
 
 
 task_processing_map = {
     "text-classification": TextClassificationProcessing,
     "token-classification": TokenClassificationProcessing,
     "question-answering": QuestionAnsweringProcessing,
+    "image-classification": ImageClassificationProcessing,
 }

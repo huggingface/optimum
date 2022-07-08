@@ -4,9 +4,6 @@ from typing import Dict, List, Optional
 from datasets import ClassLabel, Dataset, Metric, load_dataset
 from transformers import PreTrainedTokenizerBase, TokenClassificationPipeline
 
-from tokenizers import pre_tokenizers
-from tokenizers.pre_tokenizers import WhitespaceSplit
-
 from .base import DatasetProcessing
 
 
@@ -18,6 +15,9 @@ class TokenClassificationProcessing(DatasetProcessing):
             kwargs["data_keys"]["secondary"] = None
 
         super().__init__(**kwargs)
+
+        if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
+            raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
 
     def load_datasets(self) -> Dict:
         # Downloading and loading a dataset from the hub.
@@ -46,8 +46,6 @@ class TokenClassificationProcessing(DatasetProcessing):
         else:
             self.label_list = get_label_list(raw_datasets["train"][self.ref_keys[0]])
 
-        max_eval_samples = 100  # TODO remove this
-
         # Preprocessing the raw_datasets
         def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
             # Tokenize the texts
@@ -62,8 +60,8 @@ class TokenClassificationProcessing(DatasetProcessing):
             return tokenized_inputs
 
         eval_dataset = raw_datasets[self.eval_split]
-        if max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
 
         datasets_dict = {"eval": eval_dataset}
 
@@ -72,7 +70,7 @@ class TokenClassificationProcessing(DatasetProcessing):
             calibration_dataset = raw_datasets[self.calibration_split].map(
                 partial(
                     preprocess_function,
-                    tokenizer=self.tokenizer,
+                    tokenizer=self.preprocessor,
                     data_keys=self.data_keys,
                 ),
                 batched=True,
@@ -81,7 +79,7 @@ class TokenClassificationProcessing(DatasetProcessing):
             )
 
             columns_to_remove = raw_datasets.column_names[self.calibration_split]
-            columns_to_remove = [name for name in columns_to_remove if name not in self.tokenizer.model_input_names]
+            columns_to_remove = [name for name in columns_to_remove if name not in self.preprocessor.model_input_names]
             calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
 
             if self.num_calibration_samples is not None:
@@ -124,19 +122,20 @@ class TokenClassificationProcessing(DatasetProcessing):
         return all_labels, all_preds
 
     def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_dict = metric.compute(predictions=predictions, references=references)
+        metrics_res = metric.compute(predictions=predictions, references=references)
 
         if metric.name == "seqeval":
-            res_metrics = {
-                "precision": metrics_dict["overall_precision"],
-                "recall": metrics_dict["overall_recall"],
-                "f1": metrics_dict["overall_f1"],
-                "accuracy": metrics_dict["overall_accuracy"],
+            metrics_res = {
+                "precision": metrics_res["overall_precision"],
+                "recall": metrics_res["overall_recall"],
+                "f1": metrics_res["overall_f1"],
+                "accuracy": metrics_res["overall_accuracy"],
             }
-        else:
-            res_metrics = metrics_dict
+        # `metric.compute` may return a dict or a number
+        elif not isinstance(metrics_res, dict):
+            metrics_res = {metric.name: metrics_res}
 
-        return res_metrics
+        return metrics_res
 
     def get_pipeline_kwargs(self):
         res = {

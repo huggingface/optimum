@@ -10,13 +10,13 @@ from .base import DatasetProcessing
 class QuestionAnsweringProcessing(DatasetProcessing):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = kwargs["config"]
+
+        if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
+            raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
 
     def load_datasets(self):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
-
-        max_eval_samples = 20  # TODO remove this
 
         # Preprocessing the raw_datasets
         def preprocess_function(
@@ -51,8 +51,8 @@ class QuestionAnsweringProcessing(DatasetProcessing):
             return tokenized_examples
 
         eval_dataset = raw_datasets[self.eval_split]
-        if max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
 
         datasets_dict = {"eval": eval_dataset}
 
@@ -62,7 +62,7 @@ class QuestionAnsweringProcessing(DatasetProcessing):
             calibration_dataset = raw_datasets[self.calibration_split].map(
                 partial(
                     preprocess_function,
-                    tokenizer=self.tokenizer,
+                    tokenizer=self.preprocessor,
                     data_keys=self.data_keys,
                 ),
                 batched=True,
@@ -71,7 +71,7 @@ class QuestionAnsweringProcessing(DatasetProcessing):
             )
 
             columns_to_remove = raw_datasets.column_names[self.calibration_split]
-            columns_to_remove = [name for name in columns_to_remove if name not in self.tokenizer.model_input_names]
+            columns_to_remove = [name for name in columns_to_remove if name not in self.preprocessor.model_input_names]
             calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
 
             if self.num_calibration_samples is not None:
@@ -84,16 +84,24 @@ class QuestionAnsweringProcessing(DatasetProcessing):
     def run_inference(self, eval_dataset: Dataset, pipeline: QuestionAnsweringPipeline):
         all_labels = [{"id": inputs["id"], "answers": inputs[self.ref_keys[0]]} for inputs in eval_dataset]
         all_preds = []
+        kwargs = {"padding": "max_length"}
         for _, inputs in enumerate(eval_dataset):
-            preds = pipeline(question=inputs[self.data_keys["question"]], context=inputs[self.data_keys["context"]])
+            preds = pipeline(
+                question=inputs[self.data_keys["question"]], context=inputs[self.data_keys["context"]], **kwargs
+            )
 
             preds = {"prediction_text": preds["answer"], "id": inputs["id"]}
             all_preds.append(preds)
         return all_labels, all_preds
 
     def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_dict = metric.compute(predictions=predictions, references=references)
-        return metrics_dict
+        metrics_res = metric.compute(predictions=predictions, references=references)
+
+        # `metric.compute` may return a dict or a number
+        if not isinstance(metrics_res, dict):
+            metrics_res = {metric.name: metrics_res}
+
+        return metrics_res
 
     def get_pipeline_kwargs(self):
         return {}
