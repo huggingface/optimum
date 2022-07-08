@@ -126,6 +126,53 @@ class Transformation(ABC):
             graph_module.recompile()
         return graph_module
 
+    @property
+    def signature(self):
+        """
+        Returns a hash that can be used to identify the transformation.
+        """
+        attributes_to_use_for_hashing = vars(self)
+        attributes_to_use_for_hashing[""] = self.__class__
+        hash_str = "_".join(f"{k}_{hash(v)}" for k, v in attributes_to_use_for_hashing.items())
+        return hash(hash_str)
+
+    def mark_as_transformed(self, node: "Node"):
+        """
+        Marks a node as transformed by this transformation.
+
+        Args:
+            node (`torch.fx.Node`):
+                The node to mark as transformed.
+        """
+        node_transformations = getattr(node, "transformations", set())
+        node_transformations.add(self.signature)
+        node.transformations = node_transformations
+
+    def transformed(self, node: "Node") -> bool:
+        """
+        Args:
+            node (`torch.fx.Node`):
+                The node to check.
+
+        Returns:
+            `bool`:
+                Specifies whether the node was transformed by this transformation or not.
+        """
+        return self.signature in getattr(node, "transformations", set())
+
+    def get_transformed_nodes(self, graph_module: "GraphModule") -> List["Node"]:
+        """
+        Args:
+            graph_module (`torch.fx.GraphModule`):
+                The graph_module to get the nodes from.
+
+        Returns:
+            `List[torch.fx.Node]`:
+                Gives the list of nodes that were transformed by the transformation.
+        """
+
+        return [node for node in graph_module.graph.nodes if self.transformed(node)]
+
 
 @add_docstring(add_example=False)
 class ReversibleTransformation(Transformation):
@@ -173,6 +220,19 @@ class ReversibleTransformation(Transformation):
             graph_module.graph.lint()
             graph_module.recompile()
         return graph_module
+
+    def mark_as_restored(self, node: "Node"):
+        """
+        Marks a node as restored back to its original state.
+
+        Args:
+            node (`torch.fx.Node`):
+                The node to mark as restored.
+        """
+        node_transformations = getattr(node, "transformations", set())
+        if self.signature not in node_transformations:
+            raise ValueError("The node was not transformed by this transformation.")
+        node_transformations.remove(self.signature)
 
 
 @add_docstring()
