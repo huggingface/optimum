@@ -30,8 +30,9 @@ from itertools import chain
 from typing import Optional
 
 import datasets
-import transformers
 from datasets import load_dataset, load_metric
+
+import transformers
 from transformers import (
     CONFIG_MAPPING,
     MODEL_FOR_MASKED_LM_MAPPING,
