@@ -63,10 +63,17 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoder)
         self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_seq2seq_model_without_past_from_hub(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=False)
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertisTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_without_onnx_model(self):
@@ -87,7 +94,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.device, gpu)
 
     def test_seq2seq_model_on_cpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
         cpu = torch.device("cpu")
         model.to(cpu)
         self.assertEqual(model.device, cpu)
@@ -100,7 +107,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     @require_torch_gpu
     def test_seq2seq_model_on_gpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
         gpu = torch.device("cuda")
         model.to(gpu)
         self.assertEqual(model.device, gpu)
@@ -128,13 +135,24 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_save_seq2seq_model(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
+            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
             model.save_pretrained(tmpdirname)
             folder_contents = os.listdir(tmpdirname)
-            # Verify config and ONNX exported encoder, decoder and decoder present in folder
+            # Verify config and ONNX exported encoder, decoder and decoder with past present in folder
             self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
             self.assertTrue(ONNX_DECODER_NAME in folder_contents)
             self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(CONFIG_NAME in folder_contents)
+
+    def test_save_seq2seq_model_without_past(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=False)
+            model.save_pretrained(tmpdirname)
+            folder_contents = os.listdir(tmpdirname)
+            # Verify config and ONNX exported encoder and decoder present in folder
+            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
             self.assertTrue(CONFIG_NAME in folder_contents)
 
     def test_save_model_with_different_name(self):
@@ -860,3 +878,18 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
         self.assertEqual(pipe.device, onnx_model.device)
+
+    def test_compare_with_and_without_past_key_values_model_outputs(self):
+        model_id = "t5-small"
+        tokenizer = get_preprocessor(model_id)
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
+        model_with_pkv = ORTModelForSeq2SeqLM.from_pretrained(
+            model_id, from_transformers=True, use_past_key_values=True
+        )
+        outputs_model_with_pkv = model_with_pkv.generate(**tokens)
+        model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(
+            model_id, from_transformers=True, use_past_key_values=False
+        )
+        outputs_model_without_pkv = model_without_pkv.generate(**tokens)
+        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
