@@ -73,7 +73,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=False)
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertisTrue(model.decoder_with_past is None)
+        self.assertTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_without_onnx_model(self):
