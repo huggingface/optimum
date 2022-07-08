@@ -615,6 +615,8 @@ class OptimizationConfig:
         optimize_for_gpu (`bool`, defaults to `False`):
             Whether to optimize the model for GPU inference.
             The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
+        fp16 (`bool`, defaults to `False`):
+            Wether all weights and nodes should be converted from float32 to float16.
         optimize_with_onnxruntime_only (`bool`, defaults to `False`):
             Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python.
         disable_gelu (`bool`, defaults to `False`):
@@ -643,6 +645,7 @@ class OptimizationConfig:
 
     optimization_level: int = 1
     optimize_for_gpu: bool = False
+    fp16: bool = False
     optimize_with_onnxruntime_only: bool = False
     disable_gelu: bool = False
     disable_layer_norm: bool = False

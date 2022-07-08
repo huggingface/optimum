@@ -20,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import onnx
 
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
@@ -99,6 +100,23 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertEqual(len(fused_operator), 0)
             self.assertEqual(len(sorted_operators_difference), 0)
             gc.collect()
+
+    def test_optimization_fp16(self):
+        model_name = "hf-internal-testing/tiny-random-distilbert"
+        optimization_config = OptimizationConfig(optimization_level=0, fp16=True)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            model_path = output_dir.joinpath("model.onnx")
+            optimized_model_path = output_dir.joinpath("model-optimized.onnx")
+            optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            optimizer.export(
+                onnx_model_path=model_path,
+                onnx_optimized_model_output_path=optimized_model_path,
+                optimization_config=optimization_config,
+            )
+            model = onnx.load(optimized_model_path.as_posix())
+            for w in model.graph.initializer:
+                self.assertNotEqual(w.data_type, onnx.onnx_pb.TensorProto.FLOAT)
 
 
 class ORTDynamicQuantizationTest(unittest.TestCase):
