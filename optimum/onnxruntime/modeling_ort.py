@@ -127,20 +127,22 @@ class ORTModel(OptimizedModel):
         raise NotImplementedError
 
     @staticmethod
-    def load_model(path: Union[str, Path], provider=None):
+    def load_model(path: Union[str, Path], provider=None, sess_options=None):
         """
         Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
 
         Arguments:
             path (`str` or `Path`):
                 Directory from which to load the model.
-            provider(`str`, *optional*):
+            provider (`str`, *optional*):
                 ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
+            sess_options (`onnxruntime.SessionOptions`, *optional*),:
+                ONNX Runtime session options to use for loading the model. Defaults to `None`.
         """
         if provider is None:
             provider = "CPUExecutionProvider"
 
-        return ort.InferenceSession(path, providers=[provider])
+        return ort.InferenceSession(path, providers=[provider], sess_options=sess_options)
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
