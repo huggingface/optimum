@@ -20,8 +20,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import onnx
 
+import onnx
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
