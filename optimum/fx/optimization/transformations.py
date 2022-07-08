@@ -133,7 +133,7 @@ class Transformation(ABC):
         """
         attributes_to_use_for_hashing = vars(self)
         attributes_to_use_for_hashing[""] = self.__class__
-        hash_str = "_".join(f"k_{hash(v)}" for k, v in attributes_to_use_for_hashing.items())
+        hash_str = "_".join(f"{k}_{hash(v)}" for k, v in attributes_to_use_for_hashing.items())
         return hash(hash_str)
 
     def mark_as_transformed(self, node: "Node"):
