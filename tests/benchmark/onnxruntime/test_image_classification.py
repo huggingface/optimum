@@ -59,6 +59,8 @@ class TestImageClassification(unittest.TestCase):
             "framework": "onnxruntime",
             "framework_args": {"optimization_level": 1, "opset": 15},
             "batch_sizes": [8],
+            "max_eval_samples": 100,
+            "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
         }
         run_config = RunConfig(**run_config)
         run_config = dataclasses.asdict(run_config)

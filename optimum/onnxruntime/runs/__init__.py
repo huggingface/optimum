@@ -44,6 +44,8 @@ class OnnxRuntimeRun(Run):
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]
 
+        self.time_benchmark_args = run_config["time_benchmark_args"]
+
         self.model_path = "model.onnx"
         self.quantized_model_path = "quantized_model.onnx"
 
@@ -62,6 +64,7 @@ class OnnxRuntimeRun(Run):
             if self.static_quantization
             else None,
             config=quantizer.model.config,
+            max_eval_samples=run_config["max_eval_samples"],
         )
 
         self.metric_names = run_config["metrics"]
@@ -107,14 +110,26 @@ class OnnxRuntimeRun(Run):
         model_input_names = set(self.preprocessor.model_input_names)
 
         # onnxruntime benchmark
+        print("Running ONNX Runtime time benchmark.")
         ort_benchmark = TimeBenchmark(
-            self.ort_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
+            self.ort_model,
+            input_length=input_length,
+            batch_size=batch_size,
+            model_input_names=model_input_names,
+            warmup_runs=self.time_benchmark_args["warmup_runs"],
+            duration=self.time_benchmark_args["duration"],
         )
         optimized_time_metrics = ort_benchmark.execute()
 
         # pytorch benchmark
+        print("Running Pytorch time benchmark.")
         torch_benchmark = TimeBenchmark(
-            self.torch_model, input_length=input_length, batch_size=batch_size, model_input_names=model_input_names
+            self.torch_model,
+            input_length=input_length,
+            batch_size=batch_size,
+            model_input_names=model_input_names,
+            warmup_runs=self.time_benchmark_args["warmup_runs"],
+            duration=self.time_benchmark_args["duration"],
         )
         baseline_time_metrics = torch_benchmark.execute()
 
@@ -153,9 +168,11 @@ class OnnxRuntimeRun(Run):
         eval_dataset = self.get_eval_dataset()
 
         # may be better to avoid to get labels twice
+        print("Running inference...")
         all_labels, all_preds_baseline = self.processor.run_inference(eval_dataset, transformers_pipeline)
         _, all_preds_optimized = self.processor.run_inference(eval_dataset, ort_pipeline)
 
+        print("Computing metrics...")
         for metric_name in self.metric_names:
             metric = load_metric(metric_name)
             baseline_metrics_dict = self.processor.get_metrics(

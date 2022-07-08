@@ -101,6 +101,8 @@ class Run:
                 "time": [],
                 "others": {"baseline": {}, "optimized": {}},
             },
+            "max_eval_samples": run_config["max_eval_samples"],
+            "time_benchmark_args": run_config["time_benchmark_args"],
         }
 
     def launch(self):
@@ -112,10 +114,11 @@ class Run:
             `dict`: Finalized run data with metrics stored in the "evaluation" key.
         """
         try:
-            self.study.optimize(self._launch_time, n_trials=100, timeout=600)
+            self.study.optimize(self._launch_time)
             self.launch_eval()
         finally:
             self.finalize()
+            print("Finished run.")
 
         return self.return_body
 
@@ -180,14 +183,16 @@ def ns_to_ms(ns_time):
 
 
 class TimeBenchmark:
-    def __init__(self, model, batch_size: int, input_length: int, model_input_names: Set[str]):
+    def __init__(
+        self, model, batch_size: int, input_length: int, model_input_names: Set[str], warmup_runs: int, duration: float
+    ):
         self.batch_size = batch_size
         self.input_length = input_length
         self.model = model
 
-        # TODO fix
-        self.warmup_runs = 2
-        self.benchmark_duration = 2
+        # in seconds
+        self.warmup_runs = warmup_runs
+        self.benchmark_duration = duration
 
         self.latencies = []
         self.throughput = float("-inf")
@@ -250,20 +255,27 @@ class TimeBenchmark:
             )
 
         # Warmup
-        outputs = []
         for _ in trange(self.warmup_runs, desc="Warming up"):
-            output = self.model.forward(**inputs)
-            outputs.append(output[0])
+            self.model.forward(**inputs)
 
-        benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
-        while sum(self.latencies) < benchmark_duration_ns:
-            # TODO not trak GPU/CPU <--> numpy/torch, need to change the implementation of forward
-            with self.track():
-                self.model.forward(**inputs)
+        if self.benchmark_duration != 0:
+            benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
+            print(f"Running time tracking in {self.benchmark_duration:.1f}s.")
+            while sum(self.latencies) < benchmark_duration_ns:
+                # TODO not trak GPU/CPU <--> numpy/torch, need to change the implementation of forward
+                with self.track():
+                    self.model.forward(**inputs)
 
-        self.finalize(benchmark_duration_ns)
+            self.finalize(benchmark_duration_ns)
 
-        return self.to_dict()
+            return self.to_dict()
+        else:
+            benchmarks_stats = {
+                "nb_forwards": 0,
+                "throughput": -1,
+                "latency_mean": -1,
+            }
+            return benchmarks_stats
 
 
 task_processing_map = {

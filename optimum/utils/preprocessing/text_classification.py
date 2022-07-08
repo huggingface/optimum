@@ -23,8 +23,6 @@ class TextClassificationProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        max_eval_samples = 100  # TODO remove this
-
         # Labels
         if not self.task_args["is_regression"]:
             label_list = raw_datasets[self.eval_split].features[self.ref_keys[0]].names
@@ -61,8 +59,8 @@ class TextClassificationProcessing(DatasetProcessing):
             return tokenized_inputs
 
         eval_dataset = raw_datasets[self.eval_split]
-        if max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
 
         datasets_dict = {"eval": eval_dataset}
 

@@ -18,6 +18,7 @@ class DatasetProcessing:
         task_args: Optional[Dict] = None,
         num_calibration_samples: Optional[int] = None,
         calibration_split: Optional[str] = None,
+        max_eval_samples: Optional[int] = None,
     ):
         """Initialize the class in charge of loading datasets, running inference and evaluation.
 
@@ -35,6 +36,7 @@ class DatasetProcessing:
             task_args(`Dict`, *optional*): Task-specific arguments.
             num_calibration_samples (`int`, *optional*): Number of calibration samples for static quantization. Defaults to None.
             calibration_split (`str`, *optional*): Calibration split (e.g. "train") for static quantization. Defaults to None.
+            max_eval_samples (`int`; *optional*): Maximum number of samples to use from the evaluation dataset for evaluation.
         """
 
         if len(ref_keys) != 1:
@@ -51,6 +53,7 @@ class DatasetProcessing:
         self.ref_keys = ref_keys
         self.task_args = task_args
         self.config = config
+        self.max_eval_samples = max_eval_samples
 
     def load_datasets(self):
         """Load calibration dataset if needed, and evaluation dataset.
