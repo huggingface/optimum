@@ -75,4 +75,3 @@ body:
     attributes:
       label: Expected behavior
       description: "A clear and concise description of what you would expect to happen."
-      render: shell
