@@ -20,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 import onnx
 from onnx import load as onnx_load
@@ -32,6 +33,7 @@ from optimum.onnxruntime.configuration import (
     OptimizationConfig,
     QuantizationConfig,
 )
+from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from parameterized import parameterized
 
 
@@ -117,6 +119,17 @@ class ORTOptimizerTest(unittest.TestCase):
             model = onnx.load(optimized_model_path.as_posix())
             for w in model.graph.initializer:
                 self.assertNotEqual(w.data_type, onnx.onnx_pb.TensorProto.FLOAT)
+
+            onnx_model = ORTModelForSequenceClassification.from_pretrained(tmp_dir, file_name="model-optimized.onnx")
+            transformers_model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            tokens = tokenizer("This is a sample output", return_tensors="pt")
+            with torch.no_grad():
+                transformers_outputs = transformers_model(**tokens)
+            onnx_outputs = onnx_model(**tokens)
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
 
 class ORTDynamicQuantizationTest(unittest.TestCase):
