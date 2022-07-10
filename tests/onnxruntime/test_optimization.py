@@ -120,7 +120,9 @@ class ORTOptimizerTest(unittest.TestCase):
             for w in model.graph.initializer:
                 self.assertNotEqual(w.data_type, onnx.onnx_pb.TensorProto.FLOAT)
 
-            onnx_model = ORTModelForSequenceClassification.from_pretrained(tmp_dir, file_name="model-optimized.onnx")
+            onnx_model = ORTModelForSequenceClassification.from_pretrained(
+                output_dir.as_posix(), file_name="model-optimized.onnx"
+            )
             transformers_model = AutoModelForSequenceClassification.from_pretrained(model_name)
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             tokens = tokenizer("This is a sample output", return_tensors="pt")
