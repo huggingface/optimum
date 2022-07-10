@@ -110,6 +110,9 @@ class ORTOptimizerTest(unittest.TestCase):
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             optimized_model_path = output_dir.joinpath("model-optimized.onnx")
+            onnx_model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+            onnx_model.save_pretrained(output_dir.as_posix())
+
             optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
             optimizer.export(
                 onnx_model_path=model_path,
