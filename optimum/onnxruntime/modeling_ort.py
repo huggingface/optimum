@@ -32,8 +32,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
-
+from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device, _is_gpu_available
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +130,7 @@ class ORTModel(OptimizedModel):
                 ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
         if provider is None:
-            provider = "CPUExecutionProvider"
+            provider = "CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])
 
