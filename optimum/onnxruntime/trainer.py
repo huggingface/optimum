@@ -15,17 +15,15 @@
 The Trainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task.
 """
 
-import collections
 import math
 import os
 import sys
 import time
 import warnings
-from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
-from packaging.version import Version, parse
+from packaging.version import parse
 from tqdm.auto import tqdm
 
 
@@ -41,10 +39,9 @@ import torch.distributed as dist
 import transformers
 from packaging import version
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, IterableDataset, RandomSampler
+from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from transformers import PreTrainedModel, __version__
-from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
@@ -58,7 +55,7 @@ from transformers.file_utils import (
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.onnx import export, validate_model_outputs
+from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -68,6 +65,7 @@ from transformers.trainer_pt_utils import (
     IterableDatasetShard,
     SequentialDistributedSampler,
     find_batch_size,
+    get_parameter_names,
     nested_concat,
     nested_detach,
     nested_numpify,
@@ -91,9 +89,9 @@ from transformers.trainer_utils import (
 from transformers.training_args import TrainingArguments
 from transformers.utils import logging
 
-import onnx
 import onnxruntime
 
+from .training_args import ORTOptimizerNames
 from .utils import _is_gpu_available, fix_atenops_to_gather, wrap_onnx_config_for_loss
 
 
@@ -102,7 +100,6 @@ if is_apex_available():
 
 if is_fairscale_available():
     dep_version_check("fairscale")
-    import fairscale
     from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.nn.wrap import auto_wrap
@@ -1426,3 +1423,82 @@ class ORTTrainer(Trainer):
             )
 
         return model
+
+    def create_optimizer(self):
+        """
+        Setup the optimizer.
+        We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
+        ORTTrainer's init through `optimizers`, or subclass and override this method in a subclass.
+        """
+        opt_model = self.model_wrapped if is_sagemaker_mp_enabled() else self.model
+
+        if self.optimizer is None:
+            decay_parameters = get_parameter_names(opt_model, [nn.LayerNorm])
+            decay_parameters = [name for name in decay_parameters if "bias" not in name]
+            optimizer_grouped_parameters = [
+                {
+                    "params": [p for n, p in opt_model.named_parameters() if n in decay_parameters],
+                    "weight_decay": self.args.weight_decay,
+                },
+                {
+                    "params": [p for n, p in opt_model.named_parameters() if n not in decay_parameters],
+                    "weight_decay": 0.0,
+                },
+            ]
+
+            if self.args.optim in ORTOptimizerNames:
+                optimizer_cls, optimizer_kwargs = ORTTrainer.get_ort_optimizer_cls_and_kwargs(self.args)
+            else:
+                optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
+
+            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+                self.optimizer = OSS(
+                    params=optimizer_grouped_parameters,
+                    optim=optimizer_cls,
+                    **optimizer_kwargs,
+                )
+            else:
+                self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+                if optimizer_cls.__name__ == "Adam8bit":
+                    import bitsandbytes
+
+                    manager = bitsandbytes.optim.GlobalOptimManager.get_instance()
+
+                    for module in opt_model.modules():
+                        if isinstance(module, nn.Embedding):
+                            manager.register_module_override(module, "weight", {"optim_bits": 32})
+                            logger.debug(f"bitsandbytes: will optimize {module} in fp32")
+
+        if is_sagemaker_mp_enabled():
+            raise NotImplementedError(
+                "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet."
+            )
+
+        return self.optimizer
+
+    @staticmethod
+    def get_ort_optimizer_cls_and_kwargs(args: TrainingArguments) -> Tuple[Any, Any]:
+        """
+        Returns the optimizer class and optimizer parameters based on the training arguments.
+        Args:
+            args (`transformers.training_args.TrainingArguments`):
+                The training arguments for the training session.
+        """
+        optimizer_kwargs = {"lr": args.learning_rate}
+        adam_kwargs = {
+            "betas": (args.adam_beta1, args.adam_beta2),
+            "eps": args.adam_epsilon,
+        }
+        if args.optim == ORTOptimizerNames.ADAMW_ORT_FUSED:
+            try:
+                from onnxruntime.training.optim import FusedAdam
+
+                optimizer_cls = FusedAdam
+                optimizer_kwargs.update(adam_kwargs)
+            except ImportError:
+                raise ValueError(
+                    "ORTTrainer tried to instantiate ORT FusedAdam but onnxruntime-training is not correctly installed!"
+                )
+        else:
+            raise ValueError(f"ORTTrainer cannot instantiate unsupported optimizer: {args.optim}")
+        return optimizer_cls, optimizer_kwargs
