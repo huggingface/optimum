@@ -525,7 +525,9 @@ def main():
 
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(
-        model_args.model_name_or_path, feature="question-answering", opset=optim_args.opset
+        model_args.model_name_or_path,
+        feature="question-answering",
+        from_transformers=True,
     )
 
     # Create the calibration dataset used for the static quantization calibration step

@@ -142,15 +142,15 @@ class ORTQuantizerTest(unittest.TestCase):
         "transformers_model": {
             "model_name_or_path": "distilbert-base-uncased-finetuned-sst-2-english",
             "from_transformers": True,
-            "feature": "text-classification",
+            "feature": "sequence-classification",
         },
         "optimum_model": {
             "model_name_or_path": "optimum/distilbert-base-uncased-finetuned-sst-2-english",
-            "feature": "text-classification",
+            "feature": "sequence-classification",
         },
         "local_asset": {
             "model_name_or_path": "tests/assets/onnx",
-            "feature": "text-classification",
+            "feature": "sequence-classification",
         },
         "ort_model_class": {
             "model_name_or_path": ORTModelForSequenceClassification.from_pretrained(
@@ -178,7 +178,7 @@ class ORTQuantizerTest(unittest.TestCase):
             ORTQuantizer.from_pretrained(
                 "optimum/distilbert-base-uncased-finetuned-sst-2-english", feature="object-detection"
             )
-        self.assertIn("Unable to load model", str(context.exception))
+        self.assertIn("Feature object-detection is not supported.", str(context.exception))
 
 
 class ORTDynamicQuantizationTest(unittest.TestCase):

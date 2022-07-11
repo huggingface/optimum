@@ -444,7 +444,9 @@ def main():
 
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(
-        model_args.model_name_or_path, feature="token-classification", opset=optim_args.opset
+        model_args.model_name_or_path,
+        feature="token-classification",
+        from_transformers=True,
     )
 
     ranges = None

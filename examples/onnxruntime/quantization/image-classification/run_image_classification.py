@@ -277,7 +277,9 @@ def main():
 
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(
-        model_name_or_path=model_args.model_name_or_path, feature="image-classification", opset=optim_args.opset
+        model_name_or_path=model_args.model_name_or_path,
+        feature="image-classification",
+        from_transformers=True,
     )
 
     apply_static_quantization = optim_args.quantization_approach == "static"

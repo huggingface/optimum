@@ -373,7 +373,9 @@ def main():
 
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(
-        model_args.model_name_or_path, feature="sequence-classification", opset=optim_args.opset
+        model_args.model_name_or_path,
+        feature="sequence-classification",
+        from_transformers=True,
     )
 
     # Run the tokenizer on the dataset

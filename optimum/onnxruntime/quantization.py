@@ -20,21 +20,17 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset, load_dataset
-from transformers import AutoFeatureExtractor, AutoTokenizer, PreTrainedModel
-from transformers.onnx import export
-from transformers.onnx.features import FeaturesManager
-from transformers.onnx.utils import get_preprocessor
 
 import onnx
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
+from optimum.pipelines import SUPPORTED_FEATURES
 from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.utils import ONNX_WEIGHTS_NAME
-from optimum.pipelines import SUPPORTED_TASKS
 
 
 LOGGER = logging.getLogger(__name__)
@@ -90,7 +86,7 @@ class ORTQuantizer(ABC):
         model_name_or_path: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         from_transformers: Optional[bool] = False,
-        task: Optional[str] = None,
+        feature: Optional[str] = None,
         file_name: Optional[str] = None,
         cache_dir: Optional[str] = None,
     ) -> "ORTQuantizer":
@@ -105,8 +101,8 @@ class ORTQuantizer(ABC):
             from_transformers (`bool`, *optional*, defaults to `False`):
                 Defines whether the provided `model_name_or_path` contains a vanilla Transformers checkpoint.
                 ORTQuantizer will then export the model first to ONNX.
-            task (`str`, *optional*):
-                Transformers pipeline task for the model. Will be used to convert the model if needed.
+            feature (`str`, *optional*):
+                Transformers feature for the model. Will be used to convert the model if needed. Find a list of supported features [here](https://huggingface.co/docs/transformers/serialization#selecting-features-for-different-model-topologies)
             file_name(`str`, *optional*):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
                 repository or directory.
@@ -118,14 +114,14 @@ class ORTQuantizer(ABC):
         """
         model_file_name = ONNX_WEIGHTS_NAME if file_name is None else file_name
         # check if the user is loading a vanilla transformers and if a feature is available
-        if from_transformers and task is None:
-            raise ValueError("When using from_transformers, you need to provide a feature/task.")
+        if from_transformers and feature is None:
+            raise ValueError("When using from_transformers, you need to provide a feature.")
 
-        # converts vanilla transformers to onnx if correct task is provided and model is not already in onnx
-        if from_transformers and task:
-            model_class = SUPPORTED_TASKS.get(task, {}).get("class", [None])[0]
+        # converts vanilla transformers to onnx if correct feature is provided and model is not already in onnx
+        if from_transformers and feature:
+            model_class = SUPPORTED_FEATURES.get(feature, None)
             if not model_class:
-                raise ValueError(f"Task {task} is not supported.")
+                raise ValueError(f"Feature {feature} is not supported.")
             onnx_model = model_class.from_pretrained(
                 model_name_or_path,
                 from_transformers=from_transformers,
@@ -141,10 +137,10 @@ class ORTQuantizer(ABC):
             if not isinstance(model_name_or_path, Path):
                 model_name_or_path = Path(model_name_or_path)
             return cls(model_name_or_path.joinpath(model_file_name))
-        elif task is not None and from_transformers is False:
-            model_class = SUPPORTED_TASKS.get(task, {}).get("class", [None])[0]
+        elif feature is not None and from_transformers is False:
+            model_class = SUPPORTED_FEATURES.get(feature, None)
             if not model_class:
-                raise ValueError(f"Task {task} is not supported.")
+                raise ValueError(f"Feature {feature} is not supported.")
             onnx_model = model_class.from_pretrained(
                 model_name_or_path,
                 use_auth_token=use_auth_token,

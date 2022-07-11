@@ -36,7 +36,7 @@ class OnnxRuntimeRun(Run):
         quantizer = ORTQuantizer.from_pretrained(
             run_config["model_name_or_path"],
             feature=get_autoclass_name(self.task),
-            opset=run_config["framework_args"]["opset"],
+            from_transformers=True,
         )
 
         self.preprocessor = copy.deepcopy(quantizer.preprocessor)

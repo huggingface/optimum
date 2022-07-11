@@ -24,6 +24,7 @@ from optimum.utils import is_onnxruntime_available
 
 
 SUPPORTED_TASKS = {}
+SUPPORTED_FEATURES = {}
 
 if is_onnxruntime_available():
     from optimum.onnxruntime import (
@@ -36,6 +37,19 @@ if is_onnxruntime_available():
         ORTModelForTokenClassification,
     )
     from optimum.onnxruntime.modeling_ort import ORTModel
+
+    SUPPORTED_FEATURES = {
+        "causal-lm": ORTModelForCausalLM,
+        "causal-lm-with-past": ORTModelForCausalLM,
+        "seq2seq-lm": ORTModelForSeq2SeqLM,
+        "seq2seq-lm": ORTModelForSeq2SeqLM,
+        "default": ORTModelForFeatureExtraction,
+        "default-with-past": ORTModelForFeatureExtraction,
+        "question-answering": ORTModelForQuestionAnswering,
+        "sequence-classification": ORTModelForSequenceClassification,
+        "token-classification": ORTModelForTokenClassification,
+        "image-classifcation": ORTModelForImageClassification,
+    }
 
     SUPPORTED_TASKS = {
         "feature-extraction": {
