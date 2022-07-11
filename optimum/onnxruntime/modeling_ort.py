@@ -130,7 +130,7 @@ class ORTModel(OptimizedModel):
                 ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
         if provider is None:
-            provider = "CUDAExecutionProvider"
+            provider = "CUDAExecutionProvider" if _is_gpu_available() else "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])
 
