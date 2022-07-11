@@ -142,6 +142,10 @@ class ORTOptimizer:
             only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
         )
 
+        if optimization_config.fp16:
+            # keep_io_types to keep inputs/outputs as float32
+            optimizer.convert_float_to_float16(keep_io_types=True)
+
         optimizer.save_model_to_file(onnx_optimized_model_output_path, use_external_data_format)
 
         if optimizer.is_fully_optimized():
