@@ -121,7 +121,7 @@ class TextClassificationProcessing(DatasetProcessing):
             if not self.task_args["is_regression"]:
                 if self.label_to_id is not None:
                     preds = int(self.config.label2id[preds["label"]])
-                    preds = self.label_to_id[preds]  # dataset label ids than of the model
+                    preds = self.label_to_id[preds]  # dataset label ids may be different than of the model label ids
                 else:
                     preds = self.config.label2id[preds["label"]]
             else:
