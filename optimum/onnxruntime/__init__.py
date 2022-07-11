@@ -29,16 +29,16 @@ _import_structure = {
     ],
     "modeling_seq2seq": ["ORTModelForSeq2SeqLM"],
     "optimization": ["ORTOptimizer"],
-    "quantizable_operators": [
-        "ORTQuantizableOperator",
-        "AUTO_MINIMUM_SUPPORTED_ONNX_OPSET",
-        "ORT_DEFAULT_CHANNEL_FOR_OPERATORS",
-        "ORT_FULLY_CONNECTED_OPERATORS",
-    ],
     "quantization": ["ORTQuantizer"],
     "trainer": ["ORTTrainer"],
     "trainer_seq2seq": ["ORTSeq2SeqTrainer"],
-    "utils": ["ONNX_DECODER_NAME", "ONNX_DECODER_WITH_PAST_NAME", "ONNX_ENCODER_NAME", "ONNX_WEIGHTS_NAME"],
+    "utils": [
+        "ONNX_DECODER_NAME",
+        "ONNX_DECODER_WITH_PAST_NAME",
+        "ONNX_ENCODER_NAME",
+        "ONNX_WEIGHTS_NAME",
+        "ORTQuantizableOperator",
+    ],
 }
 
 
@@ -56,16 +56,16 @@ if TYPE_CHECKING:
     )
     from .modeling_seq2seq import ORTModelForSeq2SeqLM
     from .optimization import ORTOptimizer
-    from .quantizable_operators import (
-        AUTO_MINIMUM_SUPPORTED_ONNX_OPSET,
-        ORT_DEFAULT_CHANNEL_FOR_OPERATORS,
-        ORT_FULLY_CONNECTED_OPERATORS,
-        ORTQuantizableOperator,
-    )
     from .quantization import ORTQuantizer
     from .trainer import ORTTrainer
     from .trainer_seq2seq import ORTSeq2SeqTrainer
-    from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, ONNX_WEIGHTS_NAME
+    from .utils import (
+        ONNX_DECODER_NAME,
+        ONNX_DECODER_WITH_PAST_NAME,
+        ONNX_ENCODER_NAME,
+        ONNX_WEIGHTS_NAME,
+        ORTQuantizableOperator,
+    )
 else:
     import sys
 
