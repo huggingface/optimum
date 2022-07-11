@@ -142,15 +142,15 @@ class ORTQuantizerTest(unittest.TestCase):
         "transformers_model": {
             "model_name_or_path": "distilbert-base-uncased-finetuned-sst-2-english",
             "from_transformers": True,
-            "task": "text-classification",
+            "feature": "text-classification",
         },
         "optimum_model": {
             "model_name_or_path": "optimum/distilbert-base-uncased-finetuned-sst-2-english",
-            "task": "text-classification",
+            "feature": "text-classification",
         },
         "local_asset": {
             "model_name_or_path": "tests/assets/onnx",
-            "task": "text-classification",
+            "feature": "text-classification",
         },
         "ort_model_class": {
             "model_name_or_path": ORTModelForSequenceClassification.from_pretrained(
@@ -168,19 +168,17 @@ class ORTQuantizerTest(unittest.TestCase):
     def test_fail_from_pretrained_method(self):
         with self.assertRaises(Exception) as context:
             ORTQuantizer.from_pretrained("bert-base-cased", from_transformers=True)
+        self.assertIn("When using from_transformers, you need to provide a feature.", str(context.exception))
 
-        self.assertTrue("When using from_transformers, you need to provide a feature/task.", str(context.exception))
         with self.assertRaises(Exception) as context:
             ORTQuantizer.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
-
-        self.assertTrue("Unable to load model", str(context.exception))
+        self.assertIn("Unable to load model", str(context.exception))
 
         with self.assertRaises(Exception) as context:
             ORTQuantizer.from_pretrained(
-                "optimum/distilbert-base-uncased-finetuned-sst-2-english", task="object-detection"
+                "optimum/distilbert-base-uncased-finetuned-sst-2-english", feature="object-detection"
             )
-
-        self.assertTrue("Unable to load model", str(context.exception))
+        self.assertIn("Unable to load model", str(context.exception))
 
 
 class ORTDynamicQuantizationTest(unittest.TestCase):
