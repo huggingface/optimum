@@ -267,6 +267,8 @@ class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
     """Class holding the parameters to launch a run."""
 
     def __post_init__(self):
+        super().__post_init__()
+
         # to support python 3.8 that does not support nested initialization of dataclass from dict
         if isinstance(self.dataset, dict):
             self.dataset = DatasetArgs(**self.dataset)

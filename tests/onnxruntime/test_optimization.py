@@ -20,8 +20,9 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from transformers import AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+import onnx
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
@@ -101,6 +102,39 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertEqual(len(fused_operator), 0)
             self.assertEqual(len(sorted_operators_difference), 0)
             gc.collect()
+
+    def test_optimization_fp16(self):
+        model_name = "hf-internal-testing/tiny-random-distilbert"
+        optimization_config = OptimizationConfig(optimization_level=0, fp16=True)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            model_path = output_dir.joinpath("model.onnx")
+            optimized_model_path = output_dir.joinpath("model-optimized.onnx")
+            onnx_model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+            onnx_model.save_pretrained(output_dir.as_posix())
+
+            optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            optimizer.export(
+                onnx_model_path=model_path,
+                onnx_optimized_model_output_path=optimized_model_path,
+                optimization_config=optimization_config,
+            )
+            model = onnx.load(optimized_model_path.as_posix())
+            for w in model.graph.initializer:
+                self.assertNotEqual(w.data_type, onnx.onnx_pb.TensorProto.FLOAT)
+
+            onnx_model = ORTModelForSequenceClassification.from_pretrained(
+                output_dir.as_posix(), file_name="model-optimized.onnx"
+            )
+            transformers_model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            tokens = tokenizer("This is a sample output", return_tensors="pt")
+            with torch.no_grad():
+                transformers_outputs = transformers_model(**tokens)
+            onnx_outputs = onnx_model(**tokens)
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
 
 class ORTQuantizerTest(unittest.TestCase):
