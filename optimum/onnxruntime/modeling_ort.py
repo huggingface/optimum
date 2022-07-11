@@ -183,6 +183,9 @@ class ORTModel(OptimizedModel):
             file_name(`str`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
                 repository or directory.
+            provider(`str`):
+                Overwrites the default provider from `"CPUExecutionProvider"` to `provider`. This allows you to specify what execution
+                provider to use when calling `load_model`.
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
