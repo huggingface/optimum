@@ -41,11 +41,11 @@ The `ORTQuantizer` class is used to quantize your ONNX model. The class can be i
 ```python
 >>> from optimum.onnxruntime import ORTQuantizer
 
-# This assumes a model.onnx in the path/to/model
+# This assumes a model.onnx exists in path/to/model
 >>> quantizer = ORTQuantizer.from_pretrained("path/to/model")
 ```
 
-4. Using a already initialized `ORTModelForXXX` class.
+4. Using an already initialized `ORTModelForXXX` class.
 
 ```python
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForTextClassification
@@ -67,10 +67,10 @@ The `ORTQuantizer` class can be used to dynamically quantize your ONNX model. Be
 
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 
-# load pytorch model and convert to onnx
+# Load PyTorch model and convert to ONNX
 >>> onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id,from_transformers=True)
 
-# create quantizer
+# Create quantizer
 >>> quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
 # Define the quantization strategy by creating the appropriate configuration 
