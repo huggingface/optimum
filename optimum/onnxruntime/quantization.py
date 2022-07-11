@@ -101,10 +101,10 @@ class ORTQuantizer(ABC):
             model_name_or_path (`Union[str, os.PathLike]`):
                 Repository name in the Hugging Face Hub or path to a local directory hosting the model.
             use_auth_token (`str` or `bool`, *optional*):
-                Is needed to load models from a private repository
+                Is needed to load models from a private repository.
             from_transformers (`bool`, *optional*, defaults to `False`):
-                Defines wether the provided `model_name_or_path` contains a vanilla Transformers checkpoint.
-                ORTQuantizer will then convert the model first
+                Defines whether the provided `model_name_or_path` contains a vanilla Transformers checkpoint.
+                ORTQuantizer will then export the model first to ONNX.
             task (`str`, *optional*):
                 Transformers pipeline task for the model. Will be used to convert the model if needed.
             file_name(`str`, *optional*):
@@ -123,7 +123,7 @@ class ORTQuantizer(ABC):
 
         # converts vanilla transformers to onnx if correct task is provided and model is not already in onnx
         if from_transformers and task:
-            model_class = SUPPORTED_TASKS.get(task, None).get("class", None)[0]
+            model_class = SUPPORTED_TASKS.get(task, {}).get("class", [None])[0]
             if not model_class:
                 raise ValueError(f"Task {task} is not supported.")
             onnx_model = model_class.from_pretrained(
@@ -141,12 +141,16 @@ class ORTQuantizer(ABC):
             if not isinstance(model_name_or_path, Path):
                 model_name_or_path = Path(model_name_or_path)
             return cls(model_name_or_path.joinpath(model_file_name))
-        elif task is not None:
-            model_class = SUPPORTED_TASKS.get(task, None).get("class", None)[0]
+        elif task is not None and from_transformers is False:
+            model_class = SUPPORTED_TASKS.get(task, {}).get("class", [None])[0]
             if not model_class:
                 raise ValueError(f"Task {task} is not supported.")
             onnx_model = model_class.from_pretrained(
-                model_name_or_path, use_auth_token=use_auth_token, cache_dir=cache_dir
+                model_name_or_path,
+                use_auth_token=use_auth_token,
+                cache_dir=cache_dir,
+                file_name=model_file_name,
+                from_transformers=from_transformers,
             )
             return cls(onnx_model.model_save_dir.joinpath(onnx_model.latest_model_name))
         else:

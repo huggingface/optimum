@@ -135,11 +135,18 @@ class ORTQuantizerTest(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             ORTQuantizer.from_pretrained("bert-base-cased", from_transformers=True)
 
-        self.assertTrue("When using from_transformers, you need to provide a feature/task.", context.exception)
+        self.assertTrue("When using from_transformers, you need to provide a feature/task.", str(context.exception))
         with self.assertRaises(Exception) as context:
             ORTQuantizer.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
 
-        self.assertTrue("Unable to load model", context.exception)
+        self.assertTrue("Unable to load model", str(context.exception))
+
+        with self.assertRaises(Exception) as context:
+            ORTQuantizer.from_pretrained(
+                "optimum/distilbert-base-uncased-finetuned-sst-2-english", task="object-detection"
+            )
+
+        self.assertTrue("Unable to load model", str(context.exception))
 
 
 class ORTDynamicQuantizationTest(unittest.TestCase):
@@ -218,7 +225,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             calibration_dataset = quantizer.get_calibration_dataset(
                 "glue",
                 dataset_config_name="sst2",
-                preprocess_function=partial(preprocess_function, tokenizer=quantizer.preprocessor),
+                preprocess_function=partial(preprocess_function, tokenizer=tokenizer),
                 num_samples=40,
                 dataset_split="train",
             )

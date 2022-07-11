@@ -14,75 +14,70 @@ specific language governing permissions and limitations under the License.
 
 🤗 Optimum provides an `optimum.onnxruntime` package that enables you to apply quantization on many model hosted on the 🤗 hub using the [ONNX Runtime](https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/python/tools/quantization/README.md) quantization tool.
 
-## Create `ORTQuantizer` class
+## Creating an `ORTQuantizer`
 
-The `ORTQuantizer` class is used to quantize your onnx model. The class can be initialized using the `from_pretrained` method, which supports different checkpoint formats.
+The `ORTQuantizer` class is used to quantize your ONNX model. The class can be initialized using the `from_pretrained()` method, which supports different checkpoint formats.
 
-1. Using a vanilla transformers (non converted) PyTorch checkpoint
+1. Using a vanilla PyTorch Transformers checkpoint from the [Hugging Face Hub](https://huggingface.co/optimum/distilbert-base-uncased-finetuned-sst-2-english).
 
 ```python
-from optimum.onnxruntime import ORTQuantizer
+>>> from optimum.onnxruntime import ORTQuantizer
 
-# create a quantizer from a vanilla PyTorch checkpoint by converting the model
-quantizer = ORTQuantizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True, task="text-classification")
-
-quantizer.fit(...)
+# Create a quantizer from a vanilla PyTorch checkpoint by converting the model
+>>> quantizer = ORTQuantizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True, task="text-classification")
 ```
 
-2. Using a already converted onnx model from the [Hugging Face Hub](https://huggingface.co/optimum/distilbert-base-uncased-finetuned-sst-2-english)
+2. Using an already converted ONNX model from the [Hugging Face Hub](https://huggingface.co/optimum/distilbert-base-uncased-finetuned-sst-2-english).
 
 ```python
-from optimum.onnxruntime import ORTQuantizer
+>>> from optimum.onnxruntime import ORTQuantizer
 
-# create a quantizer from a converted onnx model from the hugging face hub
-quantizer = ORTQuantizer.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english", task="text-classification")
-
-quantizer.fit(...)
+# Create a quantizer from a converted ONNX model on the Hugging Face hub
+>>> quantizer = ORTQuantizer.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english", task="text-classification")
 ```
 
-3. Using a already converted local onnx model. 
+3. Using a already converted local ONNX model. 
 
 ```python
-from optimum.onnxruntime import ORTQuantizer
+>>> from optimum.onnxruntime import ORTQuantizer
 
 # This assumes a model.onnx in the path/to/model
-quantizer = ORTQuantizer.from_pretrained("path/to/model")
-
-quantizer.fit(...)
+>>> quantizer = ORTQuantizer.from_pretrained("path/to/model")
 ```
 
 4. Using a already initialized `ORTModelForXXX` class.
 
 ```python
-from optimum.onnxruntime import ORTQuantizer
+>>> from optimum.onnxruntime import ORTQuantizer, ORTModelForTextClassification
 
-# This assumes a that ort_model is a `ORTModelForXXX` class, e.g. ORTModelForSequenceClassification
-quantizer = ORTQuantizer.from_pretrained(ort_model)
+# loading ONNX Model from the Hub
+>>> ort_model = ORTModelForTextClassification.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
 
-quantizer.fit(...)
+# Create a quantizer from a ORTModelForXXX
+>>> quantizer = ORTQuantizer.from_pretrained(ort_model)
 ```
 
-## Dynmaic Quantization example 
+## Dynamic Quantization example 
 
-The `ORTQuantizer` class can be used to dynmaically quantize your onnx model. Below you will find an easy end-to-end example on how to dynamically quantize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
+The `ORTQuantizer` class can be used to dynamically quantize your ONNX model. Below you will find an easy end-to-end example on how to dynamically quantize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
     
 ```python
-from optimum.onnxruntime import ORTQuantizer, ORTModelForSequenceClassification
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
+>>> from optimum.onnxruntime import ORTQuantizer, ORTModelForSequenceClassification
+>>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
 
-model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 
 # load pytorch model and convert to onnx
-onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id,from_transformers=True)
+>>> onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id,from_transformers=True)
 
 # create quantizer
-quantizer = ORTQuantizer.from_pretrained(onnx_model)
+>>> quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
-# define quantize configuartion
-dqconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=False)
+# Define the quantization strategy by creating the appropriate configuration 
+>>> dqconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=False)
 
-# apply the quantization configuration to the model
-model_quantized_path = quantizer.export(
+# Quantize and export the model
+>>> model_quantized_path = quantizer.export(
     output_path="model-quantized.onnx",
     quantization_config=dqconfig,
 )
