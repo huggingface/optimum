@@ -312,6 +312,7 @@ def calibrate(model: ObservedGraphModule, dataloader: torch.utils.data.DataLoade
         for inputs in tqdm(dataloader):
             if filter_inputs:
                 inputs = _filter_model_inputs(model, inputs)
+            model(**inputs)
 
 
 def calibrate_qat(

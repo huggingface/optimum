@@ -21,6 +21,8 @@
 - sections:
   - local: fx/optimization
     title: Optimization
+  - local: fx/quantization
+    title: Quantization
   title: Torch FX
 - sections:
   - local: benchmark

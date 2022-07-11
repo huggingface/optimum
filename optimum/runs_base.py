@@ -280,11 +280,3 @@ class TimeBenchmark:
                 "latency_mean": -1,
             }
             return benchmarks_stats
-
-
-task_processing_map = {
-    "text-classification": TextClassificationProcessing,
-    "token-classification": TokenClassificationProcessing,
-    "question-answering": QuestionAnsweringProcessing,
-    "image-classification": ImageClassificationProcessing,
-}

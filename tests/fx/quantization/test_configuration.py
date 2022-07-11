@@ -17,37 +17,43 @@ import random
 from unittest import TestCase
 
 import torch
+from packaging import version
 
-from optimum.fx.quantization import CalibrationMethod, QConfigUnit
+from optimum.fx.quantization import CalibrationMethod, QConfig, QConfigUnit, QuantizationConfig
 
 
-def _generate_qconfig_units():
-    dtype_values = [torch.qint8, torch.quint8]
-    symmetric_values = [False, True]
-    per_channel_values = [False, True]
-    quant_min_values = [None, random.randint(-127, 0)]
-    quant_max_values = [None, random.randint(0, 127)]
-    calibration_method_values = [method.value for method in CalibrationMethod]
-    average_constant_values = [random.random() for _ in range(2)]
-    bins_values = [random.randint(512, 4096) for _ in range(2)]
-    upsample_rate_values = [random.random() * 200 for _ in range(2)]
-
-    product = itertools.product(
-        dtype_values,
-        symmetric_values,
-        per_channel_values,
-        quant_min_values,
-        quant_max_values,
-        calibration_method_values,
-        average_constant_values,
-        bins_values,
-        upsample_rate_values,
-    )
-
-    return [QConfigUnit(*values) for values in product]
+def _generate_random_values(size):
+    return torch.rand((size, 3, 4, 5))
 
 
 class QConfigUnitTester(TestCase):
+    def test_can_create_any_qconfig_unit(self):
+        dtype_values = [torch.qint8, torch.quint8]
+        symmetric_values = [False, True]
+        per_channel_values = [False, True]
+        ch_axis_values = [-1, 3]
+        quant_min_values = [random.randint(-127, 0)]
+        quant_max_values = [random.randint(0, 127)]
+        calibration_method_values = [method.value for method in CalibrationMethod]
+        average_constant_values = [random.random() for _ in range(2)]
+        bins_values = [random.randint(512, 4096) for _ in range(2)]
+        upsample_rate_values = [random.random() * 200 for _ in range(2)]
+
+        product = itertools.product(
+            dtype_values,
+            symmetric_values,
+            per_channel_values,
+            ch_axis_values,
+            quant_min_values,
+            quant_max_values,
+            calibration_method_values,
+            average_constant_values,
+            bins_values,
+            upsample_rate_values,
+        )
+
+        _ = [QConfigUnit(*values) for values in product]
+
     def _get_observer_class_and_observer_kwargs(self):
         classes_and_kwargs = []
         refs = []
@@ -107,13 +113,17 @@ class QConfigUnitTester(TestCase):
 
         # PerChannelMinMax
         classes_and_kwargs.append(
-            (torch.ao.quantization.PerChannelMinMaxObserver, {"dtype": torch.quint8, "ch_axis": 2, "quant_max": 234})
+            (
+                torch.ao.quantization.PerChannelMinMaxObserver,
+                {"dtype": torch.quint8, "ch_axis": 2, "quant_min": 0, "quant_max": 234},
+            )
         )
         refs.append(
             QConfigUnit(
                 dtype=torch.quint8,
                 per_channel=True,
                 ch_axis=2,
+                quant_min=0,
                 quant_max=234,
                 calibration_method=CalibrationMethod.MinMax,
             )
@@ -140,7 +150,7 @@ class QConfigUnitTester(TestCase):
         classes_and_kwargs.append(
             (
                 torch.ao.quantization.MovingAveragePerChannelMinMaxObserver,
-                {"dtype": torch.quint8, "ch_axis": 1, "quant_max": 135, "averaging_constant": 0.18},
+                {"dtype": torch.quint8, "ch_axis": 1, "quant_min": 0, "quant_max": 135, "averaging_constant": 0.18},
             )
         )
         refs.append(
@@ -148,6 +158,7 @@ class QConfigUnitTester(TestCase):
                 dtype=torch.quint8,
                 per_channel=True,
                 ch_axis=1,
+                quant_min=0,
                 quant_max=135,
                 averaging_constant=0.18,
                 calibration_method=CalibrationMethod.MovingAverage,
@@ -175,12 +186,13 @@ class QConfigUnitTester(TestCase):
         classes_and_kwargs.append(
             (
                 torch.ao.quantization.HistogramObserver,
-                {"dtype": torch.quint8, "quant_max": 64, "upsample_rate": 18, "bins": 512},
+                {"dtype": torch.quint8, "quant_min": 0, "quant_max": 64, "upsample_rate": 18, "bins": 512},
             )
         )
         refs.append(
             QConfigUnit(
                 dtype=torch.quint8,
+                quant_min=0,
                 quant_max=64,
                 upsample_rate=18,
                 bins=512,
@@ -202,12 +214,9 @@ class QConfigUnitTester(TestCase):
 
         return classes_and_kwargs, refs
 
-    def _generate_random_values(self, size):
-        return torch.rand((size, 3, 4, 5))
-
     def _test_as_observer_and_fake_quantize(self, as_observer):
 
-        samples = self._generate_random_values(100)
+        samples = _generate_random_values(100)
         classes_and_kwargs, refs = self._get_observer_class_and_observer_kwargs()
 
         outputs = []
@@ -218,7 +227,7 @@ class QConfigUnitTester(TestCase):
                 qconfig_unit = ref.as_observer(as_factory=False)
                 real = class_(**kwargs)
             else:
-                qconfig_unit = ref.as_fake_quantize()
+                qconfig_unit = ref.as_fake_quantize(as_factory=False)
                 real = torch.ao.quantization.FakeQuantize(class_, **kwargs)
 
             for x in samples:
@@ -231,7 +240,7 @@ class QConfigUnitTester(TestCase):
             for t1, t2 in zip(*output):
                 self.assertTrue(
                     torch.allclose(t1, t2),
-                    f"The {idx}th example do not match between the PyTorch ref and the QConfigUnit, max diff: {(t1 - t2).abs().max()}",
+                    f"The example do not match between the PyTorch ref and the restored to PyTorch one, max diff: {(t1 - t2).abs().max()}, classes_and_kwargs = {classes_and_kwargs[idx]}, ref = {refs[idx]}",
                 )
 
     def test_as_observer(self):
@@ -239,3 +248,158 @@ class QConfigUnitTester(TestCase):
 
     def test_as_fake_quantize(self):
         self._test_as_observer_and_fake_quantize(False)
+
+    def test_from_pytorch_back_to_pytorch(self):
+        samples = _generate_random_values(100)
+        classes_and_kwargs, _ = self._get_observer_class_and_observer_kwargs()
+
+        def test_fn(real_fn, back_fn):
+            outputs = []
+
+            for t in classes_and_kwargs:
+                class_, kwargs = t
+                real = real_fn(class_, kwargs)
+                back = back_fn(real)
+                for x in samples:
+                    real(x)
+                    back(x)
+
+                outputs.append((real.calculate_qparams(), back.calculate_qparams()))
+
+            for idx, output in enumerate(outputs):
+                for t1, t2 in zip(*output):
+                    self.assertTrue(
+                        torch.allclose(t1, t2),
+                        f"The example do not match between the PyTorch ref and the restored to PyTorch one, max diff: {(t1 - t2).abs().max()}, classes_and_kwargs = {classes_and_kwargs[idx]}",
+                    )
+
+        # From observer back to observer
+        test_fn(lambda class_, kwargs: class_(**kwargs), lambda x: QConfigUnit.from_pytorch(x).as_observer(False))
+
+        torch_version = version.parse(torch.__version__)
+        if (torch_version.major, torch_version.minor) >= (1, 12):
+            # From observer back to fake quantize
+            test_fn(
+                lambda class_, kwargs: class_(**kwargs), lambda x: QConfigUnit.from_pytorch(x).as_fake_quantize(False)
+            )
+
+            # From fake quantize back to fake quantize
+            test_fn(
+                lambda class_, kwargs: torch.ao.quantization.FakeQuantize(class_, **kwargs),
+                lambda x: QConfigUnit.from_pytorch(x).as_fake_quantize(False),
+            )
+
+        # From fake quantize back to observer
+        test_fn(
+            lambda class_, kwargs: torch.ao.quantization.FakeQuantize(class_, **kwargs),
+            lambda x: QConfigUnit.from_pytorch(x).as_observer(False),
+        )
+
+
+class QConfigTest(TestCase):
+    def _get_examples(self):
+        pytorch_qconfig = torch.ao.quantization.QConfig(
+            activation=torch.ao.quantization.MovingAverageMinMaxObserver.with_args(
+                quant_min=0,
+                quant_max=234,
+                averaging_constant=0.8,
+            ),
+            weight=torch.ao.quantization.HistogramObserver.with_args(
+                quant_min=0,
+                quant_max=189,
+                upsample_rate=76,
+            ),
+        )
+        pytorch_qconfig_with_fake_quantize = torch.ao.quantization.QConfig(
+            activation=torch.ao.quantization.FakeQuantize.with_args(
+                observer=torch.ao.quantization.MovingAverageMinMaxObserver,
+                quant_min=0,
+                quant_max=234,
+                averaging_constant=0.8,
+            ),
+            weight=torch.ao.quantization.FakeQuantize.with_args(
+                observer=torch.ao.quantization.HistogramObserver,
+                quant_min=0,
+                quant_max=189,
+                upsample_rate=76,
+            ),
+        )
+        qconfig = QConfig(
+            activation=QConfigUnit(
+                quant_min=0,
+                quant_max=234,
+                averaging_constant=0.8,
+                calibration_method="moving_average",
+            ),
+            weight=QConfigUnit(
+                quant_min=0,
+                quant_max=189,
+                upsample_rate=76,
+                calibration_method="histogram",
+            ),
+        )
+        return pytorch_qconfig, pytorch_qconfig_with_fake_quantize, qconfig
+
+    def test_from_pytorch(self):
+        pytorch_qconfig, pytorch_qconfig_with_fake_quantize, qconfig = self._get_examples()
+        self.assertEqual(QConfig.from_pytorch(pytorch_qconfig), qconfig)
+        self.assertEqual(QConfig.from_pytorch(pytorch_qconfig_with_fake_quantize), qconfig)
+
+    def test_to_pytorch(self):
+        pytorch_qconfig, pytorch_qconfig_with_fake_quantize, qconfig = self._get_examples()
+
+        samples = _generate_random_values(100)
+        outputs = []
+
+        # Static (obsevers)
+        static_qconfig = qconfig.to_pytorch("static")
+
+        # Activation
+        static_qconfig_activation = static_qconfig.activation()
+        pytorch_qconfig_activation = pytorch_qconfig.activation()
+        for x in samples:
+            static_qconfig_activation(x)
+            pytorch_qconfig_activation(x)
+        outputs.append((static_qconfig_activation.calculate_qparams(), pytorch_qconfig_activation.calculate_qparams()))
+
+        # Weight
+        static_qconfig_weight = static_qconfig.weight()
+        pytorch_qconfig_weight = pytorch_qconfig.weight()
+        for x in samples:
+            static_qconfig_weight(x)
+            pytorch_qconfig_weight(x)
+        outputs.append((static_qconfig_weight.calculate_qparams(), pytorch_qconfig_weight.calculate_qparams()))
+
+        # QAT (fake quantize)
+        static_qconfig = qconfig.to_pytorch("qat")
+
+        # Activation
+        static_qconfig_activation = static_qconfig.activation()
+        pytorch_qconfig_with_fake_quantize_activation = pytorch_qconfig_with_fake_quantize.activation()
+        for x in samples:
+            static_qconfig_activation(x)
+            pytorch_qconfig_with_fake_quantize_activation(x)
+        outputs.append(
+            (
+                static_qconfig_activation.calculate_qparams(),
+                pytorch_qconfig_with_fake_quantize_activation.calculate_qparams(),
+            )
+        )
+
+        # Weight
+        static_qconfig_weight = static_qconfig.weight()
+        pytorch_qconfig_with_fake_quantize_weight = pytorch_qconfig_with_fake_quantize.weight()
+        for x in samples:
+            static_qconfig_weight(x)
+            pytorch_qconfig_with_fake_quantize_weight(x)
+
+        outputs.append(
+            (static_qconfig_weight.calculate_qparams(), pytorch_qconfig_with_fake_quantize_weight.calculate_qparams())
+        )
+
+        for output in outputs:
+            for t1, t2 in zip(*output):
+                self.assertTrue(
+                    torch.allclose(t1, t2),
+                    f"The example do not match between the PyTorch ref the QConfig one, max diff: {(t1 - t2).abs().max()}",
+                )

@@ -14,11 +14,11 @@
 # limitations under the License.
 import copy
 import functools
+import importlib
 import inspect
-import warnings
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, TypeVar, Union
 
 import torch
 import torch.ao.quantization.observer as observer
@@ -30,6 +30,9 @@ from ...version import __version__
 
 
 QConfigDict = Dict[str, Any]
+PyTorchQuantizationUnit = Union[torch.ao.quantization.ObserverBase, torch.ao.quantization.FakeQuantize]
+T = TypeVar("T")
+TypeOrFactoryOfType = Union[Callable[[], T], T]
 
 
 # TODO: merge that with what is being done for onnxruntime.
@@ -45,7 +48,6 @@ _METHOD_TO_OBSERVER_MAPPING = {
     (CalibrationMethod.MovingAverage, False): observer.MovingAverageMinMaxObserver,
     (CalibrationMethod.MovingAverage, True): observer.MovingAveragePerChannelMinMaxObserver,
     (CalibrationMethod.Histogram, False): observer.HistogramObserver,
-    (CalibrationMethod.Histogram, True): observer.HistogramObserver,
 }
 _OBSERVER_TO_METHOD_MAPPING = {v: k for k, v in _METHOD_TO_OBSERVER_MAPPING.items()}
 
@@ -62,7 +64,7 @@ _REVERSED_QSCHEME_MAPPING = {v: k for k, v in _QSCHEME_MAPPING.items()}
 
 @dataclass
 class QConfigUnit:
-    dtype: Union[str, torch.dtype] = torch.qint8
+    dtype: Union[str, torch.dtype] = torch.quint8
     symmetric: bool = False
     per_channel: bool = False
     ch_axis: int = 0
@@ -74,11 +76,82 @@ class QConfigUnit:
     upsample_rate: float = 128
 
     def __post_init__(self):
-        if isinstance(self.dtype, str):
-            self.dtype = getattr(torch, self.dtype)
+        # TODO: This is a constraint from PyTorch implementation of FakeQuantize initialization, remove that once possible.
+        if (self.quant_min is not None and self.quant_max is None) or (
+            self.quant_min is None and self.quant_max is not None
+        ):
+            raise ValueError(
+                "You have to either provide neither quant_min and quant_max or both, but here only one of them was specified."
+            )
+        # if isinstance(self.dtype, str):
+        #     self.dtype = getattr(torch, self.dtype)
+        if not isinstance(self.calibration_method, CalibrationMethod):
+            self.calibration_method = CalibrationMethod(self.calibration_method)
+
+    def __eq__(self, other):
+        """
+        Custom re-implementation of __eq__ to make sure that relevant attributes are compared, depending on the
+        quantization scheme, and the calibration method.
+        For instance, if the calibration method is MinMax, then it does not make sense to compare the upsample_rate
+        attributes of self and other, since it will be ignored when converted to PyTorch.
+
+        """
+        attributes_to_always_test = ["dtype", "symmetric", "per_channel", "calibration_method"]
+
+        for name in attributes_to_always_test:
+            if getattr(self, name) != getattr(other, name):
+                return False
+
+        self_quant_min = self.quant_min
+        if self_quant_min is None:
+            self_quant_min = torch.iinfo(self.dtype).min
+        other_quant_min = other.quant_min
+        if other_quant_min is None:
+            other_quant_min = torch.iinfo(other.dtype).min
+
+        if self_quant_min != other_quant_min:
+            return False
+
+        self_quant_max = self.quant_max
+        if self_quant_max is None:
+            self_quant_max = torch.iinfo(self.dtype).max
+        other_quant_max = other.quant_max
+        if other_quant_max is None:
+            other_quant_max = torch.iinfo(other.dtype).max
+
+        if self_quant_max != other_quant_max:
+            return False
+
+        if self.per_channel and (self.ch_axis != other.ch_axis):
+            return False
+        if self.calibration_method == "moving_average" and (self.averaging_constant != other.averaging_constant):
+            return False
+        if self.calibration_method == "histogram" and (
+            self.bins != other.bins or self.upsample_rate != other.upsample_rate
+        ):
+            return False
+
+        return True
 
     @classmethod
-    def default(cls, backend: str, for_weights: bool = False, for_activations: bool = False) -> "QConfigUnit":
+    def default(
+        cls, backend: str = "fbgemm", for_weights: bool = False, for_activations: bool = False
+    ) -> "QConfigUnit":
+        """
+        Args:
+            backend (`str`, defaults to `"fbgemm"`):
+                The backend that will be used, to be able to choose the best default values. It can either be `"fbgemm"`
+                or `"qnnpack"`, please refer to [this section from the PyTorch documentation](https://pytorch.org/docs/stable/quantization.html#backend-hardware-support)
+                for more details.
+            for_weights (`bool`, defaults to `False`):
+                Whether the default QConfigUnit is for the weights or not.
+            for_activations (`bool`, defaults to `False`):
+                Whether the default QConfigUnit is for the activations or not.
+
+        Returns:
+            [`optimum.fx.quantization.QConfigUnit`]:
+                The default QConfigUnit for the provided backend, for either the weights or the activations.
+        """
         if backend not in ["fbgemm", "qnnpack"]:
             raise ValueError(f'The backend must either be "fbgemm" or "qnnpack", but "{backend}" was provided.')
         if not for_weights and not for_activations:
@@ -90,25 +163,16 @@ class QConfigUnit:
             return cls.from_pytorch(qconfig.weight() if for_weights else qconfig.activation())
 
     @classmethod
-    def from_fake_quantize(cls, fake_quantize: torch.ao.quantization.FakeQuantize) -> "QConfigUnit":
-        qconfig_unit = cls()
-        attributes = {name: getattr(observer, name) for name in dir(observer) if name in qconfig_unit.__dict__}
-        if fake_quantize.observer in _OBSERVER_TO_METHOD_MAPPING:
-            calibration_method, per_channel = _OBSERVER_TO_METHOD_MAPPING[fake_quantize.observer]
-            symmetric, _ = _REVERSED_QSCHEME_MAPPING[fake_quantize.observer(**fake_quantize.observer_kwargs).qscheme]
-            attributes["calibration_method"] = calibration_method
-            attributes["per_channel"] = per_channel
-            attributes["symmetric"] = symmetric
-        else:
-            warnings.warn(f"The observer class {fake_quantize.observer} is not supported, feel free to ignore")
-        # if per_channel != attributes["per_channel"]:
-        #     warnings.warn("The FakeQuantize per channel attribute does not match the inferred one, using the one from FakeQuantize")
-        #     per_channel = attributes["per_channel"]
-        # Ignoring per_channel since it was already retrieved.
-        return cls(**attributes)
-
-    @classmethod
     def from_observer(cls, observer: torch.ao.quantization.ObserverBase) -> "QConfigUnit":
+        """
+        Args:
+            observer (`torch.ao.quantization.ObserverBase`):
+                The observer from which the QConfigUnit will be created.
+
+        Returns:
+            [`optimum.fx.quantization.QConfigUnit`]:
+                A QConfigUnit instantiated from the observer.
+        """
         qconfig_unit = cls()
         attributes = {name: getattr(observer, name) for name in dir(observer) if name in qconfig_unit.__dict__}
         calibration_method, per_channel = _OBSERVER_TO_METHOD_MAPPING.get(observer.__class__, ("other", False))
@@ -118,17 +182,53 @@ class QConfigUnit:
             attributes["calibration_method"] = calibration_method
             attributes["per_channel"] = per_channel
             attributes["symmetric"] = symmetric
-        # if per_channel != attributes["per_channel"]:
-        #     warnings.warn("The FakeQuantize per channel attribute does not match the inferred one, using the one from FakeQuantize")
-        #     per_channel = attributes["per_channel"]
-        # Ignoring per_channel since it was already retrieved.
         return cls(**attributes)
 
     @classmethod
+    def from_fake_quantize(cls, fake_quantize: torch.ao.quantization.FakeQuantizeBase) -> "QConfigUnit":
+        """
+        Args:
+            fake_quantize (`torch.ao.quantization.FakeQuantizeBase`):
+                The fake quantize from which the QConfigUnit will be created.
+
+        Returns:
+            [`optimum.fx.quantization.QConfigUnit`]:
+                A QConfigUnit instantiated from the fake quantize.
+        """
+        qconfig_unit = cls()
+        attributes = {
+            name: getattr(fake_quantize, name) for name in dir(fake_quantize) if name in qconfig_unit.__dict__
+        }
+        qconfig = cls.from_observer(fake_quantize.activation_post_process)
+        for name, attr in attributes.items():
+            setattr(qconfig, name, attr)
+        return qconfig
+
+    @classmethod
     def from_pytorch(
-        cls, pytorch_qconfig_unit: Union[torch.ao.quantization.ObserverBase, torch.ao.quantization.FakeQuantize]
+        cls, pytorch_qconfig_unit: Union[Callable[[], PyTorchQuantizationUnit], PyTorchQuantizationUnit]
     ) -> "QConfigUnit":
-        unit = pytorch_qconfig_unit()
+        """
+        Args:
+            pytorch_qconfig_unit:
+                The (observer or fake quantize) factory function, observer or fake quantize from which the QConfigUnit will be created.
+
+        Returns:
+            [`optimum.fx.quantization.QConfigUnit`]:
+                A QConfigUnit instantiated from pytorch_qconfig_unit.
+        """
+        unit = pytorch_qconfig_unit
+        if not isinstance(
+            unit, (torch.ao.quantization.ObserverBase, torch.ao.quantization.FakeQuantizeBase)
+        ) and callable(unit):
+            # We cannot simply do: unit = pytorch_qconfig_unit() and then use it to create the QConfigUnit because
+            # creating the actual PyTorch QConfig "specializes" some values, such as quant_max, effectively changing
+            # what was in the QConfig factory function.
+            unit = pytorch_qconfig_unit()
+            if not isinstance(unit, (torch.ao.quantization.ObserverBase, torch.ao.quantization.FakeQuantizeBase)):
+                for name, value in pytorch_qconfig_unit.p.keywords.items():
+                    setattr(unit, name, value)
+
         if isinstance(unit, torch.ao.quantization.ObserverBase):
             return cls.from_observer(unit)
         return cls.from_fake_quantize(unit)
@@ -138,7 +238,13 @@ class QConfigUnit:
         calibration_method: Optional[CalibrationMethod] = None,
         per_channel: Optional[bool] = None,
         observer_class: Optional[Type] = None,
-    ):
+    ) -> Union[Type, Tuple[CalibrationMethod, bool]]:
+        """
+        Maps observer classes to their corresponding (calibration_method, per_channel) pair.
+        2 cases:
+            1. observer_class is provided. In this case, the corresponding (calibration_method, per_channel) pair is returned.
+            2. A (calibration_method, per_channel) pair is provided. In this case an observer class is returned.
+        """
         if observer_class is not None:
             result = _OBSERVER_TO_METHOD_MAPPING[observer_class]
         elif calibration_method is not None and per_channel is not None:
@@ -149,39 +255,64 @@ class QConfigUnit:
             )
         return result
 
-    @staticmethod
-    def create_observer_class(calibration_method: CalibrationMethod, per_channel: bool) -> observer.ObserverBase:
-        observer_class = QConfigUnit._observers_mapping(calibration_method=calibration_method, per_channel=per_channel)
-        if observer_class is None:
-            raise KeyError(
-                f"Could not find an observer matching calibration_method = {calibration_method} with per_channel = {per_channel}."
-            )
-        return observer_class
-
-    @staticmethod
-    def create_calibration_method_and_per_channel(observer_class: Type) -> Tuple[CalibrationMethod, bool]:
-        calibration_method, per_channel = QConfigUnit._observers_mapping(observer_class=observer_class)
-
-    @staticmethod
-    def get_observer_class_allowed_parameters(observer_class: Type) -> Set[str]:
-        return set(inspect.signature(observer_class.__init__).parameters.keys())
-
     def get_observer_kwargs(self, observer_class: Type) -> Dict[str, Any]:
-        allowed_parameters = self.get_observer_class_allowed_parameters(observer_class)
+        """
+        Retrieves the proper arguments from self in order to create an instance of observer_class.
+
+        Args:
+            observer_class (`Type`):
+                The class of the observer that will be created.
+
+        Returns:
+            `Dict[str, Any]`:
+                The keyword arguments to provide when instantiating the observer.
+        """
+        allowed_parameters = set(inspect.signature(observer_class.__init__).parameters.keys())
         kwargs = {name: attr for name, attr in self.__dict__.items() if name in allowed_parameters}
         kwargs["qscheme"] = _QSCHEME_MAPPING[(self.symmetric, self.per_channel)]
         return kwargs
 
-    def get_observer_info(self):
-        observer_class = self.create_observer_class(self.calibration_method, self.per_channel)
+    def get_observer_info(self) -> Tuple[Type, Dict[str, Any]]:
+        """
+        Retrieves both the class and the keyword arguments of the observer / fake quantize to create.
+        """
+        observer_class = QConfigUnit._observers_mapping(
+            calibration_method=self.calibration_method, per_channel=self.per_channel
+        )
+        if observer_class is None:
+            raise KeyError(
+                f"Could not find an observer matching calibration_method = {self.calibration_method} with per_channel = {self.per_channel}."
+            )
         observer_kwargs = self.get_observer_kwargs(observer_class)
         return observer_class, observer_kwargs
 
-    def as_observer(self, as_factory: bool = True):
+    def as_observer(
+        self, as_factory: bool = True
+    ) -> Union[Callable[[], torch.ao.quantization.ObserverBase], torch.ao.quantization.ObserverBase]:
+        """
+        Args:
+            as_factory (`bool`, defaults to `True`):
+                Whether the factory function for instantiating observers should be returned instead of returning a
+                concrete instance of the observer.
+
+        Returns:
+            The factory or an instance of the observer.
+        """
         observer_class, observer_kwargs = self.get_observer_info()
         return observer_class.with_args(**observer_kwargs) if as_factory else observer_class(**observer_kwargs)
 
-    def as_fake_quantize(self):
+    def as_fake_quantize(
+        self, as_factory: bool = True
+    ) -> Union[Callable[[], torch.ao.quantization.FakeQuantizeBase], torch.ao.quantization.FakeQuantizeBase]:
+        """
+        Args:
+            as_factory (`bool`, defaults to `True`):
+                Whether the factory function for instantiating fake quantizes should be returned instead of returning a
+                concrete instance of the fake quantize.
+
+        Returns:
+            The factory or an instance of the fake quantize.
+        """
         observer_class, observer_kwargs = self.get_observer_info()
         quant_min = observer_kwargs.pop("quant_min")
         if quant_min is None:
@@ -189,14 +320,17 @@ class QConfigUnit:
         quant_max = observer_kwargs.pop("quant_max")
         if quant_max is None:
             quant_max = observer_class(dtype=self.dtype).quant_max
-        return torch.ao.quantization.FakeQuantize(
-            observer=observer_class, quant_min=quant_min, quant_max=quant_max, **observer_kwargs
+        partial_fn = torch.ao.quantization.FakeQuantize.with_args(
+            observer=observer_class,
+            quant_min=quant_min,
+            quant_max=quant_max,
+            **observer_kwargs,
         )
+        return partial_fn if as_factory else partial_fn()
 
 
 @dataclass
 class QConfig:
-    # TODO: specify good defaults here
     activation: QConfigUnit = QConfigUnit()
     weight: QConfigUnit = QConfigUnit()
 
@@ -206,13 +340,38 @@ class QConfig:
             self.weight = QConfigUnit(**self.weight)
 
     @classmethod
+    def default(cls, backend: str = "fbgemm"):
+        return cls(
+            activation=QConfigUnit.default(backend=backend, for_activations=True),
+            weight=QConfigUnit.default(backend=backend, for_weights=True),
+        )
+
+    @classmethod
     def from_pytorch(cls, pytorch_qconfig: torch.ao.quantization.QConfig) -> "QConfig":
+        """
+        Args:
+            pytorch_qconfig:
+                The PyTorch QConfig from which the QConfig will be created.
+
+        Returns:
+            [`optimum.fx.quantization.QConfig`]:
+                A QConfig instantiated from pytorch_qconfig.
+        """
         return cls(
             activation=QConfigUnit.from_pytorch(pytorch_qconfig.activation),
             weight=QConfigUnit.from_pytorch(pytorch_qconfig.weight),
         )
 
     def to_pytorch(self, quantization_approach: QuantizationApproach) -> torch.ao.quantization.QConfig:
+        """
+        Args:
+            quantization approach ([`optimum.utils.runs.QuantizationApproach`]):
+                The quantization approach for which you want the PyTorch config.
+
+        Returns:
+            `torch.ao.quantization.QConfig`:
+                A PyTorch QConfig instantiated with the proper attributes for the quantization approach.
+        """
         if quantization_approach is QuantizationApproach.qat:
             qconfig = torch.ao.quantization.QConfig(
                 activation=self.activation.as_fake_quantize(),
@@ -221,7 +380,7 @@ class QConfig:
         else:
             qconfig = torch.ao.quantization.QConfig(
                 activation=self.activation.as_observer(),
-                weight=self.weight.as_observer.as_observer(),
+                weight=self.weight.as_observer(),
             )
         return qconfig
 
@@ -247,6 +406,11 @@ class QuantizationConfig(BaseConfig):
             def map_fn(item):
                 if isinstance(item, dict):
                     return QConfig(**item)
+                elif isinstance(item, str) and item.startswith("torch"):
+                    module_name, attr_name = item.rsplit(".", maxsplit=1)
+                    mod = importlib.import_module(module_name)
+                    return getattr(mod, attr_name)
+
                 return item
 
             return QuantizationConfig._map(map_fn, attr, dicts_are_leafs=False)
@@ -255,13 +419,24 @@ class QuantizationConfig(BaseConfig):
         self.object_type = process(kwargs.pop("object_type", {}))
         self.module_name = process(kwargs.pop("module_name", {}))
         self.module_name_regex = process(kwargs.pop("module_name_regex", {}))
-        self.module_name_object_type = process(kwargs.pop("module_name_object_type", {}))
+        self.module_name_object_type_order = process(kwargs.pop("module_name_object_type_order", {}))
 
         # Make sure that the loaded attributes are stored as dictionaries.
         self.transform_attributes(to_dict=True, inplace=True)
 
     @classmethod
-    def default(cls, backend: str):
+    def default(cls, backend: str = "fbgemm") -> "QuantizationConfig":
+        """
+        Args:
+            backend (`str`, defaults to `"fbgemm"`):
+                The backend that will be used, to be able to choose the best default values. It can either be `"fbgemm"`
+                or `"qnnpack"`, please refer to [this section from the PyTorch documentation](https://pytorch.org/docs/stable/quantization.html#backend-hardware-support)
+                for more details.
+
+        Returns:
+            [`optimum.fx.quantization.QuantizationConfig`]:
+                The default QuantizationConfig for the provided backend.
+        """
         if backend not in ["fbgemm", "qnnpack"]:
             raise ValueError(f'The backend must either be "fbgemm" or "qnnpack", but "{backend}" was provided.')
         return cls.from_pytorch(torch.ao.quantization.get_default_qconfig_dict(backend))
@@ -288,10 +463,17 @@ class QuantizationConfig(BaseConfig):
         return list(dict_.values())
 
     def transform_attributes(self, to_list=False, to_dict=False, inplace=False):
+        """
+        Transforms the underlying attributes (object_type, module_name, etc):
+            - Dict -> List if to_list is True
+            - List -> Dict if to_dict is True
+        It is useful to go from the internal representation (dictionaries) to the user-facing representation (list,
+        matching what is done in PyTorch).
+        """
         if to_list and to_dict:
             raise ValueError('Only one of "to_list" and "to_dict" can be set to True.')
         transform_function = self._list_to_dict if to_dict else self._dict_to_list
-        attribute_names = ["object_type", "module_name", "module_name_regex", "module_name_object_type"]
+        attribute_names = ["object_type", "module_name", "module_name_regex", "module_name_object_type_order"]
         transformed_attributes = {k: transform_function(getattr(self, k)) for k in attribute_names}
         if inplace:
             self.__dict__.update(transformed_attributes)
@@ -319,8 +501,18 @@ class QuantizationConfig(BaseConfig):
                 return str(item).split(".")[1]
             return item
 
+        def torch_class_or_function_to_string(item):
+            try:
+                mod = inspect.getmodule(item)
+                if mod.__name__.startswith("torch"):
+                    return ".".join((mod.__name__, item.__name__))
+            except BaseException:
+                pass
+            return item
+
         output = self._map(qconfig_to_dict, output, dicts_are_leafs=False)
         output = self._map(torch_dtype_to_string, output, dicts_are_leafs=False)
+        output = self._map(torch_class_or_function_to_string, output, dicts_are_leafs=False)
 
         # Transformers version when serializing the model
         output["transformers_version"] = transformers_version
@@ -330,6 +522,15 @@ class QuantizationConfig(BaseConfig):
 
     @classmethod
     def from_pytorch(cls, qconfig_dict: Dict[str, Any]) -> "QuantizationConfig":
+        """
+        Args:
+            qconfig_dict (`Dict[str, Any]`):
+                The PyTorch qconfig dict to use to create the QuantizationConfig.
+
+        Returns:
+            [`optimum.fx.quantization.QuantizationConfig`]:
+                A QuantizationConfig instantiated from qconfig_dict.
+        """
         clone = copy.deepcopy(qconfig_dict)
         clone["global"] = clone.pop("", None)
 
@@ -342,8 +543,23 @@ class QuantizationConfig(BaseConfig):
         return cls(**clone)
 
     def to_pytorch(self, quantization_approach: QuantizationApproach):
+        """
+        Args:
+            quantization approach ([`optimum.utils.runs.QuantizationApproach`]):
+                The quantization approach for which you want the PyTorch config.
+
+        Returns:
+            `Dict[str, Any]`:
+                A qconfig dict that can be used with the PyTorch API for the specified quantization approach.
+        """
+
         def to_pytorch(item):
-            return self._map(lambda x: x.to_pytorch(quantization_approach), item)
+            def cast_fn(x):
+                if isinstance(x, QConfig):
+                    return x.to_pytorch(quantization_approach)
+                return x
+
+            return self._map(cast_fn, item)
 
         attributes = {
             attr_name: to_pytorch(attr) for attr_name, attr in self.transform_attributes(to_list=True).items()
@@ -351,10 +567,14 @@ class QuantizationConfig(BaseConfig):
         return {"": to_pytorch(self.global_), **attributes}
 
     def summary(self):
+        """
+        Prints the summary of the QuantizationConfig: what is being quantized, and how.
+        """
+
         summary_list = ["*** Summary ***"]
         # Global
         global_qconfig_str = f"\t{self.global_}" if self.global_ is not None else "None"
-        summary_list += ["Global:", global_qconfig_str]
+        summary_list += ["Global:", global_qconfig_str, ""]
 
         # Object type
         if self.object_type:
@@ -378,8 +598,8 @@ class QuantizationConfig(BaseConfig):
                 summary_list.append("")
 
         # Module name regex
-        if self.module_name_object_type:
-            summary_list.append("Module name object type:")
+        if self.module_name_object_type_order:
+            summary_list.append("Module name object type order:")
             for key, t in self.module_name_regex.items():
                 summary_list.append(f'\t"{key}" => \n\t{str(t[-1])}')
                 summary_list.append("")
@@ -401,7 +621,7 @@ class QuantizationConfig(BaseConfig):
     @staticmethod
     @handle_tuples
     def _validate_object_type_type(object_type):
-        if not isinstance(object_type, (type, callable, str)):
+        if not isinstance(object_type, (type, str)) and not callable(object_type):
             raise TypeError(
                 f"The object type must either be a class or a function, but an object of type {type(object_type)} was provided here."
             )
@@ -419,46 +639,6 @@ class QuantizationConfig(BaseConfig):
     def _validate_index(index):
         if not isinstance(index, int):
             raise TypeError(f"The index must be an int, but an object of type {type(index)} was provided here.")
-
-    # def add(self, *args):
-    #     add_method = None
-    #     if isinstance(args[0], str):
-    #         if args[0] in ["", "global"]:
-    #             self.global_ = args[1]
-    #             return
-    #         elif args[0].startswith("regex:"):
-    #             args = (args[0].replace("regex:", ""),) + args[1:]
-    #             add_method = self.add_module_name_regex
-    #         else:
-    #             add_method = self.add_module_name
-    #     else:
-    #         if len(args) == 2:
-    #             add_method = self.add_object_type
-    #         else:
-    #             add_method = self.add_module_name_object_type
-
-    #     if add_method is None:
-    #         raise RuntimeError(f"Could not infer on the adding method from the following args: {args}")
-
-    #     add_method(*args)
-
-    # def remove(self, *args):
-    #     remove_method = None
-    #     if len(args) == 1:
-    #         if args[0] in ["", "global"]:
-    #             self.global_ = None
-    #             return
-    #         elif isinstance(args[0], str):
-    #             if args[0] in self.module_name:
-    #                 remove_method = self.remove_module_name
-    #             else:
-    #                 remove_method = self.remove_module_name_regex
-    #         else:
-    #             remove_method = self.remove_object_type
-    #     else:
-    #         remove_method = self.remove_module_name_object_type
-
-    #     remove_method(*args)
 
     @global_.setter
     def global_(self, value: Optional[QConfig]):
@@ -492,7 +672,7 @@ class QuantizationConfig(BaseConfig):
         self._validate_module_name(module_name_regex, "module_name_regex")
         self.module_name_regex.pop(module_name_regex, None)
 
-    def add_module_name_object_type(
+    def add_module_name_object_type_order(
         self,
         object_type: Union[torch.nn.Module, Callable],
         module_name_regex: str,
@@ -502,16 +682,19 @@ class QuantizationConfig(BaseConfig):
         self._validate_object_type_type(object_type)
         self._validate_module_name(module_name_regex, "module_name_regex")
         self._validate_qconfig_type(qconfig)
-        self.module_name_object_type[(object_type, module_name_regex, index)] = (
+        self.module_name_object_type_order[(object_type, module_name_regex, index)] = (
             object_type,
             module_name_regex,
             index,
             qconfig,
         )
 
-    def remove_module_name_object_type(
+    def remove_module_name_object_type_order(
         self, object_type: Union[torch.nn.Module, Callable], module_name_regex: str, index: str
     ):
         self._validate_object_type_type(object_type)
         self._validate_module_name(module_name_regex, "module_name_regex")
-        self.module_name_object_type.pop((object_type, module_name_regex, index), -1)
+        self.module_name_object_type_order.pop((object_type, module_name_regex, index), -1)
+
+    def get_quantizable_nodes(self, model):
+        raise NotImplementedError
