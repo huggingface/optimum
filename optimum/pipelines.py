@@ -73,11 +73,6 @@ if is_onnxruntime_available():
             "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
             "default": "facebook/bart-large-mnli",
         },
-        "text-generation": {
-            "impl": TextGenerationPipeline,
-            "class": (ORTModelForCausalLM,) if is_onnxruntime_available() else (),
-            "default": "distilgpt2",
-        },
         "summarization": {
             "impl": SummarizationPipeline,
             "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
