@@ -119,10 +119,9 @@ class TextClassificationProcessing(DatasetProcessing):
             preds = pipeline.postprocess(model_outputs, function_to_apply=ClassificationFunction.NONE)
 
             if not self.task_args["is_regression"]:
-                # the dataset label ids may be different from the label2id of predictions
                 if self.label_to_id is not None:
-                    preds = self.config.label2id[preds["label"]]
-                    preds = self.label_to_id[preds]
+                    preds = int(self.config.label2id[preds["label"]])
+                    preds = self.label_to_id[preds]  # dataset label ids may be different than of the model label ids
                 else:
                     preds = self.config.label2id[preds["label"]]
             else:
