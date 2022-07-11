@@ -161,6 +161,7 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: Optional[str] = None,
+        provider: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -206,7 +207,7 @@ class ORTModel(OptimizedModel):
             )
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
-            model = ORTModel.load_model(model_cache_path)
+            model = ORTModel.load_model(model_cache_path, provider=provider)
             config = PretrainedConfig.from_dict(config_dict)
         return cls(model=model, config=config, **kwargs)
 
