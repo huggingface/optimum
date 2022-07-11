@@ -1,3 +1,4 @@
+import inspect
 import os
 import warnings
 from dataclasses import dataclass, field
@@ -40,7 +41,7 @@ class ORTOptimizerNames(ExplicitEnum):
 @dataclass
 class ORTTrainingArguments(TrainingArguments):
 
-    optim: Union[ORTOptimizerNames, OptimizerNames, str] = field(
+    optim: Optional[str] = field(
         default="adamw_hf",
         metadata={"help": "The optimizer to use."},
     )
@@ -148,9 +149,9 @@ class ORTTrainingArguments(TrainingArguments):
             if not (self.sharded_ddp == "" or not self.sharded_ddp):
                 raise ValueError("sharded_ddp is not supported with bf16")
 
-        if self.optim in ORTOptimizerNames.__dict__.values():
+        try:
             self.optim = ORTOptimizerNames(self.optim)
-        else:
+        except ValueError:
             self.optim = OptimizerNames(self.optim)
         if self.adafactor:
             warnings.warn(

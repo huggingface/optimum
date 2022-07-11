@@ -1479,9 +1479,9 @@ class ORTTrainer(Trainer):
     @staticmethod
     def get_ort_optimizer_cls_and_kwargs(args: TrainingArguments) -> Tuple[Any, Any]:
         """
-        Returns the optimizer class and optimizer parameters based on the training arguments.
+        Returns the optimizer class and optimizer parameters based on the ORT training arguments.
         Args:
-            args (`transformers.training_args.TrainingArguments`):
+            args (`optimum.onnxruntime.training_args.ORTTrainingArguments`):
                 The training arguments for the training session.
         """
         optimizer_kwargs = {"lr": args.learning_rate}
