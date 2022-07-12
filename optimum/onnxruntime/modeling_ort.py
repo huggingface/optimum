@@ -140,13 +140,13 @@ class ORTModel(OptimizedModel):
             provider(`str`, *optional*):
                 ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
-        if provider is None and check_if_multiple_available_providers():
-            raise EnvironmentError(
-                "No provider supplied and multiple providers available, "
-                "can not deterministically set correct provider."
-                "Pass provider in explicitly."
-            )
-        else:
+        if provider is None:
+            if check_if_multiple_available_providers():
+                raise EnvironmentError(
+                    "No provider supplied and multiple providers available, "
+                    "can not deterministically set correct provider."
+                    "Pass provider in explicitly."
+                )
             provider = "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])
