@@ -1,12 +1,12 @@
-from typing import Dict
+from typing import Dict, List
 
 from datasets import Dataset
 
-from optimum.onnxruntime.configuration import AutoCalibrationConfig
-from optimum.runs_base import Calibrator
-
+from ...runs_base import Calibrator
 from .. import ORTQuantizer
-from ..configuration import QuantizationConfig
+from ..configuration import AutoCalibrationConfig, QuantizationConfig
+from ..preprocessors import QuantizationPreprocessor
+from ..preprocessors.passes import ExcludeGeLUNodes, ExcludeLayerNormNodes, ExcludeNodeAfter, ExcludeNodeFollowedBy
 
 
 class OnnxRuntimeCalibrator(Calibrator):
@@ -17,6 +17,7 @@ class OnnxRuntimeCalibrator(Calibrator):
         model_path: str,
         qconfig: QuantizationConfig,
         calibration_params: Dict,
+        node_exclusion: List[str],
     ):
         super().__init__(
             calibration_dataset=calibration_dataset,
@@ -24,12 +25,32 @@ class OnnxRuntimeCalibrator(Calibrator):
             model_path=model_path,
             qconfig=qconfig,
             calibration_params=calibration_params,
+            node_exclusion=node_exclusion,
         )
 
         # Remove the unnecessary columns of the calibration dataset before the calibration step
         self.calibration_dataset = self.quantizer.clean_calibration_dataset(calibration_dataset)
 
     def calibrate(self):
+        # Create the calibration preprocessor excluding nodes
+        quantization_preprocessor = QuantizationPreprocessor()
+
+        if "layernorm" in self.node_exclusion:
+            # Exclude the nodes constituting LayerNorm
+            quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
+        if "gelu" in self.node_exclusion:
+            # Exclude the nodes constituting GELU
+            quantization_preprocessor.register_pass(ExcludeGeLUNodes())
+        if "residual" in self.node_exclusion:
+            # Exclude the residual connection Add nodes
+            quantization_preprocessor.register_pass(ExcludeNodeAfter("Add", "Add"))
+        if "gather" in self.node_exclusion:
+            # Exclude the Add nodes following the Gather operator
+            quantization_preprocessor.register_pass(ExcludeNodeAfter("Gather", "Add"))
+        if "softmax" in self.node_exclusion:
+            # Exclude the Add nodes followed by the Softmax operator
+            quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
+
         # Create the calibration configuration given the selected calibration method
         if self.calibration_params["method"] == "entropy":
             calibration_config = AutoCalibrationConfig.entropy(self.calibration_dataset)
@@ -66,4 +87,4 @@ class OnnxRuntimeCalibrator(Calibrator):
             )
         ranges = self.quantizer.compute_ranges()
 
-        return ranges
+        return ranges, quantization_preprocessor

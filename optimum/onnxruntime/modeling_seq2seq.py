@@ -29,9 +29,9 @@ from transformers.onnx import FeaturesManager, export
 import onnx
 import onnxruntime
 from huggingface_hub import HfApi, hf_hub_download
-from optimum.onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
-from optimum.onnx.modeling_seq2seq import _DecoderWithLMhead
 
+from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
+from ..onnx.modeling_seq2seq import _DecoderWithLMhead
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_DECODER_NAME,

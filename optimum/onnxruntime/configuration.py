@@ -23,12 +23,15 @@ from packaging.version import Version, parse
 from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator
-from optimum.onnxruntime import ORT_DEFAULT_CHANNEL_FOR_OPERATORS, ORT_FULLY_CONNECTED_OPERATORS
 
 from ..configuration_utils import BaseConfig
 
 
 NodeName = NodeType = str
+
+# This value is used to indicate ORT which axis it should use to quantize an operator "per-channel"
+ORT_DEFAULT_CHANNEL_FOR_OPERATORS = {"MatMul": 1}
+ORT_FULLY_CONNECTED_OPERATORS = ["MatMul", "Add"]
 
 
 @dataclass

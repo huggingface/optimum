@@ -20,13 +20,13 @@ from transformers.models.auto.feature_extraction_auto import FEATURE_EXTRACTOR_M
 from transformers.models.auto.tokenization_auto import TOKENIZER_MAPPING
 from transformers.onnx.utils import get_preprocessor
 
-from optimum.utils import is_onnxruntime_available
+from .utils import is_onnxruntime_available
 
 
 SUPPORTED_TASKS = {}
 
 if is_onnxruntime_available():
-    from optimum.onnxruntime import (
+    from .onnxruntime import (
         ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
@@ -35,7 +35,7 @@ if is_onnxruntime_available():
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
-    from optimum.onnxruntime.modeling_ort import ORTModel
+    from .onnxruntime.modeling_ort import ORTModel
 
     SUPPORTED_TASKS = {
         "feature-extraction": {
@@ -72,11 +72,6 @@ if is_onnxruntime_available():
             "impl": ZeroShotClassificationPipeline,
             "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
             "default": "facebook/bart-large-mnli",
-        },
-        "text-generation": {
-            "impl": TextGenerationPipeline,
-            "class": (ORTModelForCausalLM,) if is_onnxruntime_available() else (),
-            "default": "distilgpt2",
         },
         "summarization": {
             "impl": SummarizationPipeline,
