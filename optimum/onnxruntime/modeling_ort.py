@@ -32,8 +32,12 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
-
+from .utils import (
+    ONNX_WEIGHTS_NAME,
+    get_device_for_provider,
+    get_provider_for_device,
+    check_if_multiple_available_providers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +134,12 @@ class ORTModel(OptimizedModel):
             provider(`str`, *optional*):
                 ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
-        if provider is None:
+        if provider is None and check_if_multiple_available_providers():
+            raise EnvironmentError(
+                "No provider supplied and multiple providers available, "
+                "can not deterministically set correct provider"
+            )
+        else:
             provider = "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])

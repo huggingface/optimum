@@ -166,3 +166,10 @@ def get_provider_for_device(device: torch.device) -> str:
     Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
     """
     return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"
+
+
+def check_if_multiple_available_providers() -> bool:
+    """
+    Uses ONNX Runtime to check if multiple providers are available.
+    """
+    return len(ort.get_available_providers()) > 1
