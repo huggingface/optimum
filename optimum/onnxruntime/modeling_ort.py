@@ -34,10 +34,11 @@ from huggingface_hub import HfApi, hf_hub_download
 from ..modeling_base import OptimizedModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    check_if_multiple_available_providers,
     get_device_for_provider,
     get_provider_for_device,
-    check_if_multiple_available_providers,
 )
+
 
 logger = logging.getLogger(__name__)
 
