@@ -137,7 +137,8 @@ class ORTModel(OptimizedModel):
         if provider is None and check_if_multiple_available_providers():
             raise EnvironmentError(
                 "No provider supplied and multiple providers available, "
-                "can not deterministically set correct provider"
+                "can not deterministically set correct provider."
+                "Pass provider in explicitly."
             )
         else:
             provider = "CPUExecutionProvider"
