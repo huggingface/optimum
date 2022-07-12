@@ -157,7 +157,6 @@ class OptimizedModel(ABC):
         revision: Optional[Union[str, None]] = None,
         force_download: bool = True,
         cache_dir: Optional[str] = None,
-        provider: Optional[str] = None,
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from pretrained"""
@@ -171,7 +170,6 @@ class OptimizedModel(ABC):
         force_download: bool = True,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
-        provider: Optional[str] = None,
         **model_kwargs,
     ):
         revision = None
@@ -215,7 +213,6 @@ class OptimizedModel(ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 use_auth_token=use_auth_token,
-                provider=provider,
                 **model_kwargs,
             )
 
