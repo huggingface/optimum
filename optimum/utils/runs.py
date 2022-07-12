@@ -187,8 +187,10 @@ class _RunDefaults:
         },
     )
     node_exclusion: Optional[List[str]] = field(
-        default_factory=lambda: [],
-        metadata={"description": "Specific nodes to exclude from being quantized (default: `[]`)."},
+        default_factory=lambda: ["layernorm", "gelu", "residual", "gather", "softmax"],
+        metadata={
+            "description": "Specific nodes to exclude from being quantized (default: `['layernorm', 'gelu', 'residual', 'gather', 'softmax']`)."
+        },
     )
     per_channel: Optional[bool] = field(
         default=False, metadata={"description": "Whether to quantize per channel (default: `False`)."}
