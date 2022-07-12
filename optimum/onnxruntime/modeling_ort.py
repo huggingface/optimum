@@ -4,9 +4,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-import onnxruntime as ort
 import torch
-from huggingface_hub import HfApi, hf_hub_download
 from transformers import (
     AutoConfig,
     AutoModel,
@@ -30,13 +28,16 @@ from transformers.modeling_outputs import (
 from transformers.onnx import FeaturesManager, export
 from transformers.onnx.utils import get_preprocessor
 
+import onnxruntime as ort
+from huggingface_hub import HfApi, hf_hub_download
+
+from ..modeling_base import OptimizedModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
     get_device_for_provider,
     get_provider_for_device,
     check_if_multiple_available_providers,
 )
-from ..modeling_base import OptimizedModel
 
 logger = logging.getLogger(__name__)
 
