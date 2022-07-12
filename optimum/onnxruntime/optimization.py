@@ -25,8 +25,9 @@ from onnx import load_model
 from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import get_fusion_statistics, optimize_model
-from optimum.onnxruntime.configuration import OptimizationConfig
-from optimum.onnxruntime.utils import ORTConfigManager
+
+from .configuration import OptimizationConfig
+from .utils import ORTConfigManager
 
 
 LOGGER = logging.getLogger(__name__)
@@ -140,6 +141,10 @@ class ORTOptimizer:
             use_gpu=optimization_config.optimize_for_gpu,
             only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
         )
+
+        if optimization_config.fp16:
+            # keep_io_types to keep inputs/outputs as float32
+            optimizer.convert_float_to_float16(keep_io_types=True)
 
         optimizer.save_model_to_file(onnx_optimized_model_output_path, use_external_data_format)
 

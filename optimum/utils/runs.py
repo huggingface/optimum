@@ -187,8 +187,10 @@ class _RunDefaults:
         },
     )
     node_exclusion: Optional[List[str]] = field(
-        default_factory=lambda: [],
-        metadata={"description": "Specific nodes to exclude from being quantized (default: `[]`)."},
+        default_factory=lambda: ["layernorm", "gelu", "residual", "gather", "softmax"],
+        metadata={
+            "description": "Specific nodes to exclude from being quantized (default: `['layernorm', 'gelu', 'residual', 'gather', 'softmax']`)."
+        },
     )
     per_channel: Optional[bool] = field(
         default=False, metadata={"description": "Whether to quantize per channel (default: `False`)."}
@@ -267,6 +269,8 @@ class RunConfig(Run, _RunConfigDefaults, _RunConfigBase):
     """Class holding the parameters to launch a run."""
 
     def __post_init__(self):
+        super().__post_init__()
+
         # to support python 3.8 that does not support nested initialization of dataclass from dict
         if isinstance(self.dataset, dict):
             self.dataset = DatasetArgs(**self.dataset)
