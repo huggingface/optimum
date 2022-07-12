@@ -154,8 +154,6 @@ def get_device_for_provider(provider: str) -> torch.device:
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
-    if check_if_multiple_providers():
-        raise Exception("Multiple providers found, can not set provider deterministically")
     return torch.device("cuda") if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"] else torch.device("cpu")
 
 
@@ -164,12 +162,3 @@ def get_provider_for_device(device: torch.device) -> str:
     Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
     """
     return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"
-
-
-def check_if_multiple_providers() -> bool:
-    """
-    Uses ort to check if multiple providers are present
-    """
-    providers = ort.get_available_providers()
-    logger.warning(f"Available providers are {providers}")
-    return len(providers) > 1
