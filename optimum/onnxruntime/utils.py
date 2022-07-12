@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -162,3 +163,30 @@ def get_provider_for_device(device: torch.device) -> str:
     Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
     """
     return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"
+
+
+class ORTQuantizableOperator(Enum):
+    # Common ops
+    Gather = "Gather"
+    Transpose = "Transpose"
+    EmbedLayerNormalizationQuant = "EmbedLayerNormalization"
+
+    # QLinearOps
+    Conv = "Conv"
+    MatMul = "MatMul"
+    Add = "Add"
+    Mul = "Mul"
+    Relu = "Relu"
+    Clip = "Clip"
+    LeakyRelu = "LeakyRelu"
+    Sigmoid = "Sigmoid"
+    MaxPool = "MaxPool"
+    GlobalAveragePool = "GlobalAveragePool"
+    Split = "Split"
+    Pad = "Pad"
+    Reshape = "Reshape"
+    Squeeze = "Squeeze"
+    Unsqueeze = "Unsqueeze"
+    Resize = "Resize"
+    AveragePool = "AveragePool"
+    Concat = "Concat"

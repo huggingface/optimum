@@ -1,4 +1,4 @@
-from optimum.onnxruntime.modeling_ort import (
+from ..modeling_ort import (
     ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,

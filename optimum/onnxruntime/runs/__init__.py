@@ -6,9 +6,9 @@ from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.pipelines import pipeline as _optimum_pipeline
-from optimum.runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 
+from ...pipelines import pipeline as _optimum_pipeline
+from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 from .. import ORTQuantizer
 from ..configuration import QuantizationConfig
 from ..modeling_ort import ORTModel
