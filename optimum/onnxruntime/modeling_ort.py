@@ -32,8 +32,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
-
+from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device, check_if_multiple_providers
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +112,8 @@ class ORTModel(OptimizedModel):
         """
         self.device = device
         provider = get_provider_for_device(self.device)
+        if check_if_multiple_providers():
+            raise Exception("Multiple providers are present, can not set provider deterministically")
         self.model.set_providers([provider])
         return self
 

@@ -39,7 +39,7 @@ from .utils import (
     ONNX_ENCODER_NAME,
     _is_gpu_available,
     get_device_for_provider,
-    get_provider_for_device,
+    get_provider_for_device, check_if_multiple_providers,
 )
 
 
@@ -422,6 +422,8 @@ class ORTModelForConditionalGeneration(ORTModel):
         self.encoder._device = device
         self.decoder._device = device
         self.decoder_with_past._device = device
+        if check_if_multiple_providers():
+            raise Exception("Multiple providers are present, can not set provider deterministically")
         provider = get_provider_for_device(device)
         self.encoder.session.set_providers([provider])
         self.decoder.session.set_providers([provider])
