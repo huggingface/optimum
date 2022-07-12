@@ -11,8 +11,8 @@ from datasets import Dataset
 from tqdm import trange
 
 import optuna
-from optimum import version as optimum_version
 
+from . import version as optimum_version
 from .utils.preprocessing import (
     ImageClassificationProcessing,
     QuestionAnsweringProcessing,
@@ -34,12 +34,15 @@ def get_autoclass_name(task):
 
 
 class Calibrator:
-    def __init__(self, calibration_dataset: Dataset, quantizer, model_path, qconfig, calibration_params):
+    def __init__(
+        self, calibration_dataset: Dataset, quantizer, model_path, qconfig, calibration_params, node_exclusion
+    ):
         self.calibration_dataset = calibration_dataset
         self.quantizer = quantizer
         self.model_path = model_path
         self.qconfig = qconfig
         self.calibration_params = calibration_params
+        self.node_exclusion = node_exclusion
 
     def calibrate(self):
         raise NotImplementedError()

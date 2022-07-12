@@ -29,9 +29,10 @@ import onnx
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
-from optimum.onnxruntime import ORTQuantizableOperator
-from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
-from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
+
+from . import ORTQuantizableOperator
+from .configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
+from .preprocessors import QuantizationPreprocessor
 
 
 LOGGER = logging.getLogger(__name__)
