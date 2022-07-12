@@ -88,10 +88,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     @require_torch_gpu
     def test_model_on_gpu_pass_cpu(self):
-        model_kwargs = {"provider": "CPUExecutionProvider"}
-        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, model_kwargs=model_kwargs)
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CPUExecutionProvider")
         cpu = torch.device("cpu")
-        model.to(cpu)
         self.assertEqual(model.device, cpu)
 
     def test_seq2seq_model_on_cpu(self):
