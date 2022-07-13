@@ -1497,7 +1497,7 @@ class ORTTrainer(Trainer):
                 optimizer_cls = FusedAdam
                 optimizer_kwargs.update(adam_kwargs)
             except ImportError:
-                raise ValueError(
+                raise ImportError(
                     "ORTTrainer tried to instantiate ORT FusedAdam but onnxruntime-training is not correctly installed!"
                 )
         else:
