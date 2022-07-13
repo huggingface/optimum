@@ -38,7 +38,6 @@ from transformers import (
     HfArgumentParser,
     PretrainedConfig,
     PreTrainedTokenizerFast,
-    TrainingArguments,
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
@@ -46,10 +45,11 @@ from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTTrainer
+from optimum.onnxruntime.training_args import ORTTrainingArguments
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.15.0")
+check_min_version("4.20.0")
 
 require_version(
     "datasets>=1.18.0", "To fix: pip install -r examples/onnxruntime/training/token-classification/requirements.txt"
@@ -193,7 +193,7 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, ORTTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
@@ -252,7 +252,10 @@ def main():
     if data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
-            data_args.dataset_name, data_args.dataset_config_name, cache_dir=model_args.cache_dir
+            data_args.dataset_name,
+            data_args.dataset_config_name,
+            cache_dir=model_args.cache_dir,
+            use_auth_token=True if model_args.use_auth_token else None,
         )
     else:
         data_files = {}
