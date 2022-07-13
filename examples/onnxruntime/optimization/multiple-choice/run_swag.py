@@ -32,14 +32,14 @@ import numpy as np
 import torch
 import transformers
 from datasets import load_dataset
-from transformers import HfArgumentParser, TrainingArguments
+from transformers import HfArgumentParser, TrainingArguments, AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
-from optimum.onnxruntime import ORTModel, ORTOptimizer
+from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
-
+from optimum.onnxruntime import ORTOptimizer, ORTModelForMultipleChoice
 
 # Will error if the minimal version of Transformers is not installed. The version of transformers must be >= 4.19.0
 # as the export to onnx of multiple choice topologies was added in this release. Remove at your own risks.
@@ -224,7 +224,9 @@ def main():
 
     os.makedirs(training_args.output_dir, exist_ok=True)
     model_path = os.path.join(training_args.output_dir, "model.onnx")
-    optimized_model_path = os.path.join(training_args.output_dir, "model-optimized.onnx")
+    optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
+
+    tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)
 
     # Create the optimization configuration containing all the optimization parameters
     optimization_config = OptimizationConfig(
@@ -233,20 +235,18 @@ def main():
         optimize_for_gpu=optim_args.optimize_for_gpu,
     )
 
-    # Create the optimizer
-    optimizer = ORTOptimizer.from_pretrained(
-        model_args.model_name_or_path, feature="multiple-choice", opset=optim_args.opset
-    )
+    # Export the model
+    model = ORTModelForMultipleChoice.from_pretrained(model_args.model_name_or_path, from_transformers=True)
 
-    # Export the optimized model
-    optimizer.export(
-        onnx_model_path=model_path,
-        onnx_optimized_model_output_path=optimized_model_path,
-        optimization_config=optimization_config,
-    )
+    # Create the optimizer
+    optimizer = ORTOptimizer.from_pretrained(model)
+
+    # Optimize the model
+    optimizer.fit(optimization_config=optimization_config, save_dir=training_args.output_dir)
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(opset=optimizer.opset, optimization=optimization_config)
+    ort_config = ORTConfig(optimization=optimization_config)
+
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -313,7 +313,7 @@ def main():
         # Preprocess the evaluation dataset
         with training_args.main_process_first(desc="Running tokenizer on the validation dataset"):
             eval_dataset = eval_dataset.map(
-                partial(preprocess_function, tokenizer=optimizer.tokenizer),
+                partial(preprocess_function, tokenizer=tokenizer),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
@@ -330,7 +330,6 @@ def main():
 
         ort_model = ORTModel(
             optimized_model_path,
-            optimizer._onnx_config,
             execution_provider=optim_args.execution_provider,
             compute_metrics=compute_metrics,
             label_names=["label"],
