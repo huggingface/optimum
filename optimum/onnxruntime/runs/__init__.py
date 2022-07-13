@@ -6,9 +6,9 @@ from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.pipelines import pipeline as _optimum_pipeline
-from optimum.runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 
+from ...pipelines import pipeline as _optimum_pipeline
+from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 from .. import ORTQuantizer
 from ..configuration import QuantizationConfig
 from ..modeling_ort import ORTModel
@@ -76,9 +76,14 @@ class OnnxRuntimeRun(Run):
         if self.static_quantization:
             calibration_dataset = self.get_calibration_dataset()
             calibrator = OnnxRuntimeCalibrator(
-                calibration_dataset, quantizer, self.model_path, qconfig, calibration_params=run_config["calibration"]
+                calibration_dataset,
+                quantizer,
+                self.model_path,
+                qconfig,
+                calibration_params=run_config["calibration"],
+                node_exclusion=run_config["node_exclusion"],
             )
-            ranges = calibrator.calibrate()
+            ranges, quantization_preprocessor = calibrator.calibrate()
 
         # Export the quantized model
         quantizer.export(

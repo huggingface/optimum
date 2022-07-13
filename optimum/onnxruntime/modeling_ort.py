@@ -51,7 +51,7 @@ ONNX_MODEL_START_DOCSTRING = r"""
         model (`onnxruntime.InferenceSession`): [onnxruntime.InferenceSession](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession) is the main class used to run a model. Check out the [`~onnxruntime.modeling_ort.ORTModel.load_model`] method for more information.
 """
 
-ONNX_INPUTS_DOCSTRING = r"""
+ONNX_TEXT_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (`torch.Tensor` of shape `({0})`):
             Indices of input sequence tokens in the vocabulary.
@@ -69,6 +69,13 @@ ONNX_INPUTS_DOCSTRING = r"""
             - 1 for tokens that are **sentence A**,
             - 0 for tokens that are **sentence B**.
             [What are token type IDs?](https://huggingface.co/docs/transformers/glossary#token-type-ids)
+"""
+
+ONNX_IMAGE_INPUTS_DOCSTRING = r"""
+    Args:
+        pixel_values (`torch.Tensor` of shape `({0})`):
+            Pixel values corresponding to the images in the current batch.
+            Pixel values can be obtained from encoded images using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
 """
 
 
@@ -332,7 +339,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
-        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + FEAUTRE_EXTRACTION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForFeatureExtraction",
@@ -417,7 +424,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
-        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + QUESTION_ANSWERING_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForQuestionAnswering",
@@ -518,7 +525,7 @@ class ORTModelForSequenceClassification(ORTModel):
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
-        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + SEQUENCE_CLASSIFICATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForSequenceClassification",
@@ -603,7 +610,7 @@ class ORTModelForTokenClassification(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
-        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + TOKEN_CLASSIFICATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForTokenClassification",
@@ -696,7 +703,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         return inputs
 
     @add_start_docstrings_to_model_forward(
-        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + TEXT_GENERATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForCausalLM",
@@ -804,8 +811,8 @@ class ORTModelForImageClassification(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
-        ONNX_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + FEAUTRE_EXTRACTION_EXAMPLE.format(
+        ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
+        + IMAGE_CLASSIFICATION_EXAMPLE.format(
             processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForImageClassification",
             checkpoint="optimum/vit-base-patch16-224",
