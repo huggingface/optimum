@@ -410,8 +410,8 @@ class ORTQuantizer(ABC):
             seed (`int`, defaults to 2016):
                 The random seed to use when shuffling the calibration dataset.
             use_auth_token (`bool`, defaults to `False`):
-                Whether to use the token generated when running `transformers-cli login` (necessary for some datasets "
-                "like ImageNet).
+                Whether to use the token generated when running `transformers-cli login` (necessary for some datasets
+                like ImageNet).
         Returns:
             The calibration `datasets.Dataset` to use for the post-training static quantization calibration
             step.
