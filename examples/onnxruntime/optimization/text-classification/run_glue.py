@@ -30,13 +30,13 @@ import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments, AutoTokenizer
+from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.model import ORTModel
-from optimum.onnxruntime import ORTOptimizer, ORTModelForSequenceClassification
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.

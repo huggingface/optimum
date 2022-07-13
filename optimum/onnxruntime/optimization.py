@@ -15,16 +15,19 @@ import logging
 import os
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
+
 import transformers
+
 from onnx import load_model
 from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import get_fusion_statistics, optimize_model
+
+from ..utils import CONFIG_NAME
+from .configuration import OptimizationConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
-from .configuration import OptimizationConfig
 from .utils import ORTConfigManager
-from ..utils import CONFIG_NAME
 
 
 LOGGER = logging.getLogger(__name__)
@@ -134,9 +137,7 @@ class ORTOptimizer:
             else:
                 msg = "The model has been optimized "
 
-            LOGGER.info(
-                msg + f"and saved at {output_path} (external data format: {use_external_data_format})"
-            )
+            LOGGER.info(msg + f"and saved at {output_path} (external data format: {use_external_data_format})")
 
     @staticmethod
     def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> Dict[str, int]:

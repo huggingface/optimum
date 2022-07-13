@@ -30,13 +30,13 @@ from typing import Optional
 import datasets
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments, AutoTokenizer
+from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from optimum.onnxruntime import ORTModelForQuestionAnswering, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.model import ORTModel
-from optimum.onnxruntime import ORTOptimizer, ORTModelForQuestionAnswering
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
 
@@ -504,7 +504,9 @@ def main():
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
         ort_model = ORTModel(
-            optimized_model_path, execution_provider=optim_args.execution_provider, label_names=["start_positions", "end_positions"]
+            optimized_model_path,
+            execution_provider=optim_args.execution_provider,
+            label_names=["start_positions", "end_positions"],
         )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)

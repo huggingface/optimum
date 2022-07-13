@@ -27,7 +27,7 @@ import onnx
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer, ORTModelForSequenceClassification
+from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer, ORTQuantizer
 from optimum.onnxruntime.configuration import (
     AutoCalibrationConfig,
     AutoQuantizationConfig,
@@ -67,7 +67,9 @@ class ORTOptimizerTest(unittest.TestCase):
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
             optimizer.fit(optimization_config=optimization_config, save_dir=tmp_dir)
-            optimized_model = ORTModelForSequenceClassification.from_pretrained(tmp_dir, file_name="model_optimized.onnx", from_transformers=False)
+            optimized_model = ORTModelForSequenceClassification.from_pretrained(
+                tmp_dir, file_name="model_optimized.onnx", from_transformers=False
+            )
             tokenizer = get_preprocessor(model_name)
             tokens = tokenizer("This is a sample output", return_tensors="pt")
             original_model_outputs = model(**tokens)

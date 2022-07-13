@@ -32,14 +32,15 @@ import numpy as np
 import torch
 import transformers
 from datasets import load_dataset
-from transformers import HfArgumentParser, TrainingArguments, AutoTokenizer
+from transformers import AutoTokenizer, HfArgumentParser, TrainingArguments
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
-from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime import ORTModelForMultipleChoice, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
-from optimum.onnxruntime import ORTOptimizer, ORTModelForMultipleChoice
+from optimum.onnxruntime.model import ORTModel
+
 
 # Will error if the minimal version of Transformers is not installed. The version of transformers must be >= 4.19.0
 # as the export to onnx of multiple choice topologies was added in this release. Remove at your own risks.
