@@ -149,7 +149,7 @@ class ORTQuantizerTest(unittest.TestCase):
             "feature": "sequence-classification",
         },
         "local_asset": {
-            "model_name_or_path": "tests/assets/onnx",
+            "model_name_or_path": "assets/onnx",
             "feature": "sequence-classification",
         },
         "ort_model_class": {

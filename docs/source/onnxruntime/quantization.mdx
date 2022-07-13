@@ -50,7 +50,7 @@ The `ORTQuantizer` class is used to quantize your ONNX model. The class can be i
 ```python
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForTextClassification
 
-# loading ONNX Model from the Hub
+# Loading ONNX Model from the Hub
 >>> ort_model = ORTModelForTextClassification.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
 
 # Create a quantizer from a ORTModelForXXX

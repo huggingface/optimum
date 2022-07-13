@@ -26,11 +26,11 @@ from onnxruntime.quantization import CalibrationDataReader, QuantFormat, Quantiz
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
-from optimum.pipelines import SUPPORTED_FEATURES
 from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.utils import ONNX_WEIGHTS_NAME
+from optimum.pipelines import SUPPORTED_FEATURES
 
 
 LOGGER = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ class ORTQuantizer(ABC):
     @classmethod
     def from_pretrained(
         cls,
-        model_name_or_path: Union[str, os.PathLike],
+        model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         from_transformers: Optional[bool] = False,
         feature: Optional[str] = None,
@@ -94,12 +94,16 @@ class ORTQuantizer(ABC):
         Instantiate a `ORTQuantizer` from a pretrained pytorch model and preprocessor.
 
         Args:
-            model_name_or_path (`Union[str, os.PathLike]`):
-                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
+            model_id (`Union[str, os.PathLike]`):
+                Can be either:
+                    - A string, the *model id* of a pretrained model hosted inside a model repo on huggingface.co.
+                      Valid model ids can be located at the root-level, like `bert-base-uncased`, or namespaced under a
+                      user or organization name, like `dbmdz/bert-base-german-cased`.
+                    - A path to a *directory* containing a model saved as a `.onnx` file, e.g., `./my_model_directory/`.
             use_auth_token (`str` or `bool`, *optional*):
                 Is needed to load models from a private repository.
             from_transformers (`bool`, *optional*, defaults to `False`):
-                Defines whether the provided `model_name_or_path` contains a vanilla Transformers checkpoint.
+                Defines whether the provided `model_id` contains a vanilla Transformers checkpoint.
                 ORTQuantizer will then export the model first to ONNX.
             feature (`str`, *optional*):
                 Transformers feature for the model. Will be used to convert the model if needed. Find a list of supported features [here](https://huggingface.co/docs/transformers/serialization#selecting-features-for-different-model-topologies)
@@ -114,21 +118,21 @@ class ORTQuantizer(ABC):
         """
         model_file_name = ONNX_WEIGHTS_NAME if file_name is None else file_name
         # check if the user is loading a vanilla transformers and if a feature is available
-        if from_transformers and feature is None:
-            raise ValueError("When using from_transformers, you need to provide a feature.")
-
-        # converts vanilla transformers to onnx if correct feature is provided and model is not already in onnx
-        if from_transformers and feature:
-            model_class = SUPPORTED_FEATURES.get(feature, None)
-            if not model_class:
-                raise ValueError(f"Feature {feature} is not supported.")
-            onnx_model = model_class.from_pretrained(
-                model_name_or_path,
-                from_transformers=from_transformers,
-                use_auth_token=use_auth_token,
-                cache_dir=cache_dir,
-            )
-            return cls(onnx_model.model_save_dir.joinpath(onnx_model.latest_model_name))
+        if from_transformers:
+            # converts vanilla transformers to onnx if correct feature is provided and model is not already in onnx
+            if feature:
+                model_class = SUPPORTED_FEATURES.get(feature, None)
+                if not model_class:
+                    raise ValueError(f"Feature {feature} is not supported.")
+                onnx_model = model_class.from_pretrained(
+                    model_name_or_path,
+                    from_transformers=from_transformers,
+                    use_auth_token=use_auth_token,
+                    cache_dir=cache_dir,
+                )
+                return cls(onnx_model.model_save_dir.joinpath(onnx_model.latest_model_name))
+            else:
+                raise ValueError("When using from_transformers, you need to provide a feature.")
 
         # create ORTQuantizer based on the provided input
         if isinstance(model_name_or_path, ORTModel):
