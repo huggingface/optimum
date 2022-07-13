@@ -125,7 +125,7 @@ class ORTQuantizer(ABC):
                 if not model_class:
                     raise ValueError(f"Feature {feature} is not supported.")
                 onnx_model = model_class.from_pretrained(
-                    model_name_or_path,
+                    model_id,
                     from_transformers=from_transformers,
                     use_auth_token=use_auth_token,
                     cache_dir=cache_dir,
@@ -135,18 +135,18 @@ class ORTQuantizer(ABC):
                 raise ValueError("When using from_transformers, you need to provide a feature.")
 
         # create ORTQuantizer based on the provided input
-        if isinstance(model_name_or_path, ORTModel):
-            return cls(model_name_or_path.model_save_dir.joinpath(model_file_name))
-        elif os.path.isdir(model_name_or_path):
-            if not isinstance(model_name_or_path, Path):
-                model_name_or_path = Path(model_name_or_path)
-            return cls(model_name_or_path.joinpath(model_file_name))
+        if isinstance(model_id, ORTModel):
+            return cls(model_id.model_save_dir.joinpath(model_file_name))
+        elif os.path.isdir(model_id):
+            if not isinstance(model_id, Path):
+                model_id = Path(model_id)
+            return cls(model_id.joinpath(model_file_name))
         elif feature is not None and from_transformers is False:
             model_class = SUPPORTED_FEATURES.get(feature, None)
             if not model_class:
                 raise ValueError(f"Feature {feature} is not supported.")
             onnx_model = model_class.from_pretrained(
-                model_name_or_path,
+                model_id,
                 use_auth_token=use_auth_token,
                 cache_dir=cache_dir,
                 file_name=model_file_name,
@@ -154,7 +154,7 @@ class ORTQuantizer(ABC):
             )
             return cls(onnx_model.model_save_dir.joinpath(onnx_model.latest_model_name))
         else:
-            raise ValueError(f"Unable to load model from {model_name_or_path}.")
+            raise ValueError(f"Unable to load model from {model_id}.")
 
     def __init__(
         self,
