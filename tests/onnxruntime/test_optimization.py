@@ -221,5 +221,6 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             self.assertEqual(expected_quantized_matmul, num_quantized_matmul)
             gc.collect()
 
+
 if __name__ == "__main__":
     unittest.main()
