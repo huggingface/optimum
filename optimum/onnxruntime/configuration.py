@@ -247,7 +247,8 @@ class QuantizationConfig:
         nodes_to_exclude (`list`):
             List of the nodes names to exclude when applying quantization.
         operators_to_quantize (`list`):
-            List of the operators types to quantize.
+            List of the operators types to quantize. Defaults to `["MatMul", "Add"]` but supports 
+            `['Conv','Attention', 'LSTM', 'Gather', 'Transpose', 'EmbedLayerNormalization'].`
         qdq_add_pair_to_weight (`bool`, defaults to `False`):
             By default, floating-point weights are quantized and feed to solely inserted DeQuantizeLinear node.
             If set to True, the floating-point weights will remain and both QuantizeLinear / DeQuantizeLinear nodes
