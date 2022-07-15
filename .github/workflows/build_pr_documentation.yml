@@ -65,7 +65,8 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum
-          make doc BUILD_DIR=../doc-build-dev VERSION=pr_$PR_NUMBER
+          make doc BUILD_DIR=doc-build-dev VERSION=pr_$PR_NUMBER
+          mv doc-build-dev ../
           cd ..
 
       - name: Push to repositories
