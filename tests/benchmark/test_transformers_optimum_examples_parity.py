@@ -27,7 +27,7 @@ class TestParity(unittest.TestCase):
         )
 
     def tearDown(self):
-        shutil.rmtree(self.dir_path, ignore_errors=True)
+        shutil.rmtree(self.dir_path)
 
     def test_text_classification_parity(self):
         model_name = "philschmid/tiny-bert-sst2-distilled"
