@@ -1,4 +1,4 @@
-name: Build dev documentation
+name: Build PR documentation
 
 on:
   pull_request:
@@ -10,8 +10,6 @@ concurrency:
 jobs:
   build_and_package:
     runs-on: ubuntu-latest
-    container:
-      image: huggingface/transformers-doc-builder
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
@@ -35,20 +33,6 @@ jobs:
       - name: Set env
         run: |
           echo "WRITE=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
-
-      - name: Setup environment
-        run: |
-          pip uninstall -y doc-builder
-          cd doc-builder
-          git pull origin main
-          pip install -e .
-          cd ..
-
-          cd optimum
-          apt install -y libopencv-dev python3-opencv
-          pip install --upgrade protobuf
-          pip install .[dev,onnxruntime,benchmark]
-          cd ..
 
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@v1
@@ -80,8 +64,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=6656
         run: |
-          cd ./doc-builder
-          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build-dev --clean --version pr_$PR_NUMBER --html
+          make doc BUILD_DIR=../doc-build-dev VERSION=pr_$PR_NUMBER
 
       - name: Push to repositories
         run: |
