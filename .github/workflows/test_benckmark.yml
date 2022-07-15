@@ -33,6 +33,5 @@ jobs:
         pip install git+https://github.com/huggingface/transformers.git#egg=transformers
         pip install .[tests,onnxruntime,benchmark]
     - name: Test with unittest
-      working-directory: tests
       run: |
-        python -m unittest discover --start-directory benchmark/onnxruntime --pattern 'test_*.py'
+        python -m unittest discover --start-directory tests/benchmark --pattern 'test_*.py'
