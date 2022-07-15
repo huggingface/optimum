@@ -34,6 +34,14 @@ jobs:
         run: |
           echo "WRITE=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
 
+      - name: Setup environment
+        run: |
+          pip uninstall -y doc-builder
+          cd doc-builder
+          git pull origin main
+          pip install -e .
+          cd ..
+
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@v1
         if: github.event.action == 'opened'
