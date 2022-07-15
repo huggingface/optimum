@@ -62,6 +62,9 @@ class TokenClassificationProcessing(DatasetProcessing):
         eval_dataset = raw_datasets[self.eval_split]
         if self.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(self.max_eval_samples))
+        eval_dataset = eval_dataset.align_labels_with_mapping(
+            label2id=self.config.label2id, label_column=self.ref_keys[0]
+        )
 
         datasets_dict = {"eval": eval_dataset}
 
