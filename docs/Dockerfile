@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM nikolaik/python-nodejs:python3.8-nodejs18
 
 RUN apt -y update
 RUN python3 -m pip install --no-cache-dir --upgrade pip
