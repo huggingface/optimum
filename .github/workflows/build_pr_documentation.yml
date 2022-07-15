@@ -66,7 +66,7 @@ jobs:
         run: |
           cd optimum
           make doc BUILD_DIR=doc-build-dev VERSION=pr_$PR_NUMBER
-          mv doc-build-dev ../
+          sudo mv doc-build-dev ../
           cd ..
 
       - name: Push to repositories
