@@ -31,6 +31,7 @@ class TestParity(unittest.TestCase):
 
     def test_text_classification_parity(self):
         model_name = "philschmid/tiny-bert-sst2-distilled"
+        n_samples = 100
 
         subprocess.run(
             "git sparse-checkout set examples/pytorch/text-classification",
@@ -45,7 +46,7 @@ class TestParity(unittest.TestCase):
             f" --do_eval"
             f" --max_seq_length 9999999999"  # rely on tokenizer.model_max_length for max_length
             f" --output_dir {self.dir_path}/textclassification_sst2_transformers"
-            f" --max_eval_samples 100",
+            f" --max_eval_samples {n_samples}",
             shell=True,
             cwd=os.path.join(self.dir_path, "transformers"),
         )
@@ -54,6 +55,23 @@ class TestParity(unittest.TestCase):
             f"{os.path.join(self.dir_path, 'textclassification_sst2_transformers', 'eval_results.json')}", "r"
         ) as f:
             transformers_results = json.load(f)
+
+        subprocess.run(
+            f"python3 examples/onnxruntime/quantization/text-classification/run_glue.py"
+            f" --model_name_or_path {model_name}"
+            f" --task_name sst2"
+            f" --do_eval"
+            f" --max_seq_length 9999999999"  # rely on tokenizer.model_max_length for max_length
+            f" --output_dir {self.dir_path}/textclassification_sst2_optimum"
+            f" --max_eval_samples {n_samples}"
+            f" --opset 11"
+            f" --quantization_approach dynamic"
+            f" --overwrite_cache True",
+            shell=True,
+        )
+
+        with open(os.path.join(self.dir_path, "textclassification_sst2_optimum", "eval_results.json"), "r") as f:
+            optimum_results = json.load(f)
 
         run_config = {
             "task": "text-classification",
@@ -75,7 +93,7 @@ class TestParity(unittest.TestCase):
             "framework_args": {"optimization_level": 1, "opset": 15},
             "batch_sizes": [8],
             "input_lengths": [128],
-            "max_eval_samples": 100,
+            "max_eval_samples": n_samples,
             "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
         }
         run_config = RunConfig(**run_config)
@@ -87,45 +105,27 @@ class TestParity(unittest.TestCase):
         self.assertEqual(
             transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["baseline"]["accuracy"]
         )
-
-        subprocess.run(
-            f"python3 examples/onnxruntime/quantization/text-classification/run_glue.py"
-            f" --model_name_or_path {model_name}"
-            f" --task_name sst2"
-            f" --do_eval"
-            f" --max_seq_length 9999999999"  # rely on tokenizer.model_max_length for max_length
-            f" --output_dir {self.dir_path}/textclassification_sst2_optimum"
-            f" --max_eval_samples 100"
-            f" --opset 11"
-            f" --quantization_approach dynamic"
-            f" --overwrite_cache True",
-            shell=True,
-        )
-
-        with open(os.path.join(self.dir_path, "textclassification_sst2_optimum", "eval_results.json"), "r") as f:
-            optimum_results = json.load(f)
-
         self.assertEqual(
             optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["optimized"]["accuracy"]
         )
 
     def test_token_classification_parity(self):
         model_name = "hf-internal-testing/tiny-bert-for-token-classification"
-        """
+        n_samples = 200
+
         subprocess.run(
             "git sparse-checkout set examples/pytorch/token-classification",
             shell=True,
             cwd=os.path.join(self.dir_path, "transformers"),
         )
 
-        
         subprocess.run(
             f"python examples/pytorch/token-classification/run_ner.py"
             f" --model_name_or_path {model_name}"
             f" --dataset_name conll2003"
             f" --do_eval"
             f" --output_dir {self.dir_path}/tokenclassification_conll2003_transformers"
-            f" --max_eval_samples 100"
+            f" --max_eval_samples {n_samples}"
             f" --overwrite_cache True",
             shell=True,
             cwd=os.path.join(self.dir_path, "transformers"),
@@ -135,14 +135,14 @@ class TestParity(unittest.TestCase):
             f"{os.path.join(self.dir_path, 'tokenclassification_conll2003_transformers', 'eval_results.json')}", "r"
         ) as f:
             transformers_results = json.load(f)
-        """
+
         subprocess.run(
             f"python3 examples/onnxruntime/quantization/token-classification/run_ner.py"
             f" --model_name_or_path {model_name}"
             f" --dataset_name conll2003"
             f" --do_eval"
             f" --output_dir {self.dir_path}/tokenclassification_conll2003_optimum"
-            f" --max_eval_samples 3"
+            f" --max_eval_samples {n_samples}"
             f" --opset 11"
             f" --quantization_approach dynamic"
             f" --overwrite_cache True",
@@ -154,7 +154,6 @@ class TestParity(unittest.TestCase):
 
         run_config = {
             "task": "token-classification",
-            "task_args": {"is_regression": False},
             "model_name_or_path": model_name,
             "dataset": {
                 "path": "conll2003",
@@ -171,7 +170,7 @@ class TestParity(unittest.TestCase):
             "framework_args": {"optimization_level": 1, "opset": 11},
             "batch_sizes": [8],
             "input_lengths": [128],
-            "max_eval_samples": 3,
+            "max_eval_samples": n_samples,
             "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
         }
         run_config = RunConfig(**run_config)
@@ -180,8 +179,10 @@ class TestParity(unittest.TestCase):
         run_instance = OnnxRuntimeRun(run_config)
         benchmark_results = run_instance.launch()
 
-        # self.assertEqual(transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["baseline"]["accuracy"])
-        # self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["baseline"]["f1"])
+        self.assertEqual(
+            transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["baseline"]["accuracy"]
+        )
+        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["baseline"]["f1"])
 
         self.assertEqual(
             optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["optimized"]["accuracy"]

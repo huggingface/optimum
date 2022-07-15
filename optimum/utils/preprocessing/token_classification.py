@@ -23,29 +23,6 @@ class TokenClassificationProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        features = raw_datasets["train"].features
-
-        # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
-        # unique labels.
-        # An example is labels as ["PER", "PER", , "O", "LOC", "O", "LOC", "O"].
-        # `label_to_id` will map string labels to ids, here {'LOC': 0, 'O': 1, 'ORG': 2, 'PER': 3}.
-        # Normally `label_to_id` would just be e.g. {0: 0, 1: 1, 2: 2, 3: 3}
-        def get_label_list(labels):
-            unique_labels = set()
-            for label in labels:
-                unique_labels = unique_labels | set(label)
-            label_list = list(unique_labels)
-            label_list.sort()
-            return label_list
-
-        # If the labels are of type ClassLabel, they are already integers and we have the map stored somewhere.
-        # Otherwise, we have to get the list of labels manually.
-        labels_are_int = isinstance(features[self.ref_keys[0]].feature, ClassLabel)
-        if labels_are_int:
-            self.label_list = features[self.ref_keys[0]].feature.names
-        else:
-            self.label_list = get_label_list(raw_datasets["train"][self.ref_keys[0]])
-
         # Preprocessing the raw_datasets
         def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
             # Tokenize the texts
@@ -68,6 +45,29 @@ class TokenClassificationProcessing(DatasetProcessing):
 
         datasets_dict = {"eval": eval_dataset}
 
+        features = eval_dataset.features
+
+        # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
+        # unique labels.
+        # An example is labels as ["PER", "PER", , "O", "LOC", "O", "LOC", "O"].
+        # `label_to_id` will map string labels to ids, here {'LOC': 0, 'O': 1, 'ORG': 2, 'PER': 3}.
+        # Normally `label_to_id` would just be e.g. {0: 0, 1: 1, 2: 2, 3: 3}
+        def get_label_list(labels):
+            unique_labels = set()
+            for label in labels:
+                unique_labels = unique_labels | set(label)
+            label_list = list(unique_labels)
+            label_list.sort()
+            return label_list
+
+        # If the labels are of type ClassLabel, they are already integers and we have the map stored somewhere.
+        # Otherwise, we have to get the list of labels manually.
+        labels_are_int = isinstance(features[self.ref_keys[0]].feature, ClassLabel)
+        if labels_are_int:
+            self.label_list = features[self.ref_keys[0]].feature.names
+        else:
+            self.label_list = get_label_list(raw_datasets["train"][self.ref_keys[0]])
+
         if self.static_quantization:
             # Run the tokenizer on the calibration dataset
             calibration_dataset = raw_datasets[self.calibration_split].map(
@@ -77,7 +77,7 @@ class TokenClassificationProcessing(DatasetProcessing):
                     data_keys=self.data_keys,
                 ),
                 batched=True,
-                load_from_cache_file=True,
+                load_from_cache_file=False,
                 desc="Running tokenizer on calibration dataset",
             )
 
