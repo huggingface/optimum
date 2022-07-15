@@ -40,6 +40,7 @@ jobs:
           cd doc-builder
           git pull origin main
           pip install -e .
+          pip install black
           cd ..
 
       - name: Comment PR
