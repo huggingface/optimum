@@ -32,7 +32,7 @@ EXTRAS_REQUIRE = {
         "onnxruntime>=1.9.0",
         "datasets>=1.2.1",
         "protobuf==3.20.1",
-    ],  
+    ],
     "onnxruntime-gpu": [
         "onnx",
         "onnxruntime-gpu>=1.9.0",
