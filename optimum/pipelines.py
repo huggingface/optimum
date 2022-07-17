@@ -16,10 +16,7 @@ from transformers import (
 )
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
-from transformers.models.auto.feature_extraction_auto import FEATURE_EXTRACTOR_MAPPING
-from transformers.models.auto.tokenization_auto import TOKENIZER_MAPPING
 from transformers.onnx.utils import get_preprocessor
-from transformers.pipelines import NO_FEATURE_EXTRACTOR_TASKS, NO_TOKENIZER_TASKS
 
 from .utils import is_onnxruntime_available
 
@@ -43,53 +40,73 @@ if is_onnxruntime_available():
             "impl": FeatureExtractionPipeline,
             "class": (ORTModelForFeatureExtraction,) if is_onnxruntime_available() else (),
             "default": "distilbert-base-cased",
+            "type": "text",  # feature extraction is only supported for text at the moment
         },
         "image-classification": {
             "impl": ImageClassificationPipeline,
             "class": (ORTModelForImageClassification,) if is_onnxruntime_available() else (),
             "default": "google/vit-base-patch16-224",
+            "type": "image",
         },
         "question-answering": {
             "impl": QuestionAnsweringPipeline,
             "class": (ORTModelForQuestionAnswering,) if is_onnxruntime_available() else (),
             "default": "distilbert-base-cased-distilled-squad",
+            "type": "text",
         },
         "text-classification": {
             "impl": TextClassificationPipeline,
             "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
             "default": "distilbert-base-uncased-finetuned-sst-2-english",
+            "type": "text",
         },
         "text-generation": {
             "impl": TextGenerationPipeline,
             "class": (ORTModelForCausalLM,) if is_onnxruntime_available() else (),
             "default": "distilgpt2",
+            "type": "text",
         },
         "token-classification": {
             "impl": TokenClassificationPipeline,
             "class": (ORTModelForTokenClassification,) if is_onnxruntime_available() else (),
             "default": "dbmdz/bert-large-cased-finetuned-conll03-english",
+            "type": "text",
         },
         "zero-shot-classification": {
             "impl": ZeroShotClassificationPipeline,
             "class": (ORTModelForSequenceClassification,) if is_onnxruntime_available() else (),
             "default": "facebook/bart-large-mnli",
+            "type": "text",
         },
         "summarization": {
             "impl": SummarizationPipeline,
             "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
             "default": "t5-base",
+            "type": "text",
         },
         "translation": {
             "impl": TranslationPipeline,
             "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
             "default": "t5-base",
+            "type": "text",
         },
         "text2text-generation": {
             "impl": Text2TextGenerationPipeline,
             "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
             "default": "t5-small",
+            "type": "text",
         },
     }
+
+NO_FEATURE_EXTRACTOR_TASKS = set()
+NO_TOKENIZER_TASKS = set()
+for task, values in SUPPORTED_TASKS.items():
+    if values["type"] == "text":
+        NO_FEATURE_EXTRACTOR_TASKS.add(task)
+    elif values["type"] == "image":
+        NO_TOKENIZER_TASKS.add(task)
+    else:
+        raise ValueError(f"Supported types are 'text' and 'image', got {values['type']}")
 
 
 def pipeline(
@@ -112,7 +129,7 @@ def pipeline(
         raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are ort")
 
     # copied from transformers.pipelines.__init__.py l.609
-    if task in NO_TOKENIZER_TASKS:
+    if targeted_task in NO_TOKENIZER_TASKS:
         # These will never require a tokenizer.
         # the model on the other hand might have a tokenizer, but
         # the files could be missing from the hub, instead of failing
@@ -120,7 +137,7 @@ def pipeline(
         load_tokenizer = False
     else:
         load_tokenizer = True
-    if task in NO_FEATURE_EXTRACTOR_TASKS:
+    if targeted_task in NO_FEATURE_EXTRACTOR_TASKS:
         load_feature_extractor = False
     else:
         load_feature_extractor = True
@@ -128,34 +145,10 @@ def pipeline(
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
-        # For some tasks like feature extraction, load_tokenizer and load_feature_extractor can be true both True
-        # Check if the model config file points to a tokenizer/feature extractor and adjust the values
-        load_tokenizer = load_tokenizer and (
-            type(model.config) in TOKENIZER_MAPPING or model.config.tokenizer_class is not None
-        )
-        load_feature_extractor = load_feature_extractor and (
-            type(model.config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
-        )
     elif isinstance(model, str):
         model_id = model
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model, from_transformers=True)
-        # For some tasks like feature extraction, load_tokenizer and load_feature_extractor can be true both True
-        # Check if the model config file points to a tokenizer/feature extractor and adjust the values
-        load_tokenizer = load_tokenizer and (
-            type(model.config) in TOKENIZER_MAPPING or model.config.tokenizer_class is not None
-        )
-        load_feature_extractor = load_feature_extractor and (
-            type(model.config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
-        )
     elif isinstance(model, ORTModel):
-        # For some tasks like feature extraction, load_tokenizer and load_feature_extractor can be true both True
-        # Check if the model config file points to a tokenizer/feature extractor and adjust the values
-        load_tokenizer = load_tokenizer and (
-            type(model.config) in TOKENIZER_MAPPING or model.config.tokenizer_class is not None
-        )
-        load_feature_extractor = load_feature_extractor and (
-            type(model.config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
-        )
         if tokenizer is None and load_tokenizer:
             raise ValueError("If you pass a model as a ORTModel, you must pass a tokenizer as well")
         if feature_extractor is None and load_feature_extractor:
