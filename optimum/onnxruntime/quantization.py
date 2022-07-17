@@ -31,7 +31,6 @@ from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.utils import ONNX_WEIGHTS_NAME
-from optimum.pipelines import SUPPORTED_FEATURES
 from optimum.quantization_base import OptimumQuantizer
 
 
