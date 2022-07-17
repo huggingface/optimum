@@ -31,7 +31,7 @@ RUN pip install --upgrade pip
 # This version doesn't support training gpt2 with fp16
 RUN pip install onnx==1.11.0 ninja
 RUN pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip install onnxruntime-training==1.12.0.dev20220523001+cu113 -f https://download.onnxruntime.ai/onnxruntime_nightly_cu113.html
+RUN pip install --pre --no-deps --no-index onnxruntime-training -f https://download.onnxruntime.ai/onnxruntime_nightly_cu113.html && TORCH_CUDA_ARCH_LIST='7.0;8.0+PTX'
 RUN pip install torch-ort
 # RUN python -m torch_ort.configure
 
