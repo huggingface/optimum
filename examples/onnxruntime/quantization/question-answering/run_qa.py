@@ -31,7 +31,14 @@ from typing import Optional
 import datasets
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import AutoConfig, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    EvalPrediction,
+    HfArgumentParser,
+    PreTrainedTokenizer,
+    TrainingArguments,
+)
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -526,6 +533,7 @@ def main():
 
     # Create the quantizer
     onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
     # Create the calibration dataset used for the static quantization calibration step
@@ -536,7 +544,7 @@ def main():
         if optim_args.num_calibration_samples is not None:
             calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
         calibration_dataset = calibration_dataset.map(
-            partial(prepare_train_features, tokenizer=quantizer.preprocessor),
+            partial(prepare_train_features, tokenizer=tokenizer),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
@@ -554,7 +562,7 @@ def main():
             # We will select sample from whole data
             eval_examples = eval_examples.select(range(data_args.max_eval_samples))
         eval_dataset = eval_examples.map(
-            partial(prepare_validation_features, tokenizer=quantizer.preprocessor),
+            partial(prepare_validation_features, tokenizer=tokenizer),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
@@ -574,7 +582,7 @@ def main():
             predict_examples = predict_examples.select(range(data_args.max_predict_samples))
         # Predict Feature Creation
         predict_dataset = predict_examples.map(
-            partial(prepare_validation_features, tokenizer=quantizer.preprocessor),
+            partial(prepare_validation_features, tokenizer=tokenizer),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,

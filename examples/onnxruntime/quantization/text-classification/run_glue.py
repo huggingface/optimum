@@ -31,7 +31,7 @@ import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -376,11 +376,12 @@ def main():
     onnx_model = ORTModelForSequenceClassification.from_pretrained(
         model_args.model_name_or_path, from_transformers=True
     )
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
     # Run the tokenizer on the dataset
     preprocessed_datasets = raw_datasets.map(
-        partial(preprocess_function, tokenizer=quantizer.preprocessor, max_length=data_args.max_seq_length),
+        partial(preprocess_function, tokenizer=tokenizer, max_length=data_args.max_seq_length),
         batched=True,
         load_from_cache_file=not data_args.overwrite_cache,
         desc="Running tokenizer on dataset",
