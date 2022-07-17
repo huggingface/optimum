@@ -319,12 +319,17 @@ documentation of the `optimum` repository.
 
 Including the documentation for a subpackge involves four main steps:
 
-1. Adding a `docs/source` folder with content and a `_toctree.yml` file that follows the same specification as 🤗 Optimum
+1. Adding a `docs/source` folder with content and a `_toctree.yml` file that
+   follows the same specification as 🤗 Optimum
 2. Creating a Dockerfile in `docs` that installs all necessary dependencies
-3. Adding a `make doc` target to the Makefile of the subpackage that generates the HTML files of the documentation
-4. Updating the GitHub Actions in `build_pr_documentation.yml` and `build_main_documentation.yml` to render the subpackage documentation on the Hugging Face website
+3. Adding a `make doc` target to the Makefile of the subpackage that generates
+   the HTML files of the documentation
+4. Updating the GitHub Actions in `build_pr_documentation.yml` and
+   `build_main_documentation.yml` to render the subpackage documentation on the
+   Hugging Face website
 
-Let's walk through an example with `optimum-habana` to see how steps 2-4 work in detail. The Docker file for this subpackage looks as follows:
+Let's walk through an example with `optimum-habana` to see how steps 2-4 work in
+detail. The Docker file for this subpackage looks as follows:
 
 ```dockerfile
 # Define base image for Habana
@@ -344,7 +349,10 @@ RUN git clone https://github.com/huggingface/optimum-habana.git
 RUN python3 -m pip install --no-cache-dir ./optimum-habana[quality]
 ```
 
-The main thing to note here is the need to install Node in the Docker image - that's because we need Node to generate the HTML files with `hf-doc-builder`. Once you have the Dockerfile, the next step is to define a target in the Makefile:
+The main thing to note here is the need to install Node in the Docker image -
+that's because we need Node to generate the HTML files with `hf-doc-builder`.
+Once you have the Dockerfile, the next step is to define a target in the
+Makefile:
 
 ```
 SHELL := /bin/bash
@@ -361,13 +369,15 @@ doc: build_doc_docker_image
 		--clean
 ```
 
-Once you've added the `doc` target to the Makefile, you can check the docs build by running the following command from the root of the subpackage repository:
+Once you've added the `doc` target to the Makefile, you can check the docs build
+by running the following command from the root of the subpackage repository:
 
 ```
 make doc BUILD_DIR=habana-doc-build
 ```
 
-The final step is to include the subpackage in the GitHub Actions, e.g. add these steps to `build_pr_documentation.yml` and `build_main_documentation.yml`:
+The final step is to include the subpackage in the GitHub Actions, e.g. add
+these steps to `build_pr_documentation.yml` and `build_main_documentation.yml`:
 
 ```
 - uses: actions/checkout@v2
