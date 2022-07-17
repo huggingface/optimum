@@ -65,7 +65,7 @@ jobs:
         run: |
           cd optimum
           make doc BUILD_DIR=base-doc-build VERSION=pr_$PR_NUMBER
-          python docs/combine_doc.py
+          sudo python docs/combine_docs.py
           sudo mv base-doc-build ../
           cd ..
 
