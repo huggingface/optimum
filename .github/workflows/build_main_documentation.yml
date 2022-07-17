@@ -38,7 +38,6 @@ jobs:
 
       - name: Set env variables
         run: |
-          echo "write_token=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
           cd optimum
           version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
 
@@ -91,5 +90,5 @@ jobs:
       - name: Push to repositories
         run: |
           cd build_dir
-          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ env.write_token }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
+          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ env.token }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
         shell: bash
