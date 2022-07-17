@@ -365,7 +365,7 @@ class ORTQuantizer(ABC):
                 "ActivationSymmetric": quantization_config.activations_symmetric,
                 "EnableSubgraph": False,
                 "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
-                "DisableShapeInference": True
+                "DisableShapeInference": quantization_config.disable_shape_inference
             },
         )
 
