@@ -1,8 +1,9 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Optional, Union
 from pathlib import Path
+from typing import Optional, Union
+
 
 logger = logging.getLogger(__name__)
 

@@ -24,12 +24,10 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import onnx
 from onnxruntime import InferenceSession
 from optimum.onnxruntime import ORTConfig, ORTOptimizer
-from optimum.onnxruntime.configuration import (
-    AutoQuantizationConfig,
-    OptimizationConfig,
-)
+from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from parameterized import parameterized
+
 
 class ORTConfigTest(unittest.TestCase):
     def test_save_and_load(self):
@@ -129,6 +127,7 @@ class ORTOptimizerTest(unittest.TestCase):
 
             # compare tensor outputs
             self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
 
 if __name__ == "__main__":
     unittest.main()

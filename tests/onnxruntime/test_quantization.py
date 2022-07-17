@@ -23,14 +23,10 @@ from transformers import AutoTokenizer
 from onnx import load as onnx_load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
-from optimum.onnxruntime.configuration import (
-    AutoCalibrationConfig,
-    QuantizationConfig,
-)
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
-from parameterized import parameterized
-
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
+from parameterized import parameterized
 
 
 class ORTQuantizerTest(unittest.TestCase):
