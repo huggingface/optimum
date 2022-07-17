@@ -15,10 +15,6 @@ jobs:
         shell: bash -l {0}
 
     steps:
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '16'
-
       - uses: actions/checkout@v2
         with:
           repository: 'huggingface/doc-builder'
@@ -72,8 +68,6 @@ jobs:
           wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
 
       - name: Make Habana documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum-habana
           git fetch origin
@@ -83,24 +77,21 @@ jobs:
           cd ..
 
       - name: Make Optimum documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum
           make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
           cd ..
 
       - name: Combine subpackage documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum
           sudo python docs/combine_docs.py --subpackages habana --version ${{ env.VERSION }}
-          sudo mv optimum-doc-build ../
+          sudo cp -r optimum-doc-build ../build_dir
           cd ..
 
       - name: Push to repositories
         run: |
           cd build_dir
+          ls
           doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ env.write_token }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
         shell: bash
