@@ -376,32 +376,36 @@ by running the following command from the root of the subpackage repository:
 make doc BUILD_DIR=habana-doc-build
 ```
 
-The final step is to include the subpackage in the GitHub Actions, e.g. add
+The final step is to include the subpackage in the GitHub Actions, e.g. add/edit
 these steps to `build_pr_documentation.yml` and `build_main_documentation.yml`:
 
 ```
+# Add this
 - uses: actions/checkout@v2
 with:
     repository: 'huggingface/optimum-habana'
     path: optimum-habana
 
+# Add this
 - name: Make Habana documentation
-env:
-    NODE_OPTIONS: --max-old-space-size=6656
 run: |
     cd optimum-habana
-    git fetch origin
-    git checkout documentation
     make doc BUILD_DIR=habana-doc-build # Make sure BUILD_DIR={subpackage_name}-doc-build
     sudo mv habana-doc-build ../optimum
     cd ..
 
+# Tweak this to include your subpackage
 - name: Combine subpackage documentation
-    env:
-    NODE_OPTIONS: --max-old-space-size=6656
     run: |
     cd optimum
     sudo python docs/combine_docs.py --subpackages habana --version pr_$PR_NUMBER # Make sure the subpackage is listed here!
     sudo mv optimum-doc-build ../
     cd ..
 ```
+
+---
+**NOTE**
+
+Since the `optimum` documentation depends on the documentation, it isgood practice to ensure the subpackage documentation will always build successfully. To ensure this, add a GitHub Action to your subpackage that tests the documentation builds with every pull request / push to `main`. Check out the `optimum-habana` repo for an example.
+
+---
