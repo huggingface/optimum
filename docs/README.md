@@ -19,7 +19,7 @@ limitations under the License.
 > The following guide is adapted from [🤗 Transformers](https://github.com/huggingface/transformers/tree/main/docs).
 
 To generate the documentation for 🤗 Optimum, simply run the following command
-from the root of this repository:
+from the root of the `optimum` repository:
 
 ```bash
 make doc BUILD_DIR=optimum-doc-build VERSION=main

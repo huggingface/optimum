@@ -32,10 +32,6 @@ jobs:
           repository: 'huggingface/optimum-habana'
           path: optimum-habana
 
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '16'
-
       - name: Set environment variables
         run: |
           echo "write_token=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
@@ -57,8 +53,6 @@ jobs:
           wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
 
       - name: Make Habana documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum-habana
           git fetch origin
@@ -68,16 +62,12 @@ jobs:
           cd ..
 
       - name: Make Optimum documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum
           make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER
           cd ..
 
       - name: Combine subpackage documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum
           sudo python docs/combine_docs.py --subpackages habana --version pr_$PR_NUMBER
