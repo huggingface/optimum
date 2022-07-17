@@ -1,28 +1,16 @@
+import argparse
 import shutil
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
-
-from transformers import HfArgumentParser
 
 import yaml
 
 
-@dataclass
-class DocArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
-
-    subpackages: List[str] = field(metadata={"help": "Subpackages to integrate docs with Optimum"})
-    version: str = field(
-        default="main",
-        metadata={"help": "The version of the docs"},
-    )
+parser = argparse.ArgumentParser()
+parser.add_argument("--subpackages", nargs="+", help="Subpackages to integrate docs with Optimum")
+parser.add_argument("--version", type=str, default="main", help="The version of the Optimum docs")
 
 
 def main():
-    parser = HfArgumentParser(DocArguments)
     args = parser.parse_args()
     base_path = Path("base-doc-build")
     for subpackage in args.subpackages:
@@ -43,7 +31,7 @@ def main():
         for item in subpackage_toc:
             for file in item["sections"]:
                 file["local"] = f"{subpackage}_" + file["local"]
-        # Udpate optimum table of contents
+        # Update optimum table of contents
         base_toc.extend(subpackage_toc)
         with open(base_toc_path, "w") as f:
             yaml.safe_dump(base_toc, f, allow_unicode=True)

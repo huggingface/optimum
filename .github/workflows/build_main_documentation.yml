@@ -1,4 +1,4 @@
-name: Build documentation
+name: Build main documentation
 
 on:
   push:
@@ -35,25 +35,10 @@ jobs:
           repository: 'huggingface/optimum'
           path: optimum
 
-      - name: Loading cache.
-        uses: actions/cache@v2
-        id: cache
+      - uses: actions/checkout@v2
         with:
-          path: ~/.cache/pip
-          key: v1-test_build_doc
-          restore-keys: |
-            v1-test_build_doc-${{ hashFiles('setup.py') }}
-            v1-test_build_doc
-
-      - name: Setup environment
-        run: |
-          sudo apt -y update && sudo apt install -y libopencv-dev python3-opencv
-          sudo pip install --upgrade pip && sudo pip install --upgrade protobuf
-          pip install git+https://github.com/huggingface/doc-builder
-          cd optimum
-          pip install .[dev,onnxruntime,benchmark]
-          python -c "from optimum import intel; print(dir(intel))"
-          cd ..
+          repository: 'huggingface/optimum-habana'
+          path: optimum-habana
 
       - name: Set env variables
         run: |
@@ -67,6 +52,15 @@ jobs:
             echo "VERSION=v$version" >> $GITHUB_ENV
           fi
 
+          cd ..
+
+      - name: Setup environment
+        run: |
+          pip uninstall -y doc-builder
+          cd doc-builder
+          git pull origin main
+          pip install .
+          pip install black
           cd ..
 
       - name: Setup git
