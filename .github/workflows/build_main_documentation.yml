@@ -62,8 +62,7 @@ jobs:
 
       - name: Create build directory
         run: |
-          mkdir build_dir
-          mkdir build_dir/optimum
+          mkdir -p build_dir/optimum
           cd build_dir/optimum
           wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
 
@@ -86,12 +85,11 @@ jobs:
         run: |
           cd optimum
           sudo python docs/combine_docs.py --subpackages habana --version ${{ env.VERSION }}
-          sudo cp -r optimum-doc-build ../build_dir
+          sudo cp -r optimum-doc-build/optimum/${{ env.VERSION }} ../build_dir/optimum
           cd ..
 
       - name: Push to repositories
         run: |
           cd build_dir
-          ls
           doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ env.write_token }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
         shell: bash
