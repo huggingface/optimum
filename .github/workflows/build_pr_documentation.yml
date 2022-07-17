@@ -26,6 +26,11 @@ jobs:
           repository: 'huggingface/optimum'
           path: optimum
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-habana'
+          path: optimum-habana
+
       - uses: actions/setup-node@v2
         with:
           node-version: '16'
@@ -43,18 +48,30 @@ jobs:
           pip install black
           cd ..
 
-      - name: Make documentation
+      - name: Make Habana documentation
+        env:
+          NODE_OPTIONS: --max-old-space-size=6656
+        run: |
+          cd optimum-habana
+          git fetch origin
+          git checkout documentation
+          make doc BUILD_DIR=habana-doc-build
+          sudo mv habana-doc-build ../optimum
+          cd ..
+
+      - name: Combine subpackage documentation
         env:
           NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum
-          make doc BUILD_DIR=doc-build-dev VERSION=pr_$PR_NUMBER
-          sudo mv doc-build-dev ../
+          make doc BUILD_DIR=base-doc-build VERSION=pr_$PR_NUMBER
+          python docs/combine_doc.py
+          sudo mv base-doc-build ../
           cd ..
 
       - name: Push to repositories
         run: |
-          cd doc-build-dev
+          cd base-doc-build
           doc-builder push optimum --doc_build_repo_id "huggingface/doc-build-dev" --token ${{ env.WRITE }} --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
         shell: bash
 
