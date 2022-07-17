@@ -19,6 +19,7 @@ from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 from transformers.models.auto.feature_extraction_auto import FEATURE_EXTRACTOR_MAPPING
 from transformers.models.auto.tokenization_auto import TOKENIZER_MAPPING
 from transformers.onnx.utils import get_preprocessor
+from transformers.pipelines import NO_FEATURE_EXTRACTOR_TASKS, NO_TOKENIZER_TASKS
 
 from .utils import is_onnxruntime_available
 
@@ -110,8 +111,19 @@ def pipeline(
     if accelerator != "ort":
         raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are ort")
 
-    load_tokenizer = type(model.config) in TOKENIZER_MAPPING or model.config.tokenizer_class is not None
-    load_feature_extractor = type(model.config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
+    # copied from transformers.pipelines.__init__.py l.609
+    if task in NO_TOKENIZER_TASKS:
+        # These will never require a tokenizer.
+        # the model on the other hand might have a tokenizer, but
+        # the files could be missing from the hub, instead of failing
+        # on such repos, we just force to not load it.
+        load_tokenizer = False
+    else:
+        load_tokenizer = True
+    if task in NO_FEATURE_EXTRACTOR_TASKS:
+        load_feature_extractor = False
+    else:
+        load_feature_extractor = True
 
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
