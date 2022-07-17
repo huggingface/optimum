@@ -18,7 +18,7 @@ def main():
         # Copy all HTML files from subpackage into optimum
         subpackage_html_paths = list(subpackage_path.rglob("*.html"))
         for html_path in subpackage_html_paths:
-            shutil.copyfile(html_path, f"optimum-doc-build/optimum/{args.version}/en/{subpackage}_{html_path.name}")
+            shutil.copyfile(html_path, f"{optimum_path}/optimum/{args.version}/en/{subpackage}_{html_path.name}")
         # Load optimum table of contents
         base_toc_path = next(optimum_path.rglob("_toctree.yml"))
         with open(base_toc_path, "r") as f:
@@ -27,7 +27,7 @@ def main():
         subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
         with open(subpackage_toc_path, "r") as f:
             subpackage_toc = yaml.safe_load(f)
-        # Extend table of contents sections with subpackage name
+        # Extend table of contents sections with subpackage name prefix
         for item in subpackage_toc:
             for file in item["sections"]:
                 file["local"] = f"{subpackage}_" + file["local"]
