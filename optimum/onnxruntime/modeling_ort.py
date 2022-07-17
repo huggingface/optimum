@@ -350,7 +350,8 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
-        # create {name:idx} dict for model outputs
+        # create {name:idx} dict for model inputs and outputs
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -361,25 +362,24 @@ class ORTModelForFeatureExtraction(ORTModel):
             checkpoint="optimum/all-MiniLM-L6-v2",
         )
     )
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
+    def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        onnx_inputs = dict(
+            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
+        )
         # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
+        onnx_outputs = self.model.run(None, onnx_inputs)
+        outputs = dict(
+            map(
+                lambda output_name: (
+                    output_name,
+                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
+                ),
+                self.model_outputs,
+            )
+        )
         # converts output to namedtuple for pipelines post-processing
-        return BaseModelOutput(last_hidden_state=last_hidden_state)
+        return BaseModelOutput(outputs)
 
 
 QUESTION_ANSWERING_EXAMPLE = r"""
@@ -435,7 +435,8 @@ class ORTModelForQuestionAnswering(ORTModel):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
-        # create {name:idx} dict for model outputs
+        # create {name:idx} dict for model inputs and outputs
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -446,26 +447,24 @@ class ORTModelForQuestionAnswering(ORTModel):
             checkpoint="optimum/roberta-base-squad2",
         )
     )
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
+    def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        onnx_inputs = dict(
+            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
+        )
         # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
-        end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
+        onnx_outputs = self.model.run(None, onnx_inputs)
+        outputs = dict(
+            map(
+                lambda output_name: (
+                    output_name,
+                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
+                ),
+                self.model_outputs,
+            )
+        )
         # converts output to namedtuple for pipelines post-processing
-        return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
+        return QuestionAnsweringModelOutput(outputs)
 
 
 SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
@@ -535,9 +534,15 @@ class ORTModelForSequenceClassification(ORTModel):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
+<<<<<<< HEAD
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
+=======
+        # create {name:idx} dict for model inputs and outputs
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+>>>>>>> bf3a05e (Refactoring ort models(except for clm))
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -547,26 +552,24 @@ class ORTModelForSequenceClassification(ORTModel):
             checkpoint="optimum/distilbert-base-uncased-finetuned-sst-2-english",
         )
     )
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
+    def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        onnx_inputs = dict(
+            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
+        )
         # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+        onnx_outputs = self.model.run(None, onnx_inputs)
+        outputs = dict(
+            map(
+                lambda output_name: (
+                    output_name,
+                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
+                ),
+                self.model_outputs,
+            )
+        )
         # converts output to namedtuple for pipelines post-processing
-        return SequenceClassifierOutput(logits=logits)
+        return SequenceClassifierOutput(outputs)
 
 
 TOKEN_CLASSIFICATION_EXAMPLE = r"""
@@ -621,7 +624,8 @@ class ORTModelForTokenClassification(ORTModel):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
-        # create {name:idx} dict for model outputs
+        # create {name:idx} dict for model inputs and outputs
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -632,25 +636,24 @@ class ORTModelForTokenClassification(ORTModel):
             checkpoint="optimum/bert-base-NER",
         )
     )
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
+    def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+        onnx_inputs = dict(
+            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
+        )
         # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+        onnx_outputs = self.model.run(None, onnx_inputs)
+        outputs = dict(
+            map(
+                lambda output_name: (
+                    output_name,
+                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
+                ),
+                self.model_outputs,
+            )
+        )
         # converts output to namedtuple for pipelines post-processing
-        return TokenClassifierOutput(logits=logits)
+        return TokenClassifierOutput(outputs)
 
 
 TEXT_GENERATION_EXAMPLE = r"""
@@ -704,8 +707,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
-        # create {name:idx} dict for model outputs
+        # create {name:idx} dict for model inputs and outputs
         self.main_input_name = "input_ids"
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
@@ -822,7 +826,8 @@ class ORTModelForImageClassification(ORTModel):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
-        # create {name:idx} dict for model outputs
+        # create {name:idx} dict for model inputs and outputs
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -833,21 +838,12 @@ class ORTModelForImageClassification(ORTModel):
             checkpoint="optimum/vit-base-patch16-224",
         )
     )
-    def forward(
-        self,
-        pixel_values: torch.Tensor,
-        **kwargs,
-    ):
+    def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "pixel_values": pixel_values.cpu().detach().numpy(),
-        }
-        # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        # converts output to namedtuple for pipelines post-processing
-        return ImageClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
+        onnx_inputs = dict(
+            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
         )
+<<<<<<< HEAD
 
 
 CUSTOM_TASKS_EXAMPLE = r"""
@@ -931,3 +927,18 @@ class ORTModelForCustomTasks(ORTModel):
             outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
 
         return outputs
+=======
+        # run inference
+        onnx_outputs = self.model.run(None, onnx_inputs)
+        outputs = dict(
+            map(
+                lambda output_name: (
+                    output_name,
+                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
+                ),
+                self.model_outputs,
+            )
+        )
+
+        return ImageClassifierOutput(outputs)
+>>>>>>> bf3a05e (Refactoring ort models(except for clm))
