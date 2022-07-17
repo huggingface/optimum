@@ -128,10 +128,34 @@ def pipeline(
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
+        # For some tasks like feature extraction, load_tokenizer and load_feature_extractor can be true both True
+        # Check if the model config file points to a tokenizer/feature extractor and adjust the values
+        load_tokenizer = load_tokenizer and (
+            type(model.config) in TOKENIZER_MAPPING or model.config.tokenizer_class is not None
+        )
+        load_feature_extractor = load_feature_extractor and (
+            type(model.config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
+        )
     elif isinstance(model, str):
         model_id = model
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model, from_transformers=True)
+        # For some tasks like feature extraction, load_tokenizer and load_feature_extractor can be true both True
+        # Check if the model config file points to a tokenizer/feature extractor and adjust the values
+        load_tokenizer = load_tokenizer and (
+            type(model.config) in TOKENIZER_MAPPING or model.config.tokenizer_class is not None
+        )
+        load_feature_extractor = load_feature_extractor and (
+            type(model.config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
+        )
     elif isinstance(model, ORTModel):
+        # For some tasks like feature extraction, load_tokenizer and load_feature_extractor can be true both True
+        # Check if the model config file points to a tokenizer/feature extractor and adjust the values
+        load_tokenizer = load_tokenizer and (
+            type(model.config) in TOKENIZER_MAPPING or model.config.tokenizer_class is not None
+        )
+        load_feature_extractor = load_feature_extractor and (
+            type(model.config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
+        )
         if tokenizer is None and load_tokenizer:
             raise ValueError("If you pass a model as a ORTModel, you must pass a tokenizer as well")
         if feature_extractor is None and load_feature_extractor:
