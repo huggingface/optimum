@@ -42,6 +42,7 @@ jobs:
 
       - name: Set env variables
         run: |
+          echo "write_token=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
           cd optimum
           version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
 
@@ -63,30 +64,43 @@ jobs:
           pip install black
           cd ..
 
-      - name: Setup git
+      - name: Create build directory
         run: |
-          git config --global user.name "Hugging Face Doc Builder"
-          git config --global user.email docs@huggingface.co
+          mkdir build_dir
+          mkdir build_dir/optimum
+          cd build_dir/optimum
+          wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
 
-          cd doc-build
-          git pull origin main
-          cd ..
-
-      - name: Make documentation
-        run: |
-          cd doc-builder &&
-          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build --clean --version ${{ env.VERSION }} --html &&
-          cd ..
+      - name: Make Habana documentation
         env:
           NODE_OPTIONS: --max-old-space-size=6656
+        run: |
+          cd optimum-habana
+          git fetch origin
+          git checkout documentation
+          make doc BUILD_DIR=habana-doc-build
+          sudo mv habana-doc-build ../optimum
+          cd ..
+
+      - name: Make Optimum documentation
+        env:
+          NODE_OPTIONS: --max-old-space-size=6656
+        run: |
+          cd optimum
+          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
+          cd ..
+
+      - name: Combine subpackage documentation
+        env:
+          NODE_OPTIONS: --max-old-space-size=6656
+        run: |
+          cd optimum
+          sudo python docs/combine_docs.py --subpackages habana --version ${{ env.VERSION }}
+          sudo mv optimum-doc-build ../
+          cd ..
 
       - name: Push to repositories
         run: |
-          cd doc-build &&
-          if [[ `git status --porcelain` ]]; then
-            git add . &&
-            git commit -m "Updated with commit ${{ github.sha }} \n\nSee: https://github.com/huggingface/optimum/commit/${{ github.sha }}" &&
-            git push origin main
-          else
-            echo "No diff in the documentation."
-          fi
+          cd build_dir
+          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ env.write_token }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
+        shell: bash

@@ -12,15 +12,15 @@ parser.add_argument("--version", type=str, default="main", help="The version of 
 
 def main():
     args = parser.parse_args()
-    base_path = Path("base-doc-build")
+    optimum_path = Path("optimum-doc-build")
     for subpackage in args.subpackages:
         subpackage_path = Path(f"{subpackage}-doc-build")
         # Copy all HTML files from subpackage into optimum
         subpackage_html_paths = list(subpackage_path.rglob("*.html"))
         for html_path in subpackage_html_paths:
-            shutil.copyfile(html_path, f"base-doc-build/optimum/{args.version}/en/{subpackage}_{html_path.name}")
+            shutil.copyfile(html_path, f"optimum-doc-build/optimum/{args.version}/en/{subpackage}_{html_path.name}")
         # Load optimum table of contents
-        base_toc_path = next(base_path.rglob("_toctree.yml"))
+        base_toc_path = next(optimum_path.rglob("_toctree.yml"))
         with open(base_toc_path, "r") as f:
             base_toc = yaml.safe_load(f)
         # Load subpackage table of contents
