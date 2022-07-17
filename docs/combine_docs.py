@@ -8,8 +8,9 @@ def main():
     base_path = Path("base-doc-build")
     subpackage_path = Path("habana-doc-build")
     subpackage_html = list(subpackage_path.rglob("*.html"))
+    print(f"Subpackage HTML files {subpackage_html}")
     for html in subpackage_html:
-        shutil.copyfile(html, f"base-doc-build/optimum/main/en/habana_{html.name}")
+        shutil.copyfile(html, f"base-doc-build/optimum/pr_299/en/habana_{html.name}")
 
     base_toc_path = next(base_path.rglob("_toctree.yml"))
     with open(base_toc_path, "r") as f:

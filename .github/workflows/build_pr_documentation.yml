@@ -64,6 +64,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6656
         run: |
           cd optimum
+          sudo ls
           make doc BUILD_DIR=base-doc-build VERSION=pr_$PR_NUMBER
           sudo python docs/combine_docs.py
           sudo mv base-doc-build ../
