@@ -19,10 +19,10 @@
 import json
 import logging
 import os
-from pathlib import Path
 import sys
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import Optional
 
 import datasets
@@ -30,7 +30,6 @@ import numpy as np
 import torch
 import transformers
 from datasets import load_dataset, load_metric
-from optimum.onnxruntime.modeling_ort import ORTModelForImageClassification
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import AutoFeatureExtractor, EvalPrediction, HfArgumentParser, TrainingArguments
 from transformers.utils.versions import require_version
@@ -39,6 +38,7 @@ from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime.modeling_ort import ORTModelForImageClassification
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
