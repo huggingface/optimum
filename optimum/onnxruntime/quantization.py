@@ -28,9 +28,11 @@ from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
 from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.utils import ONNX_WEIGHTS_NAME
 from optimum.pipelines import SUPPORTED_FEATURES
+from optimum.quantization_base import OptimumQuantizer
 
 
 LOGGER = logging.getLogger(__name__)
@@ -75,101 +77,66 @@ class ORTCalibrationDataReader(CalibrationDataReader):
                 return None
 
 
-class ORTQuantizer(ABC):
+class ORTQuantizer(OptimumQuantizer):
     """
     Handles the ONNX Runtime quantization process for models shared on huggingface.co/models.
     """
 
-    @classmethod
-    def from_pretrained(
-        cls,
-        model_id: Union[str, os.PathLike],
-        use_auth_token: Optional[Union[bool, str, None]] = None,
-        from_transformers: Optional[bool] = False,
-        feature: Optional[str] = None,
-        file_name: Optional[str] = None,
-        cache_dir: Optional[str] = None,
-    ) -> "ORTQuantizer":
-        """
-        Instantiate a `ORTQuantizer` from a pretrained pytorch model and preprocessor.
-
-        Args:
-            model_id (`Union[str, os.PathLike]`):
-                Can be either:
-                    - A string, the *model id* of a pretrained model hosted inside a model repo on huggingface.co.
-                      Valid model ids can be located at the root-level, like `bert-base-uncased`, or namespaced under a
-                      user or organization name, like `dbmdz/bert-base-german-cased`.
-                    - A path to a *directory* containing a model saved as a `.onnx` file, e.g., `./my_model_directory/`.
-            use_auth_token (`str` or `bool`, *optional*):
-                Is needed to load models from a private repository.
-            from_transformers (`bool`, *optional*, defaults to `False`):
-                Defines whether the provided `model_id` contains a vanilla Transformers checkpoint.
-                ORTQuantizer will then export the model first to ONNX.
-            feature (`str`, *optional*):
-                Transformers feature for the model. Will be used to convert the model if needed. Find a list of supported features [here](https://huggingface.co/docs/transformers/serialization#selecting-features-for-different-model-topologies)
-            file_name(`str`, *optional*):
-                Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
-                repository or directory.
-            cache_dir (`Union[str, Path]`, *optional*):
-                Path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
-        Returns:
-            An instance of `ORTQuantizer`.
-        """
-        model_file_name = ONNX_WEIGHTS_NAME if file_name is None else file_name
-        # check if the user is loading a vanilla transformers and if a feature is available
-        if from_transformers:
-            # converts vanilla transformers to onnx if correct feature is provided and model is not already in onnx
-            if feature:
-                model_class = SUPPORTED_FEATURES.get(feature, None)
-                if not model_class:
-                    raise ValueError(f"Feature {feature} is not supported.")
-                onnx_model = model_class.from_pretrained(
-                    model_id,
-                    from_transformers=from_transformers,
-                    use_auth_token=use_auth_token,
-                    cache_dir=cache_dir,
-                )
-                return cls(onnx_model.model_save_dir.joinpath(onnx_model.latest_model_name))
-            else:
-                raise ValueError("When using from_transformers, you need to provide a feature.")
-
-        # create ORTQuantizer based on the provided input
-        if isinstance(model_id, ORTModel):
-            return cls(model_id.model_save_dir.joinpath(model_file_name))
-        elif os.path.isdir(model_id):
-            if not isinstance(model_id, Path):
-                model_id = Path(model_id)
-            return cls(model_id.joinpath(model_file_name))
-        elif feature is not None and from_transformers is False:
-            model_class = SUPPORTED_FEATURES.get(feature, None)
-            if not model_class:
-                raise ValueError(f"Feature {feature} is not supported.")
-            onnx_model = model_class.from_pretrained(
-                model_id,
-                use_auth_token=use_auth_token,
-                cache_dir=cache_dir,
-                file_name=model_file_name,
-                from_transformers=from_transformers,
-            )
-            return cls(onnx_model.model_save_dir.joinpath(onnx_model.latest_model_name))
-        else:
-            raise ValueError(f"Unable to load model from {model_id}.")
-
-    def __init__(
-        self,
-        onnx_model_path: os.PathLike,
-    ):
+    def __init__(self, onnx_model_path: List[Path]):
         """
         Args:
-            onnx_model_path (`Union[os.PathLike]`):
-                Path to the onnx model file you want to quantize.
+            onnx_model_path (`Path`):
+                Path to the onnx model files you want to quantize.
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
         self._calibrator = None
 
-    def fit(
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_or_path: Union[str, Path],
+        file_name: Optional[str] = None,
+    ) -> "ORTQuantizer":
+        """
+        Instantiate a `ORTQuantizer` from a pretrained pytorch model and preprocessor.
+
+        Args:
+            model_or_path (`Union[str, Path]`):
+                Can be either:
+                    - A path to a saved exported ONNX Intermediate Representation (IR) model, e.g., `./my_model_directory/.
+                    - Or a `ORTModelForXX` class, e.g., `ORTModelForQuestionAnswering`.
+            file_name(`Union[str, List[str]]`, *optional*):
+                Overwrites the default model file name from `"model.onnx"` to `file_name`.
+                This allows you to load different model files from the same repository or directory.
+        Returns:
+            An instance of `ORTQuantizer`.
+        """
+        # define the file name for the quantizable models
+        if file_name is None:
+            if isinstance(model_or_path, ORTModel):
+                if isinstance(model_or_path, ORTModelForConditionalGeneration):
+                    raise ValueError(
+                        "ORTQuantizer does not support multi-file quantization. Please create separate ORTQuantizer instances for each model/file."
+                    )
+                model_file_name = model_or_path.latest_model_name
+            else:
+                model_file_name = ONNX_WEIGHTS_NAME
+        else:
+            model_file_name = file_name
+
+        # create ORTQuantizer based on the provided input
+        if isinstance(model_or_path, ORTModel):
+            return cls(model_or_path.model_save_dir.joinpath(model_file_name))
+        # load from local path
+        elif os.path.isdir(model_or_path):
+            if not isinstance(model_or_path, Path):
+                model_or_path = Path(model_or_path)
+            return cls(model_or_path.joinpath(model_file_name))
+        else:
+            raise ValueError(f"Unable to load model from {model_or_path}.")
+
+    def calibrate(
         self,
         dataset: Dataset,
         calibration_config: CalibrationConfig,
@@ -188,8 +155,6 @@ class ORTQuantizer(ABC):
                 The dataset to use when performing the calibration step.
             calibration_config (`CalibrationConfig`):
                 The configuration containing the parameters related to the calibration step.
-            onnx_model_path (`Union[str, os.PathLike]`):
-                The path used to save the model exported to an ONNX Intermediate Representation (IR).
             onnx_augmented_model_name (`Union[str, os.PathLike]`):
                 The path used to save the augmented model used to collect the quantization ranges.
             operators_to_quantize (`list`, *optional*):
@@ -213,7 +178,7 @@ class ORTQuantizer(ABC):
             f")"
         )
 
-        self.partial_fit(
+        self.partial_calibrate(
             dataset,
             calibration_config,
             onnx_augmented_model_name,
@@ -225,7 +190,7 @@ class ORTQuantizer(ABC):
         )
         return self.compute_ranges()
 
-    def partial_fit(
+    def partial_calibrate(
         self,
         dataset: Dataset,
         calibration_config: CalibrationConfig,
@@ -244,8 +209,6 @@ class ORTQuantizer(ABC):
                 The dataset to use when performing the calibration step.
             calibration_config (`CalibrationConfig`):
                 The configuration containing the parameters related to the calibration step.
-            onnx_model_path (`Union[str, os.PathLike]`):
-                The path used to save the model exported to an ONNX Intermediate Representation (IR).
             onnx_augmented_model_name (`Union[str, os.PathLike]`):
                 The path used to save the augmented model used to collect the quantization ranges.
             operators_to_quantize (`list`, *optional*):
@@ -293,10 +256,11 @@ class ORTQuantizer(ABC):
         LOGGER.info("Computing calibration ranges")
         return self._calibrator.compute_range()
 
-    def export(
+    def fit(
         self,
-        output_path: Union[str, os.PathLike],
+        output_path: Union[str, Path],
         quantization_config: QuantizationConfig,
+        file_prefix: Optional[str] = "quantized",
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
         preprocessor: Optional[QuantizationPreprocessor] = None,
@@ -305,10 +269,12 @@ class ORTQuantizer(ABC):
         Quantize a model given the optimization specifications defined in `quantization_config`.
 
         Args:
-            output_path (`Union[str, os.PathLike]`):
+            output_path (`Union[str, Path]`):
                 The path used to save the quantized model exported to an ONNX Intermediate Representation (IR).
             quantization_config (`QuantizationConfig`):
                 The configuration containing the parameters related to quantization.
+            file_prefix (`str`, *optional*, defaults to `"quantized"`):
+                The prefix used to save the quantized model.
             calibration_tensors_range (`Dict[NodeName, Tuple[float, float]]`, *optional*):
                 The dictionary mapping the nodes name to their quantization ranges, used and required only when applying
                 static quantization.
@@ -321,6 +287,7 @@ class ORTQuantizer(ABC):
             The path of the resulting quantized model.
         """
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
+        output_path = Path(output_path).joinpath(f"{file_prefix}_{self.onnx_model_path.name}")
 
         if not quantization_config.is_static:
             if quantization_config.mode != QuantizationMode.IntegerOps:
