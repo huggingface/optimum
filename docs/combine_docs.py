@@ -5,8 +5,14 @@ from pathlib import Path
 import yaml
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--subpackages", nargs="+", help="Subpackages to integrate docs with Optimum")
+parser = argparse.ArgumentParser(
+    description="Script to combine doc builds from subpackages with base doc build of Optimum."
+)
+parser.add_argument(
+    "--subpackages",
+    nargs="+",
+    help="Subpackages to integrate docs with Optimum. Use hardware partner names like `habana`, `graphcore`, or `intel`",
+)
 parser.add_argument("--version", type=str, default="main", help="The version of the Optimum docs")
 
 

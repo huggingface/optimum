@@ -311,13 +311,14 @@ works as expected.
 
 # Adding documentation support for an 🤗 Optimum subpackage
 
-🤗 Optimum is distributed as a collection of subpackages, where each subpackage
-refers to one of the hardware integrations such as `optimum-graphcore` or
-`optimum-intel`. For every pull request or release of 🤗 Optimum, we use GitHub
-Actions to combine the documentation for each subpackage with the base
-documentation of the `optimum` repository. 
+🤗 Optimum is distributed as a [namespace
+package](https://packaging.python.org/en/latest/guides/packaging-namespace-packages/),
+where each hardware integration _subpackage_ such as `optimum-graphcore` or
+`optimum-intel` is bundled together as a single package. For every pull request
+or release of 🤗 Optimum, we use GitHub Actions to combine the documentation for
+each subpackage with the base documentation of the `optimum` repository. 
 
-Including the documentation for a subpackge involves four main steps:
+Including the documentation for a subpackage involves four main steps:
 
 1. Adding a `docs/source` folder with content and a `_toctree.yml` file that
    follows the same specification as 🤗 Optimum
@@ -350,15 +351,18 @@ RUN python3 -m pip install --no-cache-dir ./optimum-habana[quality]
 ```
 
 The main thing to note here is the need to install Node in the Docker image -
-that's because we need Node to generate the HTML files with `hf-doc-builder`.
-Once you have the Dockerfile, the next step is to define a target in the
-Makefile:
+that's because we need Node to generate the HTML files with the `hf-doc-builder`
+library. Once you have the Dockerfile, the next step is to define a `doc` target
+in the Makefile:
 
 ```
 SHELL := /bin/bash
 CURRENT_DIR = $(shell pwd)
 
 ...
+
+build_doc_docker_image:
+	docker build -t doc_maker ./docs
 
 doc: build_doc_docker_image
 	@test -n "$(BUILD_DIR)" || (echo "BUILD_DIR is empty." ; exit 1)
@@ -369,8 +373,9 @@ doc: build_doc_docker_image
 		--clean
 ```
 
-Once you've added the `doc` target to the Makefile, you can check the docs build
-by running the following command from the root of the subpackage repository:
+Once you've added the `doc` target to the Makefile, you can generate the
+documentation by running the following command from the root of the subpackage
+repository:
 
 ```
 make doc BUILD_DIR=habana-doc-build
@@ -406,6 +411,10 @@ run: |
 ---
 **NOTE**
 
-Since the `optimum` documentation depends on the documentation, it isgood practice to ensure the subpackage documentation will always build successfully. To ensure this, add a GitHub Action to your subpackage that tests the documentation builds with every pull request / push to `main`. Check out the `optimum-habana` repo for an example.
+Since the `optimum` documentation depends on the documentation of each
+subpackage, it is good practice to ensure the subpackage documentation will
+always build successfully. To ensure this, add a GitHub Action to your
+subpackage that tests the documentation builds with every pull request / push to
+`main`. Check out the `optimum-habana` repo for an example.
 
 ---
