@@ -549,20 +549,10 @@ class ORTModelForSequenceClassification(ORTModel):
     )
     def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = dict(
-            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
-        )
+        onnx_inputs = self.prepare_onnx_inputs(**kwargs)
         # run inference
         onnx_outputs = self.model.run(None, onnx_inputs)
-        outputs = dict(
-            map(
-                lambda output_name: (
-                    output_name,
-                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
-                ),
-                self.model_outputs,
-            )
-        )
+        outputs = self.prepare_onnx_outputs(onnx_outputs)
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(outputs)
 
