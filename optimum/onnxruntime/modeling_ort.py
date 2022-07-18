@@ -283,6 +283,22 @@ class ORTModel(OptimizedModel):
         # 3. load normal model
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
+    def prepare_onnx_inputs(self, **kwargs):
+        onnx_inputs = {}
+        # converts pytorch inputs into numpy inputs for onnx
+        for input in self.model_inputs.keys():
+            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
+
+        return onnx_inputs
+
+    def prepare_onnx_outputs(self, onnx_outputs):
+        outputs = {}
+        # converts onnxruntime outputs into tensor for standard outputs
+        for output, idx in self.model_outputs.items():
+            outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
+
+        return outputs
+
 
 FEAUTRE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
@@ -533,20 +549,10 @@ class ORTModelForSequenceClassification(ORTModel):
     )
     def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = dict(
-            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
-        )
+        onnx_inputs = self.prepare_onnx_inputs(**kwargs)
         # run inference
         onnx_outputs = self.model.run(None, onnx_inputs)
-        outputs = dict(
-            map(
-                lambda output_name: (
-                    output_name,
-                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
-                ),
-                self.model_outputs,
-            )
-        )
+        outputs = self.prepare_onnx_outputs(onnx_outputs)
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(outputs)
 
