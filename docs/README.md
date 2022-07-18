@@ -154,7 +154,7 @@ description:
 ```
 
 If the description is too long to fit in one line, another indentation is
-necessary before writing the description after th argument.
+necessary before writing the description after the argument.
 
 Here's an example showcasing everything so far:
 
@@ -262,7 +262,7 @@ uncover a bug. Therefore, it's recommended to commit your changes before running
 
 ## Testing documentation examples
 
-Good documentation oftens comes with an example of how a specific function or
+Good documentation often comes with an example of how a specific function or
 class should be used. Each model class should contain at least one example
 showcasing how to use this model class in inference. *E.g.* the class
 [Wav2Vec2ForCTC](https://huggingface.co/docs/transformers/model_doc/wav2vec2#transformers.Wav2Vec2ForCTC)
