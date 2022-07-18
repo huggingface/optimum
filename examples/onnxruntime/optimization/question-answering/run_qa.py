@@ -456,7 +456,7 @@ def main():
         if data_args.max_eval_samples is not None:
             eval_examples = eval_examples.select(range(data_args.max_eval_samples))
         eval_dataset = eval_examples.map(
-            partial(prepare_validation_features, tokenizer=optimizer.tokenizer),
+            partial(prepare_validation_features, tokenizer=optimizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
@@ -492,7 +492,7 @@ def main():
         if data_args.max_predict_samples is not None:
             predict_examples = predict_examples.select(range(data_args.max_predict_samples))
         predict_dataset = predict_examples.map(
-            partial(prepare_validation_features, tokenizer=optimizer.tokenizer),
+            partial(prepare_validation_features, tokenizer=optimizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,

@@ -313,7 +313,7 @@ def main():
         # Preprocess the evaluation dataset
         with training_args.main_process_first(desc="Running tokenizer on the validation dataset"):
             eval_dataset = eval_dataset.map(
-                partial(preprocess_function, tokenizer=optimizer.tokenizer),
+                partial(preprocess_function, tokenizer=optimizer.preprocessor),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,

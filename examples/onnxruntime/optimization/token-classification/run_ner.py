@@ -444,7 +444,7 @@ def main():
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
         eval_dataset = eval_dataset.map(
-            partial(tokenize_and_align_labels, tokenizer=optimizer.tokenizer),
+            partial(tokenize_and_align_labels, tokenizer=optimizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
@@ -474,7 +474,7 @@ def main():
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
         predict_dataset = predict_dataset.map(
-            partial(tokenize_and_align_labels, tokenizer=optimizer.tokenizer),
+            partial(tokenize_and_align_labels, tokenizer=optimizer.preprocessor),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
