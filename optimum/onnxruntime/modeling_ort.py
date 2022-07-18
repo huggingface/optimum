@@ -298,6 +298,22 @@ class ORTModel(OptimizedModel):
         # 3. load normal model
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
+    def prepare_onnx_inputs(self, **kwargs):
+        onnx_inputs = {}
+        # converts pytorch inputs into numpy inputs for onnx
+        for input in self.model_inputs.keys():
+            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
+
+        return onnx_inputs
+
+    def prepare_onnx_outputs(self, onnx_outputs):
+        outputs = {}
+        # converts onnxruntime outputs into tensor for standard outputs
+        for output, idx in self.model_outputs.items():
+            outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
+
+        return outputs
+
 
 FEAUTRE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
