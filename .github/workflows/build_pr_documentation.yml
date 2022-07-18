@@ -55,8 +55,6 @@ jobs:
       - name: Make Habana documentation
         run: |
           cd optimum-habana
-          git fetch origin
-          git checkout documentation
           make doc BUILD_DIR=habana-doc-build
           sudo mv habana-doc-build ../optimum
           cd ..
