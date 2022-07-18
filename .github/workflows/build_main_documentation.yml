@@ -36,7 +36,7 @@ jobs:
           repository: 'huggingface/optimum-habana'
           path: optimum-habana
 
-      - name: Set env variables
+      - name: Set environment variables
         run: |
           cd optimum
           version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
