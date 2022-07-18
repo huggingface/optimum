@@ -320,8 +320,9 @@ each subpackage with the base documentation of the `optimum` repository.
 
 Including the documentation for a subpackage involves four main steps:
 
-1. Adding a `docs/source` folder with content and a `_toctree.yml` file that
-   follows the same specification as 🤗 Optimum
+1. Adding a `docs/source` folder to your `optimum-*` repo with content and a
+   `_toctree.yml` file that follows the same specification as 🤗 Optimum (see
+   the _Writing documentation_ section above)
 2. Creating a Dockerfile in `docs` that installs all necessary dependencies
 3. Adding a `make doc` target to the Makefile of the subpackage that generates
    the HTML files of the documentation
@@ -381,8 +382,9 @@ repository:
 make doc BUILD_DIR=habana-doc-build
 ```
 
-The final step is to include the subpackage in the GitHub Actions, e.g. add/edit
-these steps to `build_pr_documentation.yml` and `build_main_documentation.yml`:
+The final step is to include the subpackage in the GitHub Actions of the
+`optimum` repo, e.g. add/edit these steps to `build_pr_documentation.yml` and
+`build_main_documentation.yml`:
 
 ```
 # Add this
