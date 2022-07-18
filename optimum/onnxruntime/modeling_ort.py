@@ -350,7 +350,7 @@ class ORTModelForFeatureExtraction(ORTModel):
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model inputs and outputs
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -435,7 +435,7 @@ class ORTModelForQuestionAnswering(ORTModel):
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model inputs and outputs
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -534,7 +534,7 @@ class ORTModelForSequenceClassification(ORTModel):
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model inputs and outputs
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -618,7 +618,7 @@ class ORTModelForTokenClassification(ORTModel):
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model inputs and outputs
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -702,7 +702,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model inputs and outputs
         self.main_input_name = "input_ids"
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
@@ -822,7 +822,7 @@ class ORTModelForImageClassification(ORTModel):
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model inputs and outputs
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
