@@ -729,22 +729,24 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             checkpoint="optimum/gpt2",
         )
     )
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
+    def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
+        onnx_inputs = dict(
+            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
+        )
         # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+        onnx_outputs = self.model.run(None, onnx_inputs)
+        outputs = dict(
+            map(
+                lambda output_name: (
+                    output_name,
+                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
+                ),
+                self.model_outputs,
+            )
+        )
         # converts output to namedtuple for pipelines post-processing
-        return CausalLMOutputWithCrossAttentions(logits=logits)
+        return CausalLMOutputWithCrossAttentions(outputs)
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(
