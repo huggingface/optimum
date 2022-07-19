@@ -259,7 +259,7 @@ class ORTQuantizer(OptimumQuantizer):
         self,
         output_path: Union[str, Path],
         quantization_config: QuantizationConfig,
-        file_prefix: Optional[str] = "quantized",
+        file_suffix: Optional[str] = "quantized",
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
         preprocessor: Optional[QuantizationPreprocessor] = None,
@@ -272,8 +272,8 @@ class ORTQuantizer(OptimumQuantizer):
                 The path used to save the quantized model exported to an ONNX Intermediate Representation (IR).
             quantization_config (`QuantizationConfig`):
                 The configuration containing the parameters related to quantization.
-            file_prefix (`str`, *optional*, defaults to `"quantized"`):
-                The prefix used to save the quantized model.
+            file_suffix (`str`, *optional*, defaults to `"quantized"`):
+                The file_suffix used to save the quantized model.
             calibration_tensors_range (`Dict[NodeName, Tuple[float, float]]`, *optional*):
                 The dictionary mapping the nodes name to their quantization ranges, used and required only when applying
                 static quantization.
@@ -286,7 +286,7 @@ class ORTQuantizer(OptimumQuantizer):
             The path of the resulting quantized model.
         """
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
-        output_path = Path(output_path).joinpath(f"{file_prefix}_{self.onnx_model_path.name}")
+        output_path = Path(output_path).joinpath(f"{self.onnx_model_path.stem}_{file_suffix}.onnx")
 
         if not quantization_config.is_static:
             if quantization_config.mode != QuantizationMode.IntegerOps:

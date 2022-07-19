@@ -93,7 +93,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
                 output_path=output_dir,
                 quantization_config=qconfig,
             )
-            quantized_model = onnx_load(output_dir.joinpath("quantized_model.onnx"))
+            quantized_model = onnx_load(output_dir.joinpath("model_quantized.onnx"))
             num_quantized_matmul = 0
             for initializer in quantized_model.graph.initializer:
                 if "MatMul" in initializer.name and "quantized" in initializer.name:
@@ -151,7 +151,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
                 quantization_config=qconfig,
             )
 
-            quantized_model = onnx_load(output_dir.joinpath("quantized_model.onnx"))
+            quantized_model = onnx_load(output_dir.joinpath("model_quantized.onnx"))
             num_quantized_matmul = 0
             for initializer in quantized_model.graph.initializer:
                 if "MatMul" in initializer.name and "quantized" in initializer.name:
