@@ -373,7 +373,7 @@ def main():
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
         eval_dataset = eval_dataset.map(
-            partial(preprocess_function, tokenizer=optimizer.tokenizer, max_length=data_args.max_seq_length),
+            partial(preprocess_function, tokenizer=optimizer.preprocessor, max_length=data_args.max_seq_length),
             batched=True,
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on the evaluation dataset",
@@ -402,7 +402,7 @@ def main():
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
         predict_dataset = predict_dataset.map(
-            partial(preprocess_function, tokenizer=optimizer.tokenizer, max_length=data_args.max_seq_length),
+            partial(preprocess_function, tokenizer=optimizer.preprocessor, max_length=data_args.max_seq_length),
             batched=True,
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on the test dataset",
