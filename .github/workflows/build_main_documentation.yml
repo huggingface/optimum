@@ -36,6 +36,11 @@ jobs:
           repository: 'huggingface/optimum-habana'
           path: optimum-habana
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-graphcore'
+          path: optimum-graphcore
+
       - name: Set environment variables
         run: |
           cd optimum
@@ -65,6 +70,15 @@ jobs:
           cd build_dir/optimum
           wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
 
+      - name: Make Graphcore documentation
+        run: |
+          cd optimum-graphcore
+          git fetch origin
+          git checkout documentation
+          make doc BUILD_DIR=graphcore-doc-build
+          sudo mv graphcore-doc-build ../optimum
+          cd ..
+
       - name: Make Habana documentation
         run: |
           cd optimum-habana
@@ -81,7 +95,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages habana --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages habana graphcore --version ${{ env.VERSION }}
           sudo cp -r optimum-doc-build/optimum/${{ env.VERSION }} ../build_dir/optimum
           cd ..
 
