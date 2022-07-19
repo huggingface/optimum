@@ -1,7 +1,8 @@
-name: Build dev documentation
+name: Build PR documentation
 
 on:
   pull_request:
+    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -10,8 +11,6 @@ concurrency:
 jobs:
   build_and_package:
     runs-on: ubuntu-latest
-    container:
-      image: huggingface/transformers-doc-builder
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
@@ -28,63 +27,78 @@ jobs:
           repository: 'huggingface/optimum'
           path: optimum
 
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v2
         with:
-          node-version: '16'
+          repository: 'huggingface/optimum-habana'
+          path: optimum-habana
 
-      - name: Set env
+      - name: Set environment variables
         run: |
-          echo "WRITE=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
+          echo "write_token=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
 
       - name: Setup environment
         run: |
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
-          pip install -e .
+          pip install .
+          pip install black
           cd ..
 
+      - name: Create build directory
+        run: |
+          mkdir build_dir
+          mkdir build_dir/optimum
+          cd build_dir/optimum
+          wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
+
+      - name: Make Habana documentation
+        run: |
+          cd optimum-habana
+          make doc BUILD_DIR=habana-doc-build
+          sudo mv habana-doc-build ../optimum
+          cd ..
+
+      - name: Make Optimum documentation
+        run: |
           cd optimum
-          apt install -y libopencv-dev python3-opencv
-          pip install --upgrade protobuf
-          pip install .[dev,onnxruntime,benchmark]
+          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER
           cd ..
 
-      - name: Comment PR
-        uses: thollander/actions-comment-pull-request@v1
-        if: github.event.action == 'opened'
+      - name: Combine subpackage documentation
+        run: |
+          cd optimum
+          sudo python docs/combine_docs.py --subpackages habana --version pr_$PR_NUMBER
+          sudo mv optimum-doc-build ../
+          cd ..
 
-        with:
-          message: 'The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.'
-          GITHUB_TOKEN: ${{ env.WRITE }}
+      - name: Push to repositories
+        run: |
+          cd optimum-doc-build
+          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build-dev" --token ${{ env.write_token }} --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
+        shell: bash
 
-      - name: Find Comment
-        if: github.event.action == 'reopened'
+      - name: Find doc comment
         uses: peter-evans/find-comment@v1
-        id: fc
+        id: find_comment
         with:
           issue-number: ${{ env.PR_NUMBER }}
           comment-author: HuggingFaceDocBuilderDev
 
-      - name: Update comment
-        if: github.event.action == 'reopened'
+      - name: Add doc comment if not present
+        uses: thollander/actions-comment-pull-request@v1
+        if: steps.find_comment.outputs.comment-id == ''
+
+        with:
+          message: 'The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.'
+          GITHUB_TOKEN: ${{ env.write_token }}
+
+      - name: Update doc comment if necessary
+        if: github.event.action == 'reopened' && steps.find_comment.outputs.comment-id != ''
         uses: peter-evans/create-or-update-comment@v1
         with:
-          comment-id: ${{ steps.fc.outputs.comment-id }}
-          token: ${{ env.WRITE }}
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          token: ${{ env.write_token }}
           edit-mode: replace
           body: |
             The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.
-
-      - name: Make documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
-        run: |
-          cd ./doc-builder
-          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build-dev --clean --version pr_$PR_NUMBER --html
-
-      - name: Push to repositories
-        run: |
-          cd doc-build-dev
-          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build-dev" --token ${{ env.WRITE }} --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
-        shell: bash
