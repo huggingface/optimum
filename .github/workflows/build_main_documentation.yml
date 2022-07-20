@@ -94,8 +94,6 @@ jobs:
       - name: Make Intel documentation
         run: |
           cd optimum-intel
-          git fetch origin
-          git checkout documentation
           make doc BUILD_DIR=intel-doc-build
           sudo mv intel-doc-build ../optimum
           cd ..
