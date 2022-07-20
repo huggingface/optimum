@@ -20,7 +20,7 @@ body:
         Your issue will be replied to more quickly if you can figure out the right person to tag with @
         If you know how to use git blame, that is the easiest way, otherwise, here is a rough guide of **who to tag**.
         Please tag fewer than 3 people.
-        
+
         - Pipelines: `@philschmid`
         - Export of transformers model to onnx: `@lewtun`, `@michaelbenayoun`
         - ONNX Runtime: `@JingyaHuang`, `@echarlaix`
@@ -62,11 +62,11 @@ body:
 
       placeholder: |
         Steps to reproduce the behavior:
-          
+
           1.
           2.
           3.
-          
+
 
   - type: textarea
     id: expected-behavior
