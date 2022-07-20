@@ -298,7 +298,7 @@ class ORTModelForConditionalGeneration(ORTModel):
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization.
             use_past_key_values (`bool`, *optional*, defaults to `True`):
-                Whether or not use the pre-computed key/values hidden-states in order to speed up sequential decoding.
+                Whether or not to use the pre-computed key/values hidden-states in order to speed up sequential decoding.
         """
         use_past_key_values = kwargs.pop("use_past_key_values", True)
         config_dict = kwargs.pop("config", {})
