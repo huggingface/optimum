@@ -104,20 +104,32 @@ class QConfigUnit:
 
         self_quant_min = self.quant_min
         if self_quant_min is None:
-            self_quant_min = torch.iinfo(self.dtype).min
+            try:
+                self_quant_min = torch.iinfo(self.dtype).min
+            except TypeError:
+                self_quant_min = torch.finfo(self.dtype).min
         other_quant_min = other.quant_min
         if other_quant_min is None:
-            other_quant_min = torch.iinfo(other.dtype).min
+            try:
+                other_quant_min = torch.iinfo(other.dtype).min
+            except TypeError:
+                other_quant_min = torch.finfo(other.dtype).min
 
         if self_quant_min != other_quant_min:
             return False
 
         self_quant_max = self.quant_max
         if self_quant_max is None:
-            self_quant_max = torch.iinfo(self.dtype).max
+            try:
+                self_quant_max = torch.iinfo(self.dtype).max
+            except TypeError:
+                self_quant_max = torch.finfo(self.dtype).max
         other_quant_max = other.quant_max
         if other_quant_max is None:
-            other_quant_max = torch.iinfo(other.dtype).max
+            try:
+                other_quant_max = torch.iinfo(other.dtype).max
+            except TypeError:
+                other_quant_max = torch.finfo(other.dtype).max
 
         if self_quant_max != other_quant_max:
             return False
@@ -645,7 +657,9 @@ class QuantizationConfig(BaseConfig):
         self._validate_qconfig_type(value)
         self._global = value
 
-    def add_object_type(self, object_type: Union[Type, Callable], qconfig: Optional[QConfig]):
+    def add_object_type(
+        self, object_type: Union[str, Type, Callable, Tuple[Union[str, Type, Callable]]], qconfig: Optional[QConfig]
+    ):
         self._validate_object_type_type(object_type)
         self._validate_qconfig_type(qconfig)
         self.object_type[object_type] = (object_type, qconfig)
@@ -681,6 +695,7 @@ class QuantizationConfig(BaseConfig):
     ):
         self._validate_object_type_type(object_type)
         self._validate_module_name(module_name_regex, "module_name_regex")
+        self._validate_index(index)
         self._validate_qconfig_type(qconfig)
         self.module_name_object_type_order[(object_type, module_name_regex, index)] = (
             object_type,
@@ -694,6 +709,7 @@ class QuantizationConfig(BaseConfig):
     ):
         self._validate_object_type_type(object_type)
         self._validate_module_name(module_name_regex, "module_name_regex")
+        self._validate_index(index)
         self.module_name_object_type_order.pop((object_type, module_name_regex, index), -1)
 
     def get_quantizable_nodes(self, model):

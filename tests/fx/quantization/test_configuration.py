@@ -403,3 +403,124 @@ class QConfigTest(TestCase):
                     torch.allclose(t1, t2),
                     f"The example do not match between the PyTorch ref the QConfig one, max diff: {(t1 - t2).abs().max()}",
                 )
+
+
+class QuantizationConfigTest(TestCase):
+    def test_default(self):
+        default_quantization_config = QuantizationConfig.default()
+        default_pytorch_static_config = torch.ao.quantization.get_default_qconfig_dict()
+        default_pytorch_qat_config = torch.ao.quantization.get_default_qat_qconfig_dict()
+
+        self.assertEqual(default_quantization_config, QuantizationConfig.from_pytorch(default_pytorch_static_config))
+        self.assertEqual(default_quantization_config, QuantizationConfig.from_pytorch(default_pytorch_qat_config))
+
+    def test_from_pytorch(self):
+        pass
+
+    def test_to_pytorch(self):
+        pass
+
+    def test_add_and_remove_object_type(self):
+        config = QuantizationConfig()
+        qconfig = QConfig.default()
+
+        self.assertListEqual(list(config.object_type.values()), [])
+        config.add_object_type(torch.nn.Linear, qconfig)
+        self.assertListEqual(list(config.object_type.values()), [(torch.nn.Linear, qconfig)])
+        config.add_object_type(("this is a test",), qconfig)
+        self.assertListEqual(
+            list(config.object_type.values()), [(torch.nn.Linear, qconfig), (("this is a test",), qconfig)]
+        )
+        config.remove_object_type(("this is a test",))
+        self.assertListEqual(list(config.object_type.values()), [(torch.nn.Linear, qconfig)])
+        config.remove_object_type(torch.nn.Linear)
+        self.assertListEqual(list(config.object_type.values()), [])
+
+        with self.assertRaises(TypeError):
+            config.add_object_type(17, qconfig)
+
+        with self.assertRaises(TypeError):
+            config.add_object_type(torch.nn.Linear, "wrong type")
+
+    def test_add_and_remove_module_name(self):
+        config = QuantizationConfig()
+        qconfig = QConfig.default()
+
+        self.assertListEqual(list(config.module_name.values()), [])
+        config.add_module_name("this.is.a.test", qconfig)
+        self.assertListEqual(list(config.module_name.values()), [("this.is.a.test", qconfig)])
+        config.add_module_name("this.is.another.test", qconfig)
+        self.assertListEqual(
+            list(config.module_name.values()), [("this.is.a.test", qconfig), ("this.is.another.test", qconfig)]
+        )
+        config.remove_module_name("this.is.a.test")
+        self.assertListEqual(list(config.module_name.values()), [("this.is.another.test", qconfig)])
+        config.remove_module_name("this.is.another.test")
+        self.assertListEqual(list(config.module_name.values()), [])
+
+        with self.assertRaises(TypeError):
+            config.add_module_name(torch.nn.Module, qconfig)
+
+        with self.assertRaises(TypeError):
+            config.add_object_type("name.of.a.layer", "wrong type")
+
+    def test_add_and_remove_module_name_regex(self):
+        config = QuantizationConfig()
+        qconfig = QConfig.default()
+
+        self.assertListEqual(list(config.module_name_regex.values()), [])
+        config.add_module_name_regex(r"this.[0-9].a.test", qconfig)
+        self.assertListEqual(list(config.module_name_regex.values()), [(r"this.[0-9].a.test", qconfig)])
+        config.add_module_name_regex(r"this.is.another.test.[0-9]+", qconfig)
+        self.assertListEqual(
+            list(config.module_name_regex.values()),
+            [(r"this.[0-9].a.test", qconfig), (r"this.is.another.test.[0-9]+", qconfig)],
+        )
+        config.remove_module_name_regex(r"this.[0-9].a.test")
+        self.assertListEqual(list(config.module_name_regex.values()), [(r"this.is.another.test.[0-9]+", qconfig)])
+        config.remove_module_name_regex(r"this.is.another.test.[0-9]+")
+        self.assertListEqual(list(config.module_name_regex.values()), [])
+
+        with self.assertRaises(TypeError):
+            config.add_module_name_regex(torch.nn.Module, qconfig)
+
+        with self.assertRaises(TypeError):
+            config.add_module_name_regex("name.of.a.layer.regex.[a-z]+", "wrong type")
+
+    def test_add_and_remove_module_name_object_type_order(self):
+        config = QuantizationConfig()
+        qconfig = QConfig.default()
+
+        self.assertListEqual(list(config.module_name_object_type_order.values()), [])
+        config.add_module_name_object_type_order(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig)
+        self.assertListEqual(
+            list(config.module_name_object_type_order.values()),
+            [(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig)],
+        )
+        config.add_module_name_object_type_order(torch.nn.Conv3d, r"this.another.(a|good).test", 2, qconfig)
+        self.assertListEqual(
+            list(config.module_name_object_type_order.values()),
+            [
+                (torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig),
+                (torch.nn.Conv3d, r"this.another.(a|good).test", 2, qconfig),
+            ],
+        )
+        config.remove_module_name_object_type_order(torch.nn.Conv3d, r"this.another.(a|good).test", 2)
+        self.assertListEqual(
+            list(config.module_name_object_type_order.values()),
+            [(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig)],
+        )
+        config.remove_module_name_object_type_order(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19)
+        self.assertListEqual(list(config.module_name_object_type_order.values()), [])
+
+        with self.assertRaises(TypeError):
+            config.add_module_name_object_type_order(True, r"[a-z]+", 3, qconfig)
+
+        with self.assertRaises(TypeError):
+            config.add_module_name_object_type_order(torch.nn.Module, [], 3, qconfig)
+
+        with self.assertRaises(TypeError):
+            config.add_module_name_object_type_order(torch.nn.Module, r"[a-z]+", "wrong type", qconfig)
+
+        with self.assertRaises(TypeError):
+            config.add_module_name_object_type_order(torch.nn.Linear, r"[a-z]+", 3, "not a qconfig")
