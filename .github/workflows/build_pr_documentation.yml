@@ -82,7 +82,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages habana graphcore --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages graphcore habana --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 

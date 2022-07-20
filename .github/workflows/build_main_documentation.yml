@@ -95,7 +95,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages habana graphcore --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages graphcore habana --version ${{ env.VERSION }}
           sudo cp -r optimum-doc-build/optimum/${{ env.VERSION }} ../build_dir/optimum
           cd ..
 
