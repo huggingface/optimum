@@ -344,13 +344,17 @@ class QConfigUnit:
 
 @dataclass
 class QConfig:
-    activation: QConfigUnit = QConfigUnit()
-    weight: QConfigUnit = QConfigUnit()
+    activation: QConfigUnit = None
+    weight: QConfigUnit = None
 
     def __post_init__(self):
         if isinstance(self.activation, dict):
             self.activation = QConfigUnit(**self.activation)
             self.weight = QConfigUnit(**self.weight)
+        if self.activation is None:
+            self.activation = QConfigUnit()
+        if self.weight is None:
+            self.weight = QConfigUnit()
 
     @classmethod
     def default(cls, backend: str = "fbgemm"):
@@ -435,7 +439,7 @@ class QuantizationConfig(BaseConfig):
         self.module_name_object_type_order = process(kwargs.pop("module_name_object_type_order", {}))
 
         # Make sure that the loaded attributes are stored as dictionaries.
-        self.transform_attributes(to_dict=True, inplace=True)
+        self._transform_attributes(to_dict=True, inplace=True)
 
     @classmethod
     def default(cls, backend: str = "fbgemm") -> "QuantizationConfig":
@@ -475,7 +479,7 @@ class QuantizationConfig(BaseConfig):
             return dict_
         return list(dict_.values())
 
-    def transform_attributes(self, to_list=False, to_dict=False, inplace=False):
+    def _transform_attributes(self, to_list=False, to_dict=False, inplace=False):
         """
         Transforms the underlying attributes (object_type, module_name, etc):
             - Dict -> List if to_list is True
@@ -500,7 +504,7 @@ class QuantizationConfig(BaseConfig):
             :obj:`Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
         """
         output = copy.deepcopy(self.__dict__)
-        output.update(self.transform_attributes(to_list=True))
+        output.update(self._transform_attributes(to_list=True))
         output["global"] = output.pop("_global")
 
         def qconfig_to_dict(item):
@@ -575,7 +579,7 @@ class QuantizationConfig(BaseConfig):
             return self._map(cast_fn, item)
 
         attributes = {
-            attr_name: to_pytorch(attr) for attr_name, attr in self.transform_attributes(to_list=True).items()
+            attr_name: to_pytorch(attr) for attr_name, attr in self._transform_attributes(to_list=True).items()
         }
         return {"": to_pytorch(self.global_), **attributes}
 

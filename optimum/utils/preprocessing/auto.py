@@ -14,7 +14,7 @@
 # limitations under the License.
 from typing import TYPE_CHECKING, Type
 
-from ..models.auto.modeling_auto import (
+from transformers.models.auto.modeling_auto import (
     MODEL_FOR_AUDIO_CLASSIFICATION_MAPPING_NAMES,
     MODEL_FOR_CAUSAL_LM_MAPPING_NAMES,
     MODEL_FOR_CTC_MAPPING_NAMES,
@@ -31,6 +31,7 @@ from ..models.auto.modeling_auto import (
     MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES,
     MODEL_MAPPING_NAMES,
 )
+
 from .image_classification import ImageClassificationProcessing
 from .question_answering import QuestionAnsweringProcessing
 from .text_classification import TextClassificationProcessing
@@ -48,13 +49,13 @@ TASK_PROCESSING_MAP = {
 }
 
 _MODEL_MAPPING_TO_DATASET_PROCESSING = {}
-for _, model_name in MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES:
+for model_name in MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES.values():
     _MODEL_MAPPING_TO_DATASET_PROCESSING[model_name] = "text-Classification"
-for _, model_name in MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES:
+for model_name in MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES.values():
     _MODEL_MAPPING_TO_DATASET_PROCESSING[model_name] = "token-Classification"
-for _, model_name in MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES:
+for model_name in MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES.values():
     _MODEL_MAPPING_TO_DATASET_PROCESSING[model_name] = "question-answering"
-for _, model_name in MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES:
+for model_name in MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES.values():
     _MODEL_MAPPING_TO_DATASET_PROCESSING[model_name] = "image-classification"
 
 
