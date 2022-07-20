@@ -409,16 +409,82 @@ class QuantizationConfigTest(TestCase):
     def test_default(self):
         default_quantization_config = QuantizationConfig.default()
         default_pytorch_static_config = torch.ao.quantization.get_default_qconfig_dict()
-        default_pytorch_qat_config = torch.ao.quantization.get_default_qat_qconfig_dict()
 
         self.assertEqual(default_quantization_config, QuantizationConfig.from_pytorch(default_pytorch_static_config))
-        self.assertEqual(default_quantization_config, QuantizationConfig.from_pytorch(default_pytorch_qat_config))
 
     def test_from_pytorch(self):
-        pass
+        qconfig_dict = {
+            "": torch.ao.quantization.get_default_qconfig(),
+            "object_type": [
+                ((torch.nn.Conv1d, torch.nn.Conv2d), torch.ao.quantization.get_default_qconfig()),
+            ],
+            "module_name_regex": [
+                (r"dont.quantize.these.layers.[0-9]+", None),
+                (r"but.quantize.[a-z]+.those", torch.ao.quantization.get_default_qconfig()),
+            ],
+            "module_name_object_type_order": [
+                (
+                    r"some.regex.that.matches.linears",
+                    torch.nn.Linear,
+                    3,
+                    torch.ao.quantization.get_default_qat_qconfig(),
+                ),
+            ],
+        }
+
+        qconfig = QConfig.from_pytorch(torch.ao.quantization.get_default_qconfig())
+        qconfig_qat = QConfig.from_pytorch(torch.ao.quantization.get_default_qat_qconfig())
+
+        ref_quantization_config = QuantizationConfig()
+        ref_quantization_config.global_ = qconfig
+        ref_quantization_config.add_object_type((torch.nn.Conv1d, torch.nn.Conv2d), qconfig)
+        ref_quantization_config.add_module_name_regex(r"dont.quantize.these.layers.[0-9]+", None)
+        ref_quantization_config.add_module_name_regex(r"but.quantize.[a-z]+.those", qconfig)
+        ref_quantization_config.add_module_name_object_type_order(
+            r"some.regex.that.matches.linears", torch.nn.Linear, 3, qconfig_qat
+        )
+
+        quantization_config = QuantizationConfig.from_pytorch(qconfig_dict)
+
+        self.assertEqual(ref_quantization_config, quantization_config)
 
     def test_to_pytorch(self):
-        pass
+        qconfig_dict = {
+            "": torch.ao.quantization.get_default_qconfig(),
+            "object_type": [
+                ((torch.nn.Conv1d, torch.nn.Conv2d), torch.ao.quantization.get_default_qconfig()),
+            ],
+            "module_name_regex": [
+                (r"dont.quantize.these.layers.[0-9]+", None),
+                (r"but.quantize.[a-z]+.those", torch.ao.quantization.get_default_qconfig()),
+            ],
+            "module_name_object_type_order": [
+                (r"some.regex.that.matches.linears", torch.nn.Linear, 3, torch.ao.quantization.get_default_qconfig()),
+            ],
+        }
+
+        qconfig = QConfig.from_pytorch(torch.ao.quantization.get_default_qconfig())
+
+        quantization_config = QuantizationConfig()
+        quantization_config.global_ = qconfig
+        quantization_config.add_object_type((torch.nn.Conv1d, torch.nn.Conv2d), qconfig)
+        quantization_config.add_module_name_regex(r"dont.quantize.these.layers.[0-9]+", None)
+        quantization_config.add_module_name_regex(r"but.quantize.[a-z]+.those", qconfig)
+        quantization_config.add_module_name_object_type_order(
+            r"some.regex.that.matches.linears", torch.nn.Linear, 3, qconfig
+        )
+
+        for v1, v2 in zip(quantization_config.to_pytorch("static").values(), qconfig_dict.values()):
+            if not isinstance(v1, torch.ao.quantization.QConfig) and not isinstance(v2, torch.ao.quantization.QConfig):
+                continue
+            for t1, t2 in zip(v1, v2):
+                values = _generate_random_values(5)
+                ob1 = t1()
+                ob2 = t2()
+                ob1(values)
+                ob2(values)
+                for p1, p2 in zip(ob1.calculate_qparams(), ob2.calculate_qparams()):
+                    self.assertTrue(torch.allclose(p1, p2))
 
     def test_add_and_remove_object_type(self):
         config = QuantizationConfig()
@@ -492,35 +558,35 @@ class QuantizationConfigTest(TestCase):
         qconfig = QConfig.default()
 
         self.assertListEqual(list(config.module_name_object_type_order.values()), [])
-        config.add_module_name_object_type_order(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig)
+        config.add_module_name_object_type_order(r"this.[0-9]*.a.test", torch.nn.Conv1d, 19, qconfig)
         self.assertListEqual(
             list(config.module_name_object_type_order.values()),
-            [(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig)],
+            [(r"this.[0-9]*.a.test", torch.nn.Conv1d, 19, qconfig)],
         )
-        config.add_module_name_object_type_order(torch.nn.Conv3d, r"this.another.(a|good).test", 2, qconfig)
+        config.add_module_name_object_type_order(r"this.another.(a|good).test", torch.nn.Conv3d, 2, qconfig)
         self.assertListEqual(
             list(config.module_name_object_type_order.values()),
             [
-                (torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig),
-                (torch.nn.Conv3d, r"this.another.(a|good).test", 2, qconfig),
+                (r"this.[0-9]*.a.test", torch.nn.Conv1d, 19, qconfig),
+                (r"this.another.(a|good).test", torch.nn.Conv3d, 2, qconfig),
             ],
         )
-        config.remove_module_name_object_type_order(torch.nn.Conv3d, r"this.another.(a|good).test", 2)
+        config.remove_module_name_object_type_order(r"this.another.(a|good).test", torch.nn.Conv3d, 2)
         self.assertListEqual(
             list(config.module_name_object_type_order.values()),
-            [(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19, qconfig)],
+            [(r"this.[0-9]*.a.test", torch.nn.Conv1d, 19, qconfig)],
         )
-        config.remove_module_name_object_type_order(torch.nn.Conv1d, r"this.[0-9]*.a.test", 19)
+        config.remove_module_name_object_type_order(r"this.[0-9]*.a.test", torch.nn.Conv1d, 19)
         self.assertListEqual(list(config.module_name_object_type_order.values()), [])
 
         with self.assertRaises(TypeError):
-            config.add_module_name_object_type_order(True, r"[a-z]+", 3, qconfig)
+            config.add_module_name_object_type_order(r"[a-z]+", True, 3, qconfig)
 
         with self.assertRaises(TypeError):
-            config.add_module_name_object_type_order(torch.nn.Module, [], 3, qconfig)
+            config.add_module_name_object_type_order([], torch.nn.Module, 3, qconfig)
 
         with self.assertRaises(TypeError):
-            config.add_module_name_object_type_order(torch.nn.Module, r"[a-z]+", "wrong type", qconfig)
+            config.add_module_name_object_type_order(r"[a-z]+", torch.nn.Module, "wrong type", qconfig)
 
         with self.assertRaises(TypeError):
-            config.add_module_name_object_type_order(torch.nn.Linear, r"[a-z]+", 3, "not a qconfig")
+            config.add_module_name_object_type_order(r"[a-z]+", torch.nn.Linear, 3, "not a qconfig")

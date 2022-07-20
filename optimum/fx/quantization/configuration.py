@@ -18,7 +18,7 @@ import importlib
 import inspect
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 import torch
 import torch.ao.quantization.observer as observer
@@ -31,8 +31,6 @@ from ...version import __version__
 
 QConfigDict = Dict[str, Any]
 PyTorchQuantizationUnit = Union[torch.ao.quantization.ObserverBase, torch.ao.quantization.FakeQuantize]
-T = TypeVar("T")
-TypeOrFactoryOfType = Union[Callable[[], T], T]
 
 
 # TODO: merge that with what is being done for onnxruntime.
@@ -332,7 +330,10 @@ class QConfigUnit:
         quant_max = observer_kwargs.pop("quant_max")
         if quant_max is None:
             quant_max = observer_class(dtype=self.dtype).quant_max
-        partial_fn = torch.ao.quantization.FakeQuantize.with_args(
+        fake_quantize_cls = torch.ao.quantization.FakeQuantize
+        if self.calibration_method == "moving_average" and self.per_channel and self.ch_axis == 0:
+            fake_quantize_cls = torch.ao.quantization.FusedMovingAvgObsFakeQuantize
+        partial_fn = fake_quantize_cls.with_args(
             observer=observer_class,
             quant_min=quant_min,
             quant_max=quant_max,
@@ -467,7 +468,7 @@ class QuantizationConfig(BaseConfig):
     def _list_to_dict(self, list_):
         if isinstance(list_, dict):
             return list_
-        return {t[:-1]: t for t in list_}
+        return {t[0] if len(t) == 2 else t[:-1]: t for t in list_}
 
     def _dict_to_list(self, dict_):
         if isinstance(dict_, list):
@@ -653,64 +654,159 @@ class QuantizationConfig(BaseConfig):
             raise TypeError(f"The index must be an int, but an object of type {type(index)} was provided here.")
 
     @global_.setter
-    def global_(self, value: Optional[QConfig]):
-        self._validate_qconfig_type(value)
-        self._global = value
+    def global_(self, qconfig: Optional[QConfig]):
+        """
+        Sets the quantization config to use globally.
+
+        Args:
+            qconfig ([`optimum.fx.quantization.QConfig`], *optional*):
+                The quantization config to apply globally.
+        """
+        self._validate_qconfig_type(qconfig)
+        self._global = qconfig
 
     def add_object_type(
         self, object_type: Union[str, Type, Callable, Tuple[Union[str, Type, Callable]]], qconfig: Optional[QConfig]
     ):
+        """
+        Sets the quantization config to use for a given object type.
+
+        Args:
+            object_type (`str`, `Type`, `Callable`, or tuple of those types):
+                The object type to which the config will be applied.
+
+            qconfig ([`optimum.fx.quantization.QConfig`], *optional*):
+                The quantization config.
+        """
         self._validate_object_type_type(object_type)
         self._validate_qconfig_type(qconfig)
         self.object_type[object_type] = (object_type, qconfig)
 
     def remove_object_type(self, object_type: Union[torch.nn.Module, Callable]):
+        """
+        Removes the quantization config to use for a given object type.
+        Does nothing if no quantization config was provided for the object type before.
+
+        Args:
+            object_type (`str`, `Type`, `Callable`, or tuple of those types):
+                The object type for which the config should be removed.
+        """
         self._validate_object_type_type(object_type)
         self.object_type.pop(object_type, None)
 
     def add_module_name(self, module_name: str, qconfig: Optional[QConfig]):
+        """
+        Sets the quantization config to use for a module name.
+
+        Args:
+            module_name (`str`):
+                The module name to which the config will be applied.
+
+            qconfig ([`optimum.fx.quantization.QConfig`], *optional*):
+                The quantization config.
+        """
         self._validate_module_name(module_name, "module_name")
         self._validate_qconfig_type(qconfig)
         self.module_name[module_name] = (module_name, qconfig)
 
     def remove_module_name(self, module_name: str):
+        """
+        Removes the quantization config to use for a given module name.
+        Does nothing if no quantization config was provided for the module name before.
+
+        Args:
+            module_name (`str`):
+                The module name for which the config should be removed.
+        """
         self._validate_module_name(module_name, "module_name")
         self.module_name.pop(module_name, None)
 
     def add_module_name_regex(self, module_name_regex: str, qconfig: Optional[QConfig]):
+        """
+        Sets the quantization config to use for a module name regex.
+        Every module with a name matching the pattern will use the config.
+
+        Args:
+            module_name_regex (`str`):
+                The module name regex specifying to which module the config will be applied.
+
+            qconfig ([`optimum.fx.quantization.QConfig`], *optional*):
+                The quantization config.
+        """
         self._validate_module_name(module_name_regex, "module_name_regex")
         self._validate_qconfig_type(qconfig)
         self.module_name_regex[module_name_regex] = (module_name_regex, qconfig)
 
     def remove_module_name_regex(self, module_name_regex: str):
+        """
+        Removes the quantization config to use for a given module name regex.
+        Does nothing if no quantization config was provided for the module name regex before.
+
+        Args:
+            module_name_regex (`str`):
+                The module name regex for which the config should be removed.
+        """
         self._validate_module_name(module_name_regex, "module_name_regex")
         self.module_name_regex.pop(module_name_regex, None)
 
     def add_module_name_object_type_order(
         self,
-        object_type: Union[torch.nn.Module, Callable],
         module_name_regex: str,
+        object_type: Union[torch.nn.Module, Callable],
         index: int,
         qconfig: Optional[QConfig],
     ):
-        self._validate_object_type_type(object_type)
+        """
+        Sets the quantization config to use for a (module_name_regex, object type, index) tuple.
+
+        Args:
+            module_name_regex (`str`):
+                The module name regex specifying to which module the config will be applied.
+
+            object_type (`str`, `Type`, `Callable`, or tuple of those types):
+                The object type of the submodule inside the matched module by module_name_regex.
+
+            index (`int`):
+                The index of the submodule.
+
+            qconfig ([`optimum.fx.quantization.QConfig`], *optional*):
+                The quantization config.
+        """
         self._validate_module_name(module_name_regex, "module_name_regex")
+        self._validate_object_type_type(object_type)
         self._validate_index(index)
         self._validate_qconfig_type(qconfig)
-        self.module_name_object_type_order[(object_type, module_name_regex, index)] = (
-            object_type,
+        self.module_name_object_type_order[(module_name_regex, object_type, index)] = (
             module_name_regex,
+            object_type,
             index,
             qconfig,
         )
 
     def remove_module_name_object_type_order(
-        self, object_type: Union[torch.nn.Module, Callable], module_name_regex: str, index: str
+        self,
+        module_name_regex: str,
+        object_type: Union[str, Type, Callable, Tuple[Union[str, Type, Callable]]],
+        index: str,
     ):
+        """
+        Removes the quantization config to use for a (module_name_regex, object type, index) tuple.
+        Does nothing if no quantization config was provided for the (module_name_regex, object_type, index) tuple before.
+
+        Args:
+            module_name_regex (`str`):
+                The module name regex specifying to which module the config will be applied.
+
+            object_type (`str`, `Type`, `Callable`, or tuple of those types):
+                The object type of the submodule inside the matched module by module_name_regex.
+
+            index (`int`):
+                The index of the submodule.
+        """
         self._validate_object_type_type(object_type)
         self._validate_module_name(module_name_regex, "module_name_regex")
         self._validate_index(index)
-        self.module_name_object_type_order.pop((object_type, module_name_regex, index), -1)
+        self.module_name_object_type_order.pop((module_name_regex, object_type, index), -1)
 
     def get_quantizable_nodes(self, model):
         raise NotImplementedError
