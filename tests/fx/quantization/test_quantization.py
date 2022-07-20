@@ -73,7 +73,10 @@ def test_prepare_fx():
 def test_prepare_qat_fx():
     model = DummyModel()
     model.train()
-    qconfig_dict = {"": torch.quantization.get_default_qconfig("fbgemm")}
+    qconfig_dict = {
+        "": torch.quantization.get_default_qconfig("fbgemm"),
+        "object_type": [(torch.nn.Embedding, torch.ao.quantization.float_qparams_weight_only_qconfig)],
+    }
     torch_fx_prepared_model = orig_prepare_qat_fx(model, qconfig_dict)
     optimum_prepared_model = prepare_qat_fx(model, qconfig_dict, input_names=["input_ids"], check=False)
     assert torch_fx_prepared_model.code == optimum_prepared_model.code
