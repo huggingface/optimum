@@ -62,6 +62,35 @@ _REVERSED_QSCHEME_MAPPING = {v: k for k, v in _QSCHEME_MAPPING.items()}
 
 @dataclass
 class QConfigUnit:
+    """
+    Represents the smallest quantization configuration unit.
+    It specifies a quantization pattern, it is the optimum counterpart of `torch.ao.quantization.Observer`s and
+    `torch.ao.quantization.FakeQuantize`.
+
+    Attributes:
+        dtype (`str` or `torch.dtype`, defaults to `torch.quint8`):
+            The data type for the quantized values.
+        symmetric (`bool`, defaults to `False`):
+            Whether the quantization scheme is symmetric or not.
+        per_channel (`bool`, defaults to `False`):
+            Whether the quantization parameters are computed per channel or not, in which case they are computed per
+            tensor.
+        ch_axis (`int`, defaults to 0):
+            The channel axis if per_channel is `True`.
+        quant_min (`int`, *optional*):
+            The minimum quantization value.
+        quant_max (`int`, *optional*):
+            The maximum quantization value.
+        calibration_method (`CalibrationMethod`, defaults to `CalibrationMethod.MinMax`):
+            The calibration method to use.
+        averaging_constant (`float`, defaults to 0.01):
+            Averaging constant for min/max, used when `calibration_method=CalibrationMethod.MovingAverage`.
+        bins (`int`, defaults to 2048):
+            The number of bins to use, used when `calibration_method=CalibrationMethod.Histogram`.
+        upsample_rate (`float`, defaults to 128):
+            The factor by which the histograms are upsampled, used `calibration_method=CalibrationMethod.Histogram`.
+    """
+
     dtype: Union[str, torch.dtype] = torch.quint8
     symmetric: bool = False
     per_channel: bool = False
@@ -344,8 +373,19 @@ class QConfigUnit:
 
 @dataclass
 class QConfig:
-    activation: QConfigUnit = None
-    weight: QConfigUnit = None
+    """
+    Represents the quantization config to apply to either weights or activations.
+    It is the optimum counterpart of `torch.ao.quantization.QConfig`.
+
+    Attributes:
+        activation ([`~optimum.fx.quantization.QConfigUnit`], *optional*):
+            The [`~optimum.fx.quantization.QConfigUnit`] specifying the configuration for the activations.
+        weight ([`~optimum.fx.quantization.QConfigUnit`], *optional*):
+            The [`~optimum.fx.quantization.QConfigUnit`] specifying the configuration for the weights.
+    """
+
+    activation: Optional[QConfigUnit] = None
+    weight: Optional[QConfigUnit] = None
 
     def __post_init__(self):
         if isinstance(self.activation, dict):
@@ -415,6 +455,12 @@ def handle_tuples(validate_func):
 
 
 class QuantizationConfig(BaseConfig):
+    """
+    Represents the general quantization configuration.
+    It specifies which object types and modules should be quantized by providing an [`optimum.fx.quantization.QConfig`] for each.
+    It is the optimum counterpart of PyTorch qconfig_dict.
+    """
+
     CONFIG_NAME = "fx_quantization_config.json"
     FULL_CONFIGURATION_FILE = "fx_quantization_config.json"
 
