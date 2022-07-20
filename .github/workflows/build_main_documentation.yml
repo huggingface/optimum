@@ -41,6 +41,11 @@ jobs:
           repository: 'huggingface/optimum-graphcore'
           path: optimum-graphcore
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-intel'
+          path: optimum-intel
+
       - name: Set environment variables
         run: |
           cd optimum
@@ -86,6 +91,15 @@ jobs:
           sudo mv habana-doc-build ../optimum
           cd ..
 
+      - name: Make Intel documentation
+        run: |
+          cd optimum-intel
+          git fetch origin
+          git checkout documentation
+          make doc BUILD_DIR=intel-doc-build
+          sudo mv intel-doc-build ../optimum
+          cd ..
+
       - name: Make Optimum documentation
         run: |
           cd optimum
@@ -95,7 +109,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel --version ${{ env.VERSION }}
           sudo cp -r optimum-doc-build/optimum/${{ env.VERSION }} ../build_dir/optimum
           cd ..
 
