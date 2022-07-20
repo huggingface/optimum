@@ -138,7 +138,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
             model.save_pretrained(tmpdirname)
             folder_contents = os.listdir(tmpdirname)
-            # Verify config and ONNX exported encoder, decoder and decoder with past present in folder
+            # Verify config and ONNX exported encoder, decoder and decoder with past are present in folder
             self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
             self.assertTrue(ONNX_DECODER_NAME in folder_contents)
             self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
