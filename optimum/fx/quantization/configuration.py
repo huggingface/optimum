@@ -110,8 +110,8 @@ class QConfigUnit:
             raise ValueError(
                 "You have to either provide neither quant_min and quant_max or both, but here only one of them was specified."
             )
-        # if isinstance(self.dtype, str):
-        #     self.dtype = getattr(torch, self.dtype)
+        if isinstance(self.dtype, str):
+            self.dtype = getattr(torch, self.dtype)
         if not isinstance(self.calibration_method, CalibrationMethod):
             self.calibration_method = CalibrationMethod(self.calibration_method)
 

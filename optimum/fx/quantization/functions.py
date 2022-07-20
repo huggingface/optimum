@@ -16,13 +16,13 @@ from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import torch
+from torch.ao.quantization.fx.graph_module import GraphModule, ObservedGraphModule
+from torch.ao.quantization.quantize_fx import Scope, ScopeContextManager
+from torch.ao.quantization.quantize_fx import fuse_fx as orig_fuse_fx
+from torch.ao.quantization.quantize_fx import prepare_fx as orig_prepare_fx
+from torch.ao.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
 from torch.fx.node import Argument, Node, Target
 from torch.nn.intrinsic import _FusedModule
-from torch.quantization.fx.graph_module import GraphModule, ObservedGraphModule
-from torch.quantization.quantize_fx import Scope, ScopeContextManager
-from torch.quantization.quantize_fx import fuse_fx as orig_fuse_fx
-from torch.quantization.quantize_fx import prepare_fx as orig_prepare_fx
-from torch.quantization.quantize_fx import prepare_qat_fx as orig_prepare_qat_fx
 from tqdm import tqdm
 from transformers import PreTrainedModel
 from transformers.utils.fx import HFTracer, check_if_model_is_supported, get_concrete_args, symbolic_trace
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 class QuantizationTracer(HFTracer):
     """
-    Transformers compatible version of torch.quantization.quantize_fx.QuantizationTracer.
+    Transformers compatible version of torch.ao.quantization.quantize_fx.QuantizationTracer.
     This tracer is used internally to prepare the model for quantization.
     """
 
@@ -104,7 +104,7 @@ def fuse_fx(
     check: bool = True,
 ) -> GraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.fuse_fx, refer to the
+    Transformers models compatible version of torch.ao.quantization.quantize_fx.fuse_fx, refer to the
     [PyTorch documentation](https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.fuse_fx.html) for
     more details.
 
@@ -155,7 +155,7 @@ def prepare_fx(
     check: bool = True,
 ) -> ObservedGraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.prepare_fx, refer to the [PyTorch
+    Transformers models compatible version of torch.ao.quantization.quantize_fx.prepare_fx, refer to the [PyTorch
     documentation](https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_fx.html#torch.quantization.quantize_fx.prepare_fx)
     for more details.
 
@@ -182,7 +182,7 @@ def prepare_fx(
             If True, a check is done to verify that the model can be traced.
 
     Returns:
-        `torch.quantization.fx.graph_module.ObservedGraphModule`: An ObservedGraphModule ready for calibration.
+        `torch.ao.quantization.fx.graph_module.ObservedGraphModule`: An ObservedGraphModule ready for calibration.
 
     Example:
 
@@ -232,7 +232,7 @@ def prepare_qat_fx(
     check: bool = True,
 ) -> ObservedGraphModule:
     """
-    Transformers models compatible version of torch.quantization.quantize_fx.prepare_qat_fx, refer to the [PyTorch
+    Transformers models compatible version of torch.ao.quantization.quantize_fx.prepare_qat_fx, refer to the [PyTorch
     documentation](https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_qat_fx.html#torch.quantization.quantize_fx.prepare_qat_fx)
     for more details.
 
@@ -256,7 +256,7 @@ def prepare_qat_fx(
             If True, a check is done to verify that the model can be traced.
 
     Returns:
-        `torch.quantization.fx.graph_module.ObservedGraphModule`: An ObservedGraphModule ready for QAT.
+        `torch.ao.quantization.fx.graph_module.ObservedGraphModule`: An ObservedGraphModule ready for QAT.
 
     Example:
 
@@ -306,6 +306,15 @@ def _filter_model_inputs(model: torch.nn.Module, inputs: Dict[str, Any]):
 
 
 def calibrate(model: ObservedGraphModule, dataloader: torch.utils.data.DataLoader):
+    """
+    Calibrates the model quantization values.
+
+    Args:
+        model (`torch.ao.quantization.fx.graph_module.ObservedGraphModule`):
+            The model to calibrate.
+        dataloder (`torch.utils.data.DataLoader`):
+            The dataloader to use to calibrate the model.
+    """
     model.eval()
     filter_inputs = not _check_inputs_and_model_inputs_match(model, next(iter(dataloader)))
     with torch.no_grad():
@@ -318,6 +327,17 @@ def calibrate(model: ObservedGraphModule, dataloader: torch.utils.data.DataLoade
 def calibrate_qat(
     model: ObservedGraphModule, dataloader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer
 ):
+    """
+    Performs QAT on the model.
+
+    Args:
+        model (`torch.ao.quantization.fx.graph_module.ObservedGraphModule`):
+            The model to calibrate.
+        dataloder (`torch.utils.data.DataLoader`):
+            The dataloader to use to calibrate the model.
+        optimizer (`torch.optim.Optimizer`):
+            The optimizer to use to update the weight of the model during QAT.
+    """
     model.train()
     filter_inputs = not _check_inputs_and_model_inputs_match(model, next(iter(dataloader)))
     for inputs in tqdm(dataloader):

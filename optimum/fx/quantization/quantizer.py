@@ -30,14 +30,39 @@ if TYPE_CHECKING:
 
 def quantize(
     model: "PreTrainedModel",
-    preprocess_func: Callable[[Dict[str, Any]], Dict[str, Any]],
     approach: Union[str, QuantizationApproach],
-    qconfig_dict: Any,
+    qconfig_dict: Dict[str, Any],
+    preprocess_func: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
     calibration_dataset: Optional["Dataset"] = None,
     num_calibration_samples: int = -1,
     input_names: Optional[List[str]] = None,
-    convert_fn: Union[str, Callable[["ObservedGraphModule"], Any]] = convert_fx,
 ) -> torch.nn.Module:
+    """
+    Handles the quantization of the model end-to-end, by taking care of all the intermediate steps.
+
+    Args:
+        model (`transformers.PreTrainedModel`):
+            The model to quantize.
+        approach (`str` or [`~optimum.utils.runs.QuantizationApproach`]):
+            The quantization approach.
+        qconfig_dict (`Dict[str, Any]`):
+            The dictionary specifying how each part of the model should be quantized.
+            Please refer to [the PyTorch documentation](https://pytorch.org/docs/stable/generated/torch.quantization.quantize_fx.prepare_fx.html#torch.quantization.quantize_fx.prepare_fx)
+            for more details.
+        preprocess_func (`Callable[[Dict[str, Any]], [Dict[str, Any]], *optional*):
+            The preprocessing function to apply to the calibration dataset to make the data ready to be fed to the
+            model.
+        calibration_dataset (`datasets.Dataset`, *optional*):
+            The calibration dataset to use for calibrating the model quantization parameters or QAT.
+        num_calibration_samples (`int`, defaults to -1):
+            The number of examples to use from calibration_dataset.
+        input_names (`List[str]`, *optional*):
+            The name of the inputs to keep when tracing the model for quantization.
+
+    Returns:
+        `torch.nn.Module`:
+            The quantized version of the model.
+    """
     prepare_fn = prepare_qat_fx if approach is QuantizationApproach.qat else prepare_fx
     # TODO: handle the possibility to provide other arguments (equalization qconfig etc)
     prepared_model = prepare_fn(model, qconfig_dict, input_names=input_names)
