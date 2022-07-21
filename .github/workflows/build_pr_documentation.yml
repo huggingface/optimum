@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_and_package:
+  build_documentation:
     runs-on: ubuntu-latest
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
