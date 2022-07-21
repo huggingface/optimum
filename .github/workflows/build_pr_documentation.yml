@@ -55,13 +55,6 @@ jobs:
           pip install black
           cd ..
 
-      - name: Create build directory
-        run: |
-          mkdir build_dir
-          mkdir build_dir/optimum
-          cd build_dir/optimum
-          wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
-
       - name: Make Graphcore documentation
         run: |
           cd optimum-graphcore
