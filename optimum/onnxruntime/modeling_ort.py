@@ -298,51 +298,27 @@ class ORTModel(OptimizedModel):
         # 3. load normal model
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
-    def prepare_onnx_inputs(self, **kwargs):
-        onnx_inputs = {}
-        # converts pytorch inputs into numpy inputs for onnx
-        for input in self.model_inputs.keys():
-            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
-
-        return onnx_inputs
-
-    def prepare_onnx_outputs(self, onnx_outputs):
-        outputs = {}
-        # converts onnxruntime outputs into tensor for standard outputs
-        for output, idx in self.model_outputs.items():
-            outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
-
-        return outputs
-
 
 FEAUTRE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
-
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
     >>> import torch
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-
     >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
-
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
     ```
-
     Example using `transformers.pipeline`:
-
     ```python
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_extractor = pipeline("feature-extraction", model=model, tokenizer=tokenizer)
-
     >>> text = "My name is Philipp and I live in Germany."
     >>> pred = onnx_extractor(text)
     ```
@@ -400,34 +376,27 @@ class ORTModelForFeatureExtraction(ORTModel):
 
 QUESTION_ANSWERING_EXAMPLE = r"""
     Example of question answering:
-
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
     >>> import torch
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-
     >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
     >>> inputs = tokenizer(question, text, return_tensors="pt")
     >>> start_positions = torch.tensor([1])
     >>> end_positions = torch.tensor([3])
-
     >>> outputs = model(**inputs, start_positions=start_positions, end_positions=end_positions)
     >>> start_scores = outputs.start_logits
     >>> end_scores = outputs.end_logits
     ```
     Example using `transformers.pipeline`:
-
     ```python
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
-
     >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
     >>> pred = onnx_qa(question, text)
     ```
@@ -486,46 +455,34 @@ class ORTModelForQuestionAnswering(ORTModel):
 
 SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
     Example of single-label classification:
-
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
     >>> import torch
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-
     >>> inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
-
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
     ```
-
     Example using `transformers.pipelines`:
-
     ```python
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-
     >>> text = "Hello, my dog is cute"
     >>> pred = onnx_classifier(text)
     ```
-
     Example using zero-shot-classification `transformers.pipelines`:
-
     ```python
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
-
     >>> tokenizer = {processor_class}.from_pretrained("optimum/distilbert-base-uncased-mnli")
     >>> model = {model_class}.from_pretrained("optimum/distilbert-base-uncased-mnli")
     >>> onnx_z0 = pipeline("zero-shot-classification", model=model, tokenizer=tokenizer)
-
     >>> sequence_to_classify = "Who are you voting for in 2020?"
     >>> candidate_labels = ["Europe", "public health", "politics", "elections"]
     >>> pred = onnx_z0(sequence_to_classify, candidate_labels, multi_class=True)
@@ -551,9 +508,9 @@ class ORTModelForSequenceClassification(ORTModel):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
-        # create {name:idx} dict for model inputs and outputs
-        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
+        # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -587,32 +544,24 @@ class ORTModelForSequenceClassification(ORTModel):
 
 TOKEN_CLASSIFICATION_EXAMPLE = r"""
     Example of token classification:
-
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
     >>> import torch
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-
     >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
-
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
     ```
-
     Example using `transformers.pipelines`:
-
     ```python
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_ner = pipeline("token-classification", model=model, tokenizer=tokenizer)
-
     >>> text = "My name is Philipp and I live in Germany."
     >>> pred = onnx_ner(text)
     ```
@@ -671,31 +620,23 @@ class ORTModelForTokenClassification(ORTModel):
 
 TEXT_GENERATION_EXAMPLE = r"""
     Example of text generation:
-
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
     >>> import torch
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-
     >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
-
     >>> gen_tokens = model.generate(**inputs,do_sample=True,temperature=0.9, min_length=20,max_length=20)
     >>> tokenizer.batch_decode(gen_tokens)
     ```
-
     Example using `transformers.pipelines`:
-
     ```python
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
-
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_gen = pipeline("text-generation", model=model, tokenizer=tokenizer)
-
     >>> text = "My name is Philipp and I live in Germany."
     >>> gen = onnx_gen(text)
     ```
@@ -741,24 +682,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             checkpoint="optimum/gpt2",
         )
     )
-    def forward(self, **kwargs):
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
         # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = dict(
-            map(lambda input_name: (input_name, kwargs.pop(input_name).cpu().detach().numpy()), self.model_inputs)
-        )
+        onnx_inputs = {
+            "input_ids": input_ids.cpu().detach().numpy(),
+            "attention_mask": attention_mask.cpu().detach().numpy(),
+        }
         # run inference
-        onnx_outputs = self.model.run(None, onnx_inputs)
-        outputs = dict(
-            map(
-                lambda output_name: (
-                    output_name,
-                    torch.from_numpy(onnx_outputs[self.model_outputs[output_name]]).to(self.device),
-                ),
-                self.model_outputs,
-            )
-        )
+        outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
-        return CausalLMOutputWithCrossAttentions(outputs)
+        return CausalLMOutputWithCrossAttentions(logits=logits)
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(
@@ -786,37 +725,28 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
 IMAGE_CLASSIFICATION_EXAMPLE = r"""
     Example of image classification:
-
     ```python
     >>> import requests
     >>> from PIL import Image
     >>> from optimum.onnxruntime import {model_class}
     >>> from transformers import {processor_class}
-
     >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     >>> image = Image.open(requests.get(url, stream=True).raw)
-
     >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-
     >>> inputs = preprocessor(images=image, return_tensors="pt")
-
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     ```
-
     Example using `transformers.pipeline`:
-
     ```python
     >>> import requests
     >>> from PIL import Image
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
-
     >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
     >>> onnx_image_classifier = pipeline("image-classification", model=model, feature_extractor=preprocessor)
-
     >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     >>> pred = onnx_image_classifier(url)
     ```
