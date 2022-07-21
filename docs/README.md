@@ -367,9 +367,11 @@ build_doc_docker_image:
 
 doc: build_doc_docker_image
 	@test -n "$(BUILD_DIR)" || (echo "BUILD_DIR is empty." ; exit 1)
+	@test -n "$(VERSION)" || (echo "VERSION is empty." ; exit 1)
 	docker run -v $(CURRENT_DIR):/doc_folder --workdir=/doc_folder doc_maker \
 	doc-builder build optimum.habana /optimum-habana/docs/source/ \
 		--build_dir $(BUILD_DIR) \
+		--version $(VERSION) \
 		--html \
 		--clean
 ```
@@ -379,7 +381,7 @@ documentation by running the following command from the root of the subpackage
 repository:
 
 ```
-make doc BUILD_DIR=habana-doc-build
+make doc BUILD_DIR=habana-doc-build VERSION=main
 ```
 
 The final step is to include the subpackage in the GitHub Actions of the
@@ -397,7 +399,7 @@ with:
 - name: Make Habana documentation
 run: |
     cd optimum-habana
-    make doc BUILD_DIR=habana-doc-build # Make sure BUILD_DIR={subpackage_name}-doc-build
+    make doc BUILD_DIR=habana-doc-buil VERSION=pr_$PR_NUMBER # Make sure BUILD_DIR={subpackage_name}-doc-build
     sudo mv habana-doc-build ../optimum
     cd ..
 
