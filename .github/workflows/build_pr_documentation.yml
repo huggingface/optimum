@@ -60,21 +60,25 @@ jobs:
           cd optimum-graphcore
           git fetch origin
           git checkout documentation
-          make doc BUILD_DIR=graphcore-doc-build
+          make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
           sudo mv graphcore-doc-build ../optimum
           cd ..
 
       - name: Make Habana documentation
         run: |
           cd optimum-habana
-          make doc BUILD_DIR=habana-doc-build
+          git fetch origin
+          git checkout add-doc-ci
+          make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER
           sudo mv habana-doc-build ../optimum
           cd ..
 
       - name: Make Intel documentation
         run: |
           cd optimum-intel
-          make doc BUILD_DIR=intel-doc-build
+          git fetch origin
+          git checkout add-doc-prs
+          make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
           sudo mv intel-doc-build ../optimum
           cd ..
 
