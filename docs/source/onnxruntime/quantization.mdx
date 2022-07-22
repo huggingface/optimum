@@ -126,8 +126,7 @@ The `ORTQuantizer` class can be used to statically quantize your ONNX model. Bel
 
 ## Quantize Seq2Seq models.
 
-The `ORTQuantizer` currently doesn't support multi-file models, like `ORTModelForSeq2SeqLM`. If you want to quantize (statically/dynamically) a seq2seq model, you have to quantize each model individually using the `ORTQuantizer` class.
-Below you can find a simple example on how to quantize a seq2seq model.
+The `ORTQuantizer` currently doesn't support multi-file models, like `ORTModelForSeq2SeqLM`. If you want to quantize a Seq2Seq model, you have to quantize each model's component individually using the `ORTQuantizer` class. Currently, only dynamic quantization is supported for Seq2Seq model.
 
 1. load seq2seq model as `ORTModelForSeq2SeqLM`. 
 
@@ -138,20 +137,20 @@ Below you can find a simple example on how to quantize a seq2seq model.
 # load Seq2Seq model and set model file directory
 >>> model_id = "optimum/t5-small"
 >>> onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
->>> model_path = onnx_model.model_save_dir
+>>> model_dir = onnx_model.model_save_dir
 ```
 
 2. Define Quantizer for encoder, decoder and decoder with past keys
 
 ```python
 # Create encoder quantizer
->>> encoder_quantizer = ORTQuantizer.from_pretrained(model_path, file_name="encoder_model.onnx")
+>>> encoder_quantizer = ORTQuantizer.from_pretrained(model_dir, file_name="encoder_model.onnx")
 
 # Create decoder quantizer
->>> decoder_quantizer = ORTQuantizer.from_pretrained(model_path, file_name="decoder_model.onnx")
+>>> decoder_quantizer = ORTQuantizer.from_pretrained(model_dir, file_name="decoder_model.onnx")
 
 # Create decoder with past key values quantizer
->>> decoder_wp_quantizer = ORTQuantizer.from_pretrained(model_path, file_name="decoder_with_past_model.onnx")
+>>> decoder_wp_quantizer = ORTQuantizer.from_pretrained(model_dir, file_name="decoder_with_past_model.onnx")
 
 # Create Quantizer list
 >>> quantizer = [encoder_quantizer, decoder_quantizer, decoder_wp_quantizer]
