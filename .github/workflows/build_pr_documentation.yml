@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_and_package:
+  build_documentation:
     runs-on: ubuntu-latest
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
@@ -32,6 +32,16 @@ jobs:
           repository: 'huggingface/optimum-habana'
           path: optimum-habana
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-graphcore'
+          path: optimum-graphcore
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-intel'
+          path: optimum-intel
+
       - name: Set environment variables
         run: |
           echo "write_token=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
@@ -45,18 +55,25 @@ jobs:
           pip install black
           cd ..
 
-      - name: Create build directory
+      - name: Make Graphcore documentation
         run: |
-          mkdir build_dir
-          mkdir build_dir/optimum
-          cd build_dir/optimum
-          wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
+          cd optimum-graphcore
+          make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
+          sudo mv graphcore-doc-build ../optimum
+          cd ..
 
       - name: Make Habana documentation
         run: |
           cd optimum-habana
-          make doc BUILD_DIR=habana-doc-build
+          make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER
           sudo mv habana-doc-build ../optimum
+          cd ..
+
+      - name: Make Intel documentation
+        run: |
+          cd optimum-intel
+          make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
+          sudo mv intel-doc-build ../optimum
           cd ..
 
       - name: Make Optimum documentation
@@ -68,7 +85,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages habana --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 
