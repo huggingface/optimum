@@ -382,12 +382,17 @@ class FuseBiasInLinear(ReversibleTransformation):
                 module = graph_module.get_submodule(node.target)
                 if isinstance(module, torch.nn.Linear) and module.bias is not None:
                     with graph_module.graph.inserting_before(node):
+                        n = node.args[0]
+                        node.nodes_to_ignore = set()
+                        while n is not node:
+                            node.nodes_to_ignore.add(n)
+                            n = n.next
                         linear_input_proxy = torch.fx.Proxy(node.args[0], tracer)
                         output_proxy = insert_concat(linear_input_proxy)
-                        node.original_node_args = node.args
+                        node.start_node = linear_input_proxy.node
+                        node.end_node = output_proxy.node
                         node.args = (output_proxy.node,)
                         node.was_transformed = "FuseBiasInLinear"
-
                     new_weight = torch.nn.Parameter(torch.cat([module.weight, module.bias[:, None]], dim=1))
                     module.weight = new_weight
                     module.bias = None
@@ -396,13 +401,12 @@ class FuseBiasInLinear(ReversibleTransformation):
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
         for node in graph_module.graph.nodes:
             if getattr(node, "was_transformed", "") == "FuseBiasInLinear":
-                inserted_nodes = [node.args[0]]
-                node.args = node.original_node_args
-                while inserted_nodes:
-                    n = inserted_nodes.pop(0)
-                    if n is not node.original_node_args[0]:
-                        inserted_nodes += list(n.users.keys())
-                    graph_module.graph.erase_node(n)
+                node.args = (node.start_node,)
+                n = node.end_node
+                while n is not node.start_node:
+                    if n not in node.nodes_to_ignore:
+                        graph_module.graph.erase_node(n)
+                    n = n.prev
                 module = graph_module.get_submodule(node.target)
                 new_weight = torch.nn.Parameter(module.weight[:, :-1])
                 new_bias = torch.nn.Parameter(module.weight[:, -1].squeeze())

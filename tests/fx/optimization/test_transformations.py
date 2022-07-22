@@ -22,9 +22,9 @@ from transformers.utils.fx import symbolic_trace
 
 from optimum.fx.optimization import (
     ChangeTrueDivToMulByInverse,
-    ReversibleTransformation,
     FuseBiasInLinear,
     MergeLinears,
+    ReversibleTransformation,
     Transformation,
     compose,
 )
