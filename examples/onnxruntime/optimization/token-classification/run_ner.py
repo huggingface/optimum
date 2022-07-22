@@ -31,7 +31,7 @@ import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset, load_metric
-from transformers import HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -313,11 +313,11 @@ def main():
             raw_datasets = load_dataset(extension, data_files=data_files, cache_dir=model_args.cache_dir)
 
         if training_args.do_eval:
+            if "validation" not in raw_datasets:
+                raise ValueError("--do_eval requires a validation dataset")
             column_names = raw_datasets["validation"].column_names
-            features = raw_datasets["validation"].features
         else:
-            column_names = raw_datasets["test"].column_names
-            features = raw_datasets["test"].features
+            column_names = raw_datasets["train"].column_names
 
         if data_args.text_column_name is not None:
             text_column_name = data_args.text_column_name
@@ -332,6 +332,21 @@ def main():
             label_column_name = f"{data_args.task_name}_tags"
         else:
             label_column_name = column_names[1]
+
+        if training_args.do_eval:
+            # Preprocess the evaluation dataset
+            eval_dataset = raw_datasets["validation"]
+            if data_args.max_eval_samples is not None:
+                eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+
+            label2id = PretrainedConfig.from_pretrained(model_args.model_name_or_path).label2id
+            if label2id:
+                eval_dataset = eval_dataset.align_labels_with_mapping(
+                    label2id=label2id, label_column=label_column_name
+                )
+            features = eval_dataset.features
+        else:
+            features = raw_datasets["train"].features
 
         # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
         # unique labels.
@@ -437,12 +452,6 @@ def main():
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
-        # Preprocess the evaluation dataset
-        if "validation" not in raw_datasets:
-            raise ValueError("--do_eval requires a validation dataset")
-        eval_dataset = raw_datasets["validation"]
-        if data_args.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
         eval_dataset = eval_dataset.map(
             partial(tokenize_and_align_labels, tokenizer=optimizer.preprocessor),
             batched=True,
