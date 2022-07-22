@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from transformers import (
@@ -31,7 +31,7 @@ from transformers.onnx.utils import get_preprocessor
 import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
-from ..modeling_base import OptimizedModel
+from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
 
 
@@ -90,12 +90,19 @@ class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, **kwargs):
+    def __init__(self, model: ort.InferenceSession, config, providers: List[str], **kwargs):
         self.model = model
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
-        self._device = get_device_for_provider(self.model.get_providers()[0])
+        self.providers = providers
+        self._device = get_device_for_provider(providers[0])
+
+        if self._device == None:
+            logger.warn(
+                f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {providers[0]}."
+                f" Use `ort_model.to()` to send the outputs to the wanted device."
+            )
 
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -111,10 +118,10 @@ class ORTModel(OptimizedModel):
         return self._device
 
     @device.setter
-    def device(self, value):
+    def device(self, value: torch.device):
         self._device = value
 
-    def to(self, device):
+    def to(self, device: torch.device):
         """
         Changes the ONNX Runtime provider according to the device.
         """
@@ -127,22 +134,38 @@ class ORTModel(OptimizedModel):
         raise NotImplementedError
 
     @staticmethod
-    def load_model(path: Union[str, Path], provider=None, sess_options=None):
+    def load_model(
+        path: Union[str, Path],
+        provider: Optional[Union[str, List[str]]] = None,
+        session_options: Optional[ort.SessionOptions] = None,
+        **kwargs
+    ):
         """
         Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
 
         Arguments:
             path (`str` or `Path`):
                 Directory from which to load the model.
-            provider (`str`, *optional*):
-                ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
-            sess_options (`onnxruntime.SessionOptions`, *optional*),:
+            provider (`str` or `List[str]`, *optional*):
+                ONNX Runtime providers to use for loading the model. This can either be a single provider given as a string (for example
+                `CUDAExecutionProvider`) or a list of execution providers to use in priority order.
+                See https://onnxruntime.ai/docs/execution-providers/ for more details. Defaults to `CPUExecutionProvider`.
+            session_options (`onnxruntime.SessionOptions`, *optional*),:
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
         """
-        if provider is None:
-            provider = "CPUExecutionProvider"
+        if isinstance(provider, str):
+            providers = [provider]
+        elif isinstance(provider, list):
+            providers = provider
 
-        return ort.InferenceSession(path, providers=[provider], sess_options=sess_options)
+        available_providers = ort.get_available_providers()
+        for provider in providers:
+            if provider not in available_providers:
+                raise ValueError(
+                    f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+                )
+
+        return ort.InferenceSession(path, providers=providers, sess_options=session_options)
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
@@ -160,6 +183,30 @@ class ORTModel(OptimizedModel):
         src_path = self.model_save_dir.joinpath(self.latest_model_name)
         dst_path = Path(save_directory).joinpath(model_file_name)
         shutil.copyfile(src_path, dst_path)
+
+    @classmethod
+    @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
+    def from_pretrained(
+        self,
+        provider: Union[str, List[str]] = "CPUExecutionProvider",
+        session_options: ort.SessionOptions = None,
+        *args,
+        **kwargs
+    ):
+        """
+            provider (`str` or `List[str]`, *optional*):
+                ONNX Runtime providers to use for loading the model. This can either be a single provider given as a string (for example
+                `CUDAExecutionProvider`) or a list of execution providers to use in priority order.
+                See https://onnxruntime.ai/docs/execution-providers/ for more details. Defaults to `CPUExecutionProvider`.
+            session_options (`onnxruntime.SessionOptions`, *optional*),:
+                ONNX Runtime session options to use for loading the model. Defaults to `None`.
+
+        Returns:
+            `ORTModel`: The loaded ORTModel model.
+        """
+        kwargs["session_options"] = session_options
+        kwargs["provider"] = provider
+        super().from_pretrained(*args, **kwargs)
 
     @classmethod
     def _from_pretrained(
@@ -199,7 +246,7 @@ class ORTModel(OptimizedModel):
         # load model from local directory
         if os.path.isdir(model_id):
             config = PretrainedConfig.from_dict(config_dict)
-            model = ORTModel.load_model(os.path.join(model_id, model_file_name))
+            model = ORTModel.load_model(os.path.join(model_id, model_file_name), **kwargs)
             kwargs["model_save_dir"] = Path(model_id)
             kwargs["latest_model_name"] = model_file_name
         # load model from hub
@@ -215,9 +262,10 @@ class ORTModel(OptimizedModel):
             )
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
-            model = ORTModel.load_model(model_cache_path)
+            model = ORTModel.load_model(model_cache_path, **kwargs)
             config = PretrainedConfig.from_dict(config_dict)
-        return cls(model=model, config=config, **kwargs)
+        providers = model.get_providers()
+        return cls(model=model, config=config, providers=providers, **kwargs)
 
     @classmethod
     def _from_transformers(
