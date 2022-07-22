@@ -78,21 +78,21 @@ jobs:
       - name: Make Graphcore documentation
         run: |
           cd optimum-graphcore
-          make doc BUILD_DIR=graphcore-doc-build VERSION=${{ env.VERSION }}
+          make doc BUILD_DIR=graphcore-doc-build VERSION=main
           sudo mv graphcore-doc-build ../optimum
           cd ..
 
       - name: Make Habana documentation
         run: |
           cd optimum-habana
-          make doc BUILD_DIR=habana-doc-build VERSION=${{ env.VERSION }}
+          make doc BUILD_DIR=habana-doc-build VERSION=main
           sudo mv habana-doc-build ../optimum
           cd ..
 
       - name: Make Intel documentation
         run: |
           cd optimum-intel
-          make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
+          make doc BUILD_DIR=intel-doc-build VERSION=main
           sudo mv intel-doc-build ../optimum
           cd ..
 
