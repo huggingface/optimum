@@ -58,8 +58,6 @@ jobs:
       - name: Make Graphcore documentation
         run: |
           cd optimum-graphcore
-          git fetch origin
-          git checkout documentation
           make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
           sudo mv graphcore-doc-build ../optimum
           cd ..
