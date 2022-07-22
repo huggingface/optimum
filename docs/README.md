@@ -399,7 +399,7 @@ with:
 - name: Make Habana documentation
 run: |
     cd optimum-habana
-    make doc BUILD_DIR=habana-doc-buil VERSION=pr_$PR_NUMBER # Make sure BUILD_DIR={subpackage_name}-doc-build
+    make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER # Make sure BUILD_DIR={subpackage_name}-doc-build
     sudo mv habana-doc-build ../optimum
     cd ..
 
