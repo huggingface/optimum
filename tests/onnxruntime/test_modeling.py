@@ -64,16 +64,19 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cpu"))
 
+    @require_torch_gpu
     def test_load_model_cuda_provider_list(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=["CUDAExecutionProvider"])
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cuda"))
 
+    @require_torch_gpu
     def test_load_model_cuda_provider_str(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cuda"))
 
+    @require_torch_gpu
     def test_load_model_several_providers(self):
         model = ORTModel.from_pretrained(
             self.ONNX_MODEL_ID, provider=["CUDAExecutionProvider", "TensorrtExecutionProvider"]
@@ -94,18 +97,21 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
+    @require_torch_gpu
     def test_load_seq2seq_model_cuda_provider_list(self):
-        model = ORTModel.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider=["CUDAExecutionProvider"])
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider=["CUDAExecutionProvider"])
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cuda"))
 
+    @require_torch_gpu
     def test_load_seq2seq_model_cuda_provider_str(self):
-        model = ORTModel.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cuda"))
 
+    @require_torch_gpu
     def test_load_seq2seq_model_several_providers(self):
-        model = ORTModel.from_pretrained(
+        model = ORTModelForSeq2SeqLM.from_pretrained(
             self.ONNX_SEQ2SEQ_MODEL_ID, provider=["CUDAExecutionProvider", "TensorrtExecutionProvider"]
         )
         self.assertListEqual(
@@ -115,7 +121,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_load_seq2seq_model_unknown_provider(self):
         with self.assertRaises(ValueError):
-            ORTModel.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
+            ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_model_from_hub_without_onnx_model(self):
         with self.assertRaises(EntryNotFoundError):
