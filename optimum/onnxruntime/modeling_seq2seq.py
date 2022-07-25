@@ -16,7 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, Mapping, Optional, Set, Tuple, Union
+from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import torch
 import transformers
@@ -26,7 +26,6 @@ from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.onnx import FeaturesManager, export
 
-import onnx
 import onnxruntime
 from huggingface_hub import HfApi, hf_hub_download
 
@@ -167,7 +166,10 @@ class ORTModelForConditionalGeneration(ORTModel):
     ):
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
+
+        self.providers = encoder_session.get_providers()
         self._device = get_device_for_provider(encoder_session.get_providers()[0])
+
         self.encoder = ORTEncoder(session=encoder_session, device=self._device)
         self.decoder = ORTDecoder(session=decoder_session, device=self._device)
         self.decoder_with_past = ORTDecoder(session=decoder_with_past_session, device=self._device)
@@ -184,7 +186,8 @@ class ORTModelForConditionalGeneration(ORTModel):
         encoder_path: Union[str, Path],
         decoder_path: Union[str, Path],
         decoder_with_past_path: Union[str, Path],
-        provider: str = None,
+        provider: Union[str, List[str]] = "CPUExecutionProvider",
+        **kwargs
     ):
         """
         Creates an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
@@ -201,12 +204,21 @@ class ORTModelForConditionalGeneration(ORTModel):
             provider(`str`, *optional*):
                 The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
         """
-        if provider is None:
-            provider = "CPUExecutionProvider"
+        if isinstance(provider, str):
+            providers = [provider]
+        elif isinstance(provider, list):
+            providers = provider
 
-        encoder_session = onnxruntime.InferenceSession(str(encoder_path), providers=[provider])
-        decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=[provider])
-        decoder_with_past_session = onnxruntime.InferenceSession(str(decoder_with_past_path), providers=[provider])
+        available_providers = onnxruntime.get_available_providers()
+        for provider in providers:
+            if provider not in available_providers:
+                raise ValueError(
+                    f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+                )
+
+        encoder_session = onnxruntime.InferenceSession(str(encoder_path), providers=providers)
+        decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=providers)
+        decoder_with_past_session = onnxruntime.InferenceSession(str(decoder_with_past_path), providers=providers)
         return encoder_session, decoder_session, decoder_with_past_session
 
     def _save_pretrained(
@@ -303,6 +315,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=os.path.join(model_id, encoder_file_name),
                 decoder_path=os.path.join(model_id, decoder_file_name),
                 decoder_with_past_path=os.path.join(model_id, decoder_with_past_file_name),
+                **kwargs,
             )
             kwargs["model_save_dir"] = Path(model_id)
             kwargs["last_encoder_name"] = encoder_file_name
@@ -328,6 +341,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_encoder_model_name"]),
                 decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
                 decoder_with_past_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_with_past_model_name"]),
+                **kwargs,
             )
 
         return cls(*model, config=config, **kwargs)
