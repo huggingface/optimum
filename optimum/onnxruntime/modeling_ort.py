@@ -136,7 +136,7 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def load_model(
         path: Union[str, Path],
-        provider: Optional[Union[str, List[str]]] = None,
+        provider: Optional[Union[str, List[str]]] = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         **kwargs
     ):
@@ -164,7 +164,7 @@ class ORTModel(OptimizedModel):
                 raise ValueError(
                     f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
                 )
-
+        
         return ort.InferenceSession(path, providers=providers, sess_options=session_options)
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
@@ -187,7 +187,8 @@ class ORTModel(OptimizedModel):
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
-        self,
+        cls,
+        model_id: Union[str, Path],
         provider: Union[str, List[str]] = "CPUExecutionProvider",
         session_options: ort.SessionOptions = None,
         *args,
@@ -206,7 +207,8 @@ class ORTModel(OptimizedModel):
         """
         kwargs["session_options"] = session_options
         kwargs["provider"] = provider
-        super().from_pretrained(*args, **kwargs)
+        kwargs["model_id"] = model_id
+        return super().from_pretrained(*args, **kwargs)
 
     @classmethod
     def _from_pretrained(
@@ -264,8 +266,8 @@ class ORTModel(OptimizedModel):
             kwargs["latest_model_name"] = Path(model_cache_path).name
             model = ORTModel.load_model(model_cache_path, **kwargs)
             config = PretrainedConfig.from_dict(config_dict)
-        providers = model.get_providers()
-        return cls(model=model, config=config, providers=providers, **kwargs)
+        
+        return cls(model=model, config=config, providers=model.get_providers(), **kwargs)
 
     @classmethod
     def _from_transformers(

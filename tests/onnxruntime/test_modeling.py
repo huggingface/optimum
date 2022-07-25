@@ -62,29 +62,28 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-        self.assertListEqual(model.device, torch.device("cpu"))
+        self.assertEqual(model.device, torch.device("cpu"))
 
-    def test_load_model_cuda_provider(self):
+    def test_load_model_cuda_provider_list(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=["CUDAExecutionProvider"])
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider"])
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cuda"))
 
     def test_load_model_cuda_provider_str(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider"])
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cuda"))
 
     def test_load_model_several_providers(self):
         model = ORTModel.from_pretrained(
             self.ONNX_MODEL_ID, provider=["CUDAExecutionProvider", "TensorrtExecutionProvider"]
         )
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "TensorrtExecutionProvider"])
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "TensorrtExecutionProvider", "CPUExecutionProvider"])
         self.assertEqual(model.device, torch.device("cuda"))
 
     def test_load_model_unknown_provider(self):
-        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="TensorrtExecutionProvider")
-        self.assertListEqual(model.providers, ["TensorrtExecutionProvider"])
-        self.assertEqual(model.device, torch.device("cpu"))  # defaulting
+        with self.assertRaises(ValueError):
+            ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID)
