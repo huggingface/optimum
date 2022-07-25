@@ -78,7 +78,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(
             self.ONNX_MODEL_ID, provider=["CUDAExecutionProvider", "TensorrtExecutionProvider"]
         )
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "TensorrtExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(
+            model.providers, ["CUDAExecutionProvider", "TensorrtExecutionProvider", "CPUExecutionProvider"]
+        )
         self.assertEqual(model.device, torch.device("cuda"))
 
     def test_load_model_unknown_provider(self):

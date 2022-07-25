@@ -90,13 +90,13 @@ class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
     auto_model_class = AutoModel
 
-    def __init__(self, model: ort.InferenceSession, config, providers: List[str], **kwargs):
+    def __init__(self, model: ort.InferenceSession, config, **kwargs):
         self.model = model
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
-        self.providers = providers
-        self._device = get_device_for_provider(providers[0])
+        self.providers = model.get_providers()
+        self._device = get_device_for_provider(self.providers[0])
 
         if self._device == None:
             logger.warn(
@@ -128,6 +128,7 @@ class ORTModel(OptimizedModel):
         self.device = device
         provider = get_provider_for_device(self.device)
         self.model.set_providers([provider])
+        self.providers = self.model.get_providers()
         return self
 
     def forward(self, *args, **kwargs):
@@ -164,7 +165,7 @@ class ORTModel(OptimizedModel):
                 raise ValueError(
                     f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
                 )
-        
+
         return ort.InferenceSession(path, providers=providers, sess_options=session_options)
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
@@ -189,26 +190,37 @@ class ORTModel(OptimizedModel):
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
+        from_transformers: bool = False,
+        force_download: bool = True,
+        use_auth_token: Optional[str] = None,
+        cache_dir: Optional[str] = None,
         provider: Union[str, List[str]] = "CPUExecutionProvider",
         session_options: ort.SessionOptions = None,
         *args,
         **kwargs
     ):
         """
-            provider (`str` or `List[str]`, *optional*):
-                ONNX Runtime providers to use for loading the model. This can either be a single provider given as a string (for example
-                `CUDAExecutionProvider`) or a list of execution providers to use in priority order.
-                See https://onnxruntime.ai/docs/execution-providers/ for more details. Defaults to `CPUExecutionProvider`.
-            session_options (`onnxruntime.SessionOptions`, *optional*),:
-                ONNX Runtime session options to use for loading the model. Defaults to `None`.
+        provider (`str` or `List[str]`, *optional*):
+            ONNX Runtime providers to use for loading the model. This can either be a single provider given as a string (for example
+            `CUDAExecutionProvider`) or a list of execution providers to use in priority order.
+            See https://onnxruntime.ai/docs/execution-providers/ for more details. Defaults to `CPUExecutionProvider`.
+        session_options (`onnxruntime.SessionOptions`, *optional*),:
+            ONNX Runtime session options to use for loading the model. Defaults to `None`.
 
         Returns:
             `ORTModel`: The loaded ORTModel model.
         """
-        kwargs["session_options"] = session_options
-        kwargs["provider"] = provider
-        kwargs["model_id"] = model_id
-        return super().from_pretrained(*args, **kwargs)
+        return super().from_pretrained(
+            model_id,
+            from_transformers,
+            force_download,
+            use_auth_token,
+            cache_dir,
+            provider=provider,
+            session_options=session_options,
+            *args,
+            **kwargs,
+        )
 
     @classmethod
     def _from_pretrained(
@@ -266,8 +278,8 @@ class ORTModel(OptimizedModel):
             kwargs["latest_model_name"] = Path(model_cache_path).name
             model = ORTModel.load_model(model_cache_path, **kwargs)
             config = PretrainedConfig.from_dict(config_dict)
-        
-        return cls(model=model, config=config, providers=model.get_providers(), **kwargs)
+
+        return cls(model=model, config=config, **kwargs)
 
     @classmethod
     def _from_transformers(

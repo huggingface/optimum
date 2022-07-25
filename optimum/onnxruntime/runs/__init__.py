@@ -98,7 +98,9 @@ class OnnxRuntimeRun(Run):
         ort_session = ORTModel.load_model(self.quantized_model_path)
 
         # necessary to pass the config for the pipeline not to complain later
-        self.ort_model = task_ortmodel_map[self.task](ort_session, config=quantizer.model.config, providers=["CPUExecutionProvider"])
+        self.ort_model = task_ortmodel_map[self.task](
+            ort_session, config=quantizer.model.config, providers=["CPUExecutionProvider"]
+        )
 
         # pytorch benchmark
         model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
