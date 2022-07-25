@@ -6,7 +6,7 @@ import yaml
 
 
 parser = argparse.ArgumentParser(
-    description="Script to combine doc builds from subpackages with base doc build of Optimum. " 
+    description="Script to combine doc builds from subpackages with base doc build of Optimum. "
     "Assumes all subpackage doc builds are present in the root of the `optimum` repo."
 )
 parser.add_argument(
