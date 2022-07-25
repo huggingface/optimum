@@ -1,0 +1,516 @@
+#  Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+import logging
+import os
+import shutil
+from pathlib import Path
+from typing import Any, DefaultDict, Dict, Mapping, Optional, Set, Tuple, Union
+
+import torch
+import transformers
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, PretrainedConfig
+from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
+from transformers.generation_utils import GenerationMixin
+from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
+from transformers.onnx import FeaturesManager, export
+from transformers.onnx.utils import get_preprocessor
+
+import onnx
+import onnxruntime
+from huggingface_hub import HfApi, hf_hub_download
+from optimum.onnx.configuration import DecoderOnnxConfigWithPast
+
+from .modeling_ort import ORTModel
+from .utils import (
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    get_device_for_provider,
+    get_provider_for_device,
+)
+
+
+logger = logging.getLogger(__name__)
+
+ONNX_INPUTS_DOCSTRING = r"""
+    Arguments:
+        decoder_session (`onnxruntime.InferenceSession`):
+            The ONNX Runtime inference session associated to the decoder.
+        decoder_with_past_session (`onnxruntime.InferenceSession`):
+            The ONNX Runtime inference session associated to the decoder with past key values.
+        config (`transformers.PretrainedConfig`):
+            [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig)
+            is an instance of the configuration associated to the model. Initializing with a config file does
+            not load the weights associated with the model, only the configuration.
+        decoder_file_name(`str`, *optional*):
+            The decoder model file name. Overwrites the default file name and allows one to save the decoder model with
+            a different name.
+        decoder_with_past_file_name(`str`, *optional*):
+            The decoder with past key values model file name overwriting the default file name, allowing to save
+            the decoder model with a different name.
+"""
+
+DECODER_INPUTS_DOCSTRING = r"""
+    Arguments:
+        input_ids (`torch.LongTensor`):
+            Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, sequence_length)`.
+        attention_mask (`torch.LongTensor`, *optional*):
+            Mask to avoid performing attention on padding token indices, of shape
+            `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+            Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
+            The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, sequence_length, embed_size_per_head)`.
+"""
+
+CAUSALLM_ONNX_MODEL_DOCSTRING = r"""
+    Arguments:
+        input_ids (`torch.LongTensor`):
+            Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, sequence_length)`.
+        attention_mask (`torch.LongTensor`):
+            Mask to avoid performing attention on padding token indices, of shape
+            `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+            Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
+            The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, sequence_length, embed_size_per_head)`.
+"""
+
+_TOKENIZER_FOR_DOC = "AutoTokenizer"
+
+TEXT_GENERATION_EXAMPLE = r"""
+    Example of text generation:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> import torch
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = tokenizer("My name is Arthur and I live in", return_tensors="pt")
+
+    >>> gen_tokens = model.generate(**inputs,do_sample=True,temperature=0.9, min_length=20,max_length=20)
+    >>> tokenizer.batch_decode(gen_tokens)
+    ```
+
+    Example using `transformers.pipelines`:
+
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_gen = pipeline("text-generation", model=model, tokenizer=tokenizer)
+
+    >>> text = "My name is Arthur and I live in"
+    >>> gen = onnx_gen(text)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    ONNX model with a causal language modeling head for ONNX Runtime inference.
+    """,
+    ONNX_INPUTS_DOCSTRING,
+)
+class ORTModelDecoder(ORTModel):
+    # Used in from_transformers to export model to onnx
+    base_model_prefix = "onnx_model"
+    pipeline_task = "causal-lm"
+    auto_model_class = AutoModelForCausalLM
+
+    def __init__(
+        self,
+        decoder_session: onnxruntime.InferenceSession = None,
+        decoder_with_past_session: onnxruntime.InferenceSession = None,
+        config: transformers.PretrainedConfig = None,
+        **kwargs
+    ):
+        self.config = config
+        self.model_save_dir = kwargs.get("model_save_dir", None)
+        self._device = get_device_for_provider(decoder_session.get_providers()[0])
+        self.decoder = ORTDecoder(session=decoder_session, device=self._device)
+        self.use_cache = decoder_with_past_session is not None
+        # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
+        # will be enabled
+        self.decoder_with_past = (
+            ORTDecoder(session=decoder_with_past_session, device=self._device) if self.use_cache else None
+        )
+        self.decoder_file_name = kwargs.get("last_decoder_model_name", ONNX_DECODER_NAME)
+        self.decoder_file_with_past_name = kwargs.get("last_decoder_with_past_model_name", ONNX_DECODER_WITH_PAST_NAME)
+        # registers the ORTModelForXXX classes into the transformers AutoModel classes
+        # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
+        AutoConfig.register(self.base_model_prefix, AutoConfig)
+        self.auto_model_class.register(AutoConfig, self.__class__)
+
+    @staticmethod
+    def load_model(
+        decoder_path: Union[str, Path],
+        decoder_with_past_path: Union[str, Path] = None,
+        provider: str = None,
+    ):
+        """
+        Creates an instance of [`~optimum.onnxruntime.modeling_causal.ORTModelForCausalLM`].
+        Three inference sessions will be created for respectively the decoder and decoder with past key values
+        models. The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
+
+        Arguments:
+            decoder_path (`str` or `Path`):
+                The path of the decoder ONNX model.
+            decoder_with_past_path (`str` or `Path`, *optional*):
+                The path of the decoder with past key values ONNX model.
+            provider(`str`, *optional*):
+                The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
+        """
+        if provider is None:
+            provider = "CPUExecutionProvider"
+
+        decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=[provider])
+        decoder_with_past_session = None
+        # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
+        # will be enabled
+        if decoder_with_past_path is not None:
+            decoder_with_past_session = onnxruntime.InferenceSession(str(decoder_with_past_path), providers=[provider])
+        return decoder_session, decoder_with_past_session
+
+    def _save_pretrained(
+        self,
+        save_directory: Union[str, Path],
+        decoder_file_name: Optional[str] = None,
+        decoder_with_past_file_name: Optional[str] = None,
+        **kwargs
+    ):
+        """
+        Saves the model decoder and decoder with past key values as well as its configuration file to a
+        directory, so that it can be re-loaded using the
+        [`~optimum.onnxruntime.modeling_causal.ORTModelForCausalLM.from_pretrained`] class method.
+
+        Arguments:
+            save_directory (`str` or `Path`):
+                The directory where to save the model files.
+            decoder_file_name(`str`, *optional*):
+                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
+                with a different name.
+            decoder_with_past_file_name(`str`, *optional*):
+                The decoder with past key values model file name overwriting the default file name, allowing to save
+                the decoder model with a different name.
+        """
+        src_file_names = [self.decoder_file_name]
+        dst_file_names = [decoder_file_name or ONNX_DECODER_NAME]
+        if self.use_cache:
+            src_file_names.append(self.decoder_file_with_past_name)
+            dst_file_names.append(decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME)
+
+        for src_file_name, dst_file_name in zip(src_file_names, dst_file_names):
+            src_path = self.model_save_dir.joinpath(src_file_name)
+            dst_path = Path(save_directory).joinpath(dst_file_name)
+            shutil.copyfile(src_path, dst_path)
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        model_id: Union[str, Path],
+        use_auth_token: Optional[Union[bool, str, None]] = None,
+        revision: Optional[Union[str, None]] = None,
+        force_download: bool = True,
+        cache_dir: Optional[str] = None,
+        decoder_file_name: Optional[str] = None,
+        decoder_with_past_file_name: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Loads a model and its configuration file from a directory or the HF Hub.
+        Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
+
+        Arguments:
+            model_id (`str` or `Path`):
+                The directory from which to load the model.
+            use_auth_token (`str` or `bool`):
+                The token to use as HTTP bearer authorization for remote files. Needed to load models from a private
+                repository.
+            revision (`str`):
+                The specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Union[str, Path]`, *optional*):
+                The path to a directory in which a downloaded pretrained model configuration should be cached if the
+                standard cache should not be used.
+            force_download (`bool`, *optional*, defaults to `False`):
+                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
+                cached versions if they exist.
+            decoder_file_name(`str`, *optional*):
+                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
+                with a different name.
+            decoder_with_past_file_name(`str`, *optional*):
+                The decoder with past key values model file name overwriting the default file name, allowing to save
+                the decoder model with a different name.
+            kwargs (`Dict`, *optional*):
+                kwargs will be passed to the model during initialization.
+            use_cache (`bool`, *optional*, defaults to `True`):
+                Whether or not use the pre-computed key/values hidden-states in order to speed up sequential decoding.
+        """
+        config_dict = kwargs.pop("config", {})
+        use_cache = kwargs.pop("use_cache", True)
+        # use_cache = kwargs.pop("use_cache", None)
+        # use_cache = use_cache if use_cache is not None else config_dict.get("use_cache")
+        config = PretrainedConfig.from_dict(config_dict)
+        decoder_file_name = decoder_file_name or ONNX_DECODER_NAME
+        decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
+
+        # Load model from a local directory
+        if os.path.isdir(model_id):
+            decoder_with_past_path = os.path.join(model_id, decoder_with_past_file_name) if use_cache else None
+            model = cls.load_model(
+                decoder_path=os.path.join(model_id, decoder_file_name),
+                decoder_with_past_path=decoder_with_past_path,
+            )
+            kwargs["model_save_dir"] = Path(model_id)
+            kwargs["last_decoder_name"] = decoder_file_name
+            kwargs["last_decoder_with_past_name"] = decoder_with_past_file_name
+        # Load model from hub
+        else:
+            default_file_names = [ONNX_DECODER_NAME]
+            model_file_names = [decoder_file_name]
+            if use_cache:
+                default_file_names.append(ONNX_DECODER_WITH_PAST_NAME)
+                model_file_names.append(decoder_with_past_file_name)
+            # Download the decoder and decoder_with_past forming the model
+            for file_name, default_file_name in zip(model_file_names, default_file_names):
+                model_cache_path = hf_hub_download(
+                    repo_id=model_id,
+                    filename=file_name,
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                )
+                kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
+            kwargs["model_save_dir"] = Path(model_cache_path).parent
+
+            last_decoder_with_past_name = kwargs.get("last_decoder_with_past_model_name", None)
+            if last_decoder_with_past_name is not None:
+                last_decoder_with_past_name = kwargs["model_save_dir"].joinpath(last_decoder_with_past_name)
+            model = cls.load_model(
+                decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
+                decoder_with_past_path=last_decoder_with_past_name,
+            )
+
+        return cls(*model, config=config, **kwargs)
+
+    @classmethod
+    def _from_transformers(
+        cls,
+        model_id: str,
+        save_dir: Union[str, Path] = default_cache_path,
+        use_auth_token: Optional[Union[bool, str, None]] = None,
+        revision: Optional[Union[str, None]] = None,
+        force_download: bool = True,
+        cache_dir: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Exports through the ONNX format a vanilla Transformers model using `transformers.onnx.export_onnx`.
+
+        Arguments:
+            model_id (`str` or `Path`):
+                The directory from which to load the model.
+            save_dir (`str` or `Path`):
+                The directory where the ONNX model should be saved, default to
+                `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
+            use_auth_token (`str` or `bool`):
+                The token to use as HTTP bearer authorization for remote files. Needed to load models from a private
+                repository.
+            revision (`str`):
+                The specific model version to use. It can be a branch name, a tag name, or a commit id.
+            force_download (`bool`, *optional*, defaults to `False`):
+                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
+                cached versions if they exist.
+            cache_dir (`Union[str, Path]`, *optional*):
+                The path to a directory in which a downloaded pretrained model configuration should be cached if the
+                standard cache should not be used.
+            use_cache (`bool`, *optional*, defaults to `True`):
+                Whether or not use the pre-computed key/values hidden-states in order to speed up sequential decoding.
+            kwargs (`Dict`, *optional*):
+                kwargs will be passed to the model during initialization.
+        """
+        # Create local save dir in cache dir
+        save_dir = Path(save_dir).joinpath(model_id)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        kwargs["model_save_dir"] = save_dir
+        # use_cache = kwargs.get("use_cache", None)
+        use_cache = kwargs.get("use_cache", True)
+
+        preprocessor = get_preprocessor(model_id)
+        model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id)
+        # use_cache = use_cache if use_cache is not None else model.config.use_cache
+        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.pipeline_task)
+        onnx_config = model_onnx_config(model.config)
+        onnx_opset = onnx_config.default_onnx_opset
+
+        # Export the decoder without the past key values
+        onnx_config = DecoderOnnxConfigWithPast(model.config, task=cls.pipeline_task, use_past=False)
+        export(
+            preprocessor=preprocessor,
+            model=model,
+            config=onnx_config,
+            opset=onnx_opset,
+            output=save_dir.joinpath(ONNX_DECODER_NAME),
+        )
+
+        # Export the decoder with the past key values
+        if use_cache:
+            onnx_config_with_past = DecoderOnnxConfigWithPast(model.config, task=cls.pipeline_task, use_past=True)
+            export(
+                preprocessor=preprocessor,
+                model=model,
+                config=onnx_config_with_past,
+                opset=onnx_opset,
+                output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
+            )
+
+        kwargs["config"] = model.config.__dict__
+        return cls._from_pretrained(save_dir.as_posix(), **kwargs)
+
+    def to(self, device):
+        """
+        Changes the ONNX Runtime provider according to the device.
+        """
+        self.device = device
+        provider = get_provider_for_device(device)
+        self.decoder._device = device
+        self.decoder.session.set_providers([provider])
+        if self.decoder_with_past is not None:
+            self.decoder_with_past._device = device
+            self.decoder_with_past.session.set_providers([provider])
+        return self
+
+
+class ORTDecoder:
+    """
+    Decoder model with a language modeling head on top for ONNX Runtime inference.
+
+    Arguments:
+        session (`onnxruntime.InferenceSession`):
+            The ONNX Runtime inference session associated to the decoder.
+    """
+
+    def __init__(self, session: onnxruntime.InferenceSession, device: torch.device):
+        self.session = session
+        self._device = device
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+
+    @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
+    def forward(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+    ) -> CausalLMOutputWithCrossAttentions:
+
+        onnx_inputs = {
+            "input_ids": input_ids.cpu().detach().numpy(),
+            "attention_mask": attention_mask.cpu().detach().numpy(),
+        }
+
+        if past_key_values is not None:
+            # Flatten the past_key_values
+            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
+
+            # Add the past_key_values to the decoder inputs
+            for i, past_key_value in enumerate(past_key_values):
+                onnx_inputs[f"past_key_values_{i}.1"] = past_key_value.cpu().detach().numpy()
+
+        # Run inference
+        outputs = self.session.run(None, onnx_inputs)
+
+        # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
+        # self-attention layer and 2 to the cross-attention layer)
+        past_key_values = tuple(
+            torch.from_numpy(outputs[self.output_names[key]]).to(self._device)
+            for key in self.output_names
+            if "past_key_values" in key
+        )
+
+        # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
+        # per decoder layer
+        num_pkv = 2
+        past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
+        logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self._device)
+
+        return CausalLMOutputWithCrossAttentions(logits=logits, past_key_values=past_key_values)
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+
+class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
+    """
+    ONNX model with a causal language modeling head for ONNX Runtime inference.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.main_input_name = "input_ids"
+
+    @add_start_docstrings_to_model_forward(
+        CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
+        + TEXT_GENERATION_EXAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForCausalLM",
+            checkpoint="optimum/gpt2",
+        )
+    )
+    def forward(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        **kwargs,
+    ) -> CausalLMOutputWithCrossAttentions:
+
+        if past_key_values is None or self.decoder_with_past is None:
+            outputs = self.decoder(input_ids=input_ids, attention_mask=attention_mask)
+        else:
+            outputs = self.decoder_with_past(
+                input_ids=input_ids[:, -1:],
+                past_key_values=past_key_values,
+                attention_mask=attention_mask,
+            )
+
+        return CausalLMOutputWithCrossAttentions(logits=outputs.logits, past_key_values=outputs.past_key_values)
+
+    # Adapted from transformers.models.bart.modeling_bart.BartForCausalLM.prepare_inputs_for_generation
+    def prepare_inputs_for_generation(self, input_ids, past=None, attention_mask=None, use_cache=None, **kwargs):
+        # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
+        if attention_mask is None:
+            attention_mask = input_ids.new_ones(input_ids.shape)
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "past_key_values": past,
+            "use_cache": use_cache,
+        }
+
+    # Copied from transformers.models.bart.modeling_bart.BartForCausalLM._reorder_cache
+    @staticmethod
+    def _reorder_cache(past: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor) -> Tuple[Tuple[torch.Tensor]]:
+        reordered_past = ()
+        for layer_past in past:
+            reordered_past += (tuple(past_state.index_select(0, beam_idx) for past_state in layer_past),)
+        return reordered_past
+
