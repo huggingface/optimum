@@ -1,3 +1,4 @@
+import gc
 import os
 import shutil
 import tempfile
@@ -799,12 +800,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.decoder, ORTDecoder)
         self.assertIsInstance(model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
+        gc.collect()
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             model = ORTModelForSeq2SeqLM.from_pretrained("bert-base-uncased", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
@@ -817,6 +820,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         outputs = model(**tokens, **decoder_inputs)
         self.assertTrue("logits" in outputs)
         self.assertIsInstance(outputs.logits, torch.Tensor)
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils(self, *args, **kwargs):
@@ -828,6 +832,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         outputs = model.generate(**tokens)
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils_with_input_ids(self, *args, **kwargs):
@@ -839,6 +844,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
@@ -854,6 +860,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
             transformers_outputs = transformers_model(**tokens, **decoder_inputs)
         # Compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
@@ -866,6 +873,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         # compare model output class
         self.assertIsInstance(outputs[0]["generated_text"], str)
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
@@ -878,6 +886,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         # compare model output class
         self.assertIsInstance(outputs[0]["summary_text"], str)
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
@@ -890,6 +899,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         # compare model output class
         self.assertIsInstance(outputs[0]["translation_text"], str)
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         # Text2text generation
@@ -910,6 +920,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
         # compare model output class
         self.assertIsInstance(outputs[0]["translation_text"], str)
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     @require_torch_gpu
@@ -925,6 +936,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_default_pipeline_and_model_device(self, *args, **kwargs):
@@ -933,3 +945,4 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
         self.assertEqual(pipe.device, onnx_model.device)
+        gc.collect()
