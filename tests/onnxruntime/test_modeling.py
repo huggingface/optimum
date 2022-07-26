@@ -1,8 +1,20 @@
+# coding=utf-8
+# Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
-import shutil
 import tempfile
 import unittest
-from pathlib import Path
 
 import torch
 from PIL import Image
@@ -187,51 +199,42 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         "bert": "hf-internal-testing/tiny-random-bert",
         # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
         # "ibert": "hf-internal-testing/tiny-random-ibert",
-        "camembert": "etalab-ia/camembert-base-squadFR-fquad-piaf",
+        # "camembert": "etalab-ia/camembert-base-squadFR-fquad-piaf",
+        "camembert": "hf-internal-testing/tiny-random-camembert",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-        "xlm-roberta": "deepset/xlm-roberta-base-squad2",
+        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        # "xlm-roberta": "deepset/xlm-roberta-base-squad2",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
         "bart": "hf-internal-testing/tiny-random-bart",
         "mbart": "hf-internal-testing/tiny-random-mbart",
     }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForQuestionAnswering.from_pretrained("t5-small", from_transformers=True)
+            _ = ORTModelForQuestionAnswering.from_pretrained("t5-small", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        outputs = model(**tokens)
-        self.assertTrue("start_logits" in outputs)
-        self.assertTrue("end_logits" in outputs)
-
-        self.assertIsInstance(outputs.start_logits, torch.Tensor)
-        self.assertIsInstance(outputs.end_logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
         transformers_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
+
+        self.assertTrue("start_logits" in onnx_outputs)
+        self.assertTrue("end_logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.start_logits, torch.Tensor)
+        self.assertIsInstance(onnx_outputs.end_logits, torch.Tensor)
+
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
@@ -249,7 +252,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         context = "My Name is Philipp and I live in Nuremberg."
         outputs = pipe(question, context)
 
-        # compare model output class
+        self.assertEqual(pipe.device, pipe.model.device)
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertIsInstance(outputs["answer"], str)
 
@@ -279,65 +282,49 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertTrue(isinstance(outputs["answer"], str))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pipe.device, pipe.model.device)
-
 
 class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
-        # "bert": "hf-internal-testing/tiny-random-bert",
-        # # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
-        # # "ibert": "hf-internal-testing/tiny-random-ibert",
+        "bert": "hf-internal-testing/tiny-random-bert",
+        # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
+        # "ibert": "hf-internal-testing/tiny-random-ibert",
+        "camembert": "hf-internal-testing/tiny-random-camembert",
         # "camembert": "cmarkea/distilcamembert-base-sentiment",
-        # "roberta": "hf-internal-testing/tiny-random-roberta",
-        # # TODO: used real model do to big difference in output
-        # # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        "roberta": "hf-internal-testing/tiny-random-roberta",
+        # TODO: used real model do to big difference in output
+        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
         # "xlm-roberta": "unitary/multilingual-toxic-xlm-roberta",
-        # "electra": "hf-internal-testing/tiny-random-electra",
-        # "albert": "hf-internal-testing/tiny-random-albert",
-        # "bart": "hf-internal-testing/tiny-random-bart",
-        # "mbart": "hf-internal-testing/tiny-random-mbart",
+        "electra": "hf-internal-testing/tiny-random-electra",
+        "albert": "hf-internal-testing/tiny-random-albert",
+        "bart": "hf-internal-testing/tiny-random-bart",
+        "mbart": "hf-internal-testing/tiny-random-mbart",
     }
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForSequenceClassification.from_pretrained("t5-small", from_transformers=True)
+            _ = ORTModelForSequenceClassification.from_pretrained("t5-small", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_forward_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        outputs = model(**tokens)
-        self.assertTrue("logits" in outputs)
-        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
         transformers_model = AutoModelForSequenceClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
+        onnx_outputs = onnx_model(**tokens)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
-        onnx_outputs = onnx_model(**tokens)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
@@ -351,7 +338,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         text = "My Name is Philipp and i live in Germany."
         outputs = pipe(text)
 
-        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertIsInstance(outputs[0]["label"], str)
 
@@ -379,14 +366,6 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pipe.device, onnx_model.device)
-
     def test_pipeline_zero_shot_classification(self):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             "typeform/distilbert-base-uncased-mnli", from_transformers=True
@@ -411,46 +390,38 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         "bert": "hf-internal-testing/tiny-random-bert",
         # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
         # "ibert": "hf-internal-testing/tiny-random-ibert",
-        "camembert": "cmarkea/distilcamembert-base-ner",
+        "camembert": "hf-internal-testing/tiny-random-camembert",
+        # "camembert": "cmarkea/distilcamembert-base-ner",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-        "xlm-roberta": "Davlan/xlm-roberta-base-wikiann-ner",
+        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        # "xlm-roberta": "Davlan/xlm-roberta-base-wikiann-ner",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
     }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForTokenClassification.from_pretrained("t5-small", from_transformers=True)
+            _ = ORTModelForTokenClassification.from_pretrained("t5-small", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        outputs = model(**tokens)
-        self.assertTrue("logits" in outputs)
-        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
         transformers_model = AutoModelForTokenClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
@@ -466,7 +437,8 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         text = "My Name is Philipp and i live in Germany."
         outputs = pipe(text)
 
-        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
+        # TODO: shouldn't it be all instead of any?
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
 
     def test_pipeline_model_is_none(self):
@@ -491,14 +463,6 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pipe.device, onnx_model.device)
-
 
 class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
@@ -506,40 +470,32 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         "bert": "hf-internal-testing/tiny-random-bert",
         # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
         # "ibert": "hf-internal-testing/tiny-random-ibert",
-        "camembert": "cmarkea/distilcamembert-base",
+        # "camembert": "cmarkea/distilcamembert-base",
+        "camembert": "hf-internal-testing/tiny-random-camembert",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        # "xlm-roberta": "hf-internal-testing/tiny -xlm-roberta",
-        "xlm-roberta": "xlm-roberta-base",
+        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        # "xlm-roberta": "xlm-roberta-base",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        outputs = model(**tokens)
-        self.assertTrue("last_hidden_state" in outputs)
-        self.assertIsInstance(outputs.last_hidden_state, torch.Tensor)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
         transformers_model = AutoModel.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
+
+        self.assertTrue("last_hidden_state" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.last_hidden_state, torch.Tensor)
+
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
@@ -558,6 +514,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
 
         # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
 
     def test_pipeline_model_is_none(self):
@@ -582,43 +539,19 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pipe.device, onnx_model.device)
-
 
 class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "gpt2": "hf-internal-testing/tiny-random-gpt2",
-        "distilgpt2": "distilgpt2",
+        # Useless since it's the same architecture as gpt2
+        # "distilgpt2": "distilgpt2",
     }
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
+            _ = ORTModelForCausalLM.from_pretrained("google/vit-base-patch16-224", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        outputs = model(**tokens)
-        self.assertTrue("logits" in outputs)
-        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils(self, *args, **kwargs):
@@ -627,17 +560,14 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
+
+        # General case
         outputs = model.generate(**tokens)
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
         self.assertTrue(len(res[0]) > len(text))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_generate_utils_with_input_ids(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        text = "This is a sample output"
+        # With input ids
         tokens = tokenizer(text, return_tensors="pt")
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -648,10 +578,18 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
@@ -667,7 +605,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         text = "My Name is Philipp and i live"
         outputs = pipe(text)
 
-        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
@@ -695,57 +633,38 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pipe.device, onnx_model.device)
-
 
 class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "vit": "hf-internal-testing/tiny-random-vit",
     }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForImageClassification.from_pretrained("t5-small", from_transformers=True)
+            _ = ORTModelForImageClassification.from_pretrained("t5-small", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_forward_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
-        preprocessor = get_preprocessor(model_id)
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=image, return_tensors="pt")
-        outputs = model(**inputs)
-        self.assertTrue("logits" in outputs)
-        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
         trfs_model = AutoModelForImageClassification.from_pretrained(model_id)
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=image, return_tensors="pt")
+        onnx_outputs = onnx_model(**inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
+
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
-        onnx_outputs = onnx_model(**inputs)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
@@ -759,7 +678,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
 
-        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
@@ -788,14 +707,6 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
-        preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
-        self.assertEqual(pipe.device, onnx_model.device)
-
 
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
@@ -809,32 +720,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         # "longt5": "google/long-t5-local-base",
     }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            model = ORTModelForSeq2SeqLM.from_pretrained("bert-base-uncased", from_transformers=True)
+            _ = ORTModelForSeq2SeqLM.from_pretrained("bert-base-uncased", from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        decoder_start_token_id = model.config.decoder_start_token_id if model_arch != "mbart" else 2
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
-        outputs = model(**tokens, **decoder_inputs)
-        self.assertTrue("logits" in outputs)
-        self.assertIsInstance(outputs.logits, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils(self, *args, **kwargs):
@@ -862,12 +752,22 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.encoder, ORTEncoder)
+        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
+        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
         transformers_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         decoder_start_token_id = transformers_model.config.decoder_start_token_id if model_arch != "mbart" else 2
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens, **decoder_inputs)
         # Compare tensor outputs
@@ -878,35 +778,26 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
+
+        # Text2Text generation
         pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
         outputs = pipe(text)
-
-        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_text_generation(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
+        # Summarization
         pipe = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
         outputs = pipe(text)
-
-        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["summary_text"], str)
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_text_generation(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
+        # Translation
         pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
         outputs = pipe(text)
-
-        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["translation_text"], str)
 
     def test_pipeline_model_is_none(self):
@@ -943,14 +834,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
-        self.assertEqual(pipe.device, onnx_model.device)
 
     def test_compare_with_and_without_past_key_values_model_outputs(self):
         model_id = "t5-small"

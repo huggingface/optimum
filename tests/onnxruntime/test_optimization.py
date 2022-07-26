@@ -20,7 +20,17 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
+from transformers import (
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    BartForSequenceClassification,
+    BertForSequenceClassification,
+    DistilBertForSequenceClassification,
+    ElectraForSequenceClassification,
+    GPT2ForSequenceClassification,
+    RobertaForSequenceClassification,
+)
 
 import onnx
 from onnx import load as onnx_load
@@ -49,20 +59,19 @@ class ORTConfigTest(unittest.TestCase):
 
 
 class ORTOptimizerTest(unittest.TestCase):
-    from transformers import BertForSequenceClassification, DistilBertForSequenceClassification, BartForSequenceClassification, GPT2ForSequenceClassification, RobertaForSequenceClassification, ElectraForSequenceClassification
-    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "bert": ("bert-base-cased", BertForSequenceClassification),
-        "distilbert": ("distilbert-base-uncased", DistilBertForSequenceClassification),
-        "bart": ("facebook/bart-base", BartForSequenceClassification),
-        "gpt2": ("gpt2", GPT2ForSequenceClassification),
-        "roberta": ("roberta-base", RobertaForSequenceClassification),
-        "electra": ("google/electra-small-discriminator", ElectraForSequenceClassification),
-    }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
+        (BertForSequenceClassification, "bert-base-cased"),
+        (DistilBertForSequenceClassification, "distilbert-base-uncased"),
+        (BartForSequenceClassification, "facebook/bart-base"),
+        (GPT2ForSequenceClassification, "gpt2"),
+        (RobertaForSequenceClassification, "roberta-base"),
+        (ElectraForSequenceClassification, "google/electra-small-discriminator"),
+    )
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
     def test_optimize(self, *args, **kwargs):
-        model_type, t = args
-        model_name, model_cls = t
+        model_cls, model_name = args
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = model_cls(AutoConfig.from_pretrained(model_name))
         optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
@@ -70,7 +79,6 @@ class ORTOptimizerTest(unittest.TestCase):
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             optimized_model_path = output_dir.joinpath("model-optimized.onnx")
-            # optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
             optimizer = ORTOptimizer(tokenizer, model, feature="sequence-classification")
             optimizer.export(
                 onnx_model_path=model_path,
@@ -89,12 +97,14 @@ class ORTOptimizerTest(unittest.TestCase):
 
     def test_optimization_details(self):
         model_name = "bert-base-cased"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = BertForSequenceClassification(AutoConfig.from_pretrained(model_name))
         optimization_config = OptimizationConfig(optimization_level=0, optimize_with_onnxruntime_only=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             optimized_model_path = output_dir.joinpath("model-optimized.onnx")
-            optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            optimizer = ORTOptimizer(tokenizer, model, feature="sequence-classification")
             optimizer.export(
                 onnx_model_path=model_path,
                 onnx_optimized_model_output_path=optimized_model_path,
@@ -143,16 +153,15 @@ class ORTOptimizerTest(unittest.TestCase):
 
 
 class ORTDynamicQuantizationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL = {
-        "bert-base-cased": 72,
-        "roberta-base": 72,
-        "distilbert-base-uncased": 36,
-        "facebook/bart-base": 96,
-    }
+    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (
+        (BertForSequenceClassification, "bert-base-cased", 72),
+        (RobertaForSequenceClassification, "roberta-base", 72),
+        (DistilBertForSequenceClassification, "distilbert-base-uncased", 36),
+        (BartForSequenceClassification, "facebook/bart-base", 96),
+    )
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL.items())
-    def test_dynamic_quantization(self, *args, **kwargs):
-        model_name, expected_quantized_matmul = args
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
+    def test_dynamic_quantization(self, model_cls, model_name, expected_quantized_matmuls):
         qconfig = QuantizationConfig(
             is_static=False,
             format=QuantFormat.QOperator,
@@ -163,11 +172,13 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             reduce_range=False,
             operators_to_quantize=["MatMul"],
         )
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = model_cls(AutoConfig.from_pretrained(model_name))
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             q8_model_path = output_dir.joinpath("model-quantized.onnx")
-            quantizer = ORTQuantizer.from_pretrained(model_name, feature="sequence-classification")
+            quantizer = ORTQuantizer(tokenizer, model, feature="sequence-classification")
             quantizer.export(
                 onnx_model_path=model_path,
                 onnx_quantized_model_output_path=q8_model_path,
@@ -179,19 +190,15 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             for initializer in quantized_model.graph.initializer:
                 if "MatMul" in initializer.name and "quantized" in initializer.name:
                     num_quantized_matmul += 1
-            self.assertEqual(expected_quantized_matmul, num_quantized_matmul)
+            self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
 
 class ORTStaticQuantizationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL = {
-        "bert-base-cased": 72,
-    }
+    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = ((BertForSequenceClassification, "bert-base-cased", 72),)
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL.items())
-    def test_static_quantization(self, *args, **kwargs):
-        model_name, expected_quantized_matmul = args
-
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
+    def test_static_quantization(self, model_cls, model_name, expected_quantized_matmuls):
         qconfig = QuantizationConfig(
             is_static=True,
             format=QuantFormat.QDQ,
@@ -203,6 +210,9 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             operators_to_quantize=["MatMul"],
         )
 
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = model_cls(AutoConfig.from_pretrained(model_name))
+
         def preprocess_function(examples, tokenizer):
             return tokenizer(examples["sentence"], padding="max_length", max_length=128, truncation=True)
 
@@ -210,7 +220,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             q8_model_path = output_dir.joinpath("model-quantized.onnx")
-            quantizer = ORTQuantizer.from_pretrained(model_name, feature="sequence-classification")
+            quantizer = ORTQuantizer(tokenizer, model, feature="sequence-classification")
             calibration_dataset = quantizer.get_calibration_dataset(
                 "glue",
                 dataset_config_name="sst2",
@@ -236,7 +246,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             for initializer in quantized_model.graph.initializer:
                 if "MatMul" in initializer.name and "quantized" in initializer.name:
                     num_quantized_matmul += 1
-            self.assertEqual(expected_quantized_matmul, num_quantized_matmul)
+            self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
 
