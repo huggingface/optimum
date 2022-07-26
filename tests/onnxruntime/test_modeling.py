@@ -200,12 +200,12 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         "bert": "hf-internal-testing/tiny-random-bert",
         # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
         # "ibert": "hf-internal-testing/tiny-random-ibert",
-        # "camembert": "etalab-ia/camembert-base-squadFR-fquad-piaf",
-        "camembert": "hf-internal-testing/tiny-random-camembert",
+        "camembert": "etalab-ia/camembert-base-squadFR-fquad-piaf",
+        # "camembert": "hf-internal-testing/tiny-random-camembert",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-        # "xlm-roberta": "deepset/xlm-roberta-base-squad2",
+        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        "xlm-roberta": "deepset/xlm-roberta-base-squad2",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
         "bart": "hf-internal-testing/tiny-random-bart",
@@ -296,12 +296,12 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         "bert": "hf-internal-testing/tiny-random-bert",
         # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
         # "ibert": "hf-internal-testing/tiny-random-ibert",
-        "camembert": "hf-internal-testing/tiny-random-camembert",
-        # "camembert": "cmarkea/distilcamembert-base-sentiment",
+        # "camembert": "hf-internal-testing/tiny-random-camembert",
+        "camembert": "cmarkea/distilcamembert-base-sentiment",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-        # "xlm-roberta": "unitary/multilingual-toxic-xlm-roberta",
+        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        "xlm-roberta": "unitary/multilingual-toxic-xlm-roberta",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
         "bart": "hf-internal-testing/tiny-random-bart",
@@ -403,12 +403,12 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         "bert": "hf-internal-testing/tiny-random-bert",
         # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
         # "ibert": "hf-internal-testing/tiny-random-ibert",
-        "camembert": "hf-internal-testing/tiny-random-camembert",
-        # "camembert": "cmarkea/distilcamembert-base-ner",
+        # "camembert": "hf-internal-testing/tiny-random-camembert",
+        "camembert": "cmarkea/distilcamembert-base-ner",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-        # "xlm-roberta": "Davlan/xlm-roberta-base-wikiann-ner",
+        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        "xlm-roberta": "Davlan/xlm-roberta-base-wikiann-ner",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
     }
@@ -489,12 +489,12 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         "bert": "hf-internal-testing/tiny-random-bert",
         # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
         # "ibert": "hf-internal-testing/tiny-random-ibert",
-        # "camembert": "cmarkea/distilcamembert-base",
-        "camembert": "hf-internal-testing/tiny-random-camembert",
+        "camembert": "cmarkea/distilcamembert-base",
+        # "camembert": "hf-internal-testing/tiny-random-camembert",
         "roberta": "hf-internal-testing/tiny-random-roberta",
         # TODO: used real model do to big difference in output
-        "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-        # "xlm-roberta": "xlm-roberta-base",
+        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        "xlm-roberta": "xlm-roberta-base",
         "electra": "hf-internal-testing/tiny-random-electra",
         "albert": "hf-internal-testing/tiny-random-albert",
     }
@@ -772,19 +772,13 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
+
+        # General case
         outputs = model.generate(**tokens)
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
 
-        gc.collect()
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_generate_utils_with_input_ids(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
-        tokenizer = get_preprocessor(model_id)
-        text = "This is a sample output"
-        tokens = tokenizer(text, return_tensors="pt")
+        # With input ids
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
