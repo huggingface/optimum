@@ -170,11 +170,11 @@ class ORTModelForConditionalGeneration(ORTModel):
         self._device = get_device_for_provider(encoder_session.get_providers()[0])
         self.encoder = ORTEncoder(session=encoder_session, device=self._device)
         self.decoder = ORTDecoder(session=decoder_session, device=self._device)
-        self.use_past_key_values = decoder_with_past_session is not None
+        self.use_cache = decoder_with_past_session is not None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         self.decoder_with_past = (
-            ORTDecoder(session=decoder_with_past_session, device=self._device) if self.use_past_key_values else None
+            ORTDecoder(session=decoder_with_past_session, device=self._device) if self.use_cache else None
         )
         self.encoder_file_name = kwargs.get("last_encoder_model_name", ONNX_ENCODER_NAME)
         self.decoder_file_name = kwargs.get("last_decoder_model_name", ONNX_DECODER_NAME)
@@ -246,7 +246,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         """
         src_file_names = [self.encoder_file_name, self.decoder_file_name]
         dst_file_names = [encoder_file_name or ONNX_ENCODER_NAME, decoder_file_name or ONNX_DECODER_NAME]
-        if self.use_past_key_values:
+        if self.use_cache:
             src_file_names.append(self.decoder_file_with_past_name)
             dst_file_names.append(decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME)
 
@@ -297,10 +297,10 @@ class ORTModelForConditionalGeneration(ORTModel):
                 the decoder model with a different name.
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization.
-            use_past_key_values (`bool`, *optional*, defaults to `True`):
+            use_cache (`bool`, *optional*, defaults to `True`):
                 Whether or not to use the pre-computed key/values hidden-states in order to speed up sequential decoding.
         """
-        use_past_key_values = kwargs.pop("use_past_key_values", True)
+        use_cache = kwargs.pop("use_cache", True)
         config_dict = kwargs.pop("config", {})
         config = PretrainedConfig.from_dict(config_dict)
         encoder_file_name = encoder_file_name or ONNX_ENCODER_NAME
@@ -309,9 +309,7 @@ class ORTModelForConditionalGeneration(ORTModel):
 
         # Load model from a local directory
         if os.path.isdir(model_id):
-            decoder_with_past_path = (
-                os.path.join(model_id, decoder_with_past_file_name) if use_past_key_values else None
-            )
+            decoder_with_past_path = os.path.join(model_id, decoder_with_past_file_name) if use_cache else None
             model = cls.load_model(
                 encoder_path=os.path.join(model_id, encoder_file_name),
                 decoder_path=os.path.join(model_id, decoder_file_name),
@@ -325,7 +323,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         else:
             default_file_names = [ONNX_ENCODER_NAME, ONNX_DECODER_NAME]
             model_file_names = [encoder_file_name, decoder_file_name]
-            if use_past_key_values:
+            if use_cache:
                 default_file_names.append(ONNX_DECODER_WITH_PAST_NAME)
                 model_file_names.append(decoder_with_past_file_name)
             # Download the encoder, decoder and decoder_with_past forming the model
@@ -383,7 +381,7 @@ class ORTModelForConditionalGeneration(ORTModel):
             cache_dir (`Union[str, Path]`, *optional*):
                 The path to a directory in which a downloaded pretrained model configuration should be cached if the
                 standard cache should not be used.
-            use_past_key_values (`bool`, *optional*, defaults to `True`):
+            use_cache (`bool`, *optional*, defaults to `True`):
                 Whether or not to use the pre-computed key/values hidden-states in order to speed up sequential decoding.
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization.
@@ -392,7 +390,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         save_dir = Path(save_dir).joinpath(model_id)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
-        use_past_key_values = kwargs.get("use_past_key_values", True)
+        use_cache = kwargs.get("use_cache", True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id)
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.pipeline_task)
@@ -426,7 +424,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         )
 
         # Export the decoder with the past key values
-        if use_past_key_values:
+        if use_cache:
             export(
                 preprocessor=tokenizer,
                 model=decoder_with_lm_head,

@@ -63,14 +63,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoder)
         self.assertIsInstance(model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_without_past_from_hub(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=False)
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoder)
         self.assertTrue(model.decoder_with_past is None)
@@ -94,7 +94,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.device, gpu)
 
     def test_seq2seq_model_on_cpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         cpu = torch.device("cpu")
         model.to(cpu)
         self.assertEqual(model.device, cpu)
@@ -107,7 +107,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     @require_torch_gpu
     def test_seq2seq_model_on_gpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         gpu = torch.device("cuda")
         model.to(gpu)
         self.assertEqual(model.device, gpu)
@@ -135,7 +135,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_save_seq2seq_model(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=True)
+            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
             model.save_pretrained(tmpdirname)
             folder_contents = os.listdir(tmpdirname)
             # Verify config and ONNX exported encoder, decoder and decoder with past are present in folder
@@ -146,7 +146,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_save_seq2seq_model_without_past(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_past_key_values=False)
+            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
             model.save_pretrained(tmpdirname)
             folder_contents = os.listdir(tmpdirname)
             # Verify config and ONNX exported encoder and decoder present in folder
@@ -884,12 +884,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
-        model_with_pkv = ORTModelForSeq2SeqLM.from_pretrained(
-            model_id, from_transformers=True, use_past_key_values=True
-        )
+        model_with_pkv = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=True)
         outputs_model_with_pkv = model_with_pkv.generate(**tokens)
-        model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(
-            model_id, from_transformers=True, use_past_key_values=False
-        )
+        model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=False)
         outputs_model_without_pkv = model_without_pkv.generate(**tokens)
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
