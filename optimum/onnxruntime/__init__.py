@@ -21,6 +21,7 @@ _import_structure = {
     "model": ["ORTModel"],
     "modeling_ort": [
         "ORTModelForCausalLM",
+        "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
         "ORTModelForQuestionAnswering",
