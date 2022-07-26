@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from .model import ORTModel
     from .modeling_ort import (
         ORTModelForCausalLM,
+        ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
         ORTModelForQuestionAnswering,
