@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+from collections import namedtuple
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -783,22 +784,61 @@ class ORTModelForImageClassification(ORTModel):
         )
 
 
+CUSTOM_TASKS_EXAMPLE = r"""
+    Example of custom tasks(e.g. a sentence transformers taking `pooler_output` as output):
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> import torch
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> inputs = tokenizer("I love burritos!", return_tensors="pt")
+    >>> outputs = model(**inputs)
+    >>> last_hidden_state = outputs.last_hidden_state
+    >>> pooler_output = outputs.pooler_output
+    ```
+    Example using `transformers.pipelines`(only if the task is supported):
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_extractor = pipeline("feature-extraction", model=model, tokenizer=tokenizer)
+    >>> text = "I love burritos!"
+    >>> pred = onnx_extractor(text)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model for any custom tasks. It can be used to leverage the inference acceleration with any custom exported ONNX model.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
 class ORTModelForCustomTasks(ORTModel):
     """
-    Only for customized exported ONNX model.
+    Onnx Model for any custom tasks.
     """
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
 
+    @add_start_docstrings_to_model_forward(
+        CUSTOM_TASKS_EXAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForCustomTasks",
+            checkpoint="optimum/sbert-all-MiniLM-L6-with-pooler",
+        )
+    )
     def forward(self, **kwargs):
         # converts pytorch inputs into numpy inputs for onnx
         onnx_inputs = self._prepare_onnx_inputs(**kwargs)
         # run inference
         onnx_outputs = self.model.run(None, onnx_inputs)
         outputs = self._prepare_onnx_outputs(onnx_outputs)
-        # converts output to namedtuple for pipelines post-processing
-        return outputs
+        # converts outputs to namedtuple for pipelines post-processing if applicable
+        return namedtuple("CustomTasksOutput", outputs.keys())(*outputs.values())
 
     def _prepare_onnx_inputs(self, **kwargs):
         model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
