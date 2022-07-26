@@ -28,6 +28,7 @@ from optimum.onnxruntime import (
     ONNX_ENCODER_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
+    ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
     ORTModelForQuestionAnswering,
@@ -932,4 +933,54 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pipe.device, onnx_model.device)
+
+
+class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "sbert": "optimum/sbert-all-MiniLM-L6-with-pooler",
+    }
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_model_call(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        outputs = model(**tokens)
+        self.assertTrue("pooler_output" in outputs)
+        self.assertIsInstance(outputs.pooler_output, torch.Tensor)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_ort_model(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+
+        # compare model output class
+        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        # compare model output class
+        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
         self.assertEqual(pipe.device, onnx_model.device)
