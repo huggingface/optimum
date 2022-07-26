@@ -979,7 +979,6 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         outputs = model(**tokens)
-        self.assertTrue("pooler_output" in outputs)
         self.assertIsInstance(outputs.pooler_output, torch.Tensor)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
