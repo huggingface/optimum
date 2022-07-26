@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import gc
 import os
 import tempfile
 import unittest
@@ -242,6 +243,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         self.assertTrue(torch.allclose(onnx_outputs.start_logits, transformers_outputs.start_logits, atol=1e-4))
         self.assertTrue(torch.allclose(onnx_outputs.end_logits, transformers_outputs.end_logits, atol=1e-4))
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
@@ -255,6 +258,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.device, pipe.model.device)
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertIsInstance(outputs["answer"], str)
+
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         pipe = pipeline("question-answering")
@@ -281,6 +286,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertTrue(isinstance(outputs["answer"], str))
+
+        gc.collect()
 
 
 class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
@@ -329,6 +336,8 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
@@ -341,6 +350,8 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertIsInstance(outputs[0]["label"], str)
+
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         pipe = pipeline("text-classification")
@@ -365,6 +376,8 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
 
     def test_pipeline_zero_shot_classification(self):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
@@ -428,6 +441,8 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
@@ -440,6 +455,8 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.device, onnx_model.device)
         # TODO: shouldn't it be all instead of any?
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
+
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         pipe = pipeline("token-classification")
@@ -462,6 +479,8 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(any(item["score"] > 0.0 for item in outputs))
+
+        gc.collect()
 
 
 class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
@@ -504,6 +523,8 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
             torch.allclose(onnx_outputs.last_hidden_state, transformers_outputs.last_hidden_state, atol=1e-4)
         )
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
@@ -516,6 +537,8 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         pipe = pipeline("feature-extraction")
@@ -538,6 +561,8 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+        gc.collect()
 
 
 class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
@@ -574,6 +599,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         self.assertIsInstance(res[0], str)
         self.assertTrue(len(res[0]) > len(text))
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
@@ -596,6 +623,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
@@ -608,6 +637,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         pipe = pipeline("text-generation")
@@ -632,6 +663,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+        gc.collect()
 
 
 class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
@@ -669,6 +702,8 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
@@ -681,6 +716,8 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         pipe = pipeline("image-classification")
@@ -706,6 +743,8 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
 
 
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
@@ -737,6 +776,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
 
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_generate_utils_with_input_ids(self, *args, **kwargs):
         model_arch, model_id = args
@@ -747,6 +788,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
+
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
@@ -772,6 +815,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
             transformers_outputs = transformers_model(**tokens, **decoder_inputs)
         # Compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_text_generation(self, *args, **kwargs):
@@ -799,6 +844,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["translation_text"], str)
+
+        gc.collect()
 
     def test_pipeline_model_is_none(self):
         # Text2text generation
@@ -845,3 +892,5 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=False)
         outputs_model_without_pkv = model_without_pkv.generate(**tokens)
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+        gc.collect()
