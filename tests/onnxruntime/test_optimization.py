@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
 
 import onnx
 from onnx import load as onnx_load
@@ -49,24 +49,29 @@ class ORTConfigTest(unittest.TestCase):
 
 
 class ORTOptimizerTest(unittest.TestCase):
+    from transformers import BertForSequenceClassification, DistilBertForSequenceClassification, BartForSequenceClassification, GPT2ForSequenceClassification, RobertaForSequenceClassification, ElectraForSequenceClassification
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "bert": "bert-base-cased",
-        "distilbert": "distilbert-base-uncased",
-        "bart": "facebook/bart-base",
-        "gpt2": "gpt2",
-        "roberta": "roberta-base",
-        "electra": "google/electra-small-discriminator",
+        "bert": ("bert-base-cased", BertForSequenceClassification),
+        "distilbert": ("distilbert-base-uncased", DistilBertForSequenceClassification),
+        "bart": ("facebook/bart-base", BartForSequenceClassification),
+        "gpt2": ("gpt2", GPT2ForSequenceClassification),
+        "roberta": ("roberta-base", RobertaForSequenceClassification),
+        "electra": ("google/electra-small-discriminator", ElectraForSequenceClassification),
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_optimize(self, *args, **kwargs):
-        model_type, model_name = args
+        model_type, t = args
+        model_name, model_cls = t
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = model_cls(AutoConfig.from_pretrained(model_name))
         optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             optimized_model_path = output_dir.joinpath("model-optimized.onnx")
-            optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            # optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            optimizer = ORTOptimizer(tokenizer, model, feature="sequence-classification")
             optimizer.export(
                 onnx_model_path=model_path,
                 onnx_optimized_model_output_path=optimized_model_path,

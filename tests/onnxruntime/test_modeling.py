@@ -291,18 +291,18 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
 class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "distilbert": "hf-internal-testing/tiny-random-distilbert",
-        "bert": "hf-internal-testing/tiny-random-bert",
-        # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
-        # "ibert": "hf-internal-testing/tiny-random-ibert",
-        "camembert": "cmarkea/distilcamembert-base-sentiment",
-        "roberta": "hf-internal-testing/tiny-random-roberta",
-        # TODO: used real model do to big difference in output
-        # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-        "xlm-roberta": "unitary/multilingual-toxic-xlm-roberta",
-        "electra": "hf-internal-testing/tiny-random-electra",
-        "albert": "hf-internal-testing/tiny-random-albert",
-        "bart": "hf-internal-testing/tiny-random-bart",
-        "mbart": "hf-internal-testing/tiny-random-mbart",
+        # "bert": "hf-internal-testing/tiny-random-bert",
+        # # FIXME: Error: ONNX export failed: Couldn't export Python operator SymmetricQuantFunction
+        # # "ibert": "hf-internal-testing/tiny-random-ibert",
+        # "camembert": "cmarkea/distilcamembert-base-sentiment",
+        # "roberta": "hf-internal-testing/tiny-random-roberta",
+        # # TODO: used real model do to big difference in output
+        # # "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+        # "xlm-roberta": "unitary/multilingual-toxic-xlm-roberta",
+        # "electra": "hf-internal-testing/tiny-random-electra",
+        # "albert": "hf-internal-testing/tiny-random-albert",
+        # "bart": "hf-internal-testing/tiny-random-bart",
+        # "mbart": "hf-internal-testing/tiny-random-mbart",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())

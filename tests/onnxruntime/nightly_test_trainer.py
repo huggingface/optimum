@@ -70,14 +70,14 @@ nltk.download("punkt")
 
 _MODELS_TO_TEST = {
     ("bert", "bert-base-cased"),
-    ("distilbert", "distilbert-base-cased"),
-    ("roberta", "roberta-base"),
-    ("gpt2", "gpt2"),
+#     ("distilbert", "distilbert-base-cased"),
+#     ("roberta", "roberta-base"),
+#     ("gpt2", "gpt2"),
 }
 
 _SEQ2SEQ_MODELS_TO_TEST = {
     ("t5", "t5-small"),
-    ("bart", "facebook/bart-base"),
+#     ("bart", "facebook/bart-base"),
 }
 
 _TASKS_DATASETS_CONFIGS = {
