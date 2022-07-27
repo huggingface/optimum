@@ -236,7 +236,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
 
     def test_static_quantization_without_shape_inference_raises(self):
         with self.assertRaises(expected_exception=ValueError):
-            QuantizationConfig(is_static=True, disable_shape_inference=True)
+            QuantizationConfig(is_static=True, disable_shape_inference=True, format=QuantFormat.QDQ)
 
 
 if __name__ == "__main__":
