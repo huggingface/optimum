@@ -278,7 +278,7 @@ class TestParity(unittest.TestCase):
         # dummy test until this question is solved
         # https://discuss.huggingface.co/t/why-use-val-transforms-function-in-image-classification-example-instead-of-feature-extractor/19976
         model_name = "fxmarty/resnet-tiny-beans"
-        n_samples = 100
+        n_samples = 120
 
         run_config = {
             "task": "image-classification",
@@ -307,7 +307,8 @@ class TestParity(unittest.TestCase):
         run_instance = OnnxRuntimeRun(run_config)
         benchmark_results = run_instance.launch()
 
-        self.assertEqual(benchmark_results["evaluation"]["others"]["baseline"]["accuracy"], 0.71)
+        print(benchmark_results)
+        self.assertEqual(benchmark_results["evaluation"]["others"]["baseline"]["accuracy"], 84 / 120)
 
 
 if __name__ == "__main__":
