@@ -506,6 +506,7 @@ class ORTDecoder:
         self._device = device
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
 
     @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
     def forward(
@@ -528,9 +529,8 @@ class ORTDecoder:
         if past_key_values is not None:
             # Flatten the past_key_values
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
-            key_values_input_names = [key for key in self.input_names if "key_values" in key]
             # Add the past_key_values to the decoder inputs
-            for input_name, past_key_value in zip(key_values_input_names, past_key_values):
+            for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                 onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
         # Run inference
