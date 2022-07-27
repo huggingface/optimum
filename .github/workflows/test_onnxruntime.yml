@@ -33,5 +33,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        # python -m unittest discover -s onnxruntime -p 'test_*.py'
-        pytest -n 4 tests/onnxruntime
+        pytest -n auto tests/onnxruntime
