@@ -3,7 +3,7 @@ from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 from transformers.onnx.utils import get_preprocessor
 
-from ..runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
+from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 
 
 class PyTorchRun(Run):

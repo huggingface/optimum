@@ -130,6 +130,13 @@ class Run:
 
         return self.return_body
 
+    def launch_time(self):
+        try:
+            self.study.optimize(self._launch_time)
+            return self.return_body
+        finally:
+            self.finalize()
+
     def _launch_time(self, trial):
         """Optuna objective function to measure latency/throughput.
 
