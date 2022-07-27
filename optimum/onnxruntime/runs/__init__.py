@@ -1,7 +1,6 @@
 import copy
 import os
 
-from datasets import load_metric
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
@@ -172,22 +171,12 @@ class OnnxRuntimeRun(Run):
 
         eval_dataset = self.get_eval_dataset()
 
-        # may be better to avoid to get labels twice
-        print("Running inference...")
-        all_labels, all_preds_baseline = self.processor.run_inference(eval_dataset, transformers_pipeline)
-        _, all_preds_optimized = self.processor.run_inference(eval_dataset, ort_pipeline)
+        print("Running evaluation...")
+        baseline_metrics_dict = self.run_evaluation(eval_dataset, transformers_pipeline, self.metric_names)
+        optimized_metrics_dict = self.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
 
-        print("Computing metrics...")
-        for metric_name in self.metric_names:
-            metric = load_metric(metric_name)
-            baseline_metrics_dict = self.processor.get_metrics(
-                predictions=all_preds_baseline, references=all_labels, metric=metric
-            )
-            optimized_metrics_dict = self.processor.get_metrics(
-                predictions=all_preds_optimized, references=all_labels, metric=metric
-            )
-            self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
-            self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
+        self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
+        self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
 
     def finalize(self):
         if os.path.isfile(self.quantized_model_path):
