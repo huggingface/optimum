@@ -266,13 +266,22 @@ class MergeLinears(ReversibleTransformation):
                 "Not all the linear layers that are merged contain a bias, but some do. By merging, this is equivalent "
                 "to adding a bias to the layers missing one."
             )
-        merged_linear = torch.nn.Linear(in_features, total_out_features, bias=use_bias)
+        merged_linear = torch.nn.Linear(
+            in_features,
+            total_out_features,
+            bias=use_bias,
+        )
+
+        dtype = linears[0].weight.dtype
+        device = linears[0].weight.device
 
         with torch.no_grad():
-            new_weight = torch.cat([linear.weight for linear in linears], dim=0)
+            new_weight = torch.cat([linear.weight for linear in linears], dim=0).to(dtype=dtype, device=device)
             merged_linear.weight = torch.nn.Parameter(new_weight)
             if use_bias:
-                new_bias = torch.cat([MergeLinears._get_bias(linear) for linear in linears], dim=0)
+                new_bias = torch.cat([MergeLinears._get_bias(linear) for linear in linears], dim=0).to(
+                    dtype=dtype, device=device
+                )
                 merged_linear.bias = torch.nn.Parameter(new_bias)
 
         linear_module_names = [MergeLinears._get_linear_module_name(node) for node in linear_nodes]
@@ -284,7 +293,7 @@ class MergeLinears(ReversibleTransformation):
             delattr(parent_module, name)
 
         graph = graph_module.graph
-        with graph.inserting_after(input_node):
+        with graph.inserting_before(linear_nodes[0]):
             fully_qualified_merged_linear_name = ".".join([fully_qualified_parent_name, merged_linear_name])
             merged_linear_node = graph.call_module(fully_qualified_merged_linear_name, args=(input_node,))
             merged_linear_node.was_transformed = "MergeLinears"
@@ -312,7 +321,14 @@ class MergeLinears(ReversibleTransformation):
             out_features.append(slice_to_get.stop - slice_to_get.start)
 
         linears = [
-            torch.nn.Linear(in_features, out_feat, bias=hasattr(merged_linear, "bias")) for out_feat in out_features
+            torch.nn.Linear(
+                in_features,
+                out_feat,
+                bias=hasattr(merged_linear, "bias"),
+                device=merged_linear.weight.device,
+                dtype=merged_linear.weight.dtype,
+            )
+            for out_feat in out_features
         ]
 
         fully_qualified_parent_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
