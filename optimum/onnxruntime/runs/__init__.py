@@ -49,7 +49,7 @@ class OnnxRuntimeRun(Run):
         self.quantized_model_path = "quantized_model.onnx"
 
         processing_class = task_processing_map[self.task]
-        self.processor = processing_class(
+        self.task_processor = processing_class(
             dataset_path=run_config["dataset"]["path"],
             dataset_name=run_config["dataset"]["name"],
             calibration_split=run_config["dataset"]["calibration_split"],
@@ -149,7 +149,7 @@ class OnnxRuntimeRun(Run):
         return 0, 0
 
     def launch_eval(self):
-        kwargs = self.processor.get_pipeline_kwargs()
+        kwargs = self.task_processor.get_pipeline_kwargs()
 
         # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
         ort_pipeline = _optimum_pipeline(
@@ -172,8 +172,18 @@ class OnnxRuntimeRun(Run):
         eval_dataset = self.get_eval_dataset()
 
         print("Running evaluation...")
-        baseline_metrics_dict = self.run_evaluation(eval_dataset, transformers_pipeline, self.metric_names)
-        optimized_metrics_dict = self.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
+        baseline_metrics_dict = self.task_processor.run_evaluation(
+            eval_dataset, transformers_pipeline, self.metric_names
+        )
+        optimized_metrics_dict = self.task_processor.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
+
+        baseline_metrics_dict.pop("total_time_in_seconds", None)
+        baseline_metrics_dict.pop("samples_per_second", None)
+        baseline_metrics_dict.pop("latency_in_seconds", None)
+
+        optimized_metrics_dict.pop("total_time_in_seconds", None)
+        optimized_metrics_dict.pop("samples_per_second", None)
+        optimized_metrics_dict.pop("latency_in_seconds", None)
 
         self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
         self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)

@@ -4,7 +4,7 @@ from typing import Dict, List
 from datasets import Dataset, load_dataset
 from transformers import PreTrainedTokenizerBase, QuestionAnsweringPipeline
 
-from evaluate import combine, evaluator
+from evaluate import combine, evaluator, load
 
 from .base import DatasetProcessing
 
@@ -84,21 +84,21 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         return datasets_dict
 
     def run_evaluation(self, eval_dataset: Dataset, pipeline: QuestionAnsweringPipeline, metrics: List[str]):
-        combined_metrics = combine(metrics)
+        if len(metrics) == 1:
+            all_metrics = load(metrics[0])
+        else:
+            all_metrics = combine(metrics)
 
         task_evaluator = evaluator("question-answering")
 
         results = task_evaluator.compute(
             model_or_pipeline=pipeline,
             data=eval_dataset,
-            metric=combined_metrics,
+            metric=all_metrics,
             question_column=self.data_keys["question"],
             context_column=self.data_keys["context"],
             label_column=self.ref_keys[0],
         )
-
-        results.pop("latency", None)
-        results.pop("throughput", None)
 
         return results
 
