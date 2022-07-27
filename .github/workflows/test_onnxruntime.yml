@@ -30,7 +30,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[tests,onnxruntime]
-    - name: Test with unittest
+    - name: Test with pytest
       working-directory: tests
       run: |
         python -m pytest -n auto onnxruntime
