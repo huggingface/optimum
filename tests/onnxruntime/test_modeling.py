@@ -889,7 +889,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
     def test_compare_with_and_without_past_key_values_model_outputs(self):
-        model_id = "t5-small"
+        model_id = MODEL_NAMES["t5"]
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
@@ -898,5 +898,3 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=False)
         outputs_model_without_pkv = model_without_pkv.generate(**tokens)
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-
-        gc.collect()
