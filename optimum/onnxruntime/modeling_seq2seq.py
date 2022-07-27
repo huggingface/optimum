@@ -528,10 +528,10 @@ class ORTDecoder:
         if past_key_values is not None:
             # Flatten the past_key_values
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
-
+            key_values_input_names = [key for key in self.input_names if "key_values" in key]
             # Add the past_key_values to the decoder inputs
-            for i, past_key_value in enumerate(past_key_values):
-                onnx_inputs[f"past_key_values_{i}.1"] = past_key_value.cpu().detach().numpy()
+            for input_name, past_key_value in zip(key_values_input_names, past_key_values):
+                onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
         # Run inference
         outputs = self.session.run(None, onnx_inputs)
@@ -541,7 +541,7 @@ class ORTDecoder:
         past_key_values = tuple(
             torch.from_numpy(outputs[self.output_names[key]]).to(self._device)
             for key in self.output_names
-            if "past_key_values" in key
+            if "key_values" in key
         )
 
         # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
