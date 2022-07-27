@@ -234,6 +234,10 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             self.assertEqual(expected_quantized_matmul, num_quantized_matmul)
             gc.collect()
 
+    def test_static_quantization_without_shape_inference_raises(self):
+        with self.assertRaises(expected_exception=ValueError):
+            QuantizationConfig(is_static=True, disable_shape_inference=True)
+
 
 if __name__ == "__main__":
     unittest.main()
