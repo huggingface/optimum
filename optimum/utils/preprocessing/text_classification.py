@@ -1,9 +1,11 @@
 from functools import partial
 from typing import Dict, List
 
-from datasets import Dataset, Metric, load_dataset
+from datasets import Dataset, load_dataset
 from transformers import PretrainedConfig, PreTrainedTokenizerBase, TextClassificationPipeline
 from transformers.pipelines.text_classification import ClassificationFunction
+
+from evaluate import load
 
 from .base import DatasetProcessing
 
@@ -89,7 +91,7 @@ class TextClassificationProcessing(DatasetProcessing):
 
         return datasets_dict
 
-    def run_inference(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline):
+    def run_evaluation(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline, metrics: List[str]):
         all_labels = []
         all_preds = []
         for _, inputs in enumerate(eval_dataset):
@@ -129,16 +131,17 @@ class TextClassificationProcessing(DatasetProcessing):
 
             all_preds.append(preds)
 
-        return all_labels, all_preds
+        results = {}
+        for metric_name in metrics:
+            metric = load(metric_name)
+            metric_res = metric.compute(predictions=all_preds, references=all_labels)
+            # `metric.compute` may return a dict or a number
+            if not isinstance(metric_res, dict):
+                metric_res = {metric.name: metric_res}
 
-    def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_res = metric.compute(predictions=predictions, references=references)
+            results.update(metric_res)
 
-        # `metric.compute` may return a dict or a number
-        if not isinstance(metrics_res, dict):
-            metrics_res = {metric.name: metrics_res}
-
-        return metrics_res
+        return results
 
     def get_pipeline_kwargs(self):
         return {}

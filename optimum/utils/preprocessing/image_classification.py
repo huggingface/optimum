@@ -2,9 +2,11 @@ from functools import partial
 from typing import Dict, List
 
 import torch
-from datasets import Dataset, Metric, load_dataset
+from datasets import Dataset, load_dataset
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import FeatureExtractionMixin, ImageClassificationPipeline
+
+from evaluate import combine, evaluator
 
 from .base import DatasetProcessing
 
@@ -77,26 +79,23 @@ class ImageClassificationProcessing(DatasetProcessing):
 
         return datasets_dict
 
-    def run_inference(self, eval_dataset: Dataset, pipeline: ImageClassificationPipeline):
-        all_labels = [label for label in eval_dataset[self.ref_keys[0]]]
-        all_preds = []
-        for _, inputs in enumerate(eval_dataset):
-            pred = pipeline(inputs[self.data_keys["primary"]])
+    def run_evaluation(self, eval_dataset: Dataset, pipeline: ImageClassificationPipeline, metrics: List[str]):
+        combined_metrics = combine(metrics)
 
-            pred_label = max(pred, key=lambda x: x["score"])["label"]
-            pred_index = pipeline.model.config.label2id[pred_label]
-            all_preds.append(pred_index)
+        task_evaluator = evaluator("image-classification")
 
-        return all_labels, all_preds
+        results = task_evaluator.compute(
+            model_or_pipeline=pipeline,
+            data=eval_dataset,
+            metric=combined_metrics,
+            input_column=self.data_keys["primary"],
+            label_column=self.ref_keys[0],
+        )
 
-    def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_res = metric.compute(predictions=predictions, references=references)
+        results.pop("latency", None)
+        results.pop("throughput", None)
 
-        # `metric.compute` may return a dict or a number
-        if not isinstance(metrics_res, dict):
-            metrics_res = {metric.name: metrics_res}
-
-        return metrics_res
+        return results
 
     def get_pipeline_kwargs(self):
         return {}
