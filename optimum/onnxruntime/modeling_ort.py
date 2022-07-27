@@ -1,7 +1,6 @@
 import logging
 import os
 import shutil
-from collections import namedtuple
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -881,6 +880,8 @@ class ORTModelForCustomTasks(ORTModel):
     """
     Onnx Model for any custom tasks.
     """
+
+    auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
