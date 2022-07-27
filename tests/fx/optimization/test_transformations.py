@@ -22,6 +22,7 @@ from transformers.utils.fx import symbolic_trace
 
 from optimum.fx.optimization import (
     ChangeTrueDivToMulByInverse,
+    FuseBiasInLinear,
     MergeLinears,
     ReversibleTransformation,
     Transformation,
@@ -48,6 +49,7 @@ class DummyTransformation(Transformation):
 _TRANSFORMATIONS_TO_TEST = ((DummyTransformation(),),)
 _REVERSIBLE_TRANSFORMATIONS_TO_TEST = (
     (MergeLinears(),),
+    (FuseBiasInLinear(),),
     (ChangeTrueDivToMulByInverse(),),
 )
 
@@ -73,11 +75,10 @@ class TransformationTester(unittest.TestCase):
 
     def _check_original_and_transformed_outputs_match(self, transformation):
         model, traced = get_bert_model()
-        transformed = transformation(traced)
-
         tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
         inputs = tokenizer("This is a test.", return_tensors="pt")
         model_output = model(**inputs)
+        transformed = transformation(traced)
         transformed_output = transformed(**inputs)
         model_output = self.flatten_output(model_output)
         transformed_output = self.flatten_output(transformed_output)
@@ -227,6 +228,22 @@ def test_merge_linears():
         assert (
             num_linears == 3
         ), "there should be three linear layers in BertSelfAttention after the reverse transformation"
+
+
+def test_fuse_bias_in_linear():
+    _, traced = get_bert_model()
+    num_bias_in_linears = sum(
+        int(mod.bias is not None) for mod in traced.modules() if isinstance(mod, torch.nn.Linear)
+    )
+    assert (
+        num_bias_in_linears != 0
+    ), "there should be biases in at least one linear module in the model to actually perform the test"
+    transformation = FuseBiasInLinear()
+    transformed = transformation(traced)
+    num_bias_in_linears = sum(
+        int(mod.bias is not None) for mod in transformed.modules() if isinstance(mod, torch.nn.Linear)
+    )
+    assert num_bias_in_linears == 0, "there should not be any bias left in any linear module now"
 
 
 def test_change_truediv_to_mul_by_inverse():
