@@ -22,6 +22,7 @@ from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutputWithCrossAttentions,
     ImageClassifierOutput,
+    ModelOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
@@ -898,7 +899,7 @@ class ORTModelForCustomTasks(ORTModel):
         onnx_outputs = self.model.run(None, onnx_inputs)
         outputs = self._prepare_onnx_outputs(onnx_outputs)
         # converts outputs to namedtuple for pipelines post-processing if applicable
-        return namedtuple("CustomTasksOutput", outputs.keys())(*outputs.values())
+        return ModelOutput(outputs)
 
     def _prepare_onnx_inputs(self, **kwargs):
         model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
