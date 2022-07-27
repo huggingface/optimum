@@ -1,6 +1,8 @@
+import dataclasses
 import platform
 from dataclasses import field
 from enum import Enum
+from tkinter import Frame
 from typing import Dict, List, Optional, Union
 
 from . import is_pydantic_available
@@ -44,6 +46,7 @@ class APIFeaturesManager:
 
 class Frameworks(str, Enum):
     onnxruntime = "onnxruntime"
+    pytorch = "pytorch"
 
 
 class CalibrationMethods(str, Enum):
@@ -96,9 +99,13 @@ class Calibration:
     )
 
 
-@generate_doc_dataclass
 @dataclass
 class FrameworkArgs:
+    pass
+
+
+@dataclass
+class ONNXRuntimeFrameworkArgs(FrameworkArgs):
     opset: Optional[int] = field(default=11, metadata={"description": "ONNX opset version to export the model with."})
     optimization_level: Optional[int] = field(default=0, metadata={"description": "ONNX optimization level."})
 
@@ -113,6 +120,14 @@ class FrameworkArgs:
             2,
             99,
         ], f"Unsupported OnnxRuntime optimization level: {self.optimization_level}"
+
+
+@dataclass
+class PyTorchFrameworkArgs(FrameworkArgs):
+    pass
+
+
+framework_map = {"onnxruntime": ONNXRuntimeFrameworkArgs, "pytorch": PyTorchFrameworkArgs}
 
 
 @generate_doc_dataclass
@@ -168,14 +183,14 @@ class _RunBase:
         metadata={"description": "Name of the model hosted on the Hub to use for the run."}
     )
     task: str = field(metadata={"description": "Task performed by the model."})
-    quantization_approach: QuantizationApproach = field(
-        metadata={"description": "Whether to use dynamic or static quantization."}
-    )
     dataset: DatasetArgs = field(
         metadata={"description": "Dataset to use. Several keys must be set on top of the dataset name."}
     )
     framework: Frameworks = field(metadata={"description": 'Name of the framework used (e.g. "onnxruntime").'})
-    framework_args: FrameworkArgs = field(metadata={"description": "Framework-specific arguments."})
+    framework_args: Optional[FrameworkArgs] = field(
+        default=FrameworkArgs(),
+        metadata={"description": "Backend-specific configuration."},
+    )
 
 
 @dataclass
@@ -213,6 +228,9 @@ class _RunDefaults:
     )
     time_benchmark_args: Optional[BenchmarkTimeArgs] = field(
         default=BenchmarkTimeArgs(), metadata={"description": "Parameters related to time benchmark."}
+    )
+    quantization_approach: Optional[QuantizationApproach] = field(
+        default=None, metadata={"description": "Whether to use dynamic or static quantization."}
     )
 
 
@@ -261,6 +279,14 @@ class Run(_RunDefaults, _RunBase):
 
         # validate `aware_training`
         assert self.aware_training == False, "Quantization-Aware Training not supported."
+
+        # validate `framework_args
+        framework_args_dict = (
+            dataclasses.asdict(self.framework_args)
+            if isinstance(self.framework_args, FrameworkArgs)
+            else self.framework_args
+        )
+        self.framework_args = framework_map[self.framework](**framework_args_dict)
 
 
 @generate_doc_dataclass

@@ -2,7 +2,6 @@ import copy
 import os
 
 from datasets import load_metric
-from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
@@ -19,7 +18,7 @@ from .utils import task_ortmodel_map
 
 class OnnxRuntimeRun(Run):
     def __init__(self, run_config):
-        super().__init__(run_config)
+        run_config = super().__init__(run_config)
 
         # Create the quantization configuration containing all the quantization parameters
         qconfig = QuantizationConfig(
@@ -100,13 +99,9 @@ class OnnxRuntimeRun(Run):
         # necessary to pass the config for the pipeline not to complain later
         self.ort_model = task_ortmodel_map[self.task](ort_session, config=quantizer.model.config)
 
-        # pytorch benchmark
-        model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
-        self.torch_model = model_class.from_pretrained(run_config["model_name_or_path"])
-
         self.return_body[
             "model_type"
-        ] = self.torch_model.config.model_type  # return_body is initialized in parent class
+        ] = quantizer.model.config.model_type  # return_body is initialized in parent class
 
     def _launch_time(self, trial):
         batch_size = trial.suggest_categorical("batch_size", self.batch_sizes)
@@ -114,9 +109,8 @@ class OnnxRuntimeRun(Run):
 
         model_input_names = set(self.preprocessor.model_input_names)
 
-        # onnxruntime benchmark
         print("Running ONNX Runtime time benchmark.")
-        ort_benchmark = TimeBenchmark(
+        time_benchmark = TimeBenchmark(
             self.ort_model,
             input_length=input_length,
             batch_size=batch_size,
@@ -124,70 +118,47 @@ class OnnxRuntimeRun(Run):
             warmup_runs=self.time_benchmark_args["warmup_runs"],
             duration=self.time_benchmark_args["duration"],
         )
-        optimized_time_metrics = ort_benchmark.execute()
-
-        # pytorch benchmark
-        print("Running Pytorch time benchmark.")
-        torch_benchmark = TimeBenchmark(
-            self.torch_model,
-            input_length=input_length,
-            batch_size=batch_size,
-            model_input_names=model_input_names,
-            warmup_runs=self.time_benchmark_args["warmup_runs"],
-            duration=self.time_benchmark_args["duration"],
-        )
-        baseline_time_metrics = torch_benchmark.execute()
+        time_metrics = time_benchmark.execute()
 
         time_evaluation = {
             "batch_size": batch_size,
             "input_length": input_length,
-            "baseline": baseline_time_metrics,
-            "optimized": optimized_time_metrics,
         }
+        time_evaluation.update(time_metrics)
 
         self.return_body["evaluation"]["time"].append(time_evaluation)
 
         return 0, 0
 
     def launch_eval(self):
-        kwargs = self.processor.get_pipeline_kwargs()
+        try:
+            kwargs = self.processor.get_pipeline_kwargs()
 
-        # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
-        ort_pipeline = _optimum_pipeline(
-            task=self.task,
-            model=self.ort_model,
-            tokenizer=self.preprocessor,
-            feature_extractor=self.preprocessor,
-            accelerator="ort",
-            **kwargs,
-        )
-
-        transformers_pipeline = _transformers_pipeline(
-            task=self.task,
-            model=self.torch_model,
-            tokenizer=self.preprocessor,
-            feature_extractor=self.preprocessor,
-            **kwargs,
-        )
-
-        eval_dataset = self.get_eval_dataset()
-
-        # may be better to avoid to get labels twice
-        print("Running inference...")
-        all_labels, all_preds_baseline = self.processor.run_inference(eval_dataset, transformers_pipeline)
-        _, all_preds_optimized = self.processor.run_inference(eval_dataset, ort_pipeline)
-
-        print("Computing metrics...")
-        for metric_name in self.metric_names:
-            metric = load_metric(metric_name)
-            baseline_metrics_dict = self.processor.get_metrics(
-                predictions=all_preds_baseline, references=all_labels, metric=metric
+            # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
+            ort_pipeline = _optimum_pipeline(
+                task=self.task,
+                model=self.ort_model,
+                tokenizer=self.preprocessor,
+                feature_extractor=self.preprocessor,
+                accelerator="ort",
+                **kwargs,
             )
-            optimized_metrics_dict = self.processor.get_metrics(
-                predictions=all_preds_optimized, references=all_labels, metric=metric
-            )
-            self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
-            self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
+
+            eval_dataset = self.get_eval_dataset()
+
+            # may be better to avoid to get labels twice
+            print("Running inference...")
+            all_labels, all_preds = self.processor.run_inference(eval_dataset, ort_pipeline)
+
+            print("Computing metrics...")
+            for metric_name in self.metric_names:
+                metric = load_metric(metric_name)
+                metrics_dict = self.processor.get_metrics(predictions=all_preds, references=all_labels, metric=metric)
+                self.return_body["evaluation"]["others"].update(metrics_dict)
+
+            return self.return_body
+        finally:
+            self.finalize()
 
     def finalize(self):
         if os.path.isfile(self.quantized_model_path):

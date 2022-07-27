@@ -1,3 +1,4 @@
+import dataclasses
 import os
 import subprocess
 from contextlib import contextmanager
@@ -57,7 +58,8 @@ class Run:
         Args:
             run_config (dict): Parameters to use for the run. See [`~utils.runs.RunConfig`] for the expected keys.
         """
-        RunConfig(**run_config)  # validate the data (useful if used as standalone)
+        run_config = RunConfig(**run_config)  # validate the data (useful if used as standalone)
+        run_config = dataclasses.asdict(run_config)
 
         self.task = run_config["task"]
 
@@ -103,11 +105,13 @@ class Run:
             },
             "evaluation": {
                 "time": [],
-                "others": {"baseline": {}, "optimized": {}},
+                "others": {},
             },
             "max_eval_samples": run_config["max_eval_samples"],
             "time_benchmark_args": run_config["time_benchmark_args"],
         }
+
+        return run_config
 
     def launch(self):
         """Launch inference to compare metrics between the original and optimized model.
@@ -138,7 +142,7 @@ class Run:
 
     def launch_eval(self):
         """
-        Run evaluation on the original and optimized model.
+        Run evaluation on the model.
 
         Populate the `["evaluation"]["others"]` subdictionary of the run.
         """
@@ -166,7 +170,7 @@ class Run:
         """
         Get evaluation dataset.  The dataset needs to be loaded first with [`~optimum.runs_base.Run.load_datasets`].
 
-         Returns:
+        Returns:
             `datasets.Dataset`: Evaluation dataset.
         """
         if not hasattr(self, "_eval_dataset"):
