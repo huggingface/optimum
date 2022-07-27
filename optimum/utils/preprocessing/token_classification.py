@@ -47,29 +47,6 @@ class TokenClassificationProcessing(DatasetProcessing):
 
         datasets_dict = {"eval": eval_dataset}
 
-        features = eval_dataset.features
-
-        # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
-        # unique labels.
-        # An example is labels as ["PER", "PER", , "O", "LOC", "O", "LOC", "O"].
-        # `label_to_id` will map string labels to ids, here {'LOC': 0, 'O': 1, 'ORG': 2, 'PER': 3}.
-        # Normally `label_to_id` would just be e.g. {0: 0, 1: 1, 2: 2, 3: 3}
-        def get_label_list(labels):
-            unique_labels = set()
-            for label in labels:
-                unique_labels = unique_labels | set(label)
-            label_list = list(unique_labels)
-            label_list.sort()
-            return label_list
-
-        # If the labels are of type ClassLabel, they are already integers and we have the map stored somewhere.
-        # Otherwise, we have to get the list of labels manually.
-        labels_are_int = isinstance(features[self.ref_keys[0]].feature, ClassLabel)
-        if labels_are_int:
-            self.label_list = features[self.ref_keys[0]].feature.names
-        else:
-            self.label_list = get_label_list(raw_datasets["train"][self.ref_keys[0]])
-
         if self.static_quantization:
             # Run the tokenizer on the calibration dataset
             calibration_dataset = raw_datasets[self.calibration_split].map(
@@ -95,21 +72,18 @@ class TokenClassificationProcessing(DatasetProcessing):
         return datasets_dict
 
     def run_evaluation(self, eval_dataset: Dataset, pipeline: TokenClassificationPipeline, metrics: List[str]):
-        combined_metrics = combine(metrics)
+        all_metrics = combine(metrics)
 
         task_evaluator = evaluator("token-classification")
 
         results = task_evaluator.compute(
             model_or_pipeline=pipeline,
             data=eval_dataset,
-            metric=combined_metrics,
+            metric=all_metrics,
             input_column=self.data_keys["primary"],
             label_column=self.ref_keys[0],
             join_by=" ",
         )
-
-        results.pop("latency", None)
-        results.pop("throughput", None)
 
         return results
 
