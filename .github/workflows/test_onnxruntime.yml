@@ -33,5 +33,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        pwd
-        python -m pytest -n auto tests/onnxruntime
+        python -m pytest -n auto onnxruntime
