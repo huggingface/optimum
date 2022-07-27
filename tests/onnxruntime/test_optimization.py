@@ -61,17 +61,16 @@ class ORTConfigTest(unittest.TestCase):
 class ORTOptimizerTest(unittest.TestCase):
 
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
-        (BertForSequenceClassification, "bert-base-cased"),
-        (DistilBertForSequenceClassification, "distilbert-base-uncased"),
-        (BartForSequenceClassification, "facebook/bart-base"),
-        (GPT2ForSequenceClassification, "gpt2"),
-        (RobertaForSequenceClassification, "roberta-base"),
-        (ElectraForSequenceClassification, "google/electra-small-discriminator"),
+        (BertForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
+        (DistilBertForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
+        (BartForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
+        (GPT2ForSequenceClassification, "hf-internal-testing/tiny-random-gpt2"),
+        (RobertaForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
+        (ElectraForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
-    def test_optimize(self, *args, **kwargs):
-        model_cls, model_name = args
+    def test_optimize(self, model_cls, model_name):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = model_cls(AutoConfig.from_pretrained(model_name))
         optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
@@ -154,10 +153,10 @@ class ORTOptimizerTest(unittest.TestCase):
 
 class ORTDynamicQuantizationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (
-        (BertForSequenceClassification, "bert-base-cased", 72),
-        (RobertaForSequenceClassification, "roberta-base", 72),
-        (DistilBertForSequenceClassification, "distilbert-base-uncased", 36),
-        (BartForSequenceClassification, "facebook/bart-base", 96),
+        (BertForSequenceClassification, "hf-internal-testing/tiny-random-bert", 30),
+        (RobertaForSequenceClassification, "hf-internal-testing/tiny-random-roberta", 30),
+        (DistilBertForSequenceClassification, "hf-internal-testing/tiny-random-distilbert", 30),
+        (BartForSequenceClassification, "hf-internal-testing/tiny-random-bart", 32),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
@@ -195,7 +194,9 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
 
 
 class ORTStaticQuantizationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = ((BertForSequenceClassification, "bert-base-cased", 72),)
+    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (
+        (BertForSequenceClassification, "hf-internal-testing/tiny-random-bert", 30),
+    )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
     def test_static_quantization(self, model_cls, model_name, expected_quantized_matmuls):
