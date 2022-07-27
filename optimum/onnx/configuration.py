@@ -343,5 +343,7 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def fill_with_past_key_values_(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         num_pkv_per_layer = 4
         _, num_decoder_layers = self.num_layers
+        name = "past" if direction == "inputs" else "present"
+        decoder_sequence = "past_decoder_sequence" if direction == "inputs" else "past_decoder_sequence + sequence"
         for i in range(num_decoder_layers * num_pkv_per_layer):
-            inputs_or_outputs[f"past_key_values_{i}"] = {0: "batch", 2: "past_sequence + sequence"}
+            inputs_or_outputs[f"{name}_key_values_{i}"] = {0: "batch", 2: decoder_sequence}
