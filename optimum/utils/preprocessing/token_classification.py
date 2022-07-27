@@ -23,7 +23,29 @@ class TokenClassificationProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        features = raw_datasets["train"].features
+        # Preprocessing the raw_datasets
+        def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
+            # Tokenize the texts
+            tokenized_inputs = tokenizer(
+                text=examples[data_keys["primary"]],
+                text_pair=examples[data_keys["secondary"]] if data_keys["secondary"] else None,
+                padding="max_length",
+                truncation=True,
+                max_length=tokenizer.model_max_length,
+                is_split_into_words=True,
+            )
+            return tokenized_inputs
+
+        eval_dataset = raw_datasets[self.eval_split]
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
+        eval_dataset = eval_dataset.align_labels_with_mapping(
+            label2id=self.config.label2id, label_column=self.ref_keys[0]
+        )
+
+        datasets_dict = {"eval": eval_dataset}
+
+        features = eval_dataset.features
 
         # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
         # unique labels.
@@ -46,25 +68,6 @@ class TokenClassificationProcessing(DatasetProcessing):
         else:
             self.label_list = get_label_list(raw_datasets["train"][self.ref_keys[0]])
 
-        # Preprocessing the raw_datasets
-        def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
-            # Tokenize the texts
-            tokenized_inputs = tokenizer(
-                text=examples[data_keys["primary"]],
-                text_pair=examples[data_keys["secondary"]] if data_keys["secondary"] else None,
-                padding="max_length",
-                truncation=True,
-                max_length=tokenizer.model_max_length,
-                is_split_into_words=True,
-            )
-            return tokenized_inputs
-
-        eval_dataset = raw_datasets[self.eval_split]
-        if self.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
-
-        datasets_dict = {"eval": eval_dataset}
-
         if self.static_quantization:
             # Run the tokenizer on the calibration dataset
             calibration_dataset = raw_datasets[self.calibration_split].map(
@@ -74,7 +77,7 @@ class TokenClassificationProcessing(DatasetProcessing):
                     data_keys=self.data_keys,
                 ),
                 batched=True,
-                load_from_cache_file=True,
+                load_from_cache_file=False,
                 desc="Running tokenizer on calibration dataset",
             )
 

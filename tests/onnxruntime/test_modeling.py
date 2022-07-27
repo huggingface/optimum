@@ -15,7 +15,6 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
     PretrainedConfig,
-    pipeline,
 )
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import require_torch_gpu
@@ -38,6 +37,7 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoder, ORTEncoder
+from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
 from parameterized import parameterized
@@ -222,11 +222,21 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         self.assertTrue(torch.allclose(onnx_outputs.end_logits, transformers_outputs.end_logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline(self, *args, **kwargs):
+    def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
+        question = "Whats my name?"
+        context = "My Name is Philipp and I live in Nuremberg."
+        outputs = pipe(question, context)
+
+        # compare model output class
+        self.assertGreaterEqual(outputs["score"], 0.0)
+        self.assertIsInstance(outputs["answer"], str)
+
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("question-answering")
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
         outputs = pipe(question, context)
@@ -315,11 +325,20 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline(self, *args, **kwargs):
+    def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+
+        # compare model output class
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertIsInstance(outputs[0]["label"], str)
+
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("text-classification")
         text = "My Name is Philipp and i live in Germany."
         outputs = pipe(text)
 
@@ -421,11 +440,19 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline(self, *args, **kwargs):
+    def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForTokenClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+
+        # compare model output class
+        self.assertTrue(any(item["score"] > 0.0 for item in outputs))
+
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("token-classification")
         text = "My Name is Philipp and i live in Germany."
         outputs = pipe(text)
 
@@ -504,11 +531,19 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline(self, *args, **kwargs):
+    def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+
+        # compare model output class
+        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("feature-extraction")
         text = "My Name is Philipp and i live in Germany."
         outputs = pipe(text)
 
@@ -606,11 +641,20 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline(self, *args, **kwargs):
+    def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live"
+        outputs = pipe(text)
+
+        # compare model output class
+        self.assertIsInstance(outputs[0]["generated_text"], str)
+        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("text-generation")
         text = "My Name is Philipp and i live"
         outputs = pipe(text)
 
@@ -689,11 +733,20 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline(self, *args, **kwargs):
+    def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+
+        # compare model output class
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("image-classification")
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
 
@@ -835,6 +888,26 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         text = "This is a test"
         outputs = pipe(text)
 
+        # compare model output class
+        self.assertIsInstance(outputs[0]["translation_text"], str)
+
+    def test_pipeline_model_is_none(self):
+        # Text2text generation
+        pipe = pipeline("text2text-generation")
+        text = "This is a test"
+        outputs = pipe(text)
+        # compare model output class
+        self.assertIsInstance(outputs[0]["generated_text"], str)
+
+        # Summarization
+        pipe = pipeline("summarization")
+        outputs = pipe(text)
+        # compare model output class
+        self.assertIsInstance(outputs[0]["summary_text"], str)
+
+        # Translation
+        pipe = pipeline("translation_en_to_de")
+        outputs = pipe(text)
         # compare model output class
         self.assertIsInstance(outputs[0]["translation_text"], str)
 

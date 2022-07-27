@@ -30,7 +30,15 @@ import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    EvalPrediction,
+    HfArgumentParser,
+    PretrainedConfig,
+    PreTrainedTokenizer,
+    TrainingArguments,
+)
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -370,6 +378,11 @@ def main():
         eval_dataset = raw_datasets[validation_split]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+        if optimizer.model.config.label2id:
+            eval_dataset = eval_dataset.align_labels_with_mapping(
+                label2id=optimizer.model.config.label2id, label_column="label"
+            )
+
         eval_dataset = eval_dataset.map(
             partial(preprocess_function, tokenizer=tokenizer, max_length=data_args.max_seq_length),
             batched=True,

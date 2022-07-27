@@ -1,0 +1,116 @@
+name: Build main documentation
+
+on:
+  push:
+    branches:
+      - main
+      - doc-builder*
+      - v*-release
+
+jobs:
+  build_documentation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/doc-builder'
+          path: doc-builder
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/doc-build'
+          path: doc-build
+          token: ${{ secrets.HUGGINGFACE_PUSH }}
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum'
+          path: optimum
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-habana'
+          path: optimum-habana
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-graphcore'
+          path: optimum-graphcore
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-intel'
+          path: optimum-intel
+
+      - name: Set environment variables
+        run: |
+          cd optimum
+          version=`echo "$(grep '^__version__ =' optimum/version.py | cut -d '=' -f 2- | xargs)"`
+
+          if [[ $version == *.dev0 ]]
+          then
+            echo "VERSION=main" >> $GITHUB_ENV
+          else
+            echo "VERSION=v$version" >> $GITHUB_ENV
+          fi
+
+          cd ..
+
+      - name: Setup environment
+        run: |
+          pip uninstall -y doc-builder
+          cd doc-builder
+          git pull origin main
+          pip install .
+          pip install black
+          cd ..
+
+      - name: Create build directory
+        run: |
+          mkdir -p build_dir/optimum
+          cd build_dir/optimum
+          wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
+
+      - name: Make Graphcore documentation
+        run: |
+          cd optimum-graphcore
+          make doc BUILD_DIR=graphcore-doc-build VERSION=${{ env.VERSION }}
+          sudo mv graphcore-doc-build ../optimum
+          cd ..
+
+      - name: Make Habana documentation
+        run: |
+          cd optimum-habana
+          make doc BUILD_DIR=habana-doc-build VERSION=${{ env.VERSION }}
+          sudo mv habana-doc-build ../optimum
+          cd ..
+
+      - name: Make Intel documentation
+        run: |
+          cd optimum-intel
+          make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
+          sudo mv intel-doc-build ../optimum
+          cd ..
+
+      - name: Make Optimum documentation
+        run: |
+          cd optimum
+          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
+          cd ..
+
+      - name: Combine subpackage documentation
+        run: |
+          cd optimum
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel --version ${{ env.VERSION }}
+          sudo cp -r optimum-doc-build/optimum/${{ env.VERSION }} ../build_dir/optimum
+          cd ..
+
+      - name: Push to repositories
+        run: |
+          cd build_dir
+          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ secrets.HUGGINGFACE_PUSH }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
+        shell: bash
