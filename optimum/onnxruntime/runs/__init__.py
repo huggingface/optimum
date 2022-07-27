@@ -2,7 +2,6 @@ import copy
 import os
 
 from datasets import load_metric
-from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
