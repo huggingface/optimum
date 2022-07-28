@@ -27,7 +27,7 @@ The following example applies post-training static quantization on a DistilBERT 
 
 ```bash
 python run_glue.py \
-    --model_name_or_path howey/bert-base-uncased-sst2 \
+    --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english \
     --task_name sst2 \
     --quantization_approach static \
     --do_eval \
