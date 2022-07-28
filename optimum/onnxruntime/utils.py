@@ -155,7 +155,11 @@ def get_device_for_provider(provider: str) -> torch.device:
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
-    return torch.device("cuda") if provider == "CUDAExecutionProvider" else torch.device("cpu")
+    return (
+        torch.device("cuda")
+        if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]
+        else torch.device("cpu")
+    )
 
 
 def get_provider_for_device(device: torch.device) -> str:
@@ -163,6 +167,13 @@ def get_provider_for_device(device: torch.device) -> str:
     Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
     """
     return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"
+
+
+def check_if_multiple_available_providers() -> bool:
+    """
+    Uses ONNX Runtime to check if multiple providers are available.
+    """
+    return len(ort.get_available_providers()) > 1
 
 
 class ORTQuantizableOperator(Enum):

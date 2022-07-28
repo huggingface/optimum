@@ -46,7 +46,12 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
+from .utils import (
+    ONNX_WEIGHTS_NAME,
+    check_if_multiple_available_providers,
+    get_device_for_provider,
+    get_provider_for_device,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -152,6 +157,12 @@ class ORTModel(OptimizedModel):
                 ONNX Runtime provider to use for loading the model. Defaults to `CPUExecutionProvider`.
         """
         if provider is None:
+            if check_if_multiple_available_providers():
+                raise ValueError(
+                    "No provider supplied and multiple providers available, "
+                    "can not deterministically set correct provider. "
+                    "Pass provider in explicitly."
+                )
             provider = "CPUExecutionProvider"
 
         return ort.InferenceSession(path, providers=[provider])
@@ -207,11 +218,12 @@ class ORTModel(OptimizedModel):
                 kwargs will be passed to the model during initialization
         """
         config_dict = kwargs.pop("config", {})
+        provider = kwargs.pop("provider", None)
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
         # load model from local directory
         if os.path.isdir(model_id):
             config = PretrainedConfig.from_dict(config_dict)
-            model = ORTModel.load_model(os.path.join(model_id, model_file_name))
+            model = ORTModel.load_model(os.path.join(model_id, model_file_name), provider=provider)
             kwargs["model_save_dir"] = Path(model_id)
             kwargs["latest_model_name"] = model_file_name
         # load model from hub
@@ -227,7 +239,7 @@ class ORTModel(OptimizedModel):
             )
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
-            model = ORTModel.load_model(model_cache_path)
+            model = ORTModel.load_model(model_cache_path, provider=provider)
             config = PretrainedConfig.from_dict(config_dict)
         return cls(model=model, config=config, **kwargs)
 
