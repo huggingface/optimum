@@ -32,6 +32,7 @@ import transformers
 from datasets import load_dataset, load_metric
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import AutoFeatureExtractor, EvalPrediction, HfArgumentParser, TrainingArguments
+from transformers.onnx import FeaturesManager
 from transformers.utils.versions import require_version
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
@@ -123,7 +124,7 @@ class OptimizationArguments:
     """
 
     opset: Optional[int] = field(
-        default=None,
+        default=12,
         metadata={"help": "ONNX opset version to fit the model with."},
     )
     quantization_approach: str = field(
@@ -278,6 +279,9 @@ def main():
 
     # Create the quantizer
     onnx_model = ORTModelForImageClassification.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+    trfs_model = FeaturesManager.get_model_from_feature(onnx_model.export_feature, model_args.model_name_or_path)
+    _, _onnx_config = FeaturesManager.check_supported_model_or_raise(trfs_model, feature=onnx_model.export_feature)
+    onnx_config = _onnx_config(trfs_model.config)
     quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
     apply_static_quantization = optim_args.quantization_approach == "static"
@@ -367,7 +371,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR fit and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
+    ort_config = ORTConfig(opset=optim_args.opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -378,16 +382,16 @@ def main():
         if data_args.max_eval_samples is not None:
             dataset["validation"] = dataset["validation"].select(range(data_args.max_eval_samples))
 
-        if quantizer.model.config.label2id:
+        if onnx_model.config.label2id:
             eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=quantizer.model.config.label2id, label_column="labels"
+                label2id=onnx_model.config.label2id, label_column="labels"
             )
         # Set the validation transforms
         eval_dataset = dataset["validation"].with_transform(preprocess_function)
 
         ort_model = ORTModel(
-            Path(training_args.output_dir) / "quantized_model.onnx",
-            quantizer._onnx_config,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            onnx_config,
             execution_provider=model_args.execution_provider,
             compute_metrics=compute_metrics,
             label_names=["labels"],

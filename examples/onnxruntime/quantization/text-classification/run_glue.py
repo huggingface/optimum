@@ -30,14 +30,8 @@ import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import (
-    AutoConfig,
-    EvalPrediction,
-    HfArgumentParser,
-    PretrainedConfig,
-    PreTrainedTokenizer,
-    TrainingArguments,
-)
+from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers.onnx import FeaturesManager
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -173,7 +167,7 @@ class OptimizationArguments:
     """
 
     opset: Optional[int] = field(
-        default=None,
+        default=12,
         metadata={"help": "ONNX opset version to fit the model with."},
     )
     quantization_approach: str = field(
@@ -382,6 +376,9 @@ def main():
     onnx_model = ORTModelForSequenceClassification.from_pretrained(
         model_args.model_name_or_path, from_transformers=True
     )
+    trfs_model = FeaturesManager.get_model_from_feature(onnx_model.export_feature, model_args.model_name_or_path)
+    _, _onnx_config = FeaturesManager.check_supported_model_or_raise(trfs_model, feature=onnx_model.export_feature)
+    onnx_config = _onnx_config(trfs_model.config)
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
@@ -473,7 +470,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR fit and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
+    ort_config = ORTConfig(opset=optim_args.opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -486,14 +483,14 @@ def main():
         eval_dataset = preprocessed_datasets["validation_matched" if data_args.task_name == "mnli" else "validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        if quantizer.model.config.label2id:
+        if onnx_model.config.label2id:
             eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=quantizer.model.config.label2id, label_column="label"
+                label2id=onnx_model.config.label2id, label_column="label"
             )
 
         ort_model = ORTModel(
-            Path(training_args.output_dir) / "quantized_model.onnx",
-            quantizer._onnx_config,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            onnx_config,
             execution_provider=model_args.execution_provider,
             compute_metrics=compute_metrics,
             label_names=["label"],
@@ -514,8 +511,8 @@ def main():
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
 
         ort_model = ORTModel(
-            Path(training_args.output_dir) / "quantized_model.onnx",
-            quantizer._onnx_config,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            onnx_config,
             execution_provider=model_args.execution_provider,
         )
         outputs = ort_model.evaluation_loop(predict_dataset)

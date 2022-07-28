@@ -33,6 +33,7 @@ import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset, load_metric
 from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
+from transformers.onnx import FeaturesManager
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -186,7 +187,7 @@ class OptimizationArguments:
     """
 
     opset: Optional[int] = field(
-        default=None,
+        default=12,
         metadata={"help": "ONNX opset version to fit the model with."},
     )
     quantization_approach: str = field(
@@ -460,6 +461,9 @@ def main():
     # Create the quantizer
     onnx_model = ORTModelForTokenClassification.from_pretrained(model_args.model_name_or_path, from_transformers=True)
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    trfs_model = FeaturesManager.get_model_from_feature(onnx_model.export_feature, model_args.model_name_or_path)
+    _, _onnx_config = FeaturesManager.check_supported_model_or_raise(trfs_model, feature=onnx_model.export_feature)
+    onnx_config = _onnx_config(trfs_model.config)
     quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
     ranges = None
@@ -537,7 +541,7 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR fit and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
+    ort_config = ORTConfig(opset=optim_args.opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -555,8 +559,8 @@ def main():
             )
 
         ort_model = ORTModel(
-            Path(training_args.output_dir) / "quantized_model.onnx",
-            quantizer._onnx_config,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            onnx_config,
             execution_provider=model_args.execution_provider,
             compute_metrics=compute_metrics,
         )
@@ -586,8 +590,8 @@ def main():
             )
 
         ort_model = ORTModel(
-            Path(training_args.output_dir) / "quantized_model.onnx",
-            quantizer._onnx_config,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            onnx_config,
             execution_provider=model_args.execution_provider,
             compute_metrics=compute_metrics,
         )
