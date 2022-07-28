@@ -16,8 +16,8 @@ import gc
 import os
 import tempfile
 import unittest
-import pytest
 
+import pytest
 import torch
 from PIL import Image
 from transformers import (
@@ -865,19 +865,19 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         # Text2text generation
         pipe = pipeline("text2text-generation")
         text = "This is a test"
-        outputs = pipe(text)
+        outputs = pipe(text, max_length=2)
         # compare model output class
         self.assertIsInstance(outputs[0]["generated_text"], str)
 
         # Summarization
         pipe = pipeline("summarization")
-        outputs = pipe(text)
+        outputs = pipe(text, max_length=2)
         # compare model output class
         self.assertIsInstance(outputs[0]["summary_text"], str)
 
         # Translation
         pipe = pipeline("translation_en_to_de")
-        outputs = pipe(text)
+        outputs = pipe(text, max_length=2)
         # compare model output class
         self.assertIsInstance(outputs[0]["translation_text"], str)
 
