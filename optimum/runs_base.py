@@ -1,8 +1,10 @@
 import os
+import shutil
 import subprocess
+import tempfile
 from contextlib import contextmanager
 from time import perf_counter_ns
-from typing import Set
+from typing import Optional, Set, Union
 
 import numpy as np
 import torch
@@ -59,6 +61,8 @@ class Run:
         """
         RunConfig(**run_config)  # validate the data (useful if used as standalone)
 
+        self.run_dir_path = tempfile.mkdtemp()
+
         self.task = run_config["task"]
 
         if run_config["quantization_approach"] == "static":
@@ -109,10 +113,21 @@ class Run:
             "time_benchmark_args": run_config["time_benchmark_args"],
         }
 
-    def launch(self):
+    def launch(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
         """Launch inference to compare metrics between the original and optimized model.
 
         These metrics are latency, throughput, model size, and user provided metrics.
+
+        Args:
+            save (`bool`, *optional*, defaults to `False`):
+                Save the evaluation results or not.
+            save_directory (`Union[str, os.PathLike]`, *optional*, defaults to `None`):
+                Path to save the run to. Models and evaluations will be saved in a subfolder of this directory,
+                named with the time as prefix and `run_name` as suffix. This parameter must be set if `save` is `True`.
+            run_name (`str`, *optional*, defaults to `None`):
+                Optional name of the run, to include as a suffix in the saved directory name.
 
         Returns:
             `dict`: Finalized run data with metrics stored in the "evaluation" key.
@@ -120,6 +135,9 @@ class Run:
         try:
             self.study.optimize(self._launch_time)
             self.launch_eval()
+
+            if save:
+                self.save(save_directory, run_name)
         finally:
             self.finalize()
             print("Finished run.")
@@ -136,11 +154,36 @@ class Run:
         """
         raise NotImplementedError()
 
-    def launch_eval(self):
+    def launch_eval(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
         """
         Run evaluation on the original and optimized model.
 
-        Populate the `["evaluation"]["others"]` subdictionary of the run.
+        Populate the `["evaluation"]["others"]` subdictionary of the run, and optionally save models,
+        run configuration and results.
+
+        Args:
+            save (`bool`, *optional*, defaults to `False`):
+                Save the evaluation results or not.
+            save_directory (`Union[str, os.PathLike]`, *optional*, defaults to `None`):
+                Path to save the run to. Models and evaluations will be saved in a subfolder of this directory,
+                named with the time as prefix and `run_name` as suffix. This parameter must be set if `save` is `True`.
+            run_name (`str`, *optional*, defaults to `None`):
+                Optional name of the run, to include as a suffix in the saved directory name.
+        """
+        raise NotImplementedError()
+
+    def save(self, save_directory: Union[str, os.PathLike], run_name: str):
+        """
+        Save models created during the run, the run configuration and results.
+
+        Args:
+            save_directory (`Union[str, os.PathLike]`, *optional*, defaults to `None`):
+                Path to save the run to. Models and evaluations will be saved in a subfolder of this directory,
+                named with the time as prefix and `run_name` as suffix.
+            run_name (`str`, *optional*, defaults to `None`):
+                Optional name of the run, to include as a suffix in the saved directory name.
         """
         raise NotImplementedError()
 
@@ -174,8 +217,8 @@ class Run:
         return self._eval_dataset
 
     def finalize(self):
-        """Cleanup intermediary files."""
-        raise NotImplementedError()
+        """Cleanup possible intermediary files."""
+        shutil.rmtree(self.run_dir_path)
 
 
 SEC_TO_NS_SCALE = 1000000000
