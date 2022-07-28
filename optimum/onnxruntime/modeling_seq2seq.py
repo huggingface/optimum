@@ -434,7 +434,7 @@ class ORTModelForConditionalGeneration(ORTModel):
             )
 
         kwargs["config"] = model.config.__dict__
-        return cls._from_pretrained(save_dir.as_posix(), **kwargs)
+        return cls._from_pretrained(save_dir, **kwargs)
 
     def to(self, device):
         """
