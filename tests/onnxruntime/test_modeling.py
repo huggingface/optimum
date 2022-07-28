@@ -16,6 +16,7 @@ import gc
 import os
 import tempfile
 import unittest
+import pytest
 
 import torch
 from PIL import Image
@@ -282,6 +283,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("question-answering")
         question = "Whats my name?"
@@ -371,6 +373,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("text-classification")
         text = "My Name is Philipp and i live in Germany."
@@ -473,6 +476,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("token-classification")
         text = "My Name is Philipp and i live in Germany."
@@ -552,6 +556,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("feature-extraction")
         text = "My Name is Philipp and i live in Germany."
@@ -650,6 +655,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("text-generation")
         text = "My Name is Philipp and i live"
@@ -731,6 +737,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("image-classification")
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -853,6 +860,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         # Text2text generation
         pipe = pipeline("text2text-generation")
