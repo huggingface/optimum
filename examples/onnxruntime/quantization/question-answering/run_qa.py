@@ -623,7 +623,7 @@ def main():
 
         for i in range(optim_args.num_calibration_shards):
             shard = calibration_dataset.shard(optim_args.num_calibration_shards, i)
-            quantizer.partial_calibrate(
+            quantizer.partial_fit(
                 dataset=shard,
                 calibration_config=calibration_config,
                 onnx_model_path=model_path,
@@ -645,7 +645,7 @@ def main():
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
     # fit the quantized model
-    quantizer.fit(
+    quantizer.quantize(
         output_path=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,

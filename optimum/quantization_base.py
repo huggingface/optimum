@@ -21,6 +21,8 @@ class OptimumQuantizer(ABC):
         )
 
     @abstractmethod
-    def fit(self, output_path: Union[str, Path], file_prefix: Optional[str] = None, **kwargs):
-        """Overwrite this method in subclass to define how fit your model for quantization"""
-        raise NotImplementedError("Overwrite this method in subclass to define how fit your model for quantization")
+    def quantize(self, output_path: Union[str, Path], file_prefix: Optional[str] = None, **kwargs):
+        """Overwrite this method in subclass to define how quantize your model for quantization"""
+        raise NotImplementedError(
+            "Overwrite this method in subclass to define how quantize your model for quantization"
+        )

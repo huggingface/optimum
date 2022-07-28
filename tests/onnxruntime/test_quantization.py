@@ -89,7 +89,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             model.save_pretrained(tmp_dir)
 
             quantizer = ORTQuantizer.from_pretrained(model)
-            quantizer.fit(
+            quantizer.quantize(
                 output_path=output_dir,
                 quantization_config=qconfig,
             )
@@ -141,11 +141,11 @@ class ORTStaticQuantizationTest(unittest.TestCase):
                 dataset_split="train",
             )
             calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
-            ranges = quantizer.calibrate(
+            ranges = quantizer.fit(
                 dataset=calibration_dataset,
                 calibration_config=calibration_config,
             )
-            quantizer.fit(
+            quantizer.quantize(
                 output_path=output_dir,
                 calibration_tensors_range=ranges,
                 quantization_config=qconfig,

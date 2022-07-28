@@ -135,7 +135,7 @@ class ORTQuantizer(OptimumQuantizer):
         else:
             raise ValueError(f"Unable to load model from {model_or_path}.")
 
-    def calibrate(
+    def fit(
         self,
         dataset: Dataset,
         calibration_config: CalibrationConfig,
@@ -177,7 +177,7 @@ class ORTQuantizer(OptimumQuantizer):
             f")"
         )
 
-        self.partial_calibrate(
+        self.partial_fit(
             dataset,
             calibration_config,
             onnx_augmented_model_name,
@@ -189,7 +189,7 @@ class ORTQuantizer(OptimumQuantizer):
         )
         return self.compute_ranges()
 
-    def partial_calibrate(
+    def partial_fit(
         self,
         dataset: Dataset,
         calibration_config: CalibrationConfig,
@@ -255,7 +255,7 @@ class ORTQuantizer(OptimumQuantizer):
         LOGGER.info("Computing calibration ranges")
         return self._calibrator.compute_range()
 
-    def fit(
+    def quantize(
         self,
         output_path: Union[str, Path],
         quantization_config: QuantizationConfig,

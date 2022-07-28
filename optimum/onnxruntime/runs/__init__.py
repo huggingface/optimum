@@ -83,7 +83,7 @@ class OnnxRuntimeRun(Run):
                 calibration_params=run_config["calibration"],
                 node_exclusion=run_config["node_exclusion"],
             )
-            ranges, quantization_preprocessor = calibrator.calibrate()
+            ranges, quantization_preprocessor = calibrator.fit()
 
         # Export the quantized model
         quantizer.export(

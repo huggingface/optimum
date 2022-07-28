@@ -32,7 +32,7 @@ import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset, load_metric
-from transformers import HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments, AutoTokenizer
+from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -507,7 +507,7 @@ def main():
 
         for i in range(optim_args.num_calibration_shards):
             shard = calibration_dataset.shard(optim_args.num_calibration_shards, i)
-            quantizer.partial_calibrate(
+            quantizer.partial_fit(
                 dataset=shard,
                 calibration_config=calibration_config,
                 onnx_model_path=model_path,
@@ -529,7 +529,7 @@ def main():
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
     # fit the quantized model
-    quantizer.fit(
+    quantizer.quantize(
         output_path=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
