@@ -8,7 +8,8 @@ from transformers.onnx import FeaturesManager
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
 from ...pipelines import pipeline as _optimum_pipeline
-from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
+from ...runs_base import Run, TimeBenchmark, get_autoclass_name
+from ...utils.preprocessing.auto import TASK_PROCESSING_MAP
 from .. import ORTQuantizer
 from ..configuration import QuantizationConfig
 from ..modeling_ort import ORTModel
@@ -49,7 +50,7 @@ class OnnxRuntimeRun(Run):
         self.model_path = "model.onnx"
         self.quantized_model_path = "quantized_model.onnx"
 
-        processing_class = task_processing_map[self.task]
+        processing_class = TASK_PROCESSING_MAP[self.task]
         self.processor = processing_class(
             dataset_path=run_config["dataset"]["path"],
             dataset_name=run_config["dataset"]["name"],
