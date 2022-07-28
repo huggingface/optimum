@@ -30,7 +30,14 @@ import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset, load_metric
-from transformers import EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import (
+    AutoConfig,
+    EvalPrediction,
+    HfArgumentParser,
+    PretrainedConfig,
+    PreTrainedTokenizer,
+    TrainingArguments,
+)
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -478,6 +485,10 @@ def main():
         eval_dataset = preprocessed_datasets["validation_matched" if data_args.task_name == "mnli" else "validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+        if quantizer.model.config.label2id:
+            eval_dataset = eval_dataset.align_labels_with_mapping(
+                label2id=quantizer.model.config.label2id, label_column="label"
+            )
 
         ort_model = ORTModel(
             quantized_model_path,

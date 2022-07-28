@@ -378,6 +378,11 @@ def main():
 
         if data_args.max_eval_samples is not None:
             dataset["validation"] = dataset["validation"].select(range(data_args.max_eval_samples))
+
+        if quantizer.model.config.label2id:
+            eval_dataset = eval_dataset.align_labels_with_mapping(
+                label2id=quantizer.model.config.label2id, label_column="labels"
+            )
         # Set the validation transforms
         eval_dataset = dataset["validation"].with_transform(preprocess_function)
 
