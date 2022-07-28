@@ -2,8 +2,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from contextlib import contextmanager
-from time import perf_counter_ns
 from typing import Optional, Set, Union
 
 import numpy as np
@@ -185,7 +185,19 @@ class Run:
             run_name (`str`, *optional*, defaults to `None`):
                 Optional name of the run, to include as a suffix in the saved directory name.
         """
-        raise NotImplementedError()
+        if save_directory is None:
+            raise ValueError("A valid `save_directory` needs to be provided to save a run.")
+
+        subdir = time.strftime("%Y%m%d-h%Hm%Ms%S")
+        subdir += ("_" + run_name) if run_name is not None else ""
+        save_directory = os.path.join(save_directory, subdir)
+
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
+
+        print(f"Saving run in {save_directory}.")
+
+        return save_directory
 
     def load_datasets(self):
         """Load evaluation dataset, and if needed, calibration dataset for static quantization."""
@@ -252,9 +264,9 @@ class TimeBenchmark:
 
     @contextmanager
     def track(self):
-        start = perf_counter_ns()
+        start = time.perf_counter_ns()
         yield
-        end = perf_counter_ns()
+        end = time.perf_counter_ns()
 
         # Append the time to the buffer
         self.latencies.append(end - start)
