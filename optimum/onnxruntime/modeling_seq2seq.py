@@ -354,7 +354,7 @@ class ORTModelForConditionalGeneration(ORTModel):
     def _from_transformers(
         cls,
         model_id: str,
-        save_dir: Union[str, Path] = default_cache_path,
+        save_dir: Optional[Union[str, Path]] = None,
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
         force_download: bool = True,
@@ -387,12 +387,13 @@ class ORTModelForConditionalGeneration(ORTModel):
                 kwargs will be passed to the model during initialization.
         """
         # Create local save dir in cache dir
+        save_dir = default_cache_path if save_dir is None else save_dir
         save_dir = Path(save_dir).joinpath(model_id)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
         use_cache = kwargs.get("use_cache", True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id)
+        model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id, cache_dir=cache_dir)
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.pipeline_task)
         onnx_config = model_onnx_config(model.config)
         onnx_opset = onnx_config.default_onnx_opset

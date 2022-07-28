@@ -43,7 +43,7 @@ from transformers.onnx import FeaturesManager, export
 from transformers.onnx.utils import get_preprocessor
 
 import onnxruntime as ort
-from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub import HfApi, snapshot_download
 
 from ..modeling_base import OptimizedModel
 from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
@@ -169,9 +169,11 @@ class ORTModel(OptimizedModel):
         """
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
 
-        src_path = self.model_save_dir.joinpath(self.latest_model_name)
-        dst_path = Path(save_directory).joinpath(model_file_name)
-        shutil.copyfile(src_path, dst_path)
+        src_path = self.model_save_dir
+        dst_path = Path(save_directory)
+
+        # TODO: only copy the onnx model and external data
+        shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
 
     @classmethod
     def _from_pretrained(
@@ -182,6 +184,7 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: Optional[str] = None,
+        onnx_folder: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -203,11 +206,16 @@ class ORTModel(OptimizedModel):
             file_name(`str`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
                 repository or directory.
+            onnx_folder(`str`):
+                Folder path in repo where the onnx model with external data is located. If not specified, the onnx model is assumed to be in the root of the repo.
+                Note: for large models (>2GB), this argument must be specified to load the model's external data.
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
         config_dict = kwargs.pop("config", {})
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
+        #TODO: if we can find a good regex for onnx's external data, we don't need to specify the onnx_folder
+        onnx_regex = f"{onnx_folder}/*" if onnx_folder not in ["*", "."] else "*"
         # load model from local directory
         if os.path.isdir(model_id):
             config = PretrainedConfig.from_dict(config_dict)
@@ -217,17 +225,18 @@ class ORTModel(OptimizedModel):
         # load model from hub
         else:
             # download model
-            model_cache_path = hf_hub_download(
+            model_cache_path = snapshot_download(
                 repo_id=model_id,
-                filename=model_file_name,
+                allow_regex=[model_file_name, onnx_regex],
                 use_auth_token=use_auth_token,
                 revision=revision,
                 cache_dir=cache_dir,
-                force_download=force_download,
             )
-            kwargs["model_save_dir"] = Path(model_cache_path).parent
-            kwargs["latest_model_name"] = Path(model_cache_path).name
-            model = ORTModel.load_model(model_cache_path)
+            kwargs["model_save_dir"] = Path(model_cache_path)
+            kwargs["latest_model_name"] = model_file_name
+            if onnx_folder is not None:
+                model_cache_path = os.path.join(model_cache_path, onnx_folder)
+            model = ORTModel.load_model(os.path.join(model_cache_path, model_file_name))
             config = PretrainedConfig.from_dict(config_dict)
         return cls(model=model, config=config, **kwargs)
 
@@ -235,7 +244,7 @@ class ORTModel(OptimizedModel):
     def _from_transformers(
         cls,
         model_id: str,
-        save_dir: Union[str, Path] = default_cache_path,
+        save_dir: Optional[Union[str, Path]] = None,
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
         force_download: bool = False,
@@ -265,6 +274,7 @@ class ORTModel(OptimizedModel):
         """
 
         # create local save dir in cache dir
+        save_dir = default_cache_path if save_dir is None else save_dir
         save_dir = Path(save_dir).joinpath(model_id)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
@@ -281,7 +291,7 @@ class ORTModel(OptimizedModel):
         # 2. convert to temp dir
         # FIXME: transformers.onnx conversion doesn't support private models
         preprocessor = get_preprocessor(model_id)
-        model = FeaturesManager.get_model_from_feature(task, model_id)
+        model = FeaturesManager.get_model_from_feature(task, model_id, cache_dir=cache_dir)
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
         onnx_config = model_onnx_config(model.config)
 
