@@ -270,8 +270,8 @@ class ORTModel(OptimizedModel):
         kwargs["model_save_dir"] = save_dir
 
         # reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
-        if cls.pipeline_task is not None:
-            task = cls.pipeline_task
+        if cls.export_feature is not None:
+            task = cls.export_feature
         else:
             task = HfApi().model_info(model_id, revision=revision).pipeline_tag
             if task in ["sentiment-analysis", "text-classification", "zero-shot-classification"]:
@@ -344,7 +344,7 @@ class ORTModelForFeatureExtraction(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "default"
+    export_feature = "default"
     auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -429,7 +429,7 @@ class ORTModelForQuestionAnswering(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "question-answering"
+    export_feature = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -529,7 +529,7 @@ class ORTModelForSequenceClassification(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "sequence-classification"
+    export_feature = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -615,7 +615,7 @@ class ORTModelForTokenClassification(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "token-classification"
+    export_feature = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -698,7 +698,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "causal-lm"
+    export_feature = "causal-lm"
     auto_model_class = AutoModelForCausalLM
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -816,7 +816,7 @@ class ORTModelForImageClassification(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "image-classification"
+    export_feature = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
     def __init__(self, model=None, config=None, **kwargs):

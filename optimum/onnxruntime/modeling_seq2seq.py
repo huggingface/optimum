@@ -154,7 +154,7 @@ TRANSLATION_EXAMPLE = r"""
 class ORTModelForConditionalGeneration(ORTModel):
     # Used in from_transformers to export model to onnx
     base_model_prefix = "onnx_model"
-    pipeline_task = "seq2seq-lm"
+    export_feature = "seq2seq-lm"
     auto_model_class = AutoModelForSeq2SeqLM
 
     def __init__(
@@ -392,13 +392,13 @@ class ORTModelForConditionalGeneration(ORTModel):
         kwargs["model_save_dir"] = save_dir
         use_cache = kwargs.get("use_cache", True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id)
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.pipeline_task)
+        model = FeaturesManager.get_model_from_feature(cls.export_feature, model_id)
+        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
         onnx_config = model_onnx_config(model.config)
         onnx_opset = onnx_config.default_onnx_opset
         onnx_config_encoder = EncoderOnnxConfig(model.config, task="default")
-        onnx_config_decoder = DecoderOnnxConfig(model.config, task=cls.pipeline_task, use_past=False)
-        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=cls.pipeline_task, use_past=True)
+        onnx_config_decoder = DecoderOnnxConfig(model.config, task=cls.export_feature, use_past=False)
+        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=cls.export_feature, use_past=True)
 
         # Extract the encoder for ONNX export
         encoder = model.get_encoder()

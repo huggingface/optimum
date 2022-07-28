@@ -141,7 +141,7 @@ class OptimizationArguments:
     """
 
     opset: Optional[int] = field(
-        default=None,
+        default=12,
         metadata={"help": "ONNX opset version to export the model with."},
     )
     quantization_approach: str = field(
@@ -325,8 +325,9 @@ def main():
     )
 
     # Create the quantizer
+    # TODO: Fix when PR is merged 294
     quantizer = ORTQuantizer.from_pretrained(
-        model_args.model_name_or_path, feature="multiple-choice", opset=optim_args.opset
+        model_args.model_name_or_path,
     )
 
     ranges = None
