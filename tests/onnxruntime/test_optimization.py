@@ -56,6 +56,7 @@ class ORTOptimizerTest(unittest.TestCase):
         "gpt2": "gpt2",
         "roberta": "roberta-base",
         "electra": "google/electra-small-discriminator",
+        "xlm-roberta": "xlm-roberta-base",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
