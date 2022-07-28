@@ -376,13 +376,22 @@ def main():
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
+        eval_dataset = dataset["validation"]
         if data_args.max_eval_samples is not None:
-            dataset["validation"] = dataset["validation"].select(range(data_args.max_eval_samples))
+            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
-        if quantizer.model.config.label2id:
+        try:
             eval_dataset = eval_dataset.align_labels_with_mapping(
                 label2id=quantizer.model.config.label2id, label_column="labels"
             )
+        except Exception as e:
+            logger.warning(
+                f"\nModel label mapping: {quantizer.model.config.label2id}"
+                f"\nDataset label features: {eval_dataset.features['labels']}"
+                f"\nCould not guarantee the model label mapping and the dataset labels match."
+                f" Evaluation results may suffer from a wrong matching."
+            )
+
         # Set the validation transforms
         eval_dataset = dataset["validation"].with_transform(preprocess_function)
 
