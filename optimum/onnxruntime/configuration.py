@@ -277,10 +277,12 @@ class QuantizationConfig:
     qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
         default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
     )
+    disable_shape_inference: bool = False
 
     def __post_init__(self):
         ensure_valid_mode_or_raise(self.is_static, self.mode)
         ensure_valid_data_type_or_raise(self.is_static, self.activations_dtype, self.weights_dtype)
+        ensure_valid_shape_inference_or_raise(self.disable_shape_inference, self.is_static)
 
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
@@ -311,6 +313,17 @@ def ensure_valid_mode_or_raise(use_static_quantization: bool, mode: Quantization
             "and "
             "mode = QuantizationMode.QLinearOps. "
             "OnnxRuntime dynamic quantization requires mode = QuantizationMode.IntegerOps"
+        )
+
+
+def ensure_valid_shape_inference_or_raise(disable_shape_inference: bool, use_static_quantization: bool):
+    if disable_shape_inference and use_static_quantization:
+        raise ValueError(
+            "Invalid combination of "
+            "disable_shape_inference = True "
+            "and "
+            "use_static_quantization = True. "
+            "Only disable shape inference for dynamic quantization"
         )
 
 
