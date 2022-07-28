@@ -356,6 +356,7 @@ class ORTQuantizer(OptimumQuantizer):
         preprocess_function: Optional[Callable] = None,
         preprocess_batch: bool = True,
         seed: int = 2016,
+        use_auth_token: bool = False,
     ) -> Dataset:
         """
         Create the calibration `datasets.Dataset` to use for the post-training static quantization calibration step
@@ -372,10 +373,13 @@ class ORTQuantizer(OptimumQuantizer):
                 Which split of the dataset to use to perform the calibration step.
             preprocess_function (`Callable`, *optional*):
                 Processing function to apply to each example after loading dataset.
-            preprocess_batch (`int`, defaults to `True`):
+            preprocess_batch (`bool`, defaults to `True`):
                 Whether the `preprocess_function` should be batched.
             seed (`int`, defaults to 2016):
                 The random seed to use when shuffling the calibration dataset.
+            use_auth_token (`bool`, defaults to `False`):
+                Whether to use the token generated when running `transformers-cli login` (necessary for some datasets
+                like ImageNet).
         Returns:
             The calibration `datasets.Dataset` to use for the post-training static quantization calibration
             step.
@@ -386,7 +390,12 @@ class ORTQuantizer(OptimumQuantizer):
                 "provided."
             )
 
-        calib_dataset = load_dataset(dataset_name, name=dataset_config_name, split=dataset_split)
+        calib_dataset = load_dataset(
+            dataset_name,
+            name=dataset_config_name,
+            split=dataset_split,
+            use_auth_token=use_auth_token,
+        )
 
         if num_samples is not None:
             num_samples = min(num_samples, len(calib_dataset))

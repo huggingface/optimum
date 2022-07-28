@@ -104,4 +104,4 @@ class QuestionAnsweringProcessing(DatasetProcessing):
         return metrics_res
 
     def get_pipeline_kwargs(self):
-        return {}
+        return {"max_answer_len": 30}
