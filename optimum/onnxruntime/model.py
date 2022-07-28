@@ -36,7 +36,6 @@ class ORTModel:
     def __init__(
         self,
         model_path: Union[str, os.PathLike],
-        onnx_config: OnnxConfig,
         execution_provider: Optional[str] = "CPUExecutionProvider",
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         label_names: Optional[List[str]] = None,
@@ -45,9 +44,6 @@ class ORTModel:
         Args:
             model_path (`Union[str, os.PathLike]`):
                 The path to the model ONNX Intermediate Representation (IR).
-            onnx_config (`OnnxConfig`):
-                An ONNX configuration associated to the ONNX model describing metadata on how to export the model
-                through the ONNX format.
             execution_provider (:obj:`str`, `optional`):
                 ONNX Runtime execution provider to use.
             compute_metrics (`Callable[[EvalPrediction], Dict]`, `optional`):
@@ -56,22 +52,10 @@ class ORTModel:
             label_names (`List[str]`, `optional`):
                 The list of keys in your dictionary of inputs that correspond to the labels.
         """
-        if not isinstance(onnx_config, OnnxConfig):
-            raise TypeError(
-                f"The ONNX configuration `onnx_config` associated to the pre-existing ONNX model is of type "
-                f"{type(onnx_config)}, which is not an instance of `OnnxConfig`."
-            )
-
-        self.onnx_named_inputs = list(onnx_config.inputs.keys())
-        self.onnx_named_outputs = list(onnx_config.outputs.keys())
-        self.onnx_config = onnx_config
-        self.execution_provider = execution_provider
-        self.model_path = Path(model_path)
         self.compute_metrics = compute_metrics
-        default_label_names = (
-            ["start_positions", "end_positions"] if self.onnx_config.task == "question-answering" else ["labels"]
-        )
-        self.label_names = default_label_names if label_names is None else label_names
+        self.label_names = ["labels"] if label_names is None else label_names
+        self.session = InferenceSession(str(model_path), providers=[execution_provider])
+        self.onnx_input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
 
     def evaluation_loop(self, dataset: Dataset):
         """
@@ -84,8 +68,6 @@ class ORTModel:
         logger.info(f"***** Running evaluation *****")
         all_preds = None
         all_labels = None
-        options = SessionOptions()
-        session = InferenceSession(self.model_path.as_posix(), options, providers=[self.execution_provider])
         for step, inputs in enumerate(dataset):
             has_labels = all(inputs.get(k) is not None for k in self.label_names)
             if has_labels:
@@ -94,8 +76,8 @@ class ORTModel:
                     labels = labels[0]
             else:
                 labels = None
-            onnx_inputs = {key: np.array([inputs[key]]) for key in self.onnx_config.inputs if key in inputs}
-            preds = session.run(self.onnx_named_outputs, onnx_inputs)
+            onnx_inputs = {key: np.array([inputs[key]]) for key in self.onnx_input_names if key in inputs}
+            preds = self.session.run(None, onnx_inputs)
             if len(preds) == 1:
                 preds = preds[0]
             all_preds = preds if all_preds is None else nested_concat(all_preds, preds, padding_index=-100)
