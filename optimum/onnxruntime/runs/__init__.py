@@ -201,15 +201,7 @@ class OnnxRuntimeRun(Run):
             self.save(save_directory, run_name)
 
     def save(self, save_directory: Union[str, os.PathLike], run_name: str):
-        if save_directory is None:
-            raise ValueError("A valid `save_directory` needs to be provided to save a run.")
-
-        subdir = time.strftime("%Y%m%d-h%Hm%Ms%S")
-        subdir += ("_" + run_name) if run_name is not None else ""
-        save_directory = os.path.join(save_directory, subdir)
-
-        if not os.path.exists(save_directory):
-            os.makedirs(save_directory)
+        save_directory = super().save(save_directory, run_name)
 
         # save ORTConfig
         self.ort_config.save_pretrained(save_directory)
