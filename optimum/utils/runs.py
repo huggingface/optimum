@@ -2,7 +2,6 @@ import dataclasses
 import platform
 from dataclasses import field
 from enum import Enum
-from tkinter import Frame
 from typing import Dict, List, Optional, Union
 
 from . import is_pydantic_available
