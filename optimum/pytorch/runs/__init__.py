@@ -79,7 +79,7 @@ class PyTorchRun(Run):
             kwargs = self.processor.get_pipeline_kwargs()
 
             # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
-            ort_pipeline = _transformers_pipeline(
+            pipeline = _transformers_pipeline(
                 task=self.task,
                 model=self.torch_model,
                 tokenizer=self.preprocessor,
@@ -91,7 +91,7 @@ class PyTorchRun(Run):
 
             # may be better to avoid to get labels twice
             print("Running inference...")
-            all_labels, all_preds = self.processor.run_inference(eval_dataset, ort_pipeline)
+            all_labels, all_preds = self.processor.run_inference(eval_dataset, pipeline)
 
             print("Computing metrics...")
             for metric_name in self.metric_names:
