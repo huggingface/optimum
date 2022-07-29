@@ -1,9 +1,10 @@
+import dataclasses
 import os
 import shutil
 import subprocess
 import tempfile
-import time
 from contextlib import contextmanager
+from time import perf_counter_ns
 from typing import Optional, Set, Union
 
 import numpy as np
@@ -59,8 +60,9 @@ class Run:
         Args:
             run_config (dict): Parameters to use for the run. See [`~utils.runs.RunConfig`] for the expected keys.
         """
-        RunConfig(**run_config)  # validate the data (useful if used as standalone)
-
+        run_config = RunConfig(**run_config)  # validate the data (useful if used as standalone)
+        run_config = dataclasses.asdict(run_config)
+        
         self.run_dir_path = tempfile.mkdtemp()
 
         self.task = run_config["task"]
@@ -107,11 +109,13 @@ class Run:
             },
             "evaluation": {
                 "time": [],
-                "others": {"baseline": {}, "optimized": {}},
+                "others": {},
             },
             "max_eval_samples": run_config["max_eval_samples"],
             "time_benchmark_args": run_config["time_benchmark_args"],
         }
+
+        return run_config
 
     def launch(
         self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
@@ -144,6 +148,13 @@ class Run:
 
         return self.return_body
 
+    def launch_time(self):
+        try:
+            self.study.optimize(self._launch_time)
+            return self.return_body
+        finally:
+            self.finalize()
+
     def _launch_time(self, trial):
         """Optuna objective function to measure latency/throughput.
 
@@ -158,7 +169,7 @@ class Run:
         self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
     ):
         """
-        Run evaluation on the original and optimized model.
+        Run evaluation on the model.
 
         Populate the `["evaluation"]["others"]` subdictionary of the run, and optionally save models,
         run configuration and results.

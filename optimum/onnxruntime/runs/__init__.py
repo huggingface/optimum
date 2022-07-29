@@ -22,7 +22,7 @@ from .utils import task_ortmodel_map
 
 class OnnxRuntimeRun(Run):
     def __init__(self, run_config):
-        super().__init__(run_config)
+        run_config = super().__init__(run_config)
 
         # Create the quantization configuration containing all the quantization parameters
         qconfig = QuantizationConfig(
@@ -105,13 +105,9 @@ class OnnxRuntimeRun(Run):
         # necessary to pass the config for the pipeline not to complain later
         self.ort_model = task_ortmodel_map[self.task](ort_session, config=quantizer.model.config)
 
-        # pytorch benchmark
-        model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
-        self.torch_model = model_class.from_pretrained(run_config["model_name_or_path"])
-
         self.return_body[
             "model_type"
-        ] = self.torch_model.config.model_type  # return_body is initialized in parent class
+        ] = quantizer.model.config.model_type  # return_body is initialized in parent class
 
     def _launch_time(self, trial):
         batch_size = trial.suggest_categorical("batch_size", self.batch_sizes)
@@ -121,7 +117,7 @@ class OnnxRuntimeRun(Run):
 
         # onnxruntime benchmark
         print("Running ONNX Runtime time benchmark.")
-        ort_benchmark = TimeBenchmark(
+        time_benchmark = TimeBenchmark(
             self.ort_model,
             input_length=input_length,
             batch_size=batch_size,
@@ -129,26 +125,13 @@ class OnnxRuntimeRun(Run):
             warmup_runs=self.time_benchmark_args["warmup_runs"],
             duration=self.time_benchmark_args["duration"],
         )
-        optimized_time_metrics = ort_benchmark.execute()
-
-        # pytorch benchmark
-        print("Running Pytorch time benchmark.")
-        torch_benchmark = TimeBenchmark(
-            self.torch_model,
-            input_length=input_length,
-            batch_size=batch_size,
-            model_input_names=model_input_names,
-            warmup_runs=self.time_benchmark_args["warmup_runs"],
-            duration=self.time_benchmark_args["duration"],
-        )
-        baseline_time_metrics = torch_benchmark.execute()
+        time_metrics = time_benchmark.execute()
 
         time_evaluation = {
             "batch_size": batch_size,
             "input_length": input_length,
-            "baseline": baseline_time_metrics,
-            "optimized": optimized_time_metrics,
         }
+        time_evaluation.update(time_metrics)
 
         self.return_body["evaluation"]["time"].append(time_evaluation)
 
@@ -157,47 +140,36 @@ class OnnxRuntimeRun(Run):
     def launch_eval(
         self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
     ):
-        kwargs = self.processor.get_pipeline_kwargs()
+        try:
+            kwargs = self.task_processor.get_pipeline_kwargs()
 
-        # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
-        ort_pipeline = _optimum_pipeline(
-            task=self.task,
-            model=self.ort_model,
-            tokenizer=self.preprocessor,
-            feature_extractor=self.preprocessor,
-            accelerator="ort",
-            **kwargs,
-        )
+            # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
+            ort_pipeline = _optimum_pipeline(
+                task=self.task,
+                model=self.ort_model,
+                tokenizer=self.preprocessor,
+                feature_extractor=self.preprocessor,
+                accelerator="ort",
+                **kwargs,
+            )
 
-        transformers_pipeline = _transformers_pipeline(
-            task=self.task,
-            model=self.torch_model,
-            tokenizer=self.preprocessor,
-            feature_extractor=self.preprocessor,
-            **kwargs,
-        )
+            eval_dataset = self.get_eval_dataset()
 
-        eval_dataset = self.get_eval_dataset()
+            print("Running evaluation...")
+            metrics_dict = self.task_processor.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
 
-        print("Running evaluation...")
-        baseline_metrics_dict = self.task_processor.run_evaluation(
-            eval_dataset, transformers_pipeline, self.metric_names
-        )
-        optimized_metrics_dict = self.task_processor.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
+            metrics_dict.pop("total_time_in_seconds", None)
+            metrics_dict.pop("samples_per_second", None)
+            metrics_dict.pop("latency_in_seconds", None)
 
-        baseline_metrics_dict.pop("total_time_in_seconds", None)
-        baseline_metrics_dict.pop("samples_per_second", None)
-        baseline_metrics_dict.pop("latency_in_seconds", None)
-
-        optimized_metrics_dict.pop("total_time_in_seconds", None)
-        optimized_metrics_dict.pop("samples_per_second", None)
-        optimized_metrics_dict.pop("latency_in_seconds", None)
-
-        self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
-        self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
-
-        if save:
-            self.save(save_directory, run_name)
+            self.return_body["evaluation"]["others"].update(metrics_dict)
+            
+            if save:
+                self.save(save_directory, run_name)
+        finally:
+            self.finalize()
+        
+        return self.return_body
 
     def save(self, save_directory: Union[str, os.PathLike], run_name: str):
         save_directory = super().save(save_directory, run_name)

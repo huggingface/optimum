@@ -9,7 +9,7 @@ import unittest
 import transformers
 
 from optimum.onnxruntime.runs import OnnxRuntimeRun
-from optimum.utils.runs import RunConfig
+from optimum.pytorch.runs import PyTorchRun
 
 
 class TestParity(unittest.TestCase):
@@ -85,29 +85,38 @@ class TestParity(unittest.TestCase):
                 "ref_keys": ["label"],
             },
             "metrics": ["accuracy"],
+            "framework": "pytorch",
+            "max_eval_samples": n_samples,
+        }
+        run_instance = PyTorchRun(run_config)
+        benchmark_results = run_instance.launch_eval()
+
+        self.assertEqual(transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["accuracy"])
+
+        run_config = {
+            "task": "text-classification",
+            "task_args": {"is_regression": False},
+            "model_name_or_path": model_name,
+            "dataset": {
+                "path": "glue",
+                "name": "sst2",
+                "eval_split": "validation",
+                "data_keys": {"primary": "sentence"},
+                "ref_keys": ["label"],
+            },
+            "metrics": ["accuracy"],
             "quantization_approach": "dynamic",
             "operators_to_quantize": ["Add", "MatMul"],
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
             "framework_args": {"optimization_level": 1, "opset": 15},
-            "batch_sizes": [8],
-            "input_lengths": [128],
             "max_eval_samples": n_samples,
-            "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
         }
-        run_config = RunConfig(**run_config)
-        run_config = dataclasses.asdict(run_config)
-
         run_instance = OnnxRuntimeRun(run_config)
-        benchmark_results = run_instance.launch()
+        benchmark_results = run_instance.launch_eval()
 
-        self.assertEqual(
-            transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["baseline"]["accuracy"]
-        )
-        self.assertEqual(
-            optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["optimized"]["accuracy"]
-        )
+        self.assertEqual(optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["accuracy"])
 
     def test_token_classification_parity(self):
         model_name = "hf-internal-testing/tiny-bert-for-token-classification"
@@ -162,35 +171,38 @@ class TestParity(unittest.TestCase):
                 "ref_keys": ["ner_tags"],
             },
             "metrics": ["seqeval"],
+            "framework": "pytorch",
+            "max_eval_samples": n_samples,
+        }
+        run_instance = PyTorchRun(run_config)
+        benchmark_results = run_instance.launch_eval()
+
+        self.assertEqual(transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["accuracy"])
+        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["f1"])
+
+        run_config = {
+            "task": "token-classification",
+            "model_name_or_path": model_name,
+            "dataset": {
+                "path": "conll2003",
+                "eval_split": "validation",
+                "data_keys": {"primary": "tokens"},
+                "ref_keys": ["ner_tags"],
+            },
+            "metrics": ["seqeval"],
             "quantization_approach": "dynamic",
             "operators_to_quantize": ["Add", "MatMul"],
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
             "framework_args": {"optimization_level": 1, "opset": 11},
-            "batch_sizes": [8],
-            "input_lengths": [128],
             "max_eval_samples": n_samples,
-            "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
         }
-        run_config = RunConfig(**run_config)
-        run_config = dataclasses.asdict(run_config)
-
         run_instance = OnnxRuntimeRun(run_config)
-        benchmark_results = run_instance.launch()
+        benchmark_results = run_instance.launch_eval()
 
-        self.assertEqual(
-            transformers_results["eval_accuracy"],
-            benchmark_results["evaluation"]["others"]["baseline"]["overall_accuracy"],
-        )
-        self.assertEqual(
-            transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["baseline"]["overall_f1"]
-        )
-
-        self.assertEqual(
-            optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["optimized"]["overall_accuracy"]
-        )
-        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["optimized"]["overall_f1"])
+        self.assertEqual(optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["accuracy"])
+        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["f1"])
 
     def test_question_answering_parity(self):
         model_name = "mrm8488/bert-tiny-finetuned-squadv2"
@@ -246,33 +258,41 @@ class TestParity(unittest.TestCase):
                 "ref_keys": ["answers"],
             },
             "metrics": ["squad"],
+            "framework": "pytorch",
+            "max_eval_samples": n_samples,
+        }
+        run_instance = PyTorchRun(run_config)
+        benchmark_results = run_instance.launch_eval()
+
+        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["f1"])
+        self.assertEqual(
+            transformers_results["eval_exact_match"],
+            benchmark_results["evaluation"]["others"]["exact_match"],
+        )
+
+        run_config = {
+            "task": "question-answering",
+            "model_name_or_path": model_name,
+            "dataset": {
+                "path": "squad",
+                "eval_split": "validation",
+                "data_keys": {"question": "question", "context": "context"},
+                "ref_keys": ["answers"],
+            },
+            "metrics": ["squad"],
             "quantization_approach": "dynamic",
             "operators_to_quantize": ["Add", "MatMul"],
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
             "framework_args": {"optimization_level": 1, "opset": 15},
-            "batch_sizes": [8],
-            "input_lengths": [128],
             "max_eval_samples": n_samples,
-            "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
         }
-        run_config = RunConfig(**run_config)
-        run_config = dataclasses.asdict(run_config)
-
         run_instance = OnnxRuntimeRun(run_config)
-        benchmark_results = run_instance.launch()
+        benchmark_results = run_instance.launch_eval()
 
-        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["baseline"]["f1"])
-        self.assertEqual(
-            transformers_results["eval_exact_match"],
-            benchmark_results["evaluation"]["others"]["baseline"]["exact_match"],
-        )
-
-        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["optimized"]["f1"])
-        self.assertEqual(
-            optimum_results["exact_match"], benchmark_results["evaluation"]["others"]["optimized"]["exact_match"]
-        )
+        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["f1"])
+        self.assertEqual(optimum_results["exact_match"], benchmark_results["evaluation"]["others"]["exact_match"])
 
     def test_image_classification_parity(self):
         # dummy test until this question is solved
@@ -296,19 +316,15 @@ class TestParity(unittest.TestCase):
             "per_channel": False,
             "framework": "onnxruntime",
             "framework_args": {"optimization_level": 1, "opset": 15},
-            "batch_sizes": [8],
-            "input_lengths": [128],
             "max_eval_samples": n_samples,
-            "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
         }
         run_config = RunConfig(**run_config)
         run_config = dataclasses.asdict(run_config)
 
         run_instance = OnnxRuntimeRun(run_config)
-        benchmark_results = run_instance.launch()
+        benchmark_results = run_instance.launch_eval()
 
-        print(benchmark_results)
-        self.assertEqual(benchmark_results["evaluation"]["others"]["baseline"]["accuracy"], 84 / 120)
+        self.assertEqual(benchmark_results["evaluation"]["others"]["accuracy"], 84 / 120)
 
 
 if __name__ == "__main__":
