@@ -50,7 +50,16 @@ class ImageClassificationProcessing(DatasetProcessing):
         eval_dataset = raw_datasets[self.eval_split]
         if self.max_eval_samples is not None:
             eval_dataset = eval_dataset.shuffle(seed=42).select(range(self.max_eval_samples))
-        eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
+
+        try:
+            eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
+        except Exception as e:
+            print(
+                f"\nModel label mapping: {self.config.label2id}"
+                f"\nDataset label features: {eval_dataset.features[self.ref_keys[0]]}"
+                f"\nCould not guarantee the model label mapping and the dataset labels match."
+                f" Evaluation results may suffer from a wrong matching."
+            )
 
         datasets_dict = {"eval": eval_dataset}
 
