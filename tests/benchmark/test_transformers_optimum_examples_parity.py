@@ -318,9 +318,6 @@ class TestParity(unittest.TestCase):
             "framework_args": {"optimization_level": 1, "opset": 15},
             "max_eval_samples": n_samples,
         }
-        run_config = RunConfig(**run_config)
-        run_config = dataclasses.asdict(run_config)
-
         run_instance = OnnxRuntimeRun(run_config)
         benchmark_results = run_instance.launch_eval()
 

@@ -22,7 +22,7 @@ class PyTorchRun(Run):
         self.torch_model = model_class.from_pretrained(run_config["model_name_or_path"])
 
         processing_class = task_processing_map[self.task]
-        self.processor = processing_class(
+        self.task_processor = processing_class(
             dataset_path=run_config["dataset"]["path"],
             dataset_name=run_config["dataset"]["name"],
             calibration_split=run_config["dataset"]["calibration_split"],
@@ -76,10 +76,10 @@ class PyTorchRun(Run):
 
     def launch_eval(self):
         try:
-            kwargs = self.processor.get_pipeline_kwargs()
+            kwargs = self.task_processor.get_pipeline_kwargs()
 
             # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
-            ort_pipeline = _transformers_pipeline(
+            pipeline = _transformers_pipeline(
                 task=self.task,
                 model=self.torch_model,
                 tokenizer=self.preprocessor,
@@ -89,19 +89,21 @@ class PyTorchRun(Run):
 
             eval_dataset = self.get_eval_dataset()
 
-            # may be better to avoid to get labels twice
-            print("Running inference...")
-            all_labels, all_preds = self.processor.run_inference(eval_dataset, ort_pipeline)
+            print("Running evaluation...")
+            metrics_dict = self.task_processor.run_evaluation(eval_dataset, pipeline, self.metric_names)
 
-            print("Computing metrics...")
-            for metric_name in self.metric_names:
-                metric = load_metric(metric_name)
-                metrics_dict = self.processor.get_metrics(predictions=all_preds, references=all_labels, metric=metric)
-                self.return_body["evaluation"]["others"].update(metrics_dict)
+            metrics_dict.pop("total_time_in_seconds", None)
+            metrics_dict.pop("samples_per_second", None)
+            metrics_dict.pop("latency_in_seconds", None)
 
-            return self.return_body
+            self.return_body["evaluation"]["others"].update(metrics_dict)
+
+            if save:
+                self.save(save_directory, run_name)
         finally:
             self.finalize()
+
+        return self.return_body
 
     def finalize(self):
         pass
