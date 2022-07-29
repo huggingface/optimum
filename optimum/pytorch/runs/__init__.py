@@ -1,3 +1,6 @@
+import os
+from typing import Optional, Union
+
 from datasets import load_metric
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
@@ -74,7 +77,9 @@ class PyTorchRun(Run):
 
         return 0, 0
 
-    def launch_eval(self):
+    def launch_eval(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
         try:
             kwargs = self.task_processor.get_pipeline_kwargs()
 

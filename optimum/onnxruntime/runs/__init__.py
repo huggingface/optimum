@@ -163,12 +163,12 @@ class OnnxRuntimeRun(Run):
             metrics_dict.pop("latency_in_seconds", None)
 
             self.return_body["evaluation"]["others"].update(metrics_dict)
-            
+
             if save:
                 self.save(save_directory, run_name)
         finally:
             self.finalize()
-        
+
         return self.return_body
 
     def save(self, save_directory: Union[str, os.PathLike], run_name: str):

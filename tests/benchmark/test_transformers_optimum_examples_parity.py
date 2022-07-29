@@ -177,8 +177,10 @@ class TestParity(unittest.TestCase):
         run_instance = PyTorchRun(run_config)
         benchmark_results = run_instance.launch_eval()
 
-        self.assertEqual(transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["accuracy"])
-        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["f1"])
+        self.assertEqual(
+            transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["overall_accuracy"]
+        )
+        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["overall_f1"])
 
         run_config = {
             "task": "token-classification",
@@ -201,8 +203,8 @@ class TestParity(unittest.TestCase):
         run_instance = OnnxRuntimeRun(run_config)
         benchmark_results = run_instance.launch_eval()
 
-        self.assertEqual(optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["accuracy"])
-        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["f1"])
+        self.assertEqual(optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["overall_accuracy"])
+        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["overall_f1"])
 
     def test_question_answering_parity(self):
         model_name = "mrm8488/bert-tiny-finetuned-squadv2"
