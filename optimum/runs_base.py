@@ -3,8 +3,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from contextlib import contextmanager
-from time import perf_counter_ns
 from typing import Optional, Set, Union
 
 import numpy as np
@@ -137,7 +137,7 @@ class Run:
             `dict`: Finalized run data with metrics stored in the "evaluation" key.
         """
         try:
-            self.study.optimize(self._launch_time)
+            self.launch_time()
             self.launch_eval()
 
             if save:
@@ -149,11 +149,8 @@ class Run:
         return self.return_body
 
     def launch_time(self):
-        try:
-            self.study.optimize(self._launch_time)
-            return self.return_body
-        finally:
-            self.finalize()
+        self.study.optimize(self._launch_time)
+        return self.return_body
 
     def _launch_time(self, trial):
         """Optuna objective function to measure latency/throughput.
@@ -241,7 +238,8 @@ class Run:
 
     def finalize(self):
         """Cleanup possible intermediary files."""
-        shutil.rmtree(self.run_dir_path)
+        if os.path.exists(self.run_dir_path) and os.path.isdir(self.run_dir_path):
+            shutil.rmtree(self.run_dir_path)
 
 
 SEC_TO_NS_SCALE = 1000000000

@@ -52,6 +52,18 @@ class ImageClassificationProcessing(DatasetProcessing):
             eval_dataset = eval_dataset.shuffle(seed=42).select(range(self.max_eval_samples))
 
         try:
+            if self.dataset_path == "imagenet-1k":
+                if self.config.id2label[517] == "crane":
+                    print("Fixing crane2 bug.")
+                    self.config.label2id["crane2"] = 517
+                    self.config.id2label[517] = "crane2"
+                    self.config.label2id["crane"] = 134
+                    self.config.id2label[134] = "crane"
+                elif self.config.id2label[517] == "crane2" and "crane2" in self.config.label2id:
+                    pass
+                else:
+                    raise ValueError("bug crane")
+
             eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
         except Exception as e:
             print(

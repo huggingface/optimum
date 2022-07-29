@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Optional, Union
 
@@ -110,5 +111,9 @@ class PyTorchRun(Run):
 
         return self.return_body
 
-    def finalize(self):
-        pass
+    def save(self, save_directory: Union[str, os.PathLike], run_name: str):
+        save_directory = super().save(save_directory, run_name)
+
+        # save run config and evaluation results
+        with open(os.path.join(save_directory, "results.json"), "w") as f:
+            json.dump(self.return_body, f, indent=4)

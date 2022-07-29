@@ -2,11 +2,7 @@ import copy
 import json
 import os
 import shutil
-import time
 from typing import Dict, Optional, Union
-
-from transformers import pipeline as _transformers_pipeline
-from transformers.onnx import FeaturesManager
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
@@ -140,34 +136,31 @@ class OnnxRuntimeRun(Run):
     def launch_eval(
         self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
     ):
-        try:
-            kwargs = self.task_processor.get_pipeline_kwargs()
+        kwargs = self.task_processor.get_pipeline_kwargs()
 
-            # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
-            ort_pipeline = _optimum_pipeline(
-                task=self.task,
-                model=self.ort_model,
-                tokenizer=self.preprocessor,
-                feature_extractor=self.preprocessor,
-                accelerator="ort",
-                **kwargs,
-            )
+        # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
+        ort_pipeline = _optimum_pipeline(
+            task=self.task,
+            model=self.ort_model,
+            tokenizer=self.preprocessor,
+            feature_extractor=self.preprocessor,
+            accelerator="ort",
+            **kwargs,
+        )
 
-            eval_dataset = self.get_eval_dataset()
+        eval_dataset = self.get_eval_dataset()
 
-            print("Running evaluation...")
-            metrics_dict = self.task_processor.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
+        print("Running evaluation...")
+        metrics_dict = self.task_processor.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
 
-            metrics_dict.pop("total_time_in_seconds", None)
-            metrics_dict.pop("samples_per_second", None)
-            metrics_dict.pop("latency_in_seconds", None)
+        metrics_dict.pop("total_time_in_seconds", None)
+        metrics_dict.pop("samples_per_second", None)
+        metrics_dict.pop("latency_in_seconds", None)
 
-            self.return_body["evaluation"]["others"].update(metrics_dict)
+        self.return_body["evaluation"]["others"].update(metrics_dict)
 
-            if save:
-                self.save(save_directory, run_name)
-        finally:
-            self.finalize()
+        if save:
+            self.save(save_directory, run_name)
 
         return self.return_body
 
