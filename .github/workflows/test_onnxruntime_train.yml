@@ -1,9 +1,15 @@
 name: ONNX Runtime / Test ORTTrainer
 
+# on:
+#   workflow_dispatch:
+#   schedule:
+#     - cron: 0 7 * * * #every day at 7 am
+
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: 0 7 * * * #every day at 7 am
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   start-runner:
@@ -54,14 +60,14 @@ jobs:
       - name: Build Image
         working-directory: examples/onnxruntime/training/docker
         run: |
-            docker build -f Dockerfile-ort1.11.1-cu113 -t ort11/cu11 .
+            docker build -f Dockerfile-ort1.12.0-cu113 -t ort12/cu113 .
       - name: Run Test
         run: |
             docker run --rm -p 80:8888 \
               --gpus all \
               -v $PWD:/workspace \
               --workdir=/workspace \
-              ort11/cu11:latest /bin/bash examples/onnxruntime/training/docker/run.sh
+              ort12/cu113:latest /bin/bash examples/onnxruntime/training/docker/run.sh
 
   stop-runner:
     name: Stop self-hosted EC2 runner
