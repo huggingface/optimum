@@ -332,7 +332,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=os.path.join(model_id, encoder_file_name),
                 decoder_path=os.path.join(model_id, decoder_file_name),
                 decoder_with_past_path=decoder_with_past_path,
-                **kwargs,            
+                **kwargs,
             )
             kwargs["model_save_dir"] = Path(model_id)
             kwargs["last_encoder_name"] = encoder_file_name

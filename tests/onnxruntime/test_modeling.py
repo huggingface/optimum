@@ -143,6 +143,33 @@ class ORTModelIntegrationTest(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
+    @require_torch_gpu
+    def test_load_model_cuda_provider_list(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=["CUDAExecutionProvider"])
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_model_cuda_provider_str(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_model_several_providers(self):
+        model = ORTModel.from_pretrained(
+            self.ONNX_MODEL_ID, provider=["CPUExecutionProvider", "CUDAExecutionProvider"]
+        )
+        self.assertListEqual(model.providers, ["CPUExecutionProvider", "CUDAExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cpu"))
+
+    def test_load_model_unknown_provider(self):
+        with self.assertRaises(ValueError):
+            ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
+
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
@@ -156,6 +183,33 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.decoder, ORTDecoder)
         self.assertTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
+
+    @require_torch_gpu
+    def test_load_seq2seq_model_cuda_provider_list(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider=["CUDAExecutionProvider"])
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.encoder.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_seq2seq_model_cuda_provider_str(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.encoder.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_seq2seq_model_several_providers(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID, provider=["CPUExecutionProvider", "CUDAExecutionProvider"]
+        )
+        self.assertListEqual(model.providers, ["CPUExecutionProvider", "CUDAExecutionProvider"])
+        self.assertListEqual(model.encoder.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cpu"))
+
+    def test_load_seq2seq_model_unknown_provider(self):
+        with self.assertRaises(ValueError):
+            ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_model_from_hub_without_onnx_model(self):
         with self.assertRaises(EntryNotFoundError):
@@ -557,6 +611,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
 
         self.assertEqual(pipe.device, onnx_model.device)
+        # TODO: shouldn't it be all instead of any?
         self.assertTrue(all(item["score"] > 0.0 for item in outputs))
 
         gc.collect()
@@ -663,54 +718,6 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
-
-        gc.collect()
-
-
-class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
-    # Multiple Choice tests are conducted on different models due to mismatch size in model's classifier
-    SUPPORTED_ARCHITECTURES = (
-        "hf-internal-testing/tiny-bert",
-        "hf-internal-testing/tiny-random-camembert",
-        "hf-internal-testing/tiny-xlm-roberta",
-        "hf-internal-testing/tiny-albert",
-        "hf-internal-testing/tiny-electra",
-        "distilbert-base-uncased",
-        "haisongzhang/roberta-tiny-cased",
-    )
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_to_transformers(self, model_id):
-        set_seed(SEED)
-        onnx_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True)
-
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
-        set_seed(SEED)
-        transformers_model = AutoModelForMultipleChoice.from_pretrained(model_id)
-        tokenizer = get_preprocessor(model_id)
-        num_choices = 4
-        first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
-        start = "The color of the sky is"
-        second_sentence = [start + "blue", start + "green", start + "red", start + "yellow"]
-        inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
-
-        # Unflatten the tokenized inputs values expanding it to the shape [batch_size, num_choices, seq_length]
-        for k, v in inputs.items():
-            inputs[k] = [v[i : i + num_choices] for i in range(0, len(v), num_choices)]
-
-        inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
-        onnx_outputs = onnx_model(**inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
-        with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs)
-
-        # Compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
