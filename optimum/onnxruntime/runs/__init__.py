@@ -43,8 +43,6 @@ class OnnxRuntimeRun(Run):
             opset=run_config["framework_args"]["opset"],
         )
 
-        self.ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
-
         self.preprocessor = copy.deepcopy(quantizer.preprocessor)
 
         self.batch_sizes = run_config["batch_sizes"]
@@ -99,6 +97,8 @@ class OnnxRuntimeRun(Run):
             quantization_config=qconfig,
             preprocessor=quantization_preprocessor,
         )
+
+        self.ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
 
         # onnxruntime benchmark
         ort_session = ORTModel.load_model(self.quantized_model_path)
