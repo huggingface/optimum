@@ -17,6 +17,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 import pytest
 import torch
@@ -436,6 +437,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
+        onnx_outputs = onnx_model(**tokens)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
@@ -819,11 +821,30 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         "vit": "hf-internal-testing/tiny-random-vit",
     }
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_supported_transformers_architectures(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_model_forward_call(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=image, return_tensors="pt")
+        outputs = model(**inputs)
+        self.assertTrue("logits" in outputs)
+        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
@@ -847,6 +868,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
+        onnx_outputs = onnx_model(**inputs)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
