@@ -225,7 +225,7 @@ def main():
     # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
     if data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
-        dataset = load_dataset(data_args.dataset_name, task="image-classification")
+        dataset = load_dataset(data_args.dataset_name)
     else:
         data_files = {}
         if data_args.train_dir is not None:
@@ -240,6 +240,10 @@ def main():
         )
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.0.0/en/image_process#imagefolder.
+
+    labels_column = (
+        "labels" if "labels" in dataset["validation"].column_names else dataset["validation"].column_names[1]
+    )
 
     feature_extractor = AutoFeatureExtractor.from_pretrained(model_args.model_name_or_path)
 
@@ -298,7 +302,9 @@ def main():
     if apply_static_quantization:
         calibration_dataset = dataset["train"]
         if optim_args.num_calibration_samples is not None:
-            calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
+            calibration_dataset = calibration_dataset.shuffle(seed=training_args.seed).select(
+                range(optim_args.num_calibration_samples)
+            )
 
         # all images are loaded in memory, which could prove expensive if num_calibration_samples is large
         calibration_dataset = calibration_dataset.map(
@@ -369,16 +375,16 @@ def main():
 
         eval_dataset = dataset["validation"]
         if data_args.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+            eval_dataset = eval_dataset.shuffle(seed=training_args.seed).select(range(data_args.max_eval_samples))
 
         try:
             eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=model.config.label2id, label_column="labels"
+                label2id=model.config.label2id, label_column=labels_column
             )
         except Exception as e:
             logger.warning(
                 f"\nModel label mapping: {quantizer.model.config.label2id}"
-                f"\nDataset label features: {eval_dataset.features['labels']}"
+                f"\nDataset label features: {eval_dataset.features[labels_column]}"
                 f"\nCould not guarantee the model label mapping and the dataset labels match."
                 f" Evaluation results may suffer from a wrong matching."
             )
@@ -390,7 +396,7 @@ def main():
             Path(training_args.output_dir) / "model_quantized.onnx",
             execution_provider=optim_args.execution_provider,
             compute_metrics=compute_metrics,
-            label_names=["labels"],
+            label_names=[labels_column],
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics
