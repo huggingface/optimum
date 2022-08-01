@@ -105,7 +105,7 @@ class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
     auto_model_class = AutoModel
 
-    def __init__(self, model: ort.InferenceSession, config, **kwargs):
+    def __init__(self, model: ort.InferenceSession = None, config=None, **kwargs):
         self.model = model
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
