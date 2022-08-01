@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, windows-2019, macos-10.15]
+        os: [ubuntu-20.04, windows-2019, macos-latest]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -30,7 +30,8 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[tests,onnxruntime]
-    - name: Test with unittest
+    - name: Test with pytest
       working-directory: tests
       run: |
-        python -m unittest discover -s onnxruntime -p 'test_*.py'
+        python -m pytest -n auto -m "not run_in_series" onnxruntime
+        python -m pytest -m "run_in_series" onnxruntime
