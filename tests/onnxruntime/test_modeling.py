@@ -414,8 +414,8 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         )
 
         # compare model output class
-        self.assertTrue(any(score > 0.0 for score in outputs["scores"]))
-        self.assertTrue(any(isinstance(label, str) for label in outputs["labels"]))
+        self.assertTrue(all(score > 0.0 for score in outputs["scores"]))
+        self.assertTrue(all(isinstance(label, str) for label in outputs["labels"]))
 
 
 class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
@@ -472,7 +472,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
 
         self.assertEqual(pipe.device, onnx_model.device)
         # TODO: shouldn't it be all instead of any?
-        self.assertTrue(any(item["score"] > 0.0 for item in outputs))
+        self.assertTrue(all(item["score"] > 0.0 for item in outputs))
 
         gc.collect()
 
@@ -483,7 +483,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
 
         # compare model output class
-        self.assertTrue(any(item["score"] > 0.0 for item in outputs))
+        self.assertTrue(all(item["score"] > 0.0 for item in outputs))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
@@ -497,7 +497,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         # check model device
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
-        self.assertTrue(any(item["score"] > 0.0 for item in outputs))
+        self.assertTrue(all(item["score"] > 0.0 for item in outputs))
 
         gc.collect()
 
@@ -552,7 +552,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
 
         # compare model output class
         self.assertEqual(pipe.device, onnx_model.device)
-        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+        self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
 
         gc.collect()
 
@@ -563,7 +563,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
 
         # compare model output class
-        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+        self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
@@ -577,7 +577,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         # check model device
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
-        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+        self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
 
         gc.collect()
 
