@@ -849,6 +849,7 @@ class ORTModelForImageClassification(ORTModel):
             logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
         )
 
+
 CUSTOM_TASKS_EXAMPLE = r"""
     Example of custom tasks(e.g. a sentence transformers taking `pooler_output` as output):
 
@@ -892,8 +893,6 @@ class ORTModelForCustomTasks(ORTModel):
     """
     Onnx Model for any custom tasks.
     """
-    auto_model_class = AutoModel
-
     auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
