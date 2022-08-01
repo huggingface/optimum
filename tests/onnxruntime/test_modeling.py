@@ -748,15 +748,6 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
-    def test_pipeline_model_is_none(self):
-        pipe = pipeline("image-classification")
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        outputs = pipe(url)
-
-        # compare model output class
-        self.assertGreaterEqual(outputs[0]["score"], 0.0)
-        self.assertTrue(isinstance(outputs[0]["label"], str))
-
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     @require_torch_gpu
     def test_pipeline_on_gpu(self, *args, **kwargs):

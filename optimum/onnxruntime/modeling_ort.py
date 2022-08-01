@@ -893,6 +893,7 @@ class ORTModelForCustomTasks(ORTModel):
     """
     Onnx Model for any custom tasks.
     """
+
     auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
