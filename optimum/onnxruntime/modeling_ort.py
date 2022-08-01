@@ -184,7 +184,6 @@ class ORTModel(OptimizedModel):
                 raise ValueError(
                     f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
                 )
-
         return ort.InferenceSession(path, providers=providers, sess_options=session_options)
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
