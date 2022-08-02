@@ -50,6 +50,10 @@ class OnnxRuntimeCalibrator(Calibrator):
         if "softmax" in self.node_exclusion:
             # Exclude the Add nodes followed by the Softmax operator
             quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
+        if "residual-add-relu" in self.node_exclusion:
+            quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Relu"))
+        if "residual-relu-conv" in self.node_exclusion:
+            quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Relu", "Conv"))
 
         # Create the calibration configuration given the selected calibration method
         if self.calibration_params["method"] == "entropy":
