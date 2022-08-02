@@ -95,6 +95,7 @@ class ORTOptimizer:
         onnx_optimized_model_output_path: Union[str, os.PathLike],
         optimization_config: OptimizationConfig,
         use_external_data_format: bool = False,
+        all_tensors_to_one_file: bool = True,
     ) -> Path:
         """
         Optimize a model given the optimization specifications defined in `optimization_config`.
@@ -107,7 +108,9 @@ class ORTOptimizer:
             optimization_config (`OptimizationConfig`):
                 The configuration containing the parameters related to optimization.
             use_external_data_format (`bool`, defaults to `False`):
-                Whether uto se external data format to store model which size is >= 2Gb.
+                Whether to use external data format to store model whose size is >= 2Gb.
+            all_tensors_to_one_file (`bool`, defaults to `True`):
+                Whether to save all tensors to one external file specified by location. If false, save each tensor to a file named with the tensor name.
 
         Returns:
             The path of the resulting optimized model.
@@ -146,7 +149,9 @@ class ORTOptimizer:
             # keep_io_types to keep inputs/outputs as float32
             optimizer.convert_float_to_float16(keep_io_types=True)
 
-        optimizer.save_model_to_file(onnx_optimized_model_output_path, use_external_data_format)
+        optimizer.save_model_to_file(
+            onnx_optimized_model_output_path, use_external_data_format, all_tensors_to_one_file
+        )
 
         if optimizer.is_fully_optimized():
             msg = "The model has been fully optimized "
