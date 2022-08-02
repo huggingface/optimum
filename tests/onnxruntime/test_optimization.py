@@ -19,7 +19,17 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import (
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    BartForSequenceClassification,
+    BertForSequenceClassification,
+    DistilBertForSequenceClassification,
+    ElectraForSequenceClassification,
+    GPT2ForSequenceClassification,
+    RobertaForSequenceClassification,
+)
 
 import onnx
 from onnxruntime import InferenceSession
@@ -41,24 +51,26 @@ class ORTConfigTest(unittest.TestCase):
 
 
 class ORTOptimizerTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "bert": "bert-base-cased",
-        "distilbert": "distilbert-base-uncased",
-        "bart": "facebook/bart-base",
-        "gpt2": "gpt2",
-        "roberta": "roberta-base",
-        "electra": "google/electra-small-discriminator",
-    }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_optimize(self, *args, **kwargs):
-        model_type, model_name = args
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
+        (BertForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
+        (DistilBertForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
+        (BartForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
+        (GPT2ForSequenceClassification, "hf-internal-testing/tiny-random-gpt2"),
+        (RobertaForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
+        (ElectraForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
+    )
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
+    def test_optimize(self, model_cls, model_name):
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = model_cls(AutoConfig.from_pretrained(model_name))
         optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             optimized_model_path = output_dir.joinpath("model-optimized.onnx")
-            optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            optimizer = ORTOptimizer(tokenizer, model, feature="sequence-classification")
             optimizer.export(
                 onnx_model_path=model_path,
                 onnx_optimized_model_output_path=optimized_model_path,
@@ -76,12 +88,14 @@ class ORTOptimizerTest(unittest.TestCase):
 
     def test_optimization_details(self):
         model_name = "bert-base-cased"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = BertForSequenceClassification(AutoConfig.from_pretrained(model_name))
         optimization_config = OptimizationConfig(optimization_level=0, optimize_with_onnxruntime_only=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model_path = output_dir.joinpath("model.onnx")
             optimized_model_path = output_dir.joinpath("model-optimized.onnx")
-            optimizer = ORTOptimizer.from_pretrained(model_name, feature="sequence-classification")
+            optimizer = ORTOptimizer(tokenizer, model, feature="sequence-classification")
             optimizer.export(
                 onnx_model_path=model_path,
                 onnx_optimized_model_output_path=optimized_model_path,
@@ -127,7 +141,6 @@ class ORTOptimizerTest(unittest.TestCase):
 
             # compare tensor outputs
             self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
-
 
 if __name__ == "__main__":
     unittest.main()
