@@ -258,6 +258,8 @@ class QuantizationConfig:
         qdq_op_type_per_channel_support_to_axis (`Dict[str, int]`):
             Set the channel axis for a specific operator type. Effective only when per channel quantization is
             supported and `per_channel` is set to True.
+        disable_shape_inference (`bool`):
+            Whether to disable running the shape inference protocol during onnx export.
     """
 
     is_static: bool
