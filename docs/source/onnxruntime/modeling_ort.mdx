@@ -79,7 +79,7 @@ from the Hub and converts it to an optimum onnxruntime model and pushes it back 
 ## Export and inference of sequence-to-sequence models
 
 Sequence-to-sequence (Seq2Seq) models, that generate a new sequence from an input, can also be used when running inference with ONNX Runtime. When Seq2Seq models are exported to the ONNX format, they are decomposed into two parts : the encoder and the "decoder" (which actually consists of the decoder with the language modeling head), that are later combined during inference.
-To leverage the pre-computed key/values hidden-states to speed up sequential decoding, simply pass `use_cache=True` to the `from_pretrained()` method. This will results in an additional model's component to be exported : the "decoder" with pre-computed key/values as additional inputs.
+To leverage the pre-computed key/values hidden-states to speed up sequential decoding, simply pass `use_cache=True` to the `from_pretrained()` method. This way, an additional model component will be exported: the "decoder" with pre-computed key/values as one of the inputs.
 This specific export comes from the fact that during the first pass, the decoder has no pre-computed key/values hidden-states, while during the rest of the generation past key/values will be used to speed up sequential decoding.
 Here is an example on how you can export a T5 model to the ONNX format and run inference for a translation task:
 
