@@ -364,14 +364,14 @@ def main():
 
     # fit the quantized model
     quantizer.quantize(
-        output_path=training_args.output_dir,
+        save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR fit and quantization
-    ort_config = ORTConfig(opset=optim_args.opset, quantization=qconfig)
+    ort_config = ORTConfig(opset=onnx_config.default_onnx_opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 

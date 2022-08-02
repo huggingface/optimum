@@ -463,7 +463,7 @@ def main():
 
     # fit the quantized model
     quantizer.quantize(
-        output_path=training_args.output_dir,
+        save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,

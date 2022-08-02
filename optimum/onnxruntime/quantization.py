@@ -257,8 +257,8 @@ class ORTQuantizer(OptimumQuantizer):
 
     def quantize(
         self,
-        output_path: Union[str, Path],
         quantization_config: QuantizationConfig,
+        save_dir: Union[str, Path],
         file_suffix: Optional[str] = "quantized",
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
@@ -268,10 +268,10 @@ class ORTQuantizer(OptimumQuantizer):
         Quantize a model given the optimization specifications defined in `quantization_config`.
 
         Args:
-            output_path (`Union[str, Path]`):
-                The path used to save the quantized model exported to an ONNX Intermediate Representation (IR).
             quantization_config (`QuantizationConfig`):
                 The configuration containing the parameters related to quantization.
+            save_dir (`Union[str, Path]`):
+                The directory where the quantized model should be saved.
             file_suffix (`str`, *optional*, defaults to `"quantized"`):
                 The file_suffix used to save the quantized model.
             calibration_tensors_range (`Dict[NodeName, Tuple[float, float]]`, *optional*):
@@ -286,7 +286,8 @@ class ORTQuantizer(OptimumQuantizer):
             The path of the resulting quantized model.
         """
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
-        output_path = Path(output_path).joinpath(f"{self.onnx_model_path.stem}_{file_suffix}.onnx")
+        os.makedirs(save_dir, exist_ok=True)
+        save_dir = Path(save_dir).joinpath(f"{self.onnx_model_path.stem}_{file_suffix}.onnx")
 
         if not quantization_config.is_static:
             if quantization_config.mode != QuantizationMode.IntegerOps:
@@ -342,10 +343,10 @@ class ORTQuantizer(OptimumQuantizer):
         LOGGER.info("Quantizing model...")
         quantizer.quantize_model()
 
-        LOGGER.info(f"Saving quantized model at: {output_path} (external data format: " f"{use_external_data_format})")
-        quantizer.model.save_model_to_file(output_path, use_external_data_format)
+        LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
+        quantizer.model.save_model_to_file(save_dir, use_external_data_format)
 
-        return Path(output_path)
+        return Path(save_dir)
 
     def get_calibration_dataset(
         self,

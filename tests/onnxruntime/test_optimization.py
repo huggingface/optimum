@@ -142,5 +142,6 @@ class ORTOptimizerTest(unittest.TestCase):
             # compare tensor outputs
             self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
+
 if __name__ == "__main__":
     unittest.main()

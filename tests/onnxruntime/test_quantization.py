@@ -63,16 +63,15 @@ class ORTQuantizerTest(unittest.TestCase):
 
 
 class ORTDynamicQuantizationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL = {
-        "bert-base-cased": 72,
-        "roberta-base": 72,
-        "distilbert-base-uncased": 36,
-        "facebook/bart-base": 96,
-    }
+    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert", 30),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta", 30),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert", 30),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart", 32),
+    )
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL.items())
-    def test_dynamic_quantization(self, *args, **kwargs):
-        model_name, expected_quantized_matmul = args
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
+    def test_dynamic_quantization(self, model_cls, model_name, expected_quantized_matmuls):
         qconfig = QuantizationConfig(
             is_static=False,
             format=QuantFormat.QOperator,
@@ -85,7 +84,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
-            model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+            model = model_cls.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(tmp_dir)
 
             quantizer = ORTQuantizer.from_pretrained(model)
@@ -98,19 +97,17 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             for initializer in quantized_model.graph.initializer:
                 if "MatMul" in initializer.name and "quantized" in initializer.name:
                     num_quantized_matmul += 1
-            self.assertEqual(expected_quantized_matmul, num_quantized_matmul)
+            self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
 
 class ORTStaticQuantizationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL = {
-        "bert-base-cased": 72,
-    }
+    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert", 30),
+    )
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMUL.items())
-    def test_static_quantization(self, *args, **kwargs):
-        model_name, expected_quantized_matmul = args
-
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
+    def test_static_quantization(self, model_cls, model_name, expected_quantized_matmuls):
         qconfig = QuantizationConfig(
             is_static=True,
             format=QuantFormat.QDQ,
@@ -127,7 +124,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
-            model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+            model = model_cls.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(tmp_dir)
             tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -156,7 +153,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             for initializer in quantized_model.graph.initializer:
                 if "MatMul" in initializer.name and "quantized" in initializer.name:
                     num_quantized_matmul += 1
-            self.assertEqual(expected_quantized_matmul, num_quantized_matmul)
+            self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
 
