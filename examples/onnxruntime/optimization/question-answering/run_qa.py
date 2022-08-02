@@ -235,9 +235,27 @@ class OptimizationArguments:
     )
 
 
+@dataclass
+class OnnxExportArguments:
+    """
+    Arguments to decide how the ModelProto will be saved.
+    """
+
+    use_external_data_format: bool = field(
+        default=False,
+        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+    )
+    all_tensors_to_one_file: bool = field(
+        default=True,
+        metadata={"help": "Whether to save all tensors to one external file specified by location."},
+    )
+
+
 def main():
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments, OnnxExportArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
@@ -245,7 +263,7 @@ def main():
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, optim_args, onnx_export_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -312,6 +330,8 @@ def main():
         onnx_model_path=model_path,
         onnx_optimized_model_output_path=optimized_model_path,
         optimization_config=optimization_config,
+        use_external_data_format=onnx_export_args.use_external_data_format,
+        all_tensors_to_one_file=onnx_export_args.all_tensors_to_one_file,
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
