@@ -72,7 +72,7 @@ The `ORTQuantizer` class can be used to dynamically quantize your ONNX model. Be
 
 # Quantize the model
 >>> model_quantized_path = quantizer.quantize(
-    output_path="path/to/output/model",
+    save_dir="path/to/output/model",
     quantization_config=dqconfig,
 )
 ```
@@ -118,7 +118,7 @@ The `ORTQuantizer` class can be used to statically quantize your ONNX model. Bel
 
 # Apply static quantization on the model
 >>> model_quantized_path = quantizer.quantize(
-    output_path="path/to/output/model",
+    save_dir="path/to/output/model",
     calibration_tensors_range=ranges,
     quantization_config=qconfig,
 )
@@ -163,7 +163,7 @@ The `ORTQuantizer` currently doesn't support multi-file models, like `ORTModelFo
 >>> dqconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=False)
 
 # Quantize the model
->>> [q.quantize(output_path=".",quantization_config=dqconfig) for q in quantizer]
+>>> [q.quantize(save_dir=".",quantization_config=dqconfig) for q in quantizer]
 ```
 
 ## ORTQuantizer

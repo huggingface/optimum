@@ -94,7 +94,7 @@ class OnnxRuntimeRun(Run):
 
         # Export the quantized model
         quantizer.quantize(
-            output_path="./",
+            save_dir="./",
             calibration_tensors_range=ranges,
             quantization_config=qconfig,
             preprocessor=quantization_preprocessor,

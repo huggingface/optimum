@@ -89,7 +89,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
 
             quantizer = ORTQuantizer.from_pretrained(model)
             quantizer.quantize(
-                output_path=output_dir,
+                save_dir=output_dir,
                 quantization_config=qconfig,
             )
             quantized_model = onnx_load(output_dir.joinpath("model_quantized.onnx"))
@@ -143,7 +143,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
                 calibration_config=calibration_config,
             )
             quantizer.quantize(
-                output_path=output_dir,
+                save_dir=output_dir,
                 calibration_tensors_range=ranges,
                 quantization_config=qconfig,
             )
