@@ -128,7 +128,7 @@ The `ORTQuantizer` class can be used to statically quantize your ONNX model. Bel
 
 The `ORTQuantizer` currently doesn't support multi-file models, like `ORTModelForSeq2SeqLM`. If you want to quantize a Seq2Seq model, you have to quantize each model's component individually using the `ORTQuantizer` class. Currently, only dynamic quantization is supported for Seq2Seq model.
 
-1. load seq2seq model as `ORTModelForSeq2SeqLM`. 
+1. Load seq2seq model as `ORTModelForSeq2SeqLM`. 
 
 ```python
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForSeq2SeqLM
