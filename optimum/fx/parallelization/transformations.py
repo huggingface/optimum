@@ -39,6 +39,8 @@ class ApplyTensorParallelismModel(Transformation):
         self.mlp_4h_to_h_target_suffix = mlp_4h_to_h_target_suffix
         self.attention_query_key_values_target_suffix = attention_query_key_values_target_suffix
         self.attention_dense_target_suffix = attention_dense_target_suffix
+        # self.embedding_layer_target_suffix =
+        # self.lm_head_target_suffix =
 
         self.column_parallels = [self.mlp_h_to_4h_target_suffix, self.attention_query_key_values_target_suffix]
         self.row_parallels = [self.mlp_4h_to_h_target_suffix, self.attention_dense_target_suffix]
@@ -91,7 +93,10 @@ class ApplyTensorParallelismModel(Transformation):
                             module.weight[:, self.tp_rank * block_size : (self.tp_rank + 1) * block_size].clone()
                         )
                         if use_bias:
-                            new_module.bias = torch.nn.Parameter(module.bias.clone())
+                            if self.tp_rank == 0:
+                                new_module.bias = torch.nn.Parameter(module.bias.clone())
+                            else:
+                                new_module.bias.data.zero_()
                     else:
                         # Change weights
                         assert suffix in self.column_parallels, f"{suffix} not in {self.column_parallels}"

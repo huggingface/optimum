@@ -36,9 +36,6 @@ class TensorParallelRowLinear(nn.Linear):
         self.process_group = process_group
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        out = F.linear(input, self.weight, None)
+        out = super().forward(input)
         torch.distributed.all_reduce(out, group=self.process_group)
-        if self.bias is not None:
-            return out + self.bias
-        else:
-            return out
+        return out
