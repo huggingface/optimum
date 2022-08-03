@@ -22,7 +22,7 @@ class OptimumQuantizer(ABC):
 
     @abstractmethod
     def quantize(self, save_dir: Union[str, Path], file_prefix: Optional[str] = None, **kwargs):
-        """Overwrite this method in subclass to define how quantize your model for quantization"""
+        """Overwrite this method in subclass to define how to quantize your model for quantization"""
         raise NotImplementedError(
             "Overwrite this method in subclass to define how to quantize your model for quantization"
         )
