@@ -68,7 +68,7 @@ class ORTOptimizerTest(unittest.TestCase):
         (GPT2ForSequenceClassification, "hf-internal-testing/tiny-random-gpt2"),
         (RobertaForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
         (ElectraForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
-        (XLMRobertaForSequenceClassification, "hf-internal-testing/tiny-random-xlm-roberta")
+        (XLMRobertaForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
