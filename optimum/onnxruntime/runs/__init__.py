@@ -97,12 +97,14 @@ class OnnxRuntimeRun(Run):
         self.ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
 
         # onnxruntime benchmark
-        # ort_session = ORTModel.load_model(self.quantized_model_path)
+        ort_session = ORTModel.load_model(self.quantized_model_path)
+        """
         options = onnxruntime.SessionOptions()
         options.intra_op_num_threads = 20
         ort_session = onnxruntime.InferenceSession(
             self.quantized_model_path, providers=["CPUExecutionProvider"], sess_options=options
         )
+        """
 
         # necessary to pass the config for the pipeline not to complain later
         self.ort_model = task_ortmodel_map[self.task](ort_session, config=quantizer.model.config)
