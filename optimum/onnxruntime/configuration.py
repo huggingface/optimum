@@ -644,6 +644,8 @@ class OptimizationConfig:
         disable_embed_layer_norm (`bool`, defaults to `True`):
             Whether to disable EmbedLayerNormalization fusion.
             The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
+        disable_shape_inference (`bool`, defaults to `False`):
+            Whether to disable symbolic shape inference.
     """
 
     optimization_level: int = 1
@@ -660,6 +662,7 @@ class OptimizationConfig:
     use_mask_index: bool = False
     no_attention_mask: bool = False
     disable_embed_layer_norm: bool = True
+    disable_shape_inference: bool = False
 
 
 class ORTConfig(BaseConfig):
