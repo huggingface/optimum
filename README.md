@@ -240,4 +240,3 @@ Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/exam
 
 Happy optimizing 🤗!
 
-
