@@ -30,7 +30,6 @@ jobs:
     - name: Install dependencies
       run: |
         pip install wheel
-        pip install git+https://github.com/huggingface/transformers.git#egg=transformers
         pip install .[tests,onnxruntime,benchmark]
     - name: Test with unittest
       run: |
