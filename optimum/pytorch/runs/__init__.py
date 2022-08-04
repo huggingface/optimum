@@ -2,7 +2,6 @@ import json
 import os
 from typing import Optional, Union
 
-from datasets import load_metric
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 from transformers.onnx.utils import get_preprocessor

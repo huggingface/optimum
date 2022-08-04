@@ -237,6 +237,12 @@ class _RunDefaults:
             "description": "Use 'int8' for asymmetric quantization, 'uint8' for symmetric quantization of weights."
         },
     )
+    apply_quantization: Optional[bool] = field(
+        default=True,
+        metadata={
+            "description": "Whether to apply quantization on the model."
+        }
+    )
 
 
 @dataclass
@@ -285,7 +291,7 @@ class Run(_RunDefaults, _RunBase):
         # validate `aware_training`
         assert self.aware_training == False, "Quantization-Aware Training not supported."
 
-        # validate `framework_args
+        # validate `framework_args`
         framework_args_dict = (
             dataclasses.asdict(self.framework_args)
             if isinstance(self.framework_args, FrameworkArgs)
