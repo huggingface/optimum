@@ -2,12 +2,12 @@ import copy
 import json
 import os
 import shutil
+from pathlib import Path
 from typing import Dict, Optional, Union
 
 import transformers
-from transformers.onnx.utils import get_preprocessor
+
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from pathlib import Path
 
 from ...pipelines import pipeline as _optimum_pipeline
 from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
@@ -23,16 +23,10 @@ class OnnxRuntimeRun(Run):
     def __init__(self, run_config):
         run_config = super().__init__(run_config)
 
-        self.batch_sizes = run_config["batch_sizes"]
-        self.input_lengths = run_config["input_lengths"]
-
-        self.time_benchmark_args = run_config["time_benchmark_args"]
-
         self.run_config = run_config
 
         self.model_path = os.path.join(self.run_dir_path, "model.onnx")
 
-        self.preprocessor = get_preprocessor(run_config["model_name_or_path"])
         self.config = transformers.AutoConfig.from_pretrained(run_config["model_name_or_path"])
 
         processing_class = task_processing_map[self.task]
@@ -64,10 +58,18 @@ class OnnxRuntimeRun(Run):
             model_class = transformers.onnx.FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
             model = model_class.from_pretrained(run_config["model_name_or_path"])
 
-            _, onnx_config_factory = transformers.onnx.FeaturesManager.check_supported_model_or_raise(model, feature=get_autoclass_name(self.task))
+            _, onnx_config_factory = transformers.onnx.FeaturesManager.check_supported_model_or_raise(
+                model, feature=get_autoclass_name(self.task)
+            )
             _onnx_config = onnx_config_factory(self.config)
-            transformers.onnx.export(self.preprocessor, model, _onnx_config, self.run_config["framework_args"]["opset"], Path(self.model_path))
-    
+            transformers.onnx.export(
+                self.preprocessor,
+                model,
+                _onnx_config,
+                self.run_config["framework_args"]["opset"],
+                Path(self.model_path),
+            )
+
         # onnxruntime benchmark
         if self.apply_quantization:
             ort_session = ORTModel.load_model(self.quantized_model_path)
@@ -84,9 +86,7 @@ class OnnxRuntimeRun(Run):
         # necessary to pass the config for the pipeline not to complain later
         self.ort_model = task_ortmodel_map[self.task](ort_session, config=self.config)
 
-        self.return_body[
-            "model_type"
-        ] = self.config.model_type  # return_body is initialized in parent class
+        self.return_body["model_type"] = self.config.model_type  # return_body is initialized in parent class
 
     def _apply_ptq(self):
         self.quantized_model_path = os.path.join(self.run_dir_path, "quantized_model.onnx")

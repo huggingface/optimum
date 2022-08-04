@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
-from transformers.onnx.utils import get_preprocessor
 
 from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 
@@ -12,11 +11,6 @@ from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing
 class PyTorchRun(Run):
     def __init__(self, run_config):
         run_config = super().__init__(run_config)
-
-        self.preprocessor = get_preprocessor(run_config["model_name_or_path"])
-
-        self.batch_sizes = run_config["batch_sizes"]
-        self.input_lengths = run_config["input_lengths"]
 
         self.time_benchmark_args = run_config["time_benchmark_args"]
 

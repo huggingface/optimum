@@ -238,10 +238,7 @@ class _RunDefaults:
         },
     )
     apply_quantization: Optional[bool] = field(
-        default=True,
-        metadata={
-            "description": "Whether to apply quantization on the model."
-        }
+        default=True, metadata={"description": "Whether to apply quantization on the model."}
     )
 
 

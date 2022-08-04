@@ -12,6 +12,7 @@ import torch
 import transformers
 from datasets import Dataset
 from tqdm import trange
+from transformers.onnx.utils import get_preprocessor
 
 import optuna
 
@@ -67,17 +68,17 @@ class Run:
 
         self.task = run_config["task"]
 
+        self.batch_sizes = run_config["batch_sizes"]
+        self.input_lengths = run_config["input_lengths"]
+
+        self.preprocessor = get_preprocessor(run_config["model_name_or_path"])
+
+        self.time_benchmark_args = run_config["time_benchmark_args"]
+
         if run_config["quantization_approach"] == "static":
             self.static_quantization = True
         else:
             self.static_quantization = False
-
-        search_space = {"batch_size": run_config["batch_sizes"], "input_length": run_config["input_lengths"]}
-
-        self.study = optuna.create_study(
-            directions=["maximize", "minimize"],
-            sampler=optuna.samplers.GridSampler(search_space),
-        )
 
         cpu_info = subprocess.check_output([cpu_info_command()], shell=True).decode("utf-8")
 
@@ -149,6 +150,13 @@ class Run:
         return self.return_body
 
     def launch_time(self):
+        search_space = {"batch_size": self.batch_sizes, "input_length": self.input_lengths}
+
+        self.study = optuna.create_study(
+            directions=["maximize", "minimize"],
+            sampler=optuna.samplers.GridSampler(search_space),
+        )
+
         self.study.optimize(self._launch_time)
         return self.return_body
 
