@@ -231,6 +231,12 @@ class _RunDefaults:
     quantization_approach: Optional[QuantizationApproach] = field(
         default=None, metadata={"description": "Whether to use dynamic or static quantization."}
     )
+    weights_dtype: Optional[str] = field(
+        default="int8",
+        metadata={
+            "description": "Use 'int8' for asymmetric quantization, 'uint8' for symmetric quantization of weights."
+        },
+    )
 
 
 @dataclass
