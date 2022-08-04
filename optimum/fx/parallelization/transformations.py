@@ -149,6 +149,7 @@ class ApplyTensorParallelismAlibi(Transformation):
             if node.op != "call_method":
                 continue
 
+            # HACK @thomasw21: alibi is the matrix use right before baddbmm
             if node.target == "baddbmm":
                 baddbmm_nodes.append(node)
 
@@ -174,9 +175,10 @@ class ApplyTensorParallelismAlibi(Transformation):
         # TODO @thomasw21: Maybe I need to trace that function
         def slice_alibi(alibi):
             batch_size, num_heads, seq_length = alibi.shape
+            print(alibi.shape)
             assert num_heads % self.tp_world_size == 0
             block_size = num_heads // self.tp_world_size
-            return alibi[:, self.tp_rank * block_size : (self.tp_rank + 1) * block_size].reshape(
+            return alibi[:, self.tp_rank * block_size : (self.tp_rank + 1) * block_size].contiguous().view(
                 batch_size * block_size, 1, seq_length
             )
 
@@ -186,7 +188,9 @@ class ApplyTensorParallelismAlibi(Transformation):
         # Plug the new alibi
         cast_alibi.args = (new_alibi_node, *cast_alibi.args[1:])
 
-        # Remove all node:
+        # Remove old node:
+        graph_module.graph.erase_node(reshape_alibi)
         del reshape_alibi
 
         return graph_module
+
