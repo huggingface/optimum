@@ -1,10 +1,10 @@
-import copy
 import json
 import os
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+import numpy as np
 import transformers
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
@@ -120,6 +120,7 @@ class OnnxRuntimeRun(Run):
                 qconfig,
                 calibration_params=self.run_config["calibration"],
                 node_exclusion=self.run_config["node_exclusion"],
+                run_dir_path=self.run_dir_path,
             )
             ranges, quantization_preprocessor = calibrator.calibrate()
 
@@ -182,10 +183,6 @@ class OnnxRuntimeRun(Run):
         print("Running evaluation...")
         metrics_dict = self.task_processor.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
 
-        metrics_dict.pop("total_time_in_seconds", None)
-        metrics_dict.pop("samples_per_second", None)
-        metrics_dict.pop("latency_in_seconds", None)
-
         self.return_body["evaluation"]["others"].update(metrics_dict)
 
         if save:
@@ -200,6 +197,19 @@ class OnnxRuntimeRun(Run):
         if self.apply_quantization:
             self.ort_config.save_pretrained(save_directory)
             shutil.move(self.quantized_model_path, os.path.join(save_directory, "quantized_model.onnx"))
+
+            # save model used for calibration
+            if self.static_quantization:
+                shutil.move(
+                    os.path.join(self.run_dir_path, "augmented_model.onnx"),
+                    os.path.join(save_directory, "augmented_model.onnx"),
+                )
+
+                if self.run_config["calibration"]["method"] in ["percentile", "entropy"]:
+                    shutil.move(
+                        os.path.join(self.run_dir_path, "calibration_histograms.npy"),
+                        os.path.join(save_directory, "calibration_histograms.npy"),
+                    )
 
         # save non-quantized model
         shutil.move(self.model_path, os.path.join(save_directory, "model.onnx"))

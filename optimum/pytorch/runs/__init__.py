@@ -91,10 +91,6 @@ class PyTorchRun(Run):
             print("Running evaluation...")
             metrics_dict = self.task_processor.run_evaluation(eval_dataset, pipeline, self.metric_names)
 
-            metrics_dict.pop("total_time_in_seconds", None)
-            metrics_dict.pop("samples_per_second", None)
-            metrics_dict.pop("latency_in_seconds", None)
-
             self.return_body["evaluation"]["others"].update(metrics_dict)
 
             if save:

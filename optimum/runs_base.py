@@ -39,7 +39,14 @@ def get_autoclass_name(task):
 
 class Calibrator:
     def __init__(
-        self, calibration_dataset: Dataset, quantizer, model_path, qconfig, calibration_params, node_exclusion
+        self,
+        calibration_dataset: Dataset,
+        quantizer,
+        model_path,
+        qconfig,
+        calibration_params,
+        node_exclusion,
+        run_dir_path,
     ):
         self.calibration_dataset = calibration_dataset
         self.quantizer = quantizer
@@ -47,6 +54,7 @@ class Calibrator:
         self.qconfig = qconfig
         self.calibration_params = calibration_params
         self.node_exclusion = node_exclusion
+        self.run_dir_path = run_dir_path
 
     def calibrate(self):
         raise NotImplementedError()
