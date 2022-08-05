@@ -26,6 +26,7 @@ from transformers import (
     AutoTokenizer,
     BartForSequenceClassification,
     BertForSequenceClassification,
+    BigBirdForSequenceClassification,
     DistilBertForSequenceClassification,
     ElectraForSequenceClassification,
     GPT2ForSequenceClassification,
@@ -69,6 +70,7 @@ class ORTOptimizerTest(unittest.TestCase):
         (RobertaForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
         (ElectraForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (XLMRobertaForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
+        (BigBirdForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
