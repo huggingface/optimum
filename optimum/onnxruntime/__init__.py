@@ -21,6 +21,7 @@ _import_structure = {
     "model": ["ORTModel"],
     "modeling_ort": [
         "ORTModelForCausalLM",
+        "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
         "ORTModelForQuestionAnswering",
@@ -32,6 +33,8 @@ _import_structure = {
     "quantization": ["ORTQuantizer"],
     "trainer": ["ORTTrainer"],
     "trainer_seq2seq": ["ORTSeq2SeqTrainer"],
+    "training_args": ["ORTTrainingArguments"],
+    "training_args_seq2seq": ["ORTSeq2SeqTrainingArguments"],
     "utils": [
         "ONNX_DECODER_NAME",
         "ONNX_DECODER_WITH_PAST_NAME",
@@ -48,6 +51,7 @@ if TYPE_CHECKING:
     from .model import ORTModel
     from .modeling_ort import (
         ORTModelForCausalLM,
+        ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
         ORTModelForQuestionAnswering,
@@ -59,6 +63,8 @@ if TYPE_CHECKING:
     from .quantization import ORTQuantizer
     from .trainer import ORTTrainer
     from .trainer_seq2seq import ORTSeq2SeqTrainer
+    from .training_args import ORTTrainingArguments
+    from .training_args_seq2seq import ORTSeq2SeqTrainingArguments
     from .utils import (
         ONNX_DECODER_NAME,
         ONNX_DECODER_WITH_PAST_NAME,

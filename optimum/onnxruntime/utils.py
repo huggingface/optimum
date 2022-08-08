@@ -70,6 +70,7 @@ class ORTConfigManager:
         "bart": ("encoder_attention_heads", "d_model", "bart"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
+        "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
     }
 
     @classmethod
