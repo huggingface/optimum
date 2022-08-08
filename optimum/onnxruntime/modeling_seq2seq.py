@@ -443,7 +443,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         # convert string device input (ie. "cuda") to torch.device
         if type(device) == str:
             device = torch.device(device)
-            
+
         self.device = device
         provider = get_provider_for_device(device)
         self.encoder._device = device
