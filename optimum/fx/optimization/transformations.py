@@ -246,9 +246,9 @@ class MergeLinears(ReversibleTransformation):
 
     @staticmethod
     def _get_bias(linear: torch.nn.Linear) -> torch.Tensor:
-        if hasattr(linear, "bias"):
+        if linear.bias is not None:
             return linear.bias
-        return torch.zeros(shape=(linear.out_features), dtype=linear.weight.dtype).to(linear.weight.device)
+        return torch.zeros(linear.out_features, dtype=linear.weight.dtype).to(linear.weight.device)
 
     @staticmethod
     def _get_linear_module_name(linear_node):
@@ -290,8 +290,15 @@ class MergeLinears(ReversibleTransformation):
         fully_qualified_parent_name = linear_nodes[0].target.rsplit(".", maxsplit=1)[0]
         parent_module = graph_module.get_submodule(fully_qualified_parent_name)
         parent_module.add_module(merged_linear_name, merged_linear)
-        for name in linear_module_names:
-            delattr(parent_module, name)
+        # for name in linear_module_names:
+        for linear_node in linear_nodes:
+            names = linear_node.target.split(".")
+            mod = graph_module
+            if len(names) > 1:
+                for name in names[:-1]:
+                    print(name)
+                    mod = getattr(mod, name)
+            delattr(mod, names[-1])
 
         graph = graph_module.graph
         with graph.inserting_before(linear_nodes[0]):
