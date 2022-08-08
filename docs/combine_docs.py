@@ -1,6 +1,7 @@
 import argparse
 import shutil
 from pathlib import Path
+from typing import Dict
 
 import yaml
 
@@ -15,6 +16,23 @@ parser.add_argument(
     help="Subpackages to integrate docs with Optimum. Use hardware partner names like `habana`, `graphcore`, or `intel`",
 )
 parser.add_argument("--version", type=str, default="main", help="The version of the Optimum docs")
+
+
+def rename_subpackage_toc(subpackage: str, toc: Dict):
+    """
+    Extend table of contents sections with subpackage name prefix.
+
+    Args:
+        subpackage (str): subpackage name.
+        toc (Dict): table of contents.
+    """
+    for item in toc:
+        for file in item["sections"]:
+            if "local" in file:
+                file["local"] = f"{subpackage}_" + file["local"]
+            else:
+                # if "local" is not in file, it means we have a subsection, hence the recursive call
+                rename_subpackage_toc(subpackage, [file])
 
 
 def main():
@@ -35,9 +53,7 @@ def main():
         with open(subpackage_toc_path, "r") as f:
             subpackage_toc = yaml.safe_load(f)
         # Extend table of contents sections with subpackage name prefix
-        for item in subpackage_toc:
-            for file in item["sections"]:
-                file["local"] = f"{subpackage}_" + file["local"]
+        rename_subpackage_toc(subpackage, subpackage_toc)
         # Update optimum table of contents
         base_toc.extend(subpackage_toc)
         with open(base_toc_path, "w") as f:
