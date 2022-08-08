@@ -40,7 +40,7 @@ from transformers.testing_utils import (
     require_ray,
     require_sigopt,
     require_torch,
-    require_torch_bf16,
+    require_torch_bf16_gpu,
     require_torch_gpu,
     require_wandb,
     slow,
@@ -517,7 +517,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
     @unittest.skip("Skip BF6 test.")
     @slow
-    @require_torch_bf16
+    @require_torch_bf16_gpu
     @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
