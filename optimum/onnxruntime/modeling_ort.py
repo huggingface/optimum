@@ -133,6 +133,10 @@ class ORTModel(OptimizedModel):
         """
         Changes the ONNX Runtime provider according to the device.
         """
+        # convert string device input (ie. "cuda") to torch.device
+        if type(device) == str:
+            device = torch.device(device)
+
         self.device = device
         provider = get_provider_for_device(self.device)
         self.model.set_providers([provider])

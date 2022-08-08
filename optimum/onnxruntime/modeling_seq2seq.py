@@ -440,6 +440,10 @@ class ORTModelForConditionalGeneration(ORTModel):
         """
         Changes the ONNX Runtime provider according to the device.
         """
+        # convert string device input (ie. "cuda") to torch.device
+        if type(device) == str:
+            device = torch.device(device)
+
         self.device = device
         provider = get_provider_for_device(device)
         self.encoder._device = device
