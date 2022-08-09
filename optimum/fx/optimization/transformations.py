@@ -296,7 +296,6 @@ class MergeLinears(ReversibleTransformation):
             mod = graph_module
             if len(names) > 1:
                 for name in names[:-1]:
-                    print(name)
                     mod = getattr(mod, name)
             delattr(mod, names[-1])
 
