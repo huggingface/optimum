@@ -15,7 +15,6 @@
 import gc
 import tempfile
 import unittest
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -35,16 +34,9 @@ from transformers import (
 )
 
 import onnx
-from onnx import load as onnx_load
 from onnxruntime import InferenceSession
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTConfig, ORTOptimizer, ORTQuantizer
-from optimum.onnxruntime.configuration import (
-    AutoCalibrationConfig,
-    AutoQuantizationConfig,
-    OptimizationConfig,
-    QuantizationConfig,
-)
+from optimum.onnxruntime import ORTConfig, ORTOptimizer
+from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from parameterized import parameterized
 
@@ -153,106 +145,6 @@ class ORTOptimizerTest(unittest.TestCase):
 
             # compare tensor outputs
             self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
-
-
-class ORTDynamicQuantizationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (
-        (BertForSequenceClassification, "hf-internal-testing/tiny-random-bert", 30),
-        (RobertaForSequenceClassification, "hf-internal-testing/tiny-random-roberta", 30),
-        (DistilBertForSequenceClassification, "hf-internal-testing/tiny-random-distilbert", 30),
-        (BartForSequenceClassification, "hf-internal-testing/tiny-random-bart", 32),
-    )
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
-    def test_dynamic_quantization(self, model_cls, model_name, expected_quantized_matmuls):
-        qconfig = QuantizationConfig(
-            is_static=False,
-            format=QuantFormat.QOperator,
-            mode=QuantizationMode.IntegerOps,
-            activations_dtype=QuantType.QUInt8,
-            weights_dtype=QuantType.QInt8,
-            per_channel=False,
-            reduce_range=False,
-            operators_to_quantize=["MatMul"],
-        )
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = model_cls(AutoConfig.from_pretrained(model_name))
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            output_dir = Path(tmp_dir)
-            model_path = output_dir.joinpath("model.onnx")
-            q8_model_path = output_dir.joinpath("model-quantized.onnx")
-            quantizer = ORTQuantizer(tokenizer, model, feature="sequence-classification")
-            quantizer.export(
-                onnx_model_path=model_path,
-                onnx_quantized_model_output_path=q8_model_path,
-                calibration_tensors_range=None,
-                quantization_config=qconfig,
-            )
-            quantized_model = onnx_load(q8_model_path)
-            num_quantized_matmul = 0
-            for initializer in quantized_model.graph.initializer:
-                if "MatMul" in initializer.name and "quantized" in initializer.name:
-                    num_quantized_matmul += 1
-            self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
-            gc.collect()
-
-
-class ORTStaticQuantizationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (
-        (BertForSequenceClassification, "hf-internal-testing/tiny-random-bert", 30),
-    )
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
-    def test_static_quantization(self, model_cls, model_name, expected_quantized_matmuls):
-        qconfig = QuantizationConfig(
-            is_static=True,
-            format=QuantFormat.QDQ,
-            mode=QuantizationMode.QLinearOps,
-            activations_dtype=QuantType.QInt8,
-            weights_dtype=QuantType.QInt8,
-            per_channel=False,
-            reduce_range=False,
-            operators_to_quantize=["MatMul"],
-        )
-
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = model_cls(AutoConfig.from_pretrained(model_name))
-
-        def preprocess_function(examples, tokenizer):
-            return tokenizer(examples["sentence"], padding="max_length", max_length=128, truncation=True)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            output_dir = Path(tmp_dir)
-            model_path = output_dir.joinpath("model.onnx")
-            q8_model_path = output_dir.joinpath("model-quantized.onnx")
-            quantizer = ORTQuantizer(tokenizer, model, feature="sequence-classification")
-            calibration_dataset = quantizer.get_calibration_dataset(
-                "glue",
-                dataset_config_name="sst2",
-                preprocess_function=partial(preprocess_function, tokenizer=quantizer.preprocessor),
-                num_samples=40,
-                dataset_split="train",
-            )
-            calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
-            ranges = quantizer.fit(
-                dataset=calibration_dataset,
-                calibration_config=calibration_config,
-                onnx_model_path=model_path,
-            )
-            quantizer.export(
-                onnx_model_path=model_path,
-                onnx_quantized_model_output_path=q8_model_path,
-                calibration_tensors_range=ranges,
-                quantization_config=qconfig,
-            )
-
-            quantized_model = onnx_load(q8_model_path)
-            num_quantized_matmul = 0
-            for initializer in quantized_model.graph.initializer:
-                if "MatMul" in initializer.name and "quantized" in initializer.name:
-                    num_quantized_matmul += 1
-            self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
-            gc.collect()
 
 
 if __name__ == "__main__":
