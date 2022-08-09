@@ -43,6 +43,7 @@ from optimum.onnxruntime import (
     ONNX_ENCODER_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
+    ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
     ORTModelForQuestionAnswering,
@@ -124,11 +125,26 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model.to(cpu)
         self.assertEqual(model.device, cpu)
 
+    # test string device input for to()
+    def test_model_on_cpu_str(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
+        cpu = torch.device("cpu")
+        model.to("cpu")
+        self.assertEqual(model.device, cpu)
+
     @require_torch_gpu
     def test_model_on_gpu(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         gpu = torch.device("cuda")
         model.to(gpu)
+        self.assertEqual(model.device, gpu)
+
+    # test string device input for to()
+    @require_torch_gpu
+    def test_model_on_gpu_str(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
+        gpu = torch.device("cuda")
+        model.to("cuda")
         self.assertEqual(model.device, gpu)
 
     def test_seq2seq_model_on_cpu(self):
@@ -143,11 +159,38 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
 
+    # test string device input for to()
+    def test_seq2seq_model_on_cpu_str(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
+        cpu = torch.device("cpu")
+        model.to("cpu")
+        self.assertEqual(model.device, cpu)
+        self.assertEqual(model.encoder._device, cpu)
+        self.assertEqual(model.decoder._device, cpu)
+        self.assertEqual(model.decoder_with_past._device, cpu)
+        self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
+
     @require_torch_gpu
     def test_seq2seq_model_on_gpu(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         gpu = torch.device("cuda")
         model.to(gpu)
+        self.assertEqual(model.device, gpu)
+        self.assertEqual(model.encoder._device, gpu)
+        self.assertEqual(model.decoder._device, gpu)
+        self.assertEqual(model.decoder_with_past._device, gpu)
+        self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
+
+    # test string device input for to()
+    @require_torch_gpu
+    def test_seq2seq_model_on_gpu_str(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
+        gpu = torch.device("cuda")
+        model.to("cuda")
         self.assertEqual(model.device, gpu)
         self.assertEqual(model.encoder._device, gpu)
         self.assertEqual(model.decoder._device, gpu)
@@ -906,3 +949,52 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=False)
         outputs_model_without_pkv = model_without_pkv.generate(**tokens)
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+
+class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "sbert": "optimum/sbert-all-MiniLM-L6-with-pooler",
+    }
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_model_call(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        outputs = model(**tokens)
+        self.assertIsInstance(outputs.pooler_output, torch.Tensor)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_ort_model(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+
+        # compare model output class
+        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        # compare model output class
+        self.assertTrue(any(any(isinstance(item, float) for item in row) for row in outputs[0]))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_default_pipeline_and_model_device(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        self.assertEqual(pipe.device, onnx_model.device)

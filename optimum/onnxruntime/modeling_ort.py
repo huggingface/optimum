@@ -35,6 +35,7 @@ from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutputWithCrossAttentions,
     ImageClassifierOutput,
+    ModelOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
@@ -132,6 +133,10 @@ class ORTModel(OptimizedModel):
         """
         Changes the ONNX Runtime provider according to the device.
         """
+        # convert string device input (ie. "cuda") to torch.device
+        if type(device) == str:
+            device = torch.device(device)
+
         self.device = device
         provider = get_provider_for_device(self.device)
         self.model.set_providers([provider])
@@ -536,7 +541,7 @@ class ORTModelForSequenceClassification(ORTModel):
         super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -847,3 +852,87 @@ class ORTModelForImageClassification(ORTModel):
         return ImageClassifierOutput(
             logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
         )
+
+
+CUSTOM_TASKS_EXAMPLE = r"""
+    Example of custom tasks(e.g. a sentence transformers taking `pooler_output` as output):
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = tokenizer("I love burritos!", return_tensors="pt")
+
+    >>> outputs = model(**inputs)
+    >>> last_hidden_state = outputs.last_hidden_state
+    >>> pooler_output = outputs.pooler_output
+    ```
+
+    Example using `transformers.pipelines`(only if the task is supported):
+
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_extractor = pipeline("feature-extraction", model=model, tokenizer=tokenizer)
+
+    >>> text = "I love burritos!"
+    >>> pred = onnx_extractor(text)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model for any custom tasks. It can be used to leverage the inference acceleration with any custom exported ONNX model.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForCustomTasks(ORTModel):
+    """
+    Onnx Model for any custom tasks.
+    """
+
+    auto_model_class = AutoModel
+
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
+
+    @add_start_docstrings_to_model_forward(
+        CUSTOM_TASKS_EXAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForCustomTasks",
+            checkpoint="optimum/sbert-all-MiniLM-L6-with-pooler",
+        )
+    )
+    def forward(self, **kwargs):
+        # converts pytorch inputs into numpy inputs for onnx
+        onnx_inputs = self._prepare_onnx_inputs(**kwargs)
+        # run inference
+        onnx_outputs = self.model.run(None, onnx_inputs)
+        outputs = self._prepare_onnx_outputs(onnx_outputs)
+        # converts outputs to namedtuple for pipelines post-processing if applicable
+        return ModelOutput(outputs)
+
+    def _prepare_onnx_inputs(self, **kwargs):
+        model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
+        onnx_inputs = {}
+        # converts pytorch inputs into numpy inputs for onnx
+        for input in model_inputs.keys():
+            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
+
+        return onnx_inputs
+
+    def _prepare_onnx_outputs(self, onnx_outputs):
+        model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        outputs = {}
+        # converts onnxruntime outputs into tensor for standard outputs
+        for output, idx in model_outputs.items():
+            outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
+
+        return outputs
