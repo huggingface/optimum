@@ -1,5 +1,9 @@
 import copy
+import json
 import os
+import shutil
+import time
+from typing import Dict, Optional, Union
 
 from datasets import load_metric
 from transformers import pipeline as _transformers_pipeline
@@ -10,7 +14,7 @@ from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from ...pipelines import pipeline as _optimum_pipeline
 from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 from .. import ORTQuantizer
-from ..configuration import QuantizationConfig
+from ..configuration import ORTConfig, QuantizationConfig
 from ..modeling_ort import ORTModel
 from ..preprocessors import QuantizationPreprocessor
 from .calibrator import OnnxRuntimeCalibrator
@@ -46,8 +50,8 @@ class OnnxRuntimeRun(Run):
 
         self.time_benchmark_args = run_config["time_benchmark_args"]
 
-        self.model_path = "model.onnx"
-        self.quantized_model_path = "quantized_model.onnx"
+        self.model_path = os.path.join(self.run_dir_path, "model.onnx")
+        self.quantized_model_path = os.path.join(self.run_dir_path, "quantized_model.onnx")
 
         processing_class = task_processing_map[self.task]
         self.processor = processing_class(
@@ -93,6 +97,8 @@ class OnnxRuntimeRun(Run):
             quantization_config=qconfig,
             preprocessor=quantization_preprocessor,
         )
+
+        self.ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
 
         # onnxruntime benchmark
         ort_session = ORTModel.load_model(self.quantized_model_path)
@@ -149,7 +155,9 @@ class OnnxRuntimeRun(Run):
 
         return 0, 0
 
-    def launch_eval(self):
+    def launch_eval(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
         kwargs = self.processor.get_pipeline_kwargs()
 
         # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
@@ -189,8 +197,19 @@ class OnnxRuntimeRun(Run):
             self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
             self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
 
-    def finalize(self):
-        if os.path.isfile(self.quantized_model_path):
-            os.remove(self.quantized_model_path)
-        if os.path.isfile(self.model_path):
-            os.remove(self.model_path)
+        if save:
+            self.save(save_directory, run_name)
+
+    def save(self, save_directory: Union[str, os.PathLike], run_name: str):
+        save_directory = super().save(save_directory, run_name)
+
+        # save ORTConfig
+        self.ort_config.save_pretrained(save_directory)
+
+        # save non-quantized and quantized models
+        shutil.move(self.model_path, os.path.join(save_directory, "model.onnx"))
+        shutil.move(self.quantized_model_path, os.path.join(save_directory, "quantized_model.onnx"))
+
+        # save run config and evaluation results
+        with open(os.path.join(save_directory, "results.json"), "w") as f:
+            json.dump(self.return_body, f, indent=4)
