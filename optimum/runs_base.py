@@ -157,7 +157,9 @@ class Run:
 
         return self.return_body
 
-    def launch_time(self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None):
+    def launch_time(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
         search_space = {"batch_size": self.batch_sizes, "input_length": self.input_lengths}
 
         self.study = optuna.create_study(
@@ -331,10 +333,13 @@ class TimeBenchmark:
         if "token_type_ids" in self.model_input_names:
             inputs["token_type_ids"] = torch.ones(self.batch_size, self.input_length, dtype=torch.int64)
         if "pixel_values" in self.model_input_names:
-            # TODO support grayscale?
-            inputs["pixel_values"] = torch.rand(
-                self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32
-            )
+            if hasattr(self.model.config, "image_size"):
+                # TODO support grayscale?
+                inputs["pixel_values"] = torch.rand(
+                    self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32
+                )
+            else:  # default
+                inputs["pixel_values"] = torch.rand(self.batch_size, 3, 224, 224, dtype=torch.float32)
 
         if np.any([k not in checked_inputs for k in self.model_input_names]):
             raise NotImplementedError(
