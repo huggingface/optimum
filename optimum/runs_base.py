@@ -157,7 +157,7 @@ class Run:
 
         return self.return_body
 
-    def launch_time(self):
+    def launch_time(self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None):
         search_space = {"batch_size": self.batch_sizes, "input_length": self.input_lengths}
 
         self.study = optuna.create_study(
@@ -166,6 +166,9 @@ class Run:
         )
 
         self.study.optimize(self._launch_time)
+
+        if save:
+            self.save(save_directory, run_name)
         return self.return_body
 
     def _launch_time(self, trial):
