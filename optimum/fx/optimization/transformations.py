@@ -255,6 +255,15 @@ class MergeLinears(ReversibleTransformation):
         return linear_node.target.split(".")[-1]
 
     @staticmethod
+    def _linear_node_to_module_and_attribute_name(graph_module, linear_node_target):
+        names = linear_node_target.split(".")
+        mod = graph_module
+        if len(names) > 1:
+            for name in names[:-1]:
+                mod = getattr(mod, name)
+        return mod, names[-1]
+
+    @staticmethod
     def _merge_linears(
         graph_module: "GraphModule", input_node: "Node", linear_nodes: List["Node"], linears: List[torch.nn.Linear]
     ):
@@ -292,18 +301,15 @@ class MergeLinears(ReversibleTransformation):
         parent_module.add_module(merged_linear_name, merged_linear)
         # for name in linear_module_names:
         for linear_node in linear_nodes:
-            names = linear_node.target.split(".")
-            mod = graph_module
-            if len(names) > 1:
-                for name in names[:-1]:
-                    mod = getattr(mod, name)
-            delattr(mod, names[-1])
+            mod, name = MergeLinears._linear_node_to_module_and_attribute_name(graph_module, linear_node.target)
+            delattr(mod, name)
 
         graph = graph_module.graph
         with graph.inserting_before(linear_nodes[0]):
             fully_qualified_merged_linear_name = ".".join([fully_qualified_parent_name, merged_linear_name])
             merged_linear_node = graph.call_module(fully_qualified_merged_linear_name, args=(input_node,))
             merged_linear_node.was_transformed = "MergeLinears"
+            merged_linear_node.linear_node_targets = [n.target for n in linear_nodes]
 
         accum_out_features = list(itertools.accumulate([0] + out_features))
         for idx, node in enumerate(linear_nodes):
@@ -314,11 +320,10 @@ class MergeLinears(ReversibleTransformation):
 
     @staticmethod
     def _unmerge_linears(graph_module: "GraphModule", merged_linear_node: "Node", merged_linear: torch.nn.Linear):
-        merged_linear_name = merged_linear_node.target.split(".")[-1]
-        # The linear module names and the output nodes need to be in the same order.
+        # The linear node targets and the output nodes need to be in the same order.
         # merge_linear_name gives the order in which the weights were concatenated, and we use the slice start index to
         # sort the output nodes since the start index tells when a weight was concatenated.
-        linear_module_names = merged_linear_name.replace("-merged", "").split("-")
+        linear_node_targets = merged_linear_node.linear_node_targets
         output_nodes = sorted(merged_linear_node.users, key=lambda node: node.args[1][1].start)
 
         in_features = merged_linear.in_features
@@ -338,20 +343,24 @@ class MergeLinears(ReversibleTransformation):
             for out_feat in out_features
         ]
 
-        fully_qualified_parent_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
-        parent_module = graph_module.get_submodule(fully_qualified_parent_name)
-        parent_module_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
-        for name, node, linear in zip(linear_module_names, output_nodes, linears):
+        # fully_qualified_parent_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
+        # parent_module = graph_module.get_submodule(fully_qualified_parent_name)
+        # parent_module_name = merged_linear_node.target.rsplit(".", maxsplit=1)[0]
+        for target, node, linear in zip(linear_node_targets, output_nodes, linears):
             with torch.no_grad():
                 slice_to_get = node.args[1][1]
                 linear.weight = torch.nn.Parameter(merged_linear.weight[slice_to_get.start : slice_to_get.stop])
                 if hasattr(merged_linear, "bias"):
                     linear.bias = torch.nn.Parameter(merged_linear.bias[slice_to_get.start : slice_to_get.stop])
+            parent_module, name = MergeLinears._linear_node_to_module_and_attribute_name(graph_module, target)
             parent_module.add_module(name, linear)
             node.op = "call_module"
-            node.target = ".".join([parent_module_name, name])
+            node.target = target
             node.args = (merged_linear_node.args[0],)
 
+        parent_module, merged_linear_name = MergeLinears._linear_node_to_module_and_attribute_name(
+            graph_module, merged_linear_node.target
+        )
         delattr(parent_module, merged_linear_name)
         graph_module.graph.erase_node(merged_linear_node)
 
