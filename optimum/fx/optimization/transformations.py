@@ -22,6 +22,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List
 
 import torch
+from transformers.file_utils import add_end_docstrings
 from transformers.utils.fx import _gen_constructor_wrapper
 
 
@@ -477,10 +478,11 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
         return graph_module
 
 
+@add_end_docstrings(_ATTRIBUTES_DOCSTRING)
 class FuseBatchNorm2dInConv2d(Transformation):
     """
     Transformation that fuses `nn.BatchNorm2d` following `nn.Conv2d` into a single `nn.Conv2d`.
-    The fusion will be done only if the convolution has the batch normalization as sole following nodes.
+    The fusion will be done only if the convolution has the batch normalization as sole following node.
 
     Example:
     ```python
@@ -586,7 +588,12 @@ class FuseBatchNorm2dInConv2d(Transformation):
         return fused_conv
 
 
+@add_end_docstrings(_ATTRIBUTES_DOCSTRING)
 class FuseBatchNorm1dInLinear(Transformation):
+    """
+    Transformation that fuses `nn.BatchNorm1d` following `nn.Linear` into a single `nn.Linear`.
+    The fusion will be done only if the linear layer has the batch normalization as sole following node.
+    """
 
     preserves_computation = True
 
