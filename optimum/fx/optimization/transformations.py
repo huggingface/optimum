@@ -477,12 +477,74 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
         return graph_module
 
 
-class FuseConv2dBatchNorm2d(Transformation):
-    def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        modules = dict(graph_module.named_modules())
+class FuseBatchNorm2dInConv2d(Transformation):
+    """
+    Transformation that fuses `nn.BatchNorm2d` following `nn.Conv2d` into a single `nn.Conv2d`.
+    The fusion will be done only if the convolution has the batch normalization as sole following nodes.
 
-        for node in graph_module.graph.nodes:
+    Example:
+    ```python
+    from transformers import ResNetModel, ResNetConfig
+
+    import torch
+    import time
+
+    from transformers.utils.fx import symbolic_trace
+
+    from optimum.fx.optimization import FuseBatchNorm2dInConv2d
+
+    def benchmark(model, inp, iters=20):
+        # warmup
+        for _ in range(10):
+            model(**inp)
+
+        start = time.time()
+        for _ in range(iters):
+            model(**inp)
+        end = time.time()
+        return end - start
+
+    config = ResNetConfig()
+    model = ResNetModel(config)
+    model.eval()
+
+    model.config.image_size = 224  # just a hack for symbolic_trace not to complain
+    inp = {"pixel_values": torch.rand(8, 3, 224, 224)}
+
+    traced_model = symbolic_trace(
+        model,
+        input_names=["pixel_values"],
+        disable_check=True
+    )
+
+    non_transformed_time = benchmark(traced_model, inp)
+
+    transformation = FuseBatchNorm2dInConv2d()
+    transformed_model = transformation(traced_model)
+
+    transformed_time = benchmark(transformed_model, inp)
+    print(f"Non-transformed: {non_transformed_time:.2f} s")
+    print(f"Transformed: {transformed_time:.2f} s")
+    print(f"Gain: {(non_transformed_time - transformed_time) / non_transformed_time * 100:.2f} % in latency")
+    ```
+
+    Outputs:
+    ```
+    Non-transformed: 5.06 s
+    Transformed: 4.57 s
+    Gain: 9.71 % in latency
+    ```
+    """
+
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        new_module = copy.deepcopy(graph_module)
+        modules = dict(new_module.named_modules())
+
+        for node in new_module.graph.nodes:
             if node.op == "call_module":
+                # TODO make sure node.args[0].target is a call_module
                 if (
                     type(modules[node.target]) is torch.nn.BatchNorm2d
                     and type(modules[node.args[0].target]) is torch.nn.Conv2d
@@ -501,9 +563,9 @@ class FuseConv2dBatchNorm2d(Transformation):
                     delattr(modules[parent_name], name)
 
                     node.replace_all_uses_with(node.args[0])
-                    graph_module.graph.erase_node(node)
+                    new_module.graph.erase_node(node)
 
-        return graph_module
+        return new_module
 
     def fuse(self, conv2d: torch.nn.Conv2d, bn2d: torch.nn.BatchNorm2d):
         fused_conv = copy.deepcopy(conv2d)
@@ -524,11 +586,16 @@ class FuseConv2dBatchNorm2d(Transformation):
         return fused_conv
 
 
-class FuseLinearBatchNorm1d(Transformation):
-    def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        modules = dict(graph_module.named_modules())
+class FuseBatchNorm1dInLinear(Transformation):
 
-        for node in graph_module.graph.nodes:
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        new_module = copy.deepcopy(graph_module)
+        modules = dict(new_module.named_modules())
+
+        for node in new_module.graph.nodes:
+            # TODO make sure node.args[0].target is a call_module
             if node.op == "call_module":
                 if (
                     type(modules[node.target]) is torch.nn.BatchNorm1d
@@ -551,9 +618,9 @@ class FuseLinearBatchNorm1d(Transformation):
                         delattr(modules[parent_name], name)
 
                         node.replace_all_uses_with(node.args[0])
-                        graph_module.graph.erase_node(node)
+                        new_module.graph.erase_node(node)
 
-        return graph_module
+        return new_module
 
     def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d):
         fused_linear = copy.deepcopy(linear)

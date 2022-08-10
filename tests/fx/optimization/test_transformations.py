@@ -22,9 +22,9 @@ from transformers.utils.fx import symbolic_trace
 
 from optimum.fx.optimization import (
     ChangeTrueDivToMulByInverse,
+    FuseBatchNorm1dInLinear,
+    FuseBatchNorm2dInConv2d,
     FuseBiasInLinear,
-    FuseConv2dBatchNorm2d,
-    FuseLinearBatchNorm1d,
     MergeLinears,
     ReversibleTransformation,
     Transformation,
@@ -281,7 +281,7 @@ class CustomTransformationsTests(unittest.TestCase):
             msg="there should be at least one BatchNorm2d in the model to actually perform the test",
         )
 
-        transformation = FuseConv2dBatchNorm2d()
+        transformation = FuseBatchNorm2dInConv2d()
         transformed_model = transformation(traced_model)
 
         num_batchnorm2d = sum(1 if isinstance(mod, torch.nn.BatchNorm2d) else 0 for mod in transformed_model.modules())
@@ -314,7 +314,7 @@ class CustomTransformationsTests(unittest.TestCase):
             msg="there should be at least one BatchNorm1d in the model to actually perform the test",
         )
 
-        transformation = FuseLinearBatchNorm1d()
+        transformation = FuseBatchNorm1dInLinear()
         transformed_model = transformation(traced_model)
 
         num_batchnorm1d = sum(1 if isinstance(mod, torch.nn.BatchNorm1d) else 0 for mod in transformed_model.modules())

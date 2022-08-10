@@ -14,9 +14,9 @@
 #  limitations under the License.
 from .transformations import (  # noqa
     ChangeTrueDivToMulByInverse,
+    FuseBatchNorm1dInLinear,
+    FuseBatchNorm2dInConv2d,
     FuseBiasInLinear,
-    FuseConv2dBatchNorm2d,
-    FuseLinearBatchNorm1d,
     MergeLinears,
     ReversibleTransformation,
     Transformation,
