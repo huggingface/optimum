@@ -1310,7 +1310,7 @@ class ORTTrainer(Trainer):
         else:
             if not (self.args.fp16 and self.args.deepspeed):
                 # Taking CPU to export the model
-                self.model.to("cpu")
+                self.model.to(torch.device("cpu"))
             model = unwrap_model(self.model)
 
         model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
