@@ -16,13 +16,15 @@ import operator
 import unittest
 
 import torch
-from transformers import AutoTokenizer, BertModel
+from transformers import AutoModelForImageClassification, AutoTokenizer, BertModel, GroupViTConfig, GroupViTModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
 
 from optimum.fx.optimization import (
     ChangeTrueDivToMulByInverse,
     FuseBiasInLinear,
+    FuseConv2dBatchNorm2d,
+    FuseLinearBatchNorm1d,
     MergeLinears,
     ReversibleTransformation,
     Transformation,
@@ -211,59 +213,153 @@ class TransformationTester(unittest.TestCase):
                 self.assertFalse(t1.transformed(node))
 
 
-def test_merge_linears():
-    _, traced = get_bert_model()
-    transformation = MergeLinears()
-    transformed = transformation(traced)
-
-    self_attention_modules = [mod for mod in transformed.modules() if isinstance(mod, BertSelfAttention)]
-    for module in self_attention_modules:
-        num_linears = sum((1 if isinstance(mod, torch.nn.Linear) else 0 for mod in module.modules()))
-        assert num_linears == 1, "there should be one linear layer in BertSelfAttention after merging"
-
-    restored = transformation(transformed, reverse=True)
-    self_attention_modules = [mod for mod in restored.modules() if isinstance(mod, BertSelfAttention)]
-    for module in self_attention_modules:
-        num_linears = sum((1 if isinstance(mod, torch.nn.Linear) else 0 for mod in module.modules()))
+class CustomTransformationsTests(unittest.TestCase):
+    def test_fuse_bias_in_linear(self):
+        _, traced = get_bert_model()
+        num_bias_in_linears = sum(
+            int(mod.bias is not None) for mod in traced.modules() if isinstance(mod, torch.nn.Linear)
+        )
         assert (
-            num_linears == 3
-        ), "there should be three linear layers in BertSelfAttention after the reverse transformation"
+            num_bias_in_linears != 0
+        ), "there should be biases in at least one linear module in the model to actually perform the test"
+        transformation = FuseBiasInLinear()
+        transformed = transformation(traced)
+        num_bias_in_linears = sum(
+            int(mod.bias is not None) for mod in transformed.modules() if isinstance(mod, torch.nn.Linear)
+        )
+        assert num_bias_in_linears == 0, "there should not be any bias left in any linear module now"
 
+    def test_merge_linears(self):
+        _, traced = get_bert_model()
+        transformation = MergeLinears()
+        transformed = transformation(traced)
 
-def test_fuse_bias_in_linear():
-    _, traced = get_bert_model()
-    num_bias_in_linears = sum(
-        int(mod.bias is not None) for mod in traced.modules() if isinstance(mod, torch.nn.Linear)
-    )
-    assert (
-        num_bias_in_linears != 0
-    ), "there should be biases in at least one linear module in the model to actually perform the test"
-    transformation = FuseBiasInLinear()
-    transformed = transformation(traced)
-    num_bias_in_linears = sum(
-        int(mod.bias is not None) for mod in transformed.modules() if isinstance(mod, torch.nn.Linear)
-    )
-    assert num_bias_in_linears == 0, "there should not be any bias left in any linear module now"
+        self_attention_modules = [mod for mod in transformed.modules() if isinstance(mod, BertSelfAttention)]
+        for module in self_attention_modules:
+            num_linears = sum((1 if isinstance(mod, torch.nn.Linear) else 0 for mod in module.modules()))
+            assert num_linears == 1, "there should be one linear layer in BertSelfAttention after merging"
 
+        restored = transformation(transformed, reverse=True)
+        self_attention_modules = [mod for mod in restored.modules() if isinstance(mod, BertSelfAttention)]
+        for module in self_attention_modules:
+            num_linears = sum((1 if isinstance(mod, torch.nn.Linear) else 0 for mod in module.modules()))
+            assert (
+                num_linears == 3
+            ), "there should be three linear layers in BertSelfAttention after the reverse transformation"
 
-def test_change_truediv_to_mul_by_inverse():
-    _, traced = get_bert_model()
+    def test_change_truediv_to_mul_by_inverse(self):
+        _, traced = get_bert_model()
 
-    orig_num_truediv = sum((1 if node.target == operator.truediv else 0 for node in traced.graph.nodes))
-    orig_num_mul = sum((1 if node.target == operator.mul else 0 for node in traced.graph.nodes))
+        orig_num_truediv = sum((1 if node.target == operator.truediv else 0 for node in traced.graph.nodes))
+        orig_num_mul = sum((1 if node.target == operator.mul else 0 for node in traced.graph.nodes))
 
-    transformation = ChangeTrueDivToMulByInverse()
-    transformed = transformation(traced)
+        transformation = ChangeTrueDivToMulByInverse()
+        transformed = transformation(traced)
 
-    num_truediv = sum((1 if node.target == operator.truediv else 0 for node in transformed.graph.nodes))
-    num_mul = sum((1 if node.target == operator.mul else 0 for node in transformed.graph.nodes))
+        num_truediv = sum((1 if node.target == operator.truediv else 0 for node in transformed.graph.nodes))
+        num_mul = sum((1 if node.target == operator.mul else 0 for node in transformed.graph.nodes))
 
-    assert (orig_num_truediv != num_truediv) and (orig_num_mul != num_mul)
-    assert orig_num_truediv - num_truediv == num_mul - orig_num_mul
+        assert (orig_num_truediv != num_truediv) and (orig_num_mul != num_mul)
+        assert orig_num_truediv - num_truediv == num_mul - orig_num_mul
 
-    restored = transformation(traced, reverse=True)
+        restored = transformation(traced, reverse=True)
 
-    restored_num_truediv = sum((1 if node.target == operator.truediv else 0 for node in restored.graph.nodes))
-    restored_num_mul = sum((1 if node.target == operator.mul else 0 for node in restored.graph.nodes))
+        restored_num_truediv = sum((1 if node.target == operator.truediv else 0 for node in restored.graph.nodes))
+        restored_num_mul = sum((1 if node.target == operator.mul else 0 for node in restored.graph.nodes))
 
-    assert (orig_num_truediv == restored_num_truediv) and (orig_num_mul == restored_num_mul)
+        assert (orig_num_truediv == restored_num_truediv) and (orig_num_mul == restored_num_mul)
+
+    def test_fuse_conv2d_batchnorm2d(self):
+        model = AutoModelForImageClassification.from_pretrained("fxmarty/resnet-tiny-beans")
+
+        traced_model = symbolic_trace(model, input_names=["pixel_values"], disable_check=True)
+
+        num_batchnorm2d = sum(1 if isinstance(mod, torch.nn.BatchNorm2d) else 0 for mod in traced_model.modules())
+        self.assertNotEqual(
+            num_batchnorm2d,
+            0,
+            msg="there should be at least one BatchNorm2d in the model to actually perform the test",
+        )
+
+        transformation = FuseConv2dBatchNorm2d()
+        transformed_model = transformation(traced_model)
+
+        num_batchnorm2d = sum(1 if isinstance(mod, torch.nn.BatchNorm2d) else 0 for mod in transformed_model.modules())
+        self.assertEqual(
+            num_batchnorm2d, 0, msg="there should be no BatchNorm2d left in the model after the transformation"
+        )
+
+        dummy_input = torch.rand(8, 3, 224, 224)
+
+        output_original = model(pixel_values=dummy_input)
+        output_transformed = transformed_model(pixel_values=dummy_input)
+
+        self.assertTrue(torch.allclose(output_original.logits, output_transformed["logits"], atol=1e-6))
+
+    def test_fuse_linear_batchnorm1d(self):
+        config = GroupViTConfig()
+        model = GroupViTModel(config)
+        model.text_projection[1].weight.data = torch.rand(model.text_projection[1].weight.data.shape)
+        model.text_projection[1].bias.data = torch.rand(model.text_projection[1].bias.data.shape)
+        model.eval()
+
+        traced_model = symbolic_trace(
+            model, input_names=["input_ids", "attention_mask", "pixel_values"], disable_check=True
+        )
+
+        num_batchnorm1d = sum(1 if isinstance(mod, torch.nn.BatchNorm1d) else 0 for mod in traced_model.modules())
+        self.assertNotEqual(
+            num_batchnorm1d,
+            0,
+            msg="there should be at least one BatchNorm1d in the model to actually perform the test",
+        )
+
+        transformation = FuseLinearBatchNorm1d()
+        transformed_model = transformation(traced_model)
+
+        num_batchnorm1d = sum(1 if isinstance(mod, torch.nn.BatchNorm1d) else 0 for mod in transformed_model.modules())
+        self.assertEqual(
+            num_batchnorm1d, 0, msg="there should be no BatchNorm1d left in the model after the transformation"
+        )
+
+        dummy_input = {
+            "pixel_values": torch.rand(1, 3, 224, 224, dtype=torch.float32),
+            "input_ids": torch.randint(low=0, high=100, size=(2, 32)),
+            "attention_mask": torch.ones(2, 32),
+        }
+
+        output_original = model(**dummy_input)
+        output_transformed = transformed_model(**dummy_input)
+
+        self.assertTrue(torch.allclose(output_transformed["logits_per_image"], output_original.logits_per_image))
+        self.assertTrue(torch.allclose(output_transformed["logits_per_text"], output_original.logits_per_text))
+        self.assertTrue(torch.allclose(output_transformed["text_embeds"], output_original.text_embeds, atol=1e-6))
+        self.assertTrue(torch.allclose(output_transformed["image_embeds"], output_original.image_embeds, atol=1e-6))
+        self.assertTrue(
+            torch.allclose(
+                output_transformed["text_model_output"]["last_hidden_state"],
+                output_original.text_model_output.last_hidden_state,
+                atol=1e-6,
+            )
+        )
+        self.assertTrue(
+            torch.allclose(
+                output_transformed["text_model_output"]["pooler_output"],
+                output_original.text_model_output.pooler_output,
+                atol=1e-6,
+            )
+        )
+        self.assertTrue(
+            torch.allclose(
+                output_transformed["vision_model_output"]["last_hidden_state"],
+                output_original.vision_model_output.last_hidden_state,
+                atol=1e-6,
+            )
+        )
+        self.assertTrue(
+            torch.allclose(
+                output_transformed["vision_model_output"]["pooler_output"],
+                output_original.vision_model_output.pooler_output,
+                atol=1e-6,
+            )
+        )

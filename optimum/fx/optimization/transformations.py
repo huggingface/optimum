@@ -477,6 +477,100 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
         return graph_module
 
 
+class FuseConv2dBatchNorm2d(Transformation):
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        modules = dict(graph_module.named_modules())
+
+        for node in graph_module.graph.nodes:
+            if node.op == "call_module":
+                if (
+                    type(modules[node.target]) is torch.nn.BatchNorm2d
+                    and type(modules[node.args[0].target]) is torch.nn.Conv2d
+                ):
+                    if len(node.args[0].users) > 1:  # Output of conv is used by other nodes
+                        continue
+
+                    fused_conv = self.fuse(conv2d=modules[node.args[0].target], bn2d=modules[node.target])
+
+                    # replace the old nn.Conv2d by the fused one
+                    parent_name, _, name = node.args[0].target.rpartition(".")
+                    setattr(modules[parent_name], name, fused_conv)
+
+                    # delete batchnorm from the modules
+                    parent_name, _, name = node.target.rpartition(".")
+                    delattr(modules[parent_name], name)
+
+                    node.replace_all_uses_with(node.args[0])
+                    graph_module.graph.erase_node(node)
+
+        return graph_module
+
+    def fuse(self, conv2d: torch.nn.Conv2d, bn2d: torch.nn.BatchNorm2d):
+        fused_conv = copy.deepcopy(conv2d)
+
+        # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
+        conv_b = conv2d.bias if conv2d.bias is not None else torch.zeros_like(bn2d.running_mean)
+        bn_w = bn2d.weight if bn2d.weight is not None else torch.ones_like(bn2d.running_mean)
+        bn_b = bn2d.bias if bn2d.bias is not None else torch.ones_like(bn2d.running_mean)
+
+        bn_var_rsqrt = torch.rsqrt(bn2d.running_var + bn2d.eps)
+
+        fused_conv.weight = torch.nn.Parameter(
+            conv2d.weight * (bn_w * bn_var_rsqrt).reshape([-1] + [1] * (len(conv2d.weight.shape) - 1))
+        )
+
+        fused_conv.bias = torch.nn.Parameter(conv_b - bn2d.running_mean * bn_var_rsqrt * bn_w + bn_b)
+
+        return fused_conv
+
+
+class FuseLinearBatchNorm1d(Transformation):
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        modules = dict(graph_module.named_modules())
+
+        for node in graph_module.graph.nodes:
+            if node.op == "call_module":
+                if (
+                    type(modules[node.target]) is torch.nn.BatchNorm1d
+                    and type(modules[node.args[0].target]) is torch.nn.Linear
+                ):
+                    if len(node.args[0].users) > 1:  # Output of linear is used by other nodes
+                        continue
+
+                    # will fuse only if the linear output features is equal to the batchnorm num features, this is the case with 2D tensors
+                    # the case where the linear input is (N, C, L_in), output is (N, C, L_out) and C = L_out is NOT handled as can not be fused
+                    if modules[node.args[0].target].weight.shape[0] == modules[node.target].weight.shape[0]:
+                        fused_linear = self.fuse(linear=modules[node.args[0].target], bn1d=modules[node.target])
+
+                        # replace the old nn.Linear by the fused one
+                        parent_name, _, name = node.args[0].target.rpartition(".")
+                        setattr(modules[parent_name], name, fused_linear)
+
+                        # delete batchnorm from the modules
+                        parent_name, _, name = node.target.rpartition(".")
+                        delattr(modules[parent_name], name)
+
+                        node.replace_all_uses_with(node.args[0])
+                        graph_module.graph.erase_node(node)
+
+        return graph_module
+
+    def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d):
+        fused_linear = copy.deepcopy(linear)
+
+        # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
+        linear_b = linear.bias if linear.bias is not None else torch.zeros_like(bn1d.running_mean)
+        bn_w = bn1d.weight if bn1d.weight is not None else torch.ones_like(bn1d.running_mean)
+        bn_b = bn1d.bias if bn1d.bias is not None else torch.ones_like(bn1d.running_mean)
+
+        bn_var_rsqrt = torch.rsqrt(bn1d.running_var + bn1d.eps)
+
+        fused_linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[:, None])
+        fused_linear.bias = torch.nn.Parameter((linear_b - bn1d.running_mean) * bn_var_rsqrt * bn_w + bn_b)
+
+        return fused_linear
+
+
 class DeepCopy(ReversibleTransformation):
     """
     Transformation that does nothing except making a deepcopy of the graph module.

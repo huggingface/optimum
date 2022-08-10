@@ -15,6 +15,8 @@
 from .transformations import (  # noqa
     ChangeTrueDivToMulByInverse,
     FuseBiasInLinear,
+    FuseConv2dBatchNorm2d,
+    FuseLinearBatchNorm1d,
     MergeLinears,
     ReversibleTransformation,
     Transformation,
