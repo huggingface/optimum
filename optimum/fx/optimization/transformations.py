@@ -543,30 +543,32 @@ class FuseBatchNorm2dInConv2d(Transformation):
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        modules = dict(graph_module.named_modules())
-
         for node in graph_module.graph.nodes:
             if node.op == "call_module" and node.args[0].op == "call_module":
                 if (
-                    type(modules[node.target]) is torch.nn.BatchNorm2d
-                    and type(modules[node.args[0].target]) is torch.nn.Conv2d
+                    type(graph_module.get_submodule(node.target)) is torch.nn.BatchNorm2d
+                    and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.Conv2d
                 ):
                     if len(node.args[0].users) > 1:  # Output of conv is used by other nodes
                         continue
 
-                    fused_conv = self.fuse(conv2d=modules[node.args[0].target], bn2d=modules[node.target])
+                    fused_conv = self.fuse(
+                        conv2d=graph_module.get_submodule(node.args[0].target),
+                        bn2d=graph_module.get_submodule(node.target),
+                    )
 
                     # replace the old nn.Conv2d by the fused one
                     parent_name, _, name = node.args[0].target.rpartition(".")
-                    setattr(modules[parent_name], name, fused_conv)
+                    parent_module = graph_module.get_submodule(parent_name)
+                    setattr(parent_module, name, fused_conv)
 
                     # delete batchnorm from the modules
                     parent_name, _, name = node.target.rpartition(".")
-                    delattr(modules[parent_name], name)
+                    parent_module = graph_module.get_submodule(parent_name)
+                    delattr(parent_module, name)
 
                     node.replace_all_uses_with(node.args[0])
                     graph_module.graph.erase_node(node)
-
         return graph_module
 
     def fuse(self, conv2d: torch.nn.Conv2d, bn2d: torch.nn.BatchNorm2d):
@@ -654,59 +656,65 @@ class FuseBatchNorm1dInLinear(Transformation):
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        modules = dict(graph_module.named_modules())
-
         for node in graph_module.graph.nodes:
             if node.op == "call_module" and node.args[0].op == "call_module":
                 if (
-                    type(modules[node.target]) is torch.nn.BatchNorm1d
-                    and type(modules[node.args[0].target]) is torch.nn.Linear
+                    type(graph_module.get_submodule(node.target)) is torch.nn.BatchNorm1d
+                    and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.Linear
                 ):
                     # handle the case torch.nn.Linear --> torch.nn.BatchNorm1d
 
                     if len(node.args[0].users) > 1:  # Output of linear is used by other nodes
                         continue
 
+                    candidate_linear = graph_module.get_submodule(node.args[0].target)
+                    candidate_batchnorm1d = graph_module.get_submodule(node.target)
+
                     # will fuse only if the linear output features is equal to the batchnorm num features, this is the case with 2D tensors
                     # the case where the linear input is (N, C, L_in), output is (N, C, L_out) and C = L_out is NOT handled as can not be fused
-                    if modules[node.args[0].target].weight.shape[0] == modules[node.target].weight.shape[0]:
+                    if candidate_linear.weight.shape[0] == candidate_batchnorm1d.weight.shape[0]:
                         fused_linear = self.fuse(
-                            linear=modules[node.args[0].target], bn1d=modules[node.target], bn1d_before=False
+                            linear=candidate_linear, bn1d=candidate_batchnorm1d, bn1d_before=False
                         )
 
                         # replace the old nn.Linear by the fused one
                         parent_name, _, name = node.args[0].target.rpartition(".")
-                        setattr(modules[parent_name], name, fused_linear)
+                        parent_module = graph_module.get_submodule(parent_name)
+                        setattr(parent_module, name, fused_linear)
 
                         # delete batchnorm from the modules
                         parent_name, _, name = node.target.rpartition(".")
-                        delattr(modules[parent_name], name)
+                        parent_module = graph_module.get_submodule(parent_name)
+                        delattr(parent_module, name)
 
                         node.replace_all_uses_with(node.args[0])
 
                         graph_module.graph.erase_node(node)  # delete BatchNorm1d
                 elif (
-                    type(modules[node.target]) is torch.nn.Linear
-                    and type(modules[node.args[0].target]) is torch.nn.BatchNorm1d
+                    type(graph_module.get_submodule(node.target)) is torch.nn.Linear
+                    and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.BatchNorm1d
                 ):
                     # handle the case torch.nn.BatchNorm1d --> torch.nn.Linear
                     if len(node.args[0].users) > 1:  # Output of batchnorm is used by other nodes
                         continue
 
+                    candidate_linear = graph_module.get_submodule(node.target)
+                    candidate_batchnorm1d = graph_module.get_submodule(node.args[0].target)
+
                     # will fuse only if the linear input features is equal to the batchnorm num features, this is the case with 2D tensors
                     # the case where the linear input is (N, C, L_in) and C = L_in is NOT handled as can not be fused
-                    if modules[node.args[0].target].weight.shape[0] == modules[node.target].weight.shape[1]:
-                        fused_linear = self.fuse(
-                            linear=modules[node.target], bn1d=modules[node.args[0].target], bn1d_before=True
-                        )
+                    if candidate_batchnorm1d.weight.shape[0] == candidate_linear.weight.shape[1]:
+                        fused_linear = self.fuse(linear=candidate_linear, bn1d=candidate_batchnorm1d, bn1d_before=True)
 
                         # replace the old nn.Linear by the fused one
                         parent_name, _, name = node.target.rpartition(".")
-                        setattr(modules[parent_name], name, fused_linear)
+                        parent_module = graph_module.get_submodule(parent_name)
+                        setattr(parent_module, name, fused_linear)
 
                         # delete batchnorm from the modules
                         parent_name, _, name = node.args[0].target.rpartition(".")
-                        delattr(modules[parent_name], name)
+                        parent_module = graph_module.get_submodule(parent_name)
+                        delattr(parent_module, name)
 
                         batchnorm_node = node.args[0]
                         node.args[0].replace_all_uses_with(node.args[0].args[0])
@@ -735,16 +743,12 @@ class FuseBatchNorm1dInLinear(Transformation):
                 │reshape_as│◄────────┘
                 └──────────┘
                 """
-                if (
-                    type(modules[node.args[0].target]) is torch.nn.BatchNorm1d
-                    and type(modules[node.args[1].target]) is torch.nn.Linear
-                ):
+                parent0 = graph_module.get_submodule(node.args[0].target)
+                parent1 = graph_module.get_submodule(node.args[1].target)
+                if type(parent0) is torch.nn.BatchNorm1d and type(parent1) is torch.nn.Linear:
                     batch_norm_index = 0
                     linear_lindex = 1
-                elif (
-                    type(modules[node.args[1].target]) is torch.nn.BatchNorm1d
-                    and type(modules[node.args[0].target]) is torch.nn.Linear
-                ):
+                elif type(parent0) is torch.nn.BatchNorm1d and type(parent1) is torch.nn.Linear:
                     batch_norm_index = 1
                     linear_lindex = 0
                 else:
@@ -757,15 +761,17 @@ class FuseBatchNorm1dInLinear(Transformation):
                     and node.args[batch_norm_index].args[0].args[0].target == node.args[linear_lindex].target
                 ):
                     fused_linear = self.fuse(
-                        linear=modules[node.args[linear_lindex].target],
-                        bn1d=modules[node.args[batch_norm_index].target],
+                        linear=graph_module.get_submodule(node.args[linear_lindex].target),
+                        bn1d=graph_module.get_submodule(node.args[batch_norm_index].target),
                         bn1d_before=False,
                     )
 
                     # replace the old nn.Linear by the fused one
                     parent_name, _, name = node.args[linear_lindex].target.rpartition(".")
-                    setattr(modules[parent_name], name, fused_linear)
+                    parent_module = graph_module.get_submodule(parent_name)
+                    setattr(parent_module, name, fused_linear)
 
+                    # keep pointers to batchnorm and flatten nodes as we will loose them with `replace_all_uses_with`
                     batch_norm_node = node.args[batch_norm_index]
                     flatten_node = node.args[batch_norm_index].args[0]
 
@@ -773,7 +779,8 @@ class FuseBatchNorm1dInLinear(Transformation):
 
                     # delete batchnorm from the modules
                     parent_name, _, name = batch_norm_node.target.rpartition(".")
-                    delattr(modules[parent_name], name)
+                    parent_module = graph_module.get_submodule(parent_name)
+                    delattr(parent_module, name)
 
                     graph_module.graph.erase_node(node)  # delete reshape_as
                     graph_module.graph.erase_node(batch_norm_node)  # delete BatchNorm1d
