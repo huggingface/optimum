@@ -83,6 +83,7 @@ class CalibrationConfig:
         onnx_model_path: Union[str, os.PathLike, Path],
         operators_to_quantize: Optional[List[NodeType]],
         use_external_data_format: bool = False,
+        all_tensors_to_one_file: bool = True,
         force_symmetric_range: bool = False,
         augmented_model_name: str = "augmented_model.onnx",
     ) -> CalibraterBase:
@@ -95,6 +96,7 @@ class CalibrationConfig:
         }
         if parse(ort_version) > Version("1.10.0"):
             kwargs["use_external_data_format"] = use_external_data_format
+            kwargs["all_tensors_to_one_file"] = all_tensors_to_one_file
             kwargs["extra_options"] = {
                 "symmetric": force_symmetric_range,
                 "num_bins": self.num_bins,
