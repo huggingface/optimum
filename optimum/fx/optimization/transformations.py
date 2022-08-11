@@ -536,17 +536,17 @@ class FuseBatchNorm2dInConv2d(Transformation):
     Transformed: 4.57 s
     Gain: 9.71 % in latency
     ```
+
+    Note that the gain may depend on the batch size, image size, hardware used.
     """
 
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        new_module = copy.deepcopy(graph_module)
-        modules = dict(new_module.named_modules())
+        modules = dict(graph_module.named_modules())
 
-        for node in new_module.graph.nodes:
-            if node.op == "call_module":
-                # TODO make sure node.args[0].target is a call_module
+        for node in graph_module.graph.nodes:
+            if node.op == "call_module" and node.args[0].op == "call_module":
                 if (
                     type(modules[node.target]) is torch.nn.BatchNorm2d
                     and type(modules[node.args[0].target]) is torch.nn.Conv2d
@@ -565,9 +565,9 @@ class FuseBatchNorm2dInConv2d(Transformation):
                     delattr(modules[parent_name], name)
 
                     node.replace_all_uses_with(node.args[0])
-                    new_module.graph.erase_node(node)
+                    graph_module.graph.erase_node(node)
 
-        return new_module
+        return graph_module
 
     def fuse(self, conv2d: torch.nn.Conv2d, bn2d: torch.nn.BatchNorm2d):
         fused_conv = copy.deepcopy(conv2d)
@@ -593,17 +593,71 @@ class FuseBatchNorm1dInLinear(Transformation):
     """
     Transformation that fuses `nn.BatchNorm1d` following `nn.Linear` into a single `nn.Linear`.
     The fusion will be done only if the linear layer has the batch normalization as sole following node.
+
+    Example on GPU:
+    ```python
+    import torch
+    import time
+
+    from transformers.utils.fx import symbolic_trace
+    from transformers import AutoModelForImageClassification
+
+    from optimum.fx.optimization import FuseBatchNorm1dInLinear
+
+    def benchmark(model, inp, iters=2000):
+        # warmup
+        for _ in range(10):
+            model(**inp)
+
+        start = time.time()
+        for _ in range(iters):
+            model(**inp)
+        end = time.time()
+        return end - start
+
+    inp = {"pixel_values": torch.rand(2, 3, 224, 224, dtype=torch.float32).to("cuda")}
+
+    model = AutoModelForImageClassification.from_pretrained("facebook/levit-256")
+    model.eval()
+
+    traced_model = symbolic_trace(
+        model,
+        input_names=['pixel_values'],
+        disable_check=True
+    )
+
+    traced_model = traced_model.to("cuda")
+
+    non_transformed_time = benchmark(traced_model, inp)
+
+    transformation = FuseBatchNorm1dInLinear()
+    transformed_model = transformation(traced_model)
+
+    transformed_model = transformed_model.to("cuda")
+
+    transformed_time = benchmark(transformed_model, inp)
+    print(f"Non-transformed: {non_transformed_time:.2f} s")
+    print(f"Transformed: {transformed_time:.2f} s")
+    print(f"Gain: {(non_transformed_time - transformed_time) / non_transformed_time * 100:.2f} % in latency")
+    ```
+
+    Outputs:
+    ```
+    Non-transformed: 8.98 s
+    Transformed: 6.36 s
+    Gain: 29.12 % in latency
+    ```
+
+    Note that the gain may depend on the batch size, image size, hardware used.
     """
 
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        new_module = copy.deepcopy(graph_module)
-        modules = dict(new_module.named_modules())
+        modules = dict(graph_module.named_modules())
 
-        for node in new_module.graph.nodes:
-            # TODO make sure node.args[0].target is a call_module
-            if node.op == "call_module":
+        for node in graph_module.graph.nodes:
+            if node.op == "call_module" and node.args[0].op == "call_module":
                 if (
                     type(modules[node.target]) is torch.nn.BatchNorm1d
                     and type(modules[node.args[0].target]) is torch.nn.Linear
@@ -625,9 +679,74 @@ class FuseBatchNorm1dInLinear(Transformation):
                         delattr(modules[parent_name], name)
 
                         node.replace_all_uses_with(node.args[0])
-                        new_module.graph.erase_node(node)
 
-        return new_module
+                        graph_module.graph.erase_node(node)  # delete BatchNorm1d
+            elif (
+                node.op == "call_method"
+                and node.target == "reshape_as"
+                and len(node.args) == 2
+                and node.args[0].op == "call_module"
+                and node.args[1].op == "call_module"
+            ):
+                """
+                handle the case as in levit
+                ┌─────────┐
+                │nn.Linear├──────────┐
+                └────┬────┘          │
+                     │           ┌───▼───┐
+                     │           │flatten│
+                     │           └───┬───┘
+                     │               │
+                     │        ┌──────▼───────┐
+                     │        │nn.BatchNorm1d│
+                     │        └──────┬───────┘
+                ┌────▼─────┐         │
+                │reshape_as│◄────────┘
+                └──────────┘
+                """
+                if (
+                    type(modules[node.args[0].target]) is torch.nn.BatchNorm1d
+                    and type(modules[node.args[1].target]) is torch.nn.Linear
+                ):
+                    batch_norm_index = 0
+                    linear_lindex = 1
+                elif (
+                    type(modules[node.args[1].target]) is torch.nn.BatchNorm1d
+                    and type(modules[node.args[0].target]) is torch.nn.Linear
+                ):
+                    batch_norm_index = 1
+                    linear_lindex = 0
+                else:
+                    linear_lindex = None
+
+                if (
+                    linear_lindex is not None
+                    and node.args[batch_norm_index].args[0].op == "call_method"
+                    and node.args[batch_norm_index].args[0].target == "flatten"
+                    and node.args[batch_norm_index].args[0].args[0].target == node.args[linear_lindex].target
+                ):
+                    fused_linear = self.fuse(
+                        linear=modules[node.args[linear_lindex].target],
+                        bn1d=modules[node.args[batch_norm_index].target],
+                    )
+
+                    # replace the old nn.Linear by the fused one
+                    parent_name, _, name = node.args[linear_lindex].target.rpartition(".")
+                    setattr(modules[parent_name], name, fused_linear)
+
+                    batch_norm_node = node.args[batch_norm_index]
+                    flatten_node = node.args[batch_norm_index].args[0]
+
+                    node.replace_all_uses_with(node.args[linear_lindex])
+
+                    # delete batchnorm from the modules
+                    parent_name, _, name = batch_norm_node.target.rpartition(".")
+                    delattr(modules[parent_name], name)
+
+                    graph_module.graph.erase_node(node)  # delete reshape_as
+                    graph_module.graph.erase_node(batch_norm_node)  # delete BatchNorm1d
+                    graph_module.graph.erase_node(flatten_node)  # delete flatten
+        return graph_module
 
     def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d):
         fused_linear = copy.deepcopy(linear)
