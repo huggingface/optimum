@@ -23,7 +23,7 @@ from transformers import (
     GroupViTConfig,
     GroupViTModel,
     LevitConfig,
-    LevitModel,
+    LevitForImageClassification,
 )
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
@@ -373,13 +373,16 @@ class CustomTransformationsTests(unittest.TestCase):
         )
 
         config = LevitConfig()
-        model = LevitModel(config)
-        model.encoder.stages[0].layers[0].module.projection.batch_norm.weight.data = torch.rand(
-            model.encoder.stages[0].layers[0].module.projection.batch_norm.weight.data.shape
+        model = LevitForImageClassification(config)
+        model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.weight.data = torch.rand(
+            model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.weight.data.shape
         )
-        model.encoder.stages[0].layers[0].module.projection.batch_norm.bias.data = torch.rand(
-            model.encoder.stages[0].layers[0].module.projection.batch_norm.bias.data.shape
+        model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.bias.data = torch.rand(
+            model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.bias.data.shape
         )
+
+        model.classifier.batch_norm.weight.data = torch.rand(model.classifier.batch_norm.weight.data.shape)
+        model.classifier.batch_norm.bias.data = torch.rand(model.classifier.batch_norm.bias.data.shape)
         model.eval()
 
         traced_model = symbolic_trace(model, input_names=["pixel_values"], disable_check=True)
@@ -400,10 +403,10 @@ class CustomTransformationsTests(unittest.TestCase):
         )
 
         dummy_input = {
-            "pixel_values": torch.rand(1, 3, 224, 224, dtype=torch.float32),
+            "pixel_values": torch.rand(4, 3, 224, 224, dtype=torch.float32),
         }
 
         output_original = model(**dummy_input)
         output_transformed = transformed_model(**dummy_input)
 
-        self.assertTrue(torch.allclose(output_transformed["last_hidden_state"], output_original.last_hidden_state))
+        self.assertTrue(torch.allclose(output_transformed["logits"], output_original.logits))

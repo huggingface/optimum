@@ -662,13 +662,17 @@ class FuseBatchNorm1dInLinear(Transformation):
                     type(modules[node.target]) is torch.nn.BatchNorm1d
                     and type(modules[node.args[0].target]) is torch.nn.Linear
                 ):
+                    # handle the case torch.nn.Linear --> torch.nn.BatchNorm1d
+
                     if len(node.args[0].users) > 1:  # Output of linear is used by other nodes
                         continue
 
                     # will fuse only if the linear output features is equal to the batchnorm num features, this is the case with 2D tensors
                     # the case where the linear input is (N, C, L_in), output is (N, C, L_out) and C = L_out is NOT handled as can not be fused
                     if modules[node.args[0].target].weight.shape[0] == modules[node.target].weight.shape[0]:
-                        fused_linear = self.fuse(linear=modules[node.args[0].target], bn1d=modules[node.target])
+                        fused_linear = self.fuse(
+                            linear=modules[node.args[0].target], bn1d=modules[node.target], bn1d_before=False
+                        )
 
                         # replace the old nn.Linear by the fused one
                         parent_name, _, name = node.args[0].target.rpartition(".")
@@ -681,6 +685,33 @@ class FuseBatchNorm1dInLinear(Transformation):
                         node.replace_all_uses_with(node.args[0])
 
                         graph_module.graph.erase_node(node)  # delete BatchNorm1d
+                elif (
+                    type(modules[node.target]) is torch.nn.Linear
+                    and type(modules[node.args[0].target]) is torch.nn.BatchNorm1d
+                ):
+                    # handle the case torch.nn.BatchNorm1d --> torch.nn.Linear
+                    if len(node.args[0].users) > 1:  # Output of batchnorm is used by other nodes
+                        continue
+
+                    # will fuse only if the linear input features is equal to the batchnorm num features, this is the case with 2D tensors
+                    # the case where the linear input is (N, C, L_in) and C = L_in is NOT handled as can not be fused
+                    if modules[node.args[0].target].weight.shape[0] == modules[node.target].weight.shape[1]:
+                        fused_linear = self.fuse(
+                            linear=modules[node.target], bn1d=modules[node.args[0].target], bn1d_before=True
+                        )
+
+                        # replace the old nn.Linear by the fused one
+                        parent_name, _, name = node.target.rpartition(".")
+                        setattr(modules[parent_name], name, fused_linear)
+
+                        # delete batchnorm from the modules
+                        parent_name, _, name = node.args[0].target.rpartition(".")
+                        delattr(modules[parent_name], name)
+
+                        batchnorm_node = node.args[0]
+                        node.args[0].replace_all_uses_with(node.args[0].args[0])
+
+                        graph_module.graph.erase_node(batchnorm_node)  # delete BatchNorm1d
             elif (
                 node.op == "call_method"
                 and node.target == "reshape_as"
@@ -728,6 +759,7 @@ class FuseBatchNorm1dInLinear(Transformation):
                     fused_linear = self.fuse(
                         linear=modules[node.args[linear_lindex].target],
                         bn1d=modules[node.args[batch_norm_index].target],
+                        bn1d_before=False,
                     )
 
                     # replace the old nn.Linear by the fused one
@@ -748,7 +780,7 @@ class FuseBatchNorm1dInLinear(Transformation):
                     graph_module.graph.erase_node(flatten_node)  # delete flatten
         return graph_module
 
-    def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d):
+    def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d, bn1d_before: bool):
         fused_linear = copy.deepcopy(linear)
 
         # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
@@ -758,8 +790,14 @@ class FuseBatchNorm1dInLinear(Transformation):
 
         bn_var_rsqrt = torch.rsqrt(bn1d.running_var + bn1d.eps)
 
-        fused_linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[:, None])
-        fused_linear.bias = torch.nn.Parameter((linear_b - bn1d.running_mean) * bn_var_rsqrt * bn_w + bn_b)
+        if bn1d_before:
+            fused_linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[None, :])
+            fused_linear.bias = torch.nn.Parameter(
+                linear.weight @ (-bn_w * bn1d.running_mean * bn_var_rsqrt + bn_b) + linear_b
+            )
+        else:
+            fused_linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[:, None])
+            fused_linear.bias = torch.nn.Parameter((linear_b - bn1d.running_mean) * bn_var_rsqrt * bn_w + bn_b)
 
         return fused_linear
 
