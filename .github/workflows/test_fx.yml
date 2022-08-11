@@ -29,7 +29,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        pip install .
+        pip install .[tests]
         pip install git+https://github.com/huggingface/transformers.git
     - name: Test with unittest
       working-directory: tests
