@@ -167,17 +167,31 @@ class OptimizationArguments:
     )
 
 
+@dataclass
+class OnnxExportArguments:
+    """
+    Arguments to decide how the ModelProto will be saved.
+    """
+
+    use_external_data_format: bool = field(
+        default=False,
+        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+    )
+
+
 def main():
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments, OnnxExportArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, optim_args = parser.parse_json_file(
+        model_args, data_args, training_args, optim_args, onnx_export_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, optim_args, onnx_export_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
