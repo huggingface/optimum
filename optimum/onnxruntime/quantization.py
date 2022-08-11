@@ -270,7 +270,6 @@ class ORTQuantizer(OptimumQuantizer):
         file_suffix: Optional[str] = "quantized",
         calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
-        all_tensors_to_one_file: bool = True,
         preprocessor: Optional[QuantizationPreprocessor] = None,
     ) -> Path:
         """
@@ -288,8 +287,6 @@ class ORTQuantizer(OptimumQuantizer):
                 static quantization.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model which size is >= 2Gb.
-            all_tensors_to_one_file (`bool`, defaults to `True`):
-                Whether to save all tensors to one external file specified by location. If false, save each tensor to a file named with the tensor name.
             preprocessor (`QuantizationPreprocessor`, *optional*):
                 The preprocessor to use to collect the nodes to include or exclude from quantization.
 
@@ -326,7 +323,9 @@ class ORTQuantizer(OptimumQuantizer):
             quantization_config.nodes_to_quantize = list(nodes_to_quantize)
             quantization_config.nodes_to_exclude = list(nodes_to_exclude)
 
-        onnx_model = onnx.load(self.onnx_model_path)
+        print(f"model path:{self.onnx_model_path}")
+        onnx.checker.check_model(self.onnx_model_path.as_posix())
+        onnx_model = onnx.load(self.onnx_model_path.as_posix())
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
         quantizer = quantizer_factory(
             model=onnx_model,
@@ -355,9 +354,7 @@ class ORTQuantizer(OptimumQuantizer):
         quantizer.quantize_model()
 
         LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
-        quantizer.model.save_model_to_file(
-            onnx_quantized_model_output_path, use_external_data_format, all_tensors_to_one_file
-        )
+        quantizer.model.save_model_to_file(save_dir, use_external_data_format)
 
         return Path(save_dir)
 
