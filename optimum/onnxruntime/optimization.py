@@ -149,6 +149,8 @@ class ORTOptimizer:
             # keep_io_types to keep inputs/outputs as float32
             optimizer.convert_float_to_float16(keep_io_types=True)
 
+        print(f"use_external_data_format is {use_external_data_format}")
+        print(f"all_tensors_to_one_file is {all_tensors_to_one_file}")
         optimizer.save_model_to_file(
             onnx_optimized_model_output_path, use_external_data_format, all_tensors_to_one_file
         )
