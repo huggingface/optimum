@@ -484,6 +484,14 @@ class FuseBatchNorm2dInConv2d(Transformation):
     Transformation that fuses `nn.BatchNorm2d` following `nn.Conv2d` into a single `nn.Conv2d`.
     The fusion will be done only if the convolution has the batch normalization as sole following node.
 
+    For example, fusion will not be done in the case
+    ```
+         Conv2d
+         /   \\
+        /     \\
+    ReLU   BatchNorm2d
+    ```
+
     Example:
     ```python
     from transformers import ResNetModel, ResNetConfig
@@ -593,8 +601,17 @@ class FuseBatchNorm2dInConv2d(Transformation):
 @add_end_docstrings(_ATTRIBUTES_DOCSTRING)
 class FuseBatchNorm1dInLinear(Transformation):
     """
-    Transformation that fuses `nn.BatchNorm1d` following `nn.Linear` into a single `nn.Linear`.
-    The fusion will be done only if the linear layer has the batch normalization as sole following node.
+    Transformation that fuses `nn.BatchNorm1d` following or preceding `nn.Linear` into a single `nn.Linear`.
+    The fusion will be done only if the linear layer has the batch normalization as sole following node, or the batch normalization
+    has the linear layer as sole following node.
+
+    For example, fusion will not be done in the case
+    ```
+         Linear
+         /   \\
+        /     \\
+    ReLU   BatchNorm1d
+    ```
 
     Example on GPU:
     ```python
