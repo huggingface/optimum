@@ -410,3 +410,27 @@ class CustomTransformationsTests(unittest.TestCase):
         output_transformed = transformed_model(**dummy_input)
 
         self.assertTrue(torch.allclose(output_transformed["logits"], output_original.logits))
+
+    def test_get_parent(self):
+        class MyModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.conv2d = torch.nn.Conv2d(10, 20, kernel_size=3)
+                self.bn2d = torch.nn.BatchNorm2d(20)
+
+            def forward(self, x):
+                x = self.conv2d(x)
+                x = self.bn2d(x)
+                return x
+
+        model = MyModel()
+        model.eval()
+
+        traced_model = torch.fx.symbolic_trace(model)
+
+        for node in traced_model.graph.nodes:
+            if node.target == "conv2d":
+                parent_name, _, name = node.target.rpartition(".")
+                self.assertEqual(parent_name, "")
+                parent_module = traced_model.get_submodule(parent_name)
+                self.assertEqual(parent_module, traced_model)
