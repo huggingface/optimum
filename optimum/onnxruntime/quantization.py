@@ -356,7 +356,7 @@ class ORTQuantizer(OptimumQuantizer):
 
         LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
         quantizer.model.save_model_to_file(
-            onnx_optimized_model_output_path, use_external_data_format, all_tensors_to_one_file
+            onnx_quantized_model_output_path, use_external_data_format, all_tensors_to_one_file
         )
 
         return Path(save_dir)
