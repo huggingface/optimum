@@ -275,6 +275,8 @@ class OnnxExportArguments:
     Arguments to decide how the ModelProto will be saved.
     """
 
+    # TODO: currently onnxruntime put external data in different path than the model proto, which will cause problem on re-loading it.
+    # https://github.com/microsoft/onnxruntime/issues/12576
     use_external_data_format: bool = field(
         default=False,
         metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
@@ -640,7 +642,7 @@ def main():
                 onnx_model_path=model_path,
                 operators_to_quantize=qconfig.operators_to_quantize,
                 batch_size=optim_args.calibration_batch_size,
-                use_external_data_format=False,
+                use_external_data_format=onnx_export_args.use_external_data_format,
             )
         ranges = quantizer.compute_ranges()
 
@@ -665,7 +667,11 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR fit and quantization
-    ort_config = ORTConfig(opset=onnx_config.default_onnx_opset, quantization=qconfig)
+    ort_config = ORTConfig(
+        opset=onnx_config.default_onnx_opset,
+        quantization=qconfig,
+        use_external_data_format=onnx_export_args.use_external_data_format,
+    )
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
