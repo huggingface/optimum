@@ -303,7 +303,7 @@ class ORTModel(OptimizedModel):
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
 
-FEAUTRE_EXTRACTION_EXAMPLE = r"""
+FEATURE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
 
     ```python
@@ -359,7 +359,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + FEAUTRE_EXTRACTION_EXAMPLE.format(
+        + FEATURE_EXTRACTION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForFeatureExtraction",
             checkpoint="optimum/all-MiniLM-L6-v2",
