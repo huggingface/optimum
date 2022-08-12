@@ -143,7 +143,6 @@ class ORTQuantizer(OptimumQuantizer):
         operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
-        all_tensors_to_one_file: bool = True,
         use_gpu: bool = False,
         force_symmetric_range: bool = False,
     ) -> Dict[str, Tuple[float, float]]:
@@ -163,8 +162,6 @@ class ORTQuantizer(OptimumQuantizer):
                 The batch size to use when collecting the quantization ranges values.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model which size is >= 2Gb.
-            all_tensors_to_one_file (`bool`, defaults to `True`):
-                Whether to save all tensors to one external file specified by location. If false, save each tensor to a file named with the tensor name.
             use_gpu (`bool`, defaults to `False`):
                 Whether to use the GPU when collecting the quantization ranges values.
             force_symmetric_range (`bool`, defaults to `False`):
@@ -187,7 +184,6 @@ class ORTQuantizer(OptimumQuantizer):
             operators_to_quantize,
             batch_size,
             use_external_data_format,
-            all_tensors_to_one_file,
             use_gpu,
             force_symmetric_range,
         )
@@ -201,7 +197,6 @@ class ORTQuantizer(OptimumQuantizer):
         operators_to_quantize: Optional[List[NodeType]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
-        all_tensors_to_one_file: bool = True,
         use_gpu: bool = False,
         force_symmetric_range: bool = False,
     ):
@@ -221,8 +216,6 @@ class ORTQuantizer(OptimumQuantizer):
                 The batch size to use when collecting the quantization ranges values.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether uto se external data format to store model which size is >= 2Gb.
-            all_tensors_to_one_file (`bool`, defaults to `True`):
-                Whether to save all tensors to one external file specified by location. If false, save each tensor to a file named with the tensor name.
             use_gpu (`bool`, defaults to `False`):
                 Whether to use the GPU when collecting the quantization ranges values.
             force_symmetric_range (`bool`, defaults to `False`):
@@ -237,7 +230,6 @@ class ORTQuantizer(OptimumQuantizer):
             self._calibrator = calibration_config.create_calibrator(
                 onnx_model_path=self.onnx_model_path.as_posix(),
                 use_external_data_format=use_external_data_format,
-                all_tensors_to_one_file=all_tensors_to_one_file,
                 augmented_model_name=onnx_augmented_model_name,
                 operators_to_quantize=operators_to_quantize,
                 force_symmetric_range=force_symmetric_range,
@@ -323,8 +315,6 @@ class ORTQuantizer(OptimumQuantizer):
             quantization_config.nodes_to_quantize = list(nodes_to_quantize)
             quantization_config.nodes_to_exclude = list(nodes_to_exclude)
 
-        print(f"model path:{self.onnx_model_path}")
-        onnx.checker.check_model(self.onnx_model_path.as_posix())
         onnx_model = onnx.load(self.onnx_model_path.as_posix())
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
         quantizer = quantizer_factory(
