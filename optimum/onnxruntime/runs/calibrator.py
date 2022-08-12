@@ -35,7 +35,7 @@ class OnnxRuntimeCalibrator(Calibrator):
         # Remove the unnecessary columns of the calibration dataset before the calibration step
         self.calibration_dataset = self.quantizer.clean_calibration_dataset(calibration_dataset)
 
-    def calibrate(self):
+    def fit(self):
         # Create the calibration preprocessor excluding nodes
         quantization_preprocessor = QuantizationPreprocessor()
 

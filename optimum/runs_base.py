@@ -56,7 +56,7 @@ class Calibrator:
         self.node_exclusion = node_exclusion
         self.run_dir_path = run_dir_path
 
-    def calibrate(self):
+    def fit(self):
         raise NotImplementedError()
 
 

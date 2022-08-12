@@ -133,6 +133,10 @@ class ORTModel(OptimizedModel):
         """
         Changes the ONNX Runtime provider according to the device.
         """
+        # convert string device input (ie. "cuda") to torch.device
+        if type(device) == str:
+            device = torch.device(device)
+
         self.device = device
         provider = get_provider_for_device(self.device)
         self.model.set_providers([provider])
@@ -271,8 +275,8 @@ class ORTModel(OptimizedModel):
         kwargs["model_save_dir"] = save_dir
 
         # reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
-        if cls.pipeline_task is not None:
-            task = cls.pipeline_task
+        if cls.export_feature is not None:
+            task = cls.export_feature
         else:
             task = HfApi().model_info(model_id, revision=revision).pipeline_tag
             if task in ["sentiment-analysis", "text-classification", "zero-shot-classification"]:
@@ -299,7 +303,7 @@ class ORTModel(OptimizedModel):
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
 
-FEAUTRE_EXTRACTION_EXAMPLE = r"""
+FEATURE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
 
     ```python
@@ -345,7 +349,7 @@ class ORTModelForFeatureExtraction(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "default"
+    export_feature = "default"
     auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -355,7 +359,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + FEAUTRE_EXTRACTION_EXAMPLE.format(
+        + FEATURE_EXTRACTION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForFeatureExtraction",
             checkpoint="optimum/all-MiniLM-L6-v2",
@@ -430,7 +434,7 @@ class ORTModelForQuestionAnswering(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "question-answering"
+    export_feature = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -530,7 +534,7 @@ class ORTModelForSequenceClassification(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "sequence-classification"
+    export_feature = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -616,7 +620,7 @@ class ORTModelForTokenClassification(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "token-classification"
+    export_feature = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -699,7 +703,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "causal-lm"
+    export_feature = "causal-lm"
     auto_model_class = AutoModelForCausalLM
 
     def __init__(self, model=None, config=None, **kwargs):
@@ -817,7 +821,7 @@ class ORTModelForImageClassification(ORTModel):
     """
 
     # used in from_transformers to export model to onnx
-    pipeline_task = "image-classification"
+    export_feature = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
     def __init__(self, model=None, config=None, **kwargs):

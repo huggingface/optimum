@@ -4,7 +4,6 @@ import shutil
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-import numpy as np
 import transformers
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
@@ -23,7 +22,9 @@ class OnnxRuntimeRun(Run):
     def __init__(self, run_config):
         run_config = super().__init__(run_config)
 
-        self.run_config = run_config
+        onnx_model = SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
+                    run_config["model_name_or_path"], from_transformers=True
+                )
 
         self.model_path = os.path.join(self.run_dir_path, "model.onnx")
 
@@ -53,42 +54,17 @@ class OnnxRuntimeRun(Run):
         self.load_datasets()
 
         if self.apply_quantization:
-            self._apply_ptq()
-        else:
-            model_class = transformers.onnx.FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
-            model = model_class.from_pretrained(run_config["model_name_or_path"])
-
-            _, onnx_config_factory = transformers.onnx.FeaturesManager.check_supported_model_or_raise(
-                model, feature=get_autoclass_name(self.task)
-            )
-            _onnx_config = onnx_config_factory(self.config)
-            transformers.onnx.export(
-                self.preprocessor,
-                model,
-                _onnx_config,
-                self.run_config["framework_args"]["opset"],
-                Path(self.model_path),
-            )
-
-        # onnxruntime benchmark
-        if self.apply_quantization:
+            self._apply_ptq(onnx_model)
             ort_session = ORTModel.load_model(self.quantized_model_path)
-        else:
-            ort_session = ORTModel.load_model(self.model_path)
-        """
-        options = onnxruntime.SessionOptions()
-        options.intra_op_num_threads = 20
-        ort_session = onnxruntime.InferenceSession(
-            self.quantized_model_path, providers=["CPUExecutionProvider"], sess_options=options
-        )
-        """
 
-        # necessary to pass the config for the pipeline not to complain later
-        self.ort_model = task_ortmodel_map[self.task](ort_session, config=self.config)
+            # necessary to pass the config for the pipeline not to complain later
+            self.ort_model = task_ortmodel_map[self.task](ort_session, config=self.config)
+        else:
+            self.ort_model = onnx_model
 
         self.return_body["model_type"] = self.config.model_type  # return_body is initialized in parent class
 
-    def _apply_ptq(self):
+    def _apply_ptq(self, onnx_model):
         self.quantized_model_path = os.path.join(self.run_dir_path, "quantized_model.onnx")
 
         # Create the quantization configuration containing all the quantization parameters
@@ -103,11 +79,7 @@ class OnnxRuntimeRun(Run):
             operators_to_quantize=self.run_config["operators_to_quantize"],
         )
 
-        quantizer = ORTQuantizer.from_pretrained(
-            self.run_config["model_name_or_path"],
-            feature=get_autoclass_name(self.task),
-            opset=self.run_config["framework_args"]["opset"],
-        )
+        quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
         quantization_preprocessor = QuantizationPreprocessor()
         ranges = None
@@ -122,12 +94,11 @@ class OnnxRuntimeRun(Run):
                 node_exclusion=self.run_config["node_exclusion"],
                 run_dir_path=self.run_dir_path,
             )
-            ranges, quantization_preprocessor = calibrator.calibrate()
+            ranges, quantization_preprocessor = calibrator.fit()
 
         # Export the quantized model
-        quantizer.export(
-            onnx_model_path=self.model_path,
-            onnx_quantized_model_output_path=self.quantized_model_path,
+        quantizer.quantize(
+            save_dir=self.run_dir_path,
             calibration_tensors_range=ranges,
             quantization_config=qconfig,
             preprocessor=quantization_preprocessor,
