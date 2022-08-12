@@ -383,7 +383,7 @@ def main():
             )
         except Exception as e:
             logger.warning(
-                f"\nModel label mapping: {quantizer.model.config.label2id}"
+                f"\nModel label mapping: {model.config.label2id}"
                 f"\nDataset label features: {eval_dataset.features[labels_column]}"
                 f"\nCould not guarantee the model label mapping and the dataset labels match."
                 f" Evaluation results may suffer from a wrong matching."

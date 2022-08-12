@@ -334,7 +334,7 @@ def main():
         try:
             label2id = PretrainedConfig.from_pretrained(model_args.model_name_or_path).label2id
             eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=PretrainedConfig.from_pretrained(model_args.model_name_or_path).label2id,
+                label2id=label2id,
                 label_column=label_column_name,
             )
         except Exception as e:
