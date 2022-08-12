@@ -335,7 +335,11 @@ def main():
     )
 
     # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(opset=optimizer.opset, optimization=optimization_config)
+    ort_config = ORTConfig(
+        opset=optimizer.opset,
+        optimization=optimization_config,
+        use_external_data_format=onnx_export_args.use_external_data_format,
+    )
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
