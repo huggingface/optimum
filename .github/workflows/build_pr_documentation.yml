@@ -19,7 +19,7 @@ jobs:
       REPO_OWNER_2: ${{ github.repository_owner }}
 
     steps:
-      -name: Echos
+      - name: Echos
         run: |
           echo "$REPO_OWNER and $REPO_OWNER_2"
 
