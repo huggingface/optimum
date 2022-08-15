@@ -7,5 +7,7 @@ RUN apt -y update
 RUN python3 -m pip install --no-cache-dir --upgrade pip
 RUN python3 -m pip install --no-cache-dir hf-doc-builder
 
+RUN echo HERE
+RUN echo $repo_owner
 RUN git clone "https://github.com/$repo_owner/optimum.git" && cd optimum && git checkout $commit_sha
 RUN python3 -m pip install --no-cache-dir ./optimum[onnxruntime,benchmark,quality]
