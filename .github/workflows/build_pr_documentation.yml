@@ -15,9 +15,14 @@ jobs:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
-      REPO_OWNER: ${{ github.event.repository.owner.name }}
+      REPO_OWNER: ${{ github.event.repository_owner }}
+      REPO_OWNER_2: ${{ github.repository_owner }}
 
     steps:
+      -name: Echos
+        run: |
+          echo "$REPO_OWNER and $REPO_OWNER_2"
+
       - uses: actions/checkout@v2
         with:
           repository: 'huggingface/doc-builder'
