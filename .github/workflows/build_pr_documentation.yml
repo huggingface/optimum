@@ -16,16 +16,13 @@ jobs:
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
       REPO_OWNER: ${{ github.repository }}
-      REPO_OWNER_2: ${{ github.repository_owner }}
-      REPO_OWNER_3: ${{ github.organization }}
-      REPO_OWNER_4: ${{ github.event.pull_request.owner }}
-      REPO_OWNER_5: ${{ github.event.pull_request.repo }}
-      REPO_OWNER_6: ${{ github.event.pull_request.repo.owner }}
+      REPO_OWNER_2: ${{ github.event.pull_request.head.repo.clone_url }}
+      REPO_OWNER_3: ${{ github.event.pull_request.head.repo.owner.login }}
 
     steps:
       - name: Echos
         run: |
-          echo "$REPO_OWNER and $REPO_OWNER_2 and $REPO_OWNER_3 and $REPO_OWNER_4 and $REPO_OWNER_5 and $REPO_OWNER_6"
+          echo "$REPO_OWNER and $REPO_OWNER_2 and $REPO_OWNER_3"
           echo $EVENT_CONTEXT
 
       - uses: actions/checkout@v2
