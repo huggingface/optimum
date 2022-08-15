@@ -15,16 +15,9 @@ jobs:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
-      REPO_OWNER: ${{ github.repository }}
-      REPO_OWNER_2: ${{ github.event.pull_request.head.repo.clone_url }}
-      REPO_OWNER_3: ${{ github.event.pull_request.head.repo.owner.login }}
+      PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
-      - name: Echos
-        run: |
-          echo "$REPO_OWNER and $REPO_OWNER_2 and $REPO_OWNER_3"
-          echo $EVENT_CONTEXT
-
       - uses: actions/checkout@v2
         with:
           repository: 'huggingface/doc-builder'
@@ -87,7 +80,7 @@ jobs:
       - name: Make Optimum documentation
         run: |
           cd optimum
-          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER COMMIT_SHA_OPTIMUM=$COMMIT_SHA OPTIMUM_REPO_OWNER=$REPO_OWNER
+          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER COMMIT_SHA_OPTIMUM=$COMMIT_SHA CLONE_URL=$PR_CLONE_URL
           cd ..
 
       - name: Combine subpackage documentation

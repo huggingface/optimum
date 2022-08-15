@@ -1,13 +1,13 @@
 FROM nikolaik/python-nodejs:python3.8-nodejs18
 
 ARG commit_sha
-ARG repo_owner
+ARG clone_url
 
 RUN apt -y update
 RUN python3 -m pip install --no-cache-dir --upgrade pip
 RUN python3 -m pip install --no-cache-dir hf-doc-builder
 
 RUN echo HERE
-RUN echo $repo_owner
-RUN git clone "https://github.com/$repo_owner/optimum.git" && cd optimum && git checkout $commit_sha
+RUN echo $clone_url
+RUN git clone $clone_url && cd optimum && git checkout $commit_sha
 RUN python3 -m pip install --no-cache-dir ./optimum[onnxruntime,benchmark,quality]
