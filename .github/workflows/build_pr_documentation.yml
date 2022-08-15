@@ -15,12 +15,12 @@ jobs:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
-      REPO_OWNER: ${{ github.event.org }}
+      REPO_OWNER: ${{ github.event.pull_request.org }}
       REPO_OWNER_2: ${{ github.repository_owner }}
-      REPO_OWNER_3: ${{ github.event.org.login }}
-      REPO_OWNER_4: ${{ github.event.repo }}
-      REPO_OWNER_5: ${{ github.event.repo.name }}
-      REPO_OWNER_6: ${{ github.event.repo.owner }}
+      REPO_OWNER_3: ${{ github.event.pull_request.org.login }}
+      REPO_OWNER_4: ${{ github.event.rpull_request.epo }}
+      REPO_OWNER_5: ${{ github.event.pull_request.repo.name }}
+      REPO_OWNER_6: ${{ github.event.pull_request.repo.owner }}
 
     steps:
       - name: Echos
