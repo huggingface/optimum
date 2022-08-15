@@ -2,11 +2,10 @@ FROM nikolaik/python-nodejs:python3.8-nodejs18
 
 ARG commit_sha
 ARG repo_owner
-ENV repo_owner=$repo_owner
 
 RUN apt -y update
 RUN python3 -m pip install --no-cache-dir --upgrade pip
 RUN python3 -m pip install --no-cache-dir hf-doc-builder
 
-RUN git clone https://github.com/$repo_owner/optimum.git && cd optimum && git checkout $commit_sha
+RUN git clone "https://github.com/$repo_owner/optimum.git" && cd optimum && git checkout $commit_sha
 RUN python3 -m pip install --no-cache-dir ./optimum[onnxruntime,benchmark,quality]
