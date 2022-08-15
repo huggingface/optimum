@@ -2,6 +2,7 @@ FROM nikolaik/python-nodejs:python3.8-nodejs18
 
 ARG commit_sha
 ARG repo_owner
+ENV repo_owner=$repo_owner
 
 RUN apt -y update
 RUN python3 -m pip install --no-cache-dir --upgrade pip
