@@ -72,6 +72,8 @@ class Run:
         run_config = RunConfig(**run_config)  # validate the data (useful if used as standalone)
         run_config = dataclasses.asdict(run_config)
 
+        self.run_config = run_config
+
         self.run_dir_path = tempfile.mkdtemp()
 
         self.task = run_config["task"]
@@ -124,6 +126,7 @@ class Run:
             },
             "max_eval_samples": run_config["max_eval_samples"],
             "time_benchmark_args": run_config["time_benchmark_args"],
+            "from_transformers": run_config["from_transformers"],
         }
 
         return run_config

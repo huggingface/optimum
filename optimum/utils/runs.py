@@ -240,6 +240,9 @@ class _RunDefaults:
     apply_quantization: Optional[bool] = field(
         default=True, metadata={"description": "Whether to apply quantization on the model."}
     )
+    from_transformers: Optional[bool] = field(
+        default=True, metadata={"description": "Whether to load from a vanilla PyTorch model."}
+    )
 
 
 @dataclass

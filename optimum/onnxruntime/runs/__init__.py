@@ -1,15 +1,15 @@
 import json
 import os
 import shutil
-from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 import transformers
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
+from ...pipelines import SUPPORTED_TASKS
 from ...pipelines import pipeline as _optimum_pipeline
-from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
+from ...runs_base import Run, TimeBenchmark, task_processing_map
 from .. import ORTQuantizer
 from ..configuration import ORTConfig, QuantizationConfig
 from ..modeling_ort import ORTModel
@@ -21,12 +21,16 @@ from .utils import task_ortmodel_map
 class OnnxRuntimeRun(Run):
     def __init__(self, run_config):
         run_config = super().__init__(run_config)
+        self.run_config = run_config
 
         onnx_model = SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
-                    run_config["model_name_or_path"], from_transformers=True
-                )
+            run_config["model_name_or_path"],
+            from_transformers=run_config["from_transformers"],
+            save_dir=self.run_dir_path,
+            opset=run_config["framework_args"]["opset"],
+        )
 
-        self.model_path = os.path.join(self.run_dir_path, "model.onnx")
+        self.model_path = onnx_model.model._model_path
 
         self.config = transformers.AutoConfig.from_pretrained(run_config["model_name_or_path"])
 
@@ -65,7 +69,7 @@ class OnnxRuntimeRun(Run):
         self.return_body["model_type"] = self.config.model_type  # return_body is initialized in parent class
 
     def _apply_ptq(self, onnx_model):
-        self.quantized_model_path = os.path.join(self.run_dir_path, "quantized_model.onnx")
+        self.quantized_model_path = os.path.join(self.run_dir_path, "model_quantized.onnx")
 
         # Create the quantization configuration containing all the quantization parameters
         qconfig = QuantizationConfig(
@@ -104,7 +108,7 @@ class OnnxRuntimeRun(Run):
             preprocessor=quantization_preprocessor,
         )
 
-        self.ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
+        self.ort_config = ORTConfig(opset=self.run_config["framework_args"]["opset"], quantization=qconfig)
 
     def _launch_time(self, trial):
         batch_size = trial.suggest_categorical("batch_size", self.batch_sizes)
@@ -183,7 +187,10 @@ class OnnxRuntimeRun(Run):
                     )
 
         # save non-quantized model
-        shutil.move(self.model_path, os.path.join(save_directory, "model.onnx"))
+        if self.run_config["from_transformers"] == False:
+            shutil.copy(self.model_path, os.path.join(save_directory, "model.onnx"), follow_symlinks=True)
+        else:
+            shutil.move(self.model_path, os.path.join(save_directory, "model.onnx"))
 
         # save run config and evaluation results
         with open(os.path.join(save_directory, "results.json"), "w") as f:

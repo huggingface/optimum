@@ -88,7 +88,6 @@ class OnnxRuntimeCalibrator(Calibrator):
             self.quantizer.partial_fit(
                 dataset=shard,
                 calibration_config=calibration_config,
-                onnx_model_path=self.model_path,
                 onnx_augmented_model_name=os.path.join(self.run_dir_path, "augmented_model.onnx"),
                 operators_to_quantize=self.qconfig.operators_to_quantize,
                 batch_size=8,

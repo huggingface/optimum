@@ -11,6 +11,7 @@ from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing
 class PyTorchRun(Run):
     def __init__(self, run_config):
         run_config = super().__init__(run_config)
+        self.run_config = run_config
 
         self.time_benchmark_args = run_config["time_benchmark_args"]
 

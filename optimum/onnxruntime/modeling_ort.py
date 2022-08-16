@@ -295,7 +295,7 @@ class ORTModel(OptimizedModel):
             preprocessor=preprocessor,
             model=model,
             config=onnx_config,
-            opset=onnx_config.default_onnx_opset,
+            opset=kwargs["opset"] if "opset" in kwargs else onnx_config.default_onnx_opset,
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
         kwargs["config"] = model.config.__dict__
