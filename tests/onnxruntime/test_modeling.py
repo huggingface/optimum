@@ -101,6 +101,33 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
+    @require_torch_gpu
+    def test_load_model_cuda_provider_list(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=["CUDAExecutionProvider"])
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_model_cuda_provider_str(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_model_several_providers(self):
+        model = ORTModel.from_pretrained(
+            self.ONNX_MODEL_ID, provider=["CPUExecutionProvider", "CUDAExecutionProvider"]
+        )
+        self.assertListEqual(model.providers, ["CPUExecutionProvider", "CUDAExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cpu"))
+
+    def test_load_model_unknown_provider(self):
+        with self.assertRaises(ValueError):
+            ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
+
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
@@ -114,6 +141,33 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.decoder, ORTDecoder)
         self.assertTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
+
+    @require_torch_gpu
+    def test_load_seq2seq_model_cuda_provider_list(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider=["CUDAExecutionProvider"])
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.encoder.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_seq2seq_model_cuda_provider_str(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.encoder.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    @require_torch_gpu
+    def test_load_seq2seq_model_several_providers(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID, provider=["CPUExecutionProvider", "CUDAExecutionProvider"]
+        )
+        self.assertListEqual(model.providers, ["CPUExecutionProvider", "CUDAExecutionProvider"])
+        self.assertListEqual(model.encoder.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cpu"))
+
+    def test_load_seq2seq_model_unknown_provider(self):
+        with self.assertRaises(ValueError):
+            ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_model_from_hub_without_onnx_model(self):
         with self.assertRaises(EntryNotFoundError):
@@ -395,6 +449,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
+        onnx_outputs = onnx_model(**tokens)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
@@ -731,11 +786,30 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         "vit": "hf-internal-testing/tiny-random-vit",
     }
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_supported_transformers_architectures(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_model_forward_call(self, *args, **kwargs):
+        model_arch, model_id = args
+        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=image, return_tensors="pt")
+        outputs = model(**inputs)
+        self.assertTrue("logits" in outputs)
+        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
@@ -759,6 +833,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
+        onnx_outputs = onnx_model(**inputs)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
