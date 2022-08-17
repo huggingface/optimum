@@ -918,6 +918,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         # compare model output class
         self.assertIsInstance(outputs[0]["summary_text"], str)
 
+        gc.collect()
+
         # Translation
         pipe = pipeline("translation_en_to_de")
         outputs = pipe(text, min_length=1, max_length=2)
