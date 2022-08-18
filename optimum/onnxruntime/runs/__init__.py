@@ -6,6 +6,7 @@ from typing import Optional, Union
 import transformers
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from onnxruntime import SessionOptions
 
 from ...pipelines import SUPPORTED_TASKS
 from ...pipelines import pipeline as _optimum_pipeline
@@ -23,11 +24,16 @@ class OnnxRuntimeRun(Run):
         run_config = super().__init__(run_config)
         self.run_config = run_config
 
+        session_options = SessionOptions()
+        if run_config["framework_args"]["intra_op_num_threads"] is not None:
+            session_options.intra_op_num_threads = run_config["framework_args"]["intra_op_num_threads"]
+
         onnx_model = SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
             run_config["model_name_or_path"],
             from_transformers=run_config["from_transformers"],
             save_dir=self.run_dir_path,
             opset=run_config["framework_args"]["opset"],
+            session_options=session_options,
         )
 
         self.model_path = onnx_model.model._model_path
@@ -59,7 +65,7 @@ class OnnxRuntimeRun(Run):
 
         if self.apply_quantization:
             self._apply_ptq(onnx_model)
-            ort_session = ORTModel.load_model(self.quantized_model_path)
+            ort_session = ORTModel.load_model(self.quantized_model_path, session_options=session_options)
 
             # necessary to pass the config for the pipeline not to complain later
             self.ort_model = task_ortmodel_map[self.task](ort_session, config=self.config)
