@@ -31,17 +31,6 @@ from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
 from parameterized import parameterized
 
 
-class ORTConfigTest(unittest.TestCase):
-    def test_save_and_load(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            quantization_config = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
-            optimization_config = OptimizationConfig(optimization_level=2)
-            ort_config = ORTConfig(opset=11, quantization=quantization_config, optimization=optimization_config)
-            ort_config.save_pretrained(tmp_dir)
-            loaded_ort_config = ORTConfig.from_pretrained(tmp_dir)
-            self.assertEqual(ort_config.to_dict(), loaded_ort_config.to_dict())
-
-
 class ORTOptimizerTest(unittest.TestCase):
 
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
@@ -67,6 +56,12 @@ class ORTOptimizerTest(unittest.TestCase):
             optimized_model = model_cls.from_pretrained(
                 tmp_dir, file_name="model_optimized.onnx", from_transformers=False
             )
+            expected_ort_config = ORTConfig(optimization=optimization_config)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
             tokens = tokenizer("This is a sample input", return_tensors="pt")
             model_outputs = model(**tokens)
             optimized_model_outputs = optimized_model(**tokens)
@@ -97,6 +92,13 @@ class ORTOptimizerTest(unittest.TestCase):
                 from_transformers=False,
                 use_cache=use_cache,
             )
+
+            expected_ort_config = ORTConfig(optimization=optimization_config)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
             tokens = tokenizer("This is a sample input", return_tensors="pt")
             model_outputs = model.generate(**tokens)
             optimized_model_outputs = optimized_model.generate(**tokens)
