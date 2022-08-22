@@ -24,7 +24,7 @@ from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import get_fusion_statistics, optimize_model
 
 from ..utils import CONFIG_NAME
-from .configuration import OptimizationConfig
+from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
@@ -112,12 +112,17 @@ class ORTOptimizer:
         save_dir.mkdir(parents=True, exist_ok=True)
         model_type = self.config.model_type
         ORTConfigManager.check_supported_model_or_raise(model_type)
+
+        # Create and save the configuration summarizing all the parameters related to optimization
+        ort_config = ORTConfig(optimization=optimization_config)
+        ort_config.save_pretrained(save_dir)
+
         num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(model_type))
         hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(model_type))
         model_type = ORTConfigManager.get_model_ort_type(model_type)
         optimization_config.model_type = model_type
         optimization_options = FusionOptions.parse(optimization_config)
-        LOGGER.info(f"Creating the optimizer with the configuration: {optimization_config}")
+        LOGGER.info("Optimizing model...")
 
         for model_path in self.onnx_model_path:
             optimizer = optimize_model(
@@ -138,7 +143,7 @@ class ORTOptimizer:
             output_path = save_dir.joinpath(f"{model_path.stem}_{file_suffix}").with_suffix(model_path.suffix)
             optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format)
 
-        LOGGER.info(f"Saving optimized model at: {save_dir} (external data format: " f"{use_external_data_format})")
+        LOGGER.info(f"Optimized model saved at: {save_dir} (external data format: " f"{use_external_data_format})")
 
         return Path(save_dir)
 
