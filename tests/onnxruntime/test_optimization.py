@@ -27,6 +27,8 @@ from onnxruntime import InferenceSession
 from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
+from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
+
 from parameterized import parameterized
 
 
@@ -55,14 +57,14 @@ class ORTOptimizerTest(unittest.TestCase):
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
-    def test_compare_original_onnx_model_with_optimized_onnx_model(self, model_cls, model_name):
+    def test_compare_original_model_with_optimized_model(self, model_cls, model_name):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
         with tempfile.TemporaryDirectory() as tmp_dir:
             model = model_cls.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
-            optimizer.fit(optimization_config=optimization_config, save_dir=tmp_dir)
+            optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
             optimized_model = model_cls.from_pretrained(
                 tmp_dir, file_name="model_optimized.onnx", from_transformers=False
             )
@@ -74,6 +76,35 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertTrue(torch.allclose(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4))
             gc.collect()
 
+    SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID = (
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
+    )
+
+    @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
+    def test_compare_original_seq2seq_model_with_optimized_model(self, model_cls, model_name, use_cache):
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            model = model_cls.from_pretrained(model_name, from_transformers=True, use_cache=use_cache)
+            model.save_pretrained(tmp_dir)
+            optimizer = ORTOptimizer.from_pretrained(model)
+            optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
+            optimized_model = model_cls.from_pretrained(
+                tmp_dir,
+                encoder_file_name="encoder_model_optimized.onnx",
+                decoder_file_name="decoder_model_optimized.onnx",
+                decoder_file_with_past_name="decoder_with_past_model_optimized.onnx" if use_cache else None,
+                from_transformers=False,
+                use_cache=use_cache,
+            )
+            tokens = tokenizer("This is a sample input", return_tensors="pt")
+            model_outputs = model.generate(**tokens)
+            optimized_model_outputs = optimized_model.generate(**tokens)
+            # Compare tensors outputs
+            self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
+            gc.collect()
+
     def test_optimization_details(self):
         model_name = "hf-internal-testing/tiny-random-distilbert"
         optimization_config = OptimizationConfig(optimization_level=0, optimize_with_onnxruntime_only=True)
@@ -82,7 +113,7 @@ class ORTOptimizerTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(output_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
-            optimizer.fit(optimization_config=optimization_config, save_dir=output_dir)
+            optimizer.optimize(optimization_config=optimization_config, save_dir=output_dir)
             model_path = output_dir.joinpath("model.onnx")
             optimized_model_path = output_dir.joinpath("model_optimized.onnx")
             difference_nodes_number = optimizer.get_nodes_number_difference(model_path, optimized_model_path)
@@ -101,7 +132,7 @@ class ORTOptimizerTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
-            optimizer.fit(optimization_config=optimization_config, save_dir=tmp_dir)
+            optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
             optimized_model = onnx.load(os.path.join(tmp_dir, "model_optimized.onnx"))
             for w in optimized_model.graph.initializer:
                 self.assertNotEqual(w.data_type, onnx.onnx_pb.TensorProto.FLOAT)
