@@ -28,7 +28,6 @@ from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, OR
 from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
-
 from parameterized import parameterized
 
 
