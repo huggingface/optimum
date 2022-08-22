@@ -27,7 +27,7 @@ from ..utils import CONFIG_NAME
 from .configuration import OptimizationConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
-from .utils import ORTConfigManager
+from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
 LOGGER = logging.getLogger(__name__)
@@ -38,46 +38,11 @@ class ORTOptimizer:
     Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
     """
 
-    @classmethod
-    def from_pretrained(cls, model_id: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None):
-        """
-        Args:
-            model_id (`Union[str, os.PathLike, ORTModel]`):
-                The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
-                Can be either:
-                    - A path to a local *directory* containing the model to optimize.
-                    - An instance of ORTModel.
-            file_names(`List[str]`, *optional*):
-                The list of file names of the models to optimize.
-        """
-        if isinstance(model_id, ORTModel):
-            if isinstance(model_id, ORTModelForSeq2SeqLM):
-                onnx_model_path = [
-                    model_id.model_save_dir.joinpath(model_id.encoder_file_name),
-                    model_id.model_save_dir.joinpath(model_id.decoder_file_name),
-                    model_id.model_save_dir.joinpath(model_id.decoder_file_with_past_name),
-                ]
-            else:
-                onnx_model_path = [model_id.model_save_dir.joinpath(model_id.latest_model_name)]
-            return cls(onnx_model_path, config=model_id.config)
-        elif os.path.isdir(model_id):
-            file_names = ["model.onnx"] if file_names is None else file_names
-            model_id = Path(model_id)
-            onnx_model_path = []
-            if CONFIG_NAME not in os.listdir(model_id):
-                raise ValueError(f"The local directory does not contain the configuration file {CONFIG_NAME}.")
-            config = AutoConfig.from_pretrained(model_id)
-            for file_name in file_names:
-                onnx_model_path.append(model_id.joinpath(file_name))
-            return cls(onnx_model_path, config=config)
-        else:
-            raise ValueError(f"Unable to load the model from {model_id}.")
-
-    def __init__(self, onnx_model_path: Union[str, os.PathLike], config: transformers.PretrainedConfig):
+    def __init__(self, onnx_model_path: List[os.PathLike], config: transformers.PretrainedConfig):
         """
         Args:
             onnx_model_path (`List[os.PathLike]`):
-                The list of paths of the onnx models to optimize.
+                The paths of the onnx models to optimize.
             config (`transformers.PretrainedConfig`):
                 An instance of the configuration associated to the model to optimize.
         """
@@ -85,10 +50,49 @@ class ORTOptimizer:
         self.onnx_model_path = onnx_model_path
         self.config = config
 
-    def fit(
+    @classmethod
+    def from_pretrained(cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None):
+        """
+        Args:
+            model_or_path (`Union[str, os.PathLike, ORTModel]`):
+                The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
+                Can be either:
+                    - A path to a local *directory* containing the model to optimize.
+                    - An instance of ORTModel.
+            file_names(`List[str]`, *optional*):
+                The list of file names of the models to optimize.
+        """
+        if isinstance(model_or_path, ORTModel):
+            if isinstance(model_or_path, ORTModelForSeq2SeqLM):
+                model_save_dir = model_or_path.model_save_dir
+                onnx_model_path = [
+                    model_save_dir.joinpath(model_or_path.encoder_file_name),
+                    model_save_dir.joinpath(model_or_path.decoder_file_name),
+                ]
+                # Add the decoder with past key/values if present
+                if model_or_path.use_cache:
+                    onnx_model_path.append(model_save_dir.joinpath(model_or_path.decoder_file_with_past_name))
+            else:
+                onnx_model_path = [model_or_path.model_save_dir.joinpath(model_or_path.latest_model_name)]
+            return cls(onnx_model_path, config=model_or_path.config)
+        elif os.path.isdir(model_or_path):
+            file_names = [ONNX_WEIGHTS_NAME] if file_names is None else file_names
+            model_or_path = Path(model_or_path)
+            if CONFIG_NAME not in os.listdir(model_or_path):
+                raise ValueError(f"The local directory does not contain the configuration file {CONFIG_NAME}.")
+            config = AutoConfig.from_pretrained(model_or_path)
+            onnx_model_path = []
+            for file_name in file_names:
+                onnx_model_path.append(model_or_path.joinpath(file_name))
+            return cls(onnx_model_path, config=config)
+        else:
+            raise ValueError(f"Unable to load the model from {model_or_path}.")
+
+    def optimize(
         self,
         optimization_config: OptimizationConfig,
         save_dir: Union[str, os.PathLike],
+        file_suffix: str = "optimized",
         use_external_data_format: bool = False,
     ):
         """
@@ -99,8 +103,10 @@ class ORTOptimizer:
                 The configuration containing the parameters related to optimization.
             save_dir (`Union[str, os.PathLike]`):
                 The path used to save the optimized model.
-            use_external_data_format (`bool`, defaults to `False`):
-                Whether uto se external data format to store model which size is >= 2Gb.
+            file_suffix (`str`, *optional*, defaults to `"optimized"`):
+                The file suffix used to save the optimized model.
+            use_external_data_format (`bool`, *optional*, defaults to `False`):
+                Whether to use external data format to store model of size >= 2Gb.
         """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
@@ -111,8 +117,7 @@ class ORTOptimizer:
         model_type = ORTConfigManager.get_model_ort_type(model_type)
         optimization_config.model_type = model_type
         optimization_options = FusionOptions.parse(optimization_config)
-
-        LOGGER.info(f"Creating optimizer: {optimization_config}")
+        LOGGER.info(f"Creating the optimizer with the configuration: {optimization_config}")
 
         for model_path in self.onnx_model_path:
             optimizer = optimize_model(
@@ -125,19 +130,17 @@ class ORTOptimizer:
                 use_gpu=optimization_config.optimize_for_gpu,
                 only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
             )
-            output_path = save_dir.joinpath(model_path.stem + "_optimized").with_suffix(model_path.suffix)
+
             if optimization_config.fp16:
                 # keep_io_types to keep inputs/outputs as float32
                 optimizer.convert_float_to_float16(keep_io_types=True)
 
+            output_path = save_dir.joinpath(f"{model_path.stem}_{file_suffix}").with_suffix(model_path.suffix)
             optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format)
 
-            if optimizer.is_fully_optimized():
-                msg = "The model has been fully optimized "
-            else:
-                msg = "The model has been optimized "
+        LOGGER.info(f"Saving optimized model at: {save_dir} (external data format: " f"{use_external_data_format})")
 
-            LOGGER.info(msg + f"and saved at {output_path} (external data format: {use_external_data_format})")
+        return Path(save_dir)
 
     @staticmethod
     def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> Dict[str, int]:
