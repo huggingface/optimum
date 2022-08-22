@@ -23,7 +23,6 @@ import nltk
 import numpy as np
 from datasets import load_dataset, load_metric
 from transformers import (
-    AutoConfig,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
@@ -32,8 +31,6 @@ from transformers import (
     DataCollatorForTokenClassification,
     DataCollatorWithPadding,
     IntervalStrategy,
-    Seq2SeqTrainingArguments,
-    TrainingArguments,
     default_data_collator,
     is_torch_available,
 )
@@ -43,7 +40,7 @@ from transformers.testing_utils import (
     require_ray,
     require_sigopt,
     require_torch,
-    require_torch_bf16,
+    require_torch_bf16_gpu,
     require_torch_gpu,
     require_wandb,
     slow,
@@ -62,7 +59,9 @@ if is_torch_available():
     import torch
     import transformers.optimization
 
-from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTTrainer
+import onnxruntime
+from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTSeq2SeqTrainingArguments, ORTTrainer, ORTTrainingArguments
+from optimum.onnxruntime.training_args import ORTOptimizerNames
 from optimum.utils.testing_utils import require_hf_token, require_ort_training, require_sigopt_token_and_project
 from parameterized import parameterized
 
@@ -397,7 +396,7 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
 class ORTTrainerIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        args = TrainingArguments("..")
+        args = ORTTrainingArguments("..")
         self.n_epochs = min(args.num_train_epochs, 1)
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
@@ -415,7 +414,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -449,7 +448,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -486,7 +485,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -518,12 +517,12 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
     @unittest.skip("Skip BF6 test.")
     @slow
-    @require_torch_bf16
+    @require_torch_bf16_gpu
     @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -564,7 +563,7 @@ class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
         data_metric_config=_TASKS_DATASETS_CONFIGS["sequence-classification"],
     ):
         with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 push_to_hub=True,
             )
@@ -587,7 +586,7 @@ class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
 class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        args = TrainingArguments("..")
+        args = ORTTrainingArguments("..")
         self.n_epochs = min(args.num_train_epochs, 1)
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
@@ -606,7 +605,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
     def test_trainer_fp16_ds_stage1(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -643,7 +642,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
     def test_trainer_fp16_ds_stage2(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -691,7 +690,7 @@ class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
             return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 logging_steps=1,
                 evaluation_strategy=IntervalStrategy.EPOCH,
@@ -733,7 +732,7 @@ class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
             return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 logging_steps=1,
                 evaluation_strategy=IntervalStrategy.EPOCH,
@@ -779,7 +778,7 @@ class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
             return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 logging_steps=1,
                 evaluation_strategy=IntervalStrategy.EPOCH,
@@ -824,7 +823,7 @@ class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
             return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 output_dir=tmp_dir,
                 logging_steps=1,
                 evaluation_strategy=IntervalStrategy.EPOCH,
@@ -867,9 +866,9 @@ class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
 optim_test_params = []
 if is_torch_available():
     default_adam_kwargs = {
-        "betas": (TrainingArguments.adam_beta1, TrainingArguments.adam_beta2),
-        "eps": TrainingArguments.adam_epsilon,
-        "lr": TrainingArguments.learning_rate,
+        "betas": (ORTTrainingArguments.adam_beta1, ORTTrainingArguments.adam_beta2),
+        "eps": ORTTrainingArguments.adam_epsilon,
+        "lr": ORTTrainingArguments.learning_rate,
     }
 
     optim_test_params = [
@@ -894,8 +893,13 @@ if is_torch_available():
             {
                 "scale_parameter": False,
                 "relative_step": False,
-                "lr": TrainingArguments.learning_rate,
+                "lr": ORTTrainingArguments.learning_rate,
             },
+        ),
+        (
+            ORTOptimizerNames.ADAMW_ORT_FUSED,
+            onnxruntime.training.optim.FusedAdam,
+            default_adam_kwargs,
         ),
     ]
 
@@ -927,7 +931,7 @@ if is_torch_available():
 class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        args = TrainingArguments("..")
+        args = ORTTrainingArguments("..")
         self.n_epochs = min(args.num_train_epochs, 1)
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
@@ -944,7 +948,7 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
         self.feature = "sequence-classification"
 
     def check_optim_and_kwargs(self, optim: OptimizerNames, mandatory_kwargs, expected_cls):
-        args = TrainingArguments(optim=optim, output_dir="None")
+        args = ORTTrainingArguments(optim=optim, output_dir="None")
         actual_cls, optim_kwargs = ORTTrainer.get_optimizer_cls_and_kwargs(args)
         self.assertEqual(expected_cls, actual_cls)
         self.assertIsNotNone(optim_kwargs)
@@ -961,7 +965,7 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = TrainingArguments(
+            training_args = ORTTrainingArguments(
                 optim=name,
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
@@ -1015,7 +1019,7 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
 class ORTSeq2SeqTrainerIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        args = TrainingArguments("..")
+        args = ORTTrainingArguments("..")
         self.n_epochs = min(args.num_train_epochs, 1)
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
@@ -1036,7 +1040,7 @@ class ORTSeq2SeqTrainerIntegrationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
 
-            training_args = Seq2SeqTrainingArguments(
+            training_args = ORTSeq2SeqTrainingArguments(
                 output_dir=tmp_dir,
                 evaluation_strategy="epoch",
                 num_train_epochs=self.n_epochs,

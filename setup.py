@@ -15,11 +15,11 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.18.0",
+    "transformers[sentencepiece]>=4.20.1",
     "torch>=1.9",
     "packaging",
     "numpy",
-    "huggingface_hub>=0.4.0",
+    "huggingface_hub>=0.8.0",
 ]
 
 TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"]
@@ -27,19 +27,18 @@ TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
 EXTRAS_REQUIRE = {
-    #  pip install -e ".[onnxruntime,dev,intel]"  git+https://github.com/huggingface/transformers.git@main --upgrade
     "onnxruntime": [
         "onnx",
         "onnxruntime>=1.9.0",
         "datasets>=1.2.1",
         "protobuf==3.20.1",
-    ],  # "transformers[sentencepiece]>4.17.0"],
+    ],
     "onnxruntime-gpu": [
         "onnx",
         "onnxruntime-gpu>=1.9.0",
         "datasets>=1.2.1",
         "protobuf==3.20.1",
-    ],  # "transformers[sentencepiece]>4.17.0"],
+    ],
     "intel": "optimum-intel",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",

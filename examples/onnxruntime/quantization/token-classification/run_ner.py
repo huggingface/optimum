@@ -25,13 +25,15 @@ import os
 import sys
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import Optional
 
 import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset, load_metric
-from transformers import HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
+from transformers.onnx import FeaturesManager
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -39,6 +41,7 @@ from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime.modeling_ort import ORTModelForTokenClassification
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
@@ -184,8 +187,8 @@ class OptimizationArguments:
     """
 
     opset: Optional[int] = field(
-        default=None,
-        metadata={"help": "ONNX opset version to export the model with."},
+        default=12,
+        metadata={"help": "ONNX opset version to fit the model with."},
     )
     quantization_approach: str = field(
         default="dynamic",
@@ -308,11 +311,11 @@ def main():
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
     if training_args.do_eval:
+        if "validation" not in raw_datasets:
+            raise ValueError("--do_eval requires a validation dataset")
         column_names = raw_datasets["validation"].column_names
-        features = raw_datasets["validation"].features
     else:
         column_names = raw_datasets["train"].column_names
-        features = raw_datasets["train"].features
 
     if data_args.text_column_name is not None:
         text_column_name = data_args.text_column_name
@@ -327,6 +330,19 @@ def main():
         label_column_name = f"{data_args.task_name}_tags"
     else:
         label_column_name = column_names[1]
+
+    if training_args.do_eval:
+        # Preprocess the evaluation dataset
+        eval_dataset = raw_datasets["validation"]
+        if data_args.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+
+        label2id = PretrainedConfig.from_pretrained(model_args.model_name_or_path).label2id
+        if label2id:
+            eval_dataset = eval_dataset.align_labels_with_mapping(label2id=label2id, label_column=label_column_name)
+        features = eval_dataset.features
+    else:
+        features = raw_datasets["train"].features
 
     # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
     # unique labels.
@@ -443,9 +459,12 @@ def main():
     )
 
     # Create the quantizer
-    quantizer = ORTQuantizer.from_pretrained(
-        model_args.model_name_or_path, feature="token-classification", opset=optim_args.opset
-    )
+    onnx_model = ORTModelForTokenClassification.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    trfs_model = FeaturesManager.get_model_from_feature(onnx_model.export_feature, model_args.model_name_or_path)
+    _, _onnx_config = FeaturesManager.check_supported_model_or_raise(trfs_model, feature=onnx_model.export_feature)
+    onnx_config = _onnx_config(trfs_model.config)
+    quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
     ranges = None
     # Create a quantization preprocessor to determine the nodes to exclude
@@ -458,7 +477,7 @@ def main():
         if optim_args.num_calibration_samples is not None:
             calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
         calibration_dataset = calibration_dataset.map(
-            partial(tokenize_and_align_labels, tokenizer=quantizer.preprocessor),
+            partial(tokenize_and_align_labels, tokenizer=tokenizer),
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
@@ -513,17 +532,16 @@ def main():
         # Exclude the Add nodes followed by the Softmax operator
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
-    # Export the quantized model
-    quantizer.export(
-        onnx_model_path=model_path,
-        onnx_quantized_model_output_path=quantized_model_path,
+    # fit the quantized model
+    quantizer.quantize(
+        save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
     )
 
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
+    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR fit and quantization
+    ort_config = ORTConfig(opset=optim_args.opset, quantization=qconfig)
     # Save the configuration
     ort_config.save_pretrained(training_args.output_dir)
 
@@ -531,15 +549,9 @@ def main():
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
-        # Preprocess the evaluation dataset
-        if "validation" not in raw_datasets:
-            raise ValueError("--do_eval requires a validation dataset")
-        eval_dataset = raw_datasets["validation"]
-        if data_args.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
         with training_args.main_process_first(desc="validation dataset map pre-processing"):
             eval_dataset = eval_dataset.map(
-                partial(tokenize_and_align_labels, tokenizer=quantizer.preprocessor),
+                partial(tokenize_and_align_labels, tokenizer=tokenizer),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
@@ -547,8 +559,8 @@ def main():
             )
 
         ort_model = ORTModel(
-            quantized_model_path,
-            quantizer._onnx_config,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            onnx_config,
             execution_provider=model_args.execution_provider,
             compute_metrics=compute_metrics,
         )
@@ -570,7 +582,7 @@ def main():
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
         with training_args.main_process_first(desc="prediction dataset map pre-processing"):
             predict_dataset = predict_dataset.map(
-                partial(tokenize_and_align_labels, tokenizer=quantizer.preprocessor),
+                partial(tokenize_and_align_labels, tokenizer=tokenizer),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
@@ -578,8 +590,8 @@ def main():
             )
 
         ort_model = ORTModel(
-            quantized_model_path,
-            quantizer._onnx_config,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            onnx_config,
             execution_provider=model_args.execution_provider,
             compute_metrics=compute_metrics,
         )
