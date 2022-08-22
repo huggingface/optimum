@@ -1020,7 +1020,13 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+        if self.exported_with_loss or self.feature not in SUPPORTED_TASKS.keys():
+            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference
+            ort_model_cls = ORTModelForCustomTasks
+        else:
+            # Exported with standard outputs, use specific ORTModels
+            ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+
         model_id, file_name = os.path.split(self.onnx_model_path)
         self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
 
