@@ -15,6 +15,7 @@ jobs:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
+      PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
       - uses: actions/checkout@v2
@@ -79,7 +80,7 @@ jobs:
       - name: Make Optimum documentation
         run: |
           cd optimum
-          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER
+          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER COMMIT_SHA_OPTIMUM=$COMMIT_SHA CLONE_URL=$PR_CLONE_URL
           cd ..
 
       - name: Combine subpackage documentation
