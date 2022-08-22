@@ -92,7 +92,7 @@ from transformers.utils import logging
 import onnxruntime
 
 from ..pipelines import SUPPORTED_TASKS
-from .modeling_ort import ORTModel
+from .modeling_ort import ORTModel, ORTModelForCustomTasks
 from .training_args import ORTOptimizerNames
 from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
 
@@ -793,7 +793,13 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+        if self.exported_with_loss or self.feature not in SUPPORTED_TASKS.keys():
+            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference
+            ort_model_cls = ORTModelForCustomTasks
+        else:
+            # Exported with standard outputs, use specific ORTModels
+            ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+
         model_id, file_name = os.path.split(self.onnx_model_path)
         self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
 
@@ -980,7 +986,6 @@ class ORTTrainer(Trainer):
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
-        # Create onnxruntime inference session & export onnx IR
         self.ort_model = None
 
         # Check if there are labels in the dataset
@@ -1138,8 +1143,6 @@ class ORTTrainer(Trainer):
 
         has_labels = all(inputs.get(k) is not None for k in self.label_names)
         inputs = self._prepare_inputs(inputs)
-        output_names = [output.name for output in model.model._outputs_meta]
-        input_names = [ort_input.name for ort_input in model.model._inputs_meta]
 
         if ignore_keys is None:
             if hasattr(self.model, "config"):
