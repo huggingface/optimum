@@ -1,9 +1,10 @@
-import unittest
 import tempfile
+import unittest
+
 import torch
 
-from optimum.onnxruntime.utils import get_device_for_provider, get_provider_for_device
 from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig, ORTConfig
+from optimum.onnxruntime.utils import get_device_for_provider, get_provider_for_device
 
 
 class ProviderAndDeviceGettersTest(unittest.TestCase):
@@ -25,4 +26,3 @@ class ORTConfigTest(unittest.TestCase):
             ort_config.save_pretrained(tmp_dir)
             loaded_ort_config = ORTConfig.from_pretrained(tmp_dir)
             self.assertEqual(ort_config.to_dict(), loaded_ort_config.to_dict())
-

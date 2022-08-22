@@ -26,7 +26,7 @@ from onnxruntime.quantization import CalibrationDataReader, QuantFormat, Quantiz
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
-from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig, ORTConfig
+from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
