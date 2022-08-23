@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-The Trainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task.
+The ORTTrainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task with ONNX Runtime.
 """
 
 import math
@@ -87,7 +87,7 @@ from transformers.trainer_utils import (
     speed_metrics,
 )
 from transformers.training_args import TrainingArguments
-from transformers.utils import logging
+from transformers.utils import check_min_version, logging
 
 import onnxruntime
 
@@ -1253,15 +1253,13 @@ class ORTTrainer(Trainer):
             with_loss (`bool`, defaults to `True`):
                 Whether to export ONNX model with the loss in outputs.
         """
-        if model:
-            model = model
-        else:
+        if model is None:
             if not (self.args.fp16 and self.args.deepspeed):
                 # Taking CPU to export the model
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
+        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
         onnx_config = model_onnx_config(model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
 
@@ -1269,29 +1267,16 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        if parse(transformers.__version__) >= parse("4.20.0"):
-            _ = export(
-                preprocessor=self.tokenizer,
-                model=model,
-                config=onnx_config,
-                opset=opset,
-                output=model_path,
-                device=device,
-            )
-        else:
-            if device == "cuda":
-                raise ImportError(
-                    f"Tried to export ONNX model on CUDA. However, the current transformers version is "
-                    f"{transformers.__version__}. Transformers version >4.19.2 is required to support ONNX export on CUDA.\n"
-                    "Please update transformers by running `pip install --upgrade transformers`"
-                )
-            _ = export(
-                preprocessor=self.tokenizer,
-                model=model,
-                config=onnx_config,
-                opset=opset,
-                output=model_path,
-            )
+        # transformers >= 4.21.0 is required to export with specified device
+        check_min_version("4.21.0")
+        _ = export(
+            preprocessor=self.tokenizer,
+            model=model,
+            config=onnx_config,
+            opset=opset,
+            output=model_path,
+            device=device,
+        )
 
     def _wrap_model(self, model, training=True, dataloader=None):
         if self.args.use_ipex:

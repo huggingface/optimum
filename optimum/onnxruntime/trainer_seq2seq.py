@@ -11,7 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+The ORTSeq2SeqTrainer class, to easily train a sequence to sequence model in 🤗 Transformers from scratch or finetune it on a new task with ONNX Runtime.
+"""
 
+import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -20,12 +24,18 @@ from packaging import version
 from torch import nn
 from torch.utils.data.dataset import Dataset
 from transformers.deepspeed import is_deepspeed_zero3_enabled
+from transformers.modeling_utils import PreTrainedModel, unwrap_model
+from transformers.onnx import export
+from transformers.onnx.features import FeaturesManager
 from transformers.trainer_utils import PredictionOutput
-from transformers.utils import logging
+from transformers.utils import check_min_version, logging
 
 import onnxruntime
 
+from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
+from ..onnx.modeling_seq2seq import _DecoderWithLMhead
 from .trainer import ORTTrainer
+from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
 
 
 if version.parse(torch.__version__) >= version.parse("1.8"):
@@ -334,3 +344,79 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         )
         padded_tensor[:, : tensor.shape[-1]] = tensor
         return padded_tensor
+
+    def _export(
+        self,
+        model_path: os.PathLike,
+        model: Optional[PreTrainedModel] = None,
+        opset: Optional[int] = None,
+        device: str = "cpu",
+        with_loss: bool = True,
+        **kwargs,
+    ) -> None:
+        """
+        Load and export a model to an ONNX Intermediate Representation (IR).
+
+        Args:
+            model_path (`os.PathLike`):
+                The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            device (`str`, *optional*, defaults to `cpu`):
+                The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
+            with_loss (`bool`, defaults to `True`):
+                Whether to export ONNX model with the loss in outputs.
+        """
+        if model is None:
+            if not (self.args.fp16 and self.args.deepspeed):
+                # Taking CPU to export the model
+                self.model.to("cpu")
+            model = unwrap_model(self.model)
+
+        use_cache = kwargs.get("use_cache", True)
+        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
+        onnx_config = model_onnx_config(model.config)
+        opset = onnx_config.default_onnx_opset if opset is None else opset
+        onnx_config_encoder = EncoderOnnxConfig(model.config, task="default")
+        onnx_config_decoder = DecoderOnnxConfig(model.config, task=self.feature, use_past=False)
+        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=self.feature, use_past=True)
+
+        if with_loss:
+            # Add `loss` to the ONNX config of decoders
+            onnx_config_decoder = wrap_onnx_config_for_loss(onnx_config_decoder)
+            onnx_config_decoder_with_past = wrap_onnx_config_for_loss(onnx_config_decoder_with_past)
+            opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
+
+        # Extract the encoder for ONNX export
+        encoder = model.get_encoder()
+        # Concatenate the decoder with the language model head for ONNX export
+        decoder_with_lm_head = _DecoderWithLMhead(model)
+
+        # transformers >= 4.21.0 is required to export with specified device
+        check_min_version("4.21.0")
+        # Export the encoder
+        _ = export(
+            preprocessor=self.tokenizer,
+            model=encoder,
+            config=onnx_config_encoder,
+            opset=opset,
+            output=model_path,
+            device=device,
+        )
+        # Export the decoder without the past key values
+        export(
+            preprocessor=self.tokenizer,
+            model=decoder_with_lm_head,
+            config=onnx_config_decoder,
+            opset=opset,
+            output=model_path,
+            device=device,
+        )
+        # Export the decoder with the past key values
+        if use_cache:
+            export(
+                preprocessor=self.tokenizer,
+                model=decoder_with_lm_head,
+                config=onnx_config_decoder_with_past,
+                opset=opset,
+                output=model_path,
+                device=device,
+            )
