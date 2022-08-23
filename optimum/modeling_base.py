@@ -199,7 +199,6 @@ class OptimizedModel(ABC):
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
-
         revision = None
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
