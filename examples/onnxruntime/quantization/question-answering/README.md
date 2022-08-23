@@ -30,7 +30,7 @@ The following example applies post-training static quantization on a DistilBERT 
 python run_qa.py \
     --model_name_or_path distilbert-base-uncased-distilled-squad \
     --dataset_name squad \
-    --quantization_approach static \
+    --quantization_approach dynamic \
     --do_eval \
     --output_dir /tmp/quantized_distilbert_squad
 ```

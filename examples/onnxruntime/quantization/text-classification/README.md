@@ -29,7 +29,7 @@ The following example applies post-training static quantization on a DistilBERT 
 python run_glue.py \
     --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english \
     --task_name sst2 \
-    --quantization_approach static \
+    --quantization_approach dynamic \
     --do_eval \
     --output_dir /tmp/quantized_distilbert_sst2
 ```

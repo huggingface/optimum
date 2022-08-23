@@ -27,7 +27,7 @@ The following example applies post-training static quantization on a DistilBERT 
 python run_ner.py \
     --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english \
     --dataset_name conll2003 \
-    --quantization_approach static \
+    --quantization_approach dynamic \
     --do_eval \
     --output_dir /tmp/quantized_distilbert_conll2003
 ```
