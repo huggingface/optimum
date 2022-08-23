@@ -24,7 +24,7 @@ optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for
 Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along 
 the flag `--version_2_with_negative`.
 
-The following example applies post-training static quantization on a DistilBERT fine-tuned on the SQuAD1.0 dataset.
+The following example applies post-training dynamic quantization on a DistilBERT fine-tuned on the SQuAD1.0 dataset.
 
 ```bash
 python run_qa.py \

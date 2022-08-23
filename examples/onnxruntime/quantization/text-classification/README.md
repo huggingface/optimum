@@ -23,7 +23,7 @@ allows us to apply different quantization approaches (such as dynamic and static
 optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as 
 the ones from the [GLUE benchmark](https://gluebenchmark.com/).
 
-The following example applies post-training static quantization on a DistilBERT fine-tuned on the sst-2 task.
+The following example applies post-training dynamic quantization on a DistilBERT fine-tuned on the sst-2 task.
 
 ```bash
 python run_glue.py \
