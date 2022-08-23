@@ -113,6 +113,9 @@ class ORTOptimizer:
         model_type = self.config.model_type
         ORTConfigManager.check_supported_model_or_raise(model_type)
 
+        # Save the model configuration
+        self.config.save_pretrained(save_dir)
+
         # Create and save the configuration summarizing all the parameters related to optimization
         ort_config = ORTConfig(optimization=optimization_config)
         ort_config.save_pretrained(save_dir)
