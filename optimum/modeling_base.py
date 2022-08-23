@@ -155,7 +155,7 @@ class OptimizedModel(ABC):
         model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):
@@ -167,7 +167,7 @@ class OptimizedModel(ABC):
         cls,
         model_id: Union[str, Path],
         from_transformers: bool = False,
-        force_download: bool = True,
+        force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         **model_kwargs,
@@ -247,7 +247,7 @@ class OptimizedModel(ABC):
         model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):
