@@ -32,14 +32,15 @@ import numpy as np
 import torch
 import transformers
 from datasets import load_dataset
-from transformers import HfArgumentParser, TrainingArguments, AutoTokenizer
+from transformers import AutoTokenizer, HfArgumentParser, TrainingArguments
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTQuantizer, ORTModelForMultipleChoice
+from optimum.onnxruntime import ORTModelForMultipleChoice, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
+from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
@@ -47,7 +48,6 @@ from optimum.onnxruntime.preprocessors.passes import (
     ExcludeNodeAfter,
     ExcludeNodeFollowedBy,
 )
-from optimum.onnxruntime.model import ORTModel
 
 
 # Will error if the minimal version of Transformers is not installed. The version of transformers must be >= 4.19.0
