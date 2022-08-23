@@ -287,7 +287,7 @@ class ORTQuantizer(OptimumQuantizer):
         """
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
         os.makedirs(save_dir, exist_ok=True)
-        save_dir = Path(save_dir).joinpath(f"{self.onnx_model_path.stem}_{file_suffix}.onnx")
+        quantized_model_path = Path(save_dir).joinpath(f"{self.onnx_model_path.stem}_{file_suffix}.onnx")
 
         if not quantization_config.is_static:
             if quantization_config.mode != QuantizationMode.IntegerOps:
@@ -344,7 +344,7 @@ class ORTQuantizer(OptimumQuantizer):
         quantizer.quantize_model()
 
         LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
-        quantizer.model.save_model_to_file(save_dir, use_external_data_format)
+        quantizer.model.save_model_to_file(quantized_model_path, use_external_data_format)
 
         # Create and save the configuration summarizing all the parameters related to quantization
         ort_config = ORTConfig(quantization=quantization_config)
