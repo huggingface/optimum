@@ -93,7 +93,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
                 quantization_config=qconfig,
             )
 
-            expected_ort_config = ORTConfig(quantization=quantization_config)
+            expected_ort_config = ORTConfig(quantization=qconfig)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
             # Verify the ORTConfig was correctly created and saved
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
@@ -154,7 +154,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
                 quantization_config=qconfig,
             )
 
-            expected_ort_config = ORTConfig(quantization=quantization_config)
+            expected_ort_config = ORTConfig(quantization=qconfig)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
             # Verify the ORTConfig was correctly created and saved
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
