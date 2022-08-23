@@ -256,12 +256,7 @@ def main():
     optimizer = ORTOptimizer.from_pretrained(model)
 
     # Optimize the model
-    optimizer.fit(optimization_config=optimization_config, save_dir=training_args.output_dir)
-
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(optimization=optimization_config)
-    # Save the configuration
-    ort_config.save_pretrained(training_args.output_dir)
+    optimizer.optimize(optimization_config=optimization_config, save_dir=training_args.output_dir)
 
     # Prepare the dataset downloading, preprocessing and metric creation to perform the evaluation and / or the
     # prediction step(s)
@@ -378,9 +373,9 @@ def main():
         eval_dataset = raw_datasets[validation_split]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        if optimizer.model.config.label2id:
+        if optimizer.config.label2id:
             eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=optimizer.model.config.label2id, label_column="label"
+                label2id=optimizer.config.label2id, label_column="label"
             )
 
         eval_dataset = eval_dataset.map(

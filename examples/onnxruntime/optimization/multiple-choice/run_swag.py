@@ -243,13 +243,7 @@ def main():
     optimizer = ORTOptimizer.from_pretrained(model)
 
     # Optimize the model
-    optimizer.fit(optimization_config=optimization_config, save_dir=training_args.output_dir)
-
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(optimization=optimization_config)
-
-    # Save the configuration
-    ort_config.save_pretrained(training_args.output_dir)
+    optimizer.optimize(optimization_config=optimization_config, save_dir=training_args.output_dir)
 
     if training_args.do_eval:
         # Prepare the dataset downloading, preprocessing and metric creation to perform the evaluation and / or the

@@ -31,7 +31,7 @@ import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset, load_metric
-from transformers import AutoTokenizer, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -280,13 +280,7 @@ def main():
     optimizer = ORTOptimizer.from_pretrained(model)
 
     # Optimize the model
-    optimizer.fit(optimization_config=optimization_config, save_dir=training_args.output_dir)
-
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(optimization=optimization_config)
-
-    # Save the configuration
-    ort_config.save_pretrained(training_args.output_dir)
+    optimizer.optimize(optimization_config=optimization_config, save_dir=training_args.output_dir)
 
     # Prepare the dataset downloading, preprocessing and metric creation to perform the evaluation and / or the
     # prediction step(s)
