@@ -193,10 +193,13 @@ class OptimizedModel(ABC):
             cache_dir (`str`, *optional*, defaults to `None`):
                 Path to a directory in which a downloaded pretrained model configuration should be cached if the
                 standard cache should not be used.
+            local_files_only(`bool`, *optional*, defaults to `False`):
+                Whether or not to only look at local files (i.e., do not try to download the model).
 
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
+
         revision = None
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")

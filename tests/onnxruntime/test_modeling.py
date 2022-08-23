@@ -14,6 +14,7 @@
 # limitations under the License.
 import gc
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -36,6 +37,7 @@ from transformers.testing_utils import require_torch_gpu
 
 import onnxruntime
 import requests
+from huggingface_hub.constants import default_cache_path
 from huggingface_hub.utils import EntryNotFoundError
 from optimum.onnxruntime import (
     ONNX_DECODER_NAME,
@@ -88,8 +90,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.LOCAL_MODEL_PATH = "assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
+        self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
+        self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
@@ -100,6 +104,41 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_model_from_cache(self):
+        _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID)  # caching
+
+        model = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
+
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_model_from_empty_cache(self):
+        dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_MODEL_ID.replace("/", "--"))
+
+        if os.path.exists(dirpath) and os.path.isdir(dirpath):
+            shutil.rmtree(dirpath)
+        with self.assertRaises(Exception):
+            _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
+
+    def test_load_seq2seq_model_from_cache(self):
+        _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID)  # caching
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
+
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_seq2seq_model_from_empty_cache(self):
+        dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_SEQ2SEQ_MODEL_ID.replace("/", "--"))
+
+        print("dirpath", dirpath)
+        if os.path.exists(dirpath) and os.path.isdir(dirpath):
+            shutil.rmtree(dirpath)
+        with self.assertRaises(Exception):
+            _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
