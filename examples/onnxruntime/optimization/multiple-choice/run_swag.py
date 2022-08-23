@@ -133,10 +133,6 @@ class OptimizationArguments:
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
-    opset: Optional[int] = field(
-        default=None,
-        metadata={"help": "ONNX opset version to export the model with."},
-    )
     optimization_level: Optional[int] = field(
         default=1,
         metadata={
@@ -332,7 +328,7 @@ def main():
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
 
