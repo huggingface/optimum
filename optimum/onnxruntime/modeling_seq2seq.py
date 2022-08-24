@@ -276,7 +276,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         model_id: Union[str, Path],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         encoder_file_name: Optional[str] = None,
         decoder_file_name: Optional[str] = None,
