@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import transformers
+from transformers.models.auto.configuration_auto import AutoConfig
 
 from onnx import load_model
 from onnxruntime.transformers.fusion_options import FusionOptions
