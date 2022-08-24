@@ -116,7 +116,7 @@ class ORTModel(OptimizedModel):
         self._device = get_device_for_provider(self.providers[0])
 
         if self._device == None:
-            logger.warn(
+            logger.warning(
                 f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )

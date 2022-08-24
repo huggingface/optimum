@@ -17,7 +17,6 @@ import os
 import shutil
 import tempfile
 import unittest
-from pathlib import Path
 
 import pytest
 import torch
@@ -491,7 +490,6 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
-        onnx_outputs = onnx_model(**tokens)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
@@ -611,7 +609,6 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
 
         self.assertEqual(pipe.device, onnx_model.device)
-        # TODO: shouldn't it be all instead of any?
         self.assertTrue(all(item["score"] > 0.0 for item in outputs))
 
         gc.collect()
@@ -722,6 +719,54 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         gc.collect()
 
 
+class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
+    # Multiple Choice tests are conducted on different models due to mismatch size in model's classifier
+    SUPPORTED_ARCHITECTURES = (
+        "hf-internal-testing/tiny-bert",
+        "hf-internal-testing/tiny-random-camembert",
+        "hf-internal-testing/tiny-xlm-roberta",
+        "hf-internal-testing/tiny-albert",
+        "hf-internal-testing/tiny-electra",
+        "distilbert-base-uncased",
+        "haisongzhang/roberta-tiny-cased",
+    )
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_id):
+        set_seed(SEED)
+        onnx_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModelForMultipleChoice.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        num_choices = 4
+        first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
+        start = "The color of the sky is"
+        second_sentence = [start + "blue", start + "green", start + "red", start + "yellow"]
+        inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
+
+        # Unflatten the tokenized inputs values expanding it to the shape [batch_size, num_choices, seq_length]
+        for k, v in inputs.items():
+            inputs[k] = [v[i : i + num_choices] for i in range(0, len(v), num_choices)]
+
+        inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
+        onnx_outputs = onnx_model(**inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**inputs)
+
+        # Compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+
 class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = ("gpt2",)
 
@@ -828,30 +873,11 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         "vit": "hf-internal-testing/tiny-random-vit",
     }
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_supported_transformers_architectures(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_model_forward_call(self, *args, **kwargs):
-        model_arch, model_id = args
-        model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
-        preprocessor = get_preprocessor(model_id)
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=image, return_tensors="pt")
-        outputs = model(**inputs)
-        self.assertTrue("logits" in outputs)
-        self.assertTrue(isinstance(outputs.logits, torch.Tensor))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_compare_to_transformers(self, *args, **kwargs):
@@ -875,7 +901,6 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
-        onnx_outputs = onnx_model(**inputs)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
