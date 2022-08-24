@@ -35,7 +35,9 @@ logger = logging.get_logger(__name__)
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
     """
-    Wrapper for the children classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format with loss in outputs.
+    Wrapper for the children classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format
+    with loss in outputs and labels in the inputs. For seq-to-seq models, labels will be appended to the inputs of
+    decoders.
     """
 
     _tasks_to_extra_inputs = {
@@ -199,84 +201,6 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             raise ValueError(
                 f"Only two frameworks are supported for ONNX export: PyTorch or TensorFlow, but {framework} was provided."
             )
-
-
-class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
-    def __init__(
-        self,
-        config: OnnxConfigWithPast,
-        use_past: bool = False,
-    ):
-        super().__init__(config)
-        self.use_past = use_past
-
-    @classmethod
-    def with_past(cls, config: OnnxConfigWithPast) -> "OnnxConfigWithPast":
-        """
-        Instantiate a OnnxConfigWithPastAndLoss with `use_past` attribute set to True
-        Args:
-            config: The underlying model's config to use when exporting to ONNX
-        Returns:
-            OnnxConfigWithPastAndLoss with `.use_past = True`
-        """
-        return cls(config, use_past=True)
-
-    @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = super().outputs
-        if self.use_past:
-            self._onnx_config.fill_with_past_key_values_(common_outputs, direction="outputs")
-
-        return common_outputs
-
-    def generate_dummy_inputs(
-        self,
-        tokenizer: "PreTrainedTokenizerBase",
-        batch_size: int = -1,
-        seq_length: int = -1,
-        is_pair: bool = False,
-        framework: Optional[TensorType] = None,
-    ) -> Mapping[str, Any]:
-
-        dummy_inputs = self._onnx_config.generate_dummy_inputs(
-            tokenizer,
-            batch_size=batch_size,
-            seq_length=seq_length,
-            is_pair=is_pair,
-            framework=framework,
-        )
-        label_batch_size = compute_effective_axis_dimension(
-            batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
-        )
-        label_seq_length = compute_effective_axis_dimension(
-            seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
-        )
-
-        if framework == TensorType.PYTORCH:
-            if is_torch_available():
-                return self._generate_extra_dummy_inputs_pt(dummy_inputs, label_batch_size, label_seq_length)
-            else:
-                raise RuntimeError(f"Could not generate dummy inputs because no PyTorch installation was found.")
-        elif framework == TensorType.TENSORFLOW:
-            if is_tf_available():
-                return self._generate_extra_dummy_inputs_tf(dummy_inputs, label_batch_size, label_seq_length)
-            else:
-                raise RuntimeError(f"Could not generate dummy inputs because no TensorFlow installation was found.")
-        else:
-            raise ValueError(
-                f"Only two frameworks are supported for ONNX export: PyTorch or TensorFlow, but {framework} was provided."
-            )
-
-
-class OnnxSeq2SeqConfigWithPastAndLoss(OnnxConfigWithPastAndLoss):
-    @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = self._onnx_config.outputs
-        extra_outputs = self._tasks_to_extra_outputs["default"]
-        common_outputs.update(extra_outputs)
-        for key in reversed(extra_outputs.keys()):
-            common_outputs.move_to_end(key, last=False)
-        return copy.deepcopy(common_outputs)
 
 
 class EncoderOnnxConfig(OnnxConfig):

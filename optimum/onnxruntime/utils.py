@@ -12,17 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 from enum import Enum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
-from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from transformers.onnx import OnnxConfig
 from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
 
-from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
+from ..onnx import OnnxConfigWithLoss
 
 
 logger = logging.get_logger(__name__)
@@ -145,12 +143,7 @@ def fix_atenops_to_gather(model_path):
 
 
 def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
-    if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
-        return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
-    elif isinstance(onnx_config, OnnxConfigWithPast):
-        return OnnxConfigWithPastAndLoss(onnx_config)
-    else:
-        return OnnxConfigWithLoss(onnx_config)
+    return OnnxConfigWithLoss(onnx_config)
 
 
 def get_device_for_provider(provider: str) -> torch.device:
