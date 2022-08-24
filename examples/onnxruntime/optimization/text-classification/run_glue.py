@@ -32,6 +32,7 @@ import transformers
 from datasets import load_dataset, load_metric
 from transformers import (
     AutoConfig,
+    AutoTokenizer,
     EvalPrediction,
     HfArgumentParser,
     PretrainedConfig,
@@ -41,9 +42,9 @@ from transformers import (
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.model import ORTModel
-from optimum.onnxruntime.optimization import ORTOptimizer
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -137,10 +138,6 @@ class ModelArguments:
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
-    execution_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
-    )
 
 
 @dataclass
@@ -149,10 +146,6 @@ class OptimizationArguments:
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
-    opset: Optional[int] = field(
-        default=None,
-        metadata={"help": "ONNX opset version to export the model with."},
-    )
     optimization_level: Optional[int] = field(
         default=1,
         metadata={
@@ -177,6 +170,10 @@ class OptimizationArguments:
             "help": "Whether to optimize the model for GPU inference. The optimized graph might contain operators for "
             "GPU or CPU only when optimization_level > 1."
         },
+    )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -209,7 +206,7 @@ def main():
     if (
         optim_args.optimization_level > 1
         and optim_args.optimize_for_gpu
-        and model_args.execution_provider == "CPUExecutionProvider"
+        and optim_args.execution_provider == "CPUExecutionProvider"
     ):
         raise ValueError(
             f"Optimization level is set at {optim_args.optimization_level} and "
@@ -220,7 +217,7 @@ def main():
     if (
         optim_args.optimization_level > 1
         and not optim_args.optimize_for_gpu
-        and model_args.execution_provider == "CUDAExecutionProvider"
+        and optim_args.execution_provider == "CUDAExecutionProvider"
     ):
         raise ValueError(
             f"Optimization level is set at {optim_args.optimization_level} and "
@@ -237,8 +234,9 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
-    optimized_model_path = os.path.join(training_args.output_dir, "model-optimized.onnx")
+    optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
+
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
 
     # Create the optimization configuration containing all the optimization parameters
     optimization_config = OptimizationConfig(
@@ -247,22 +245,14 @@ def main():
         optimize_for_gpu=optim_args.optimize_for_gpu,
     )
 
+    # Export the model
+    model = ORTModelForSequenceClassification.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+
     # Create the optimizer
-    optimizer = ORTOptimizer.from_pretrained(
-        model_args.model_name_or_path, feature="sequence-classification", opset=optim_args.opset
-    )
+    optimizer = ORTOptimizer.from_pretrained(model)
 
-    # Export the optimized model
-    optimizer.export(
-        onnx_model_path=model_path,
-        onnx_optimized_model_output_path=optimized_model_path,
-        optimization_config=optimization_config,
-    )
-
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and optimization
-    ort_config = ORTConfig(opset=optimizer.opset, optimization=optimization_config)
-    # Save the configuration
-    ort_config.save_pretrained(training_args.output_dir)
+    # Optimize the model
+    optimizer.optimize(optimization_config=optimization_config, save_dir=training_args.output_dir)
 
     # Prepare the dataset downloading, preprocessing and metric creation to perform the evaluation and / or the
     # prediction step(s)
@@ -379,13 +369,13 @@ def main():
         eval_dataset = raw_datasets[validation_split]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        if optimizer.model.config.label2id:
+        if optimizer.config.label2id:
             eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=optimizer.model.config.label2id, label_column="label"
+                label2id=optimizer.config.label2id, label_column="label"
             )
 
         eval_dataset = eval_dataset.map(
-            partial(preprocess_function, tokenizer=optimizer.preprocessor, max_length=data_args.max_seq_length),
+            partial(preprocess_function, tokenizer=tokenizer, max_length=data_args.max_seq_length),
             batched=True,
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on the evaluation dataset",
@@ -393,8 +383,7 @@ def main():
 
         ort_model = ORTModel(
             optimized_model_path,
-            optimizer._onnx_config,
-            execution_provider=model_args.execution_provider,
+            execution_provider=optim_args.execution_provider,
             compute_metrics=compute_metrics,
             label_names=["label"],
         )
@@ -414,14 +403,14 @@ def main():
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
         predict_dataset = predict_dataset.map(
-            partial(preprocess_function, tokenizer=optimizer.preprocessor, max_length=data_args.max_seq_length),
+            partial(preprocess_function, tokenizer=tokenizer, max_length=data_args.max_seq_length),
             batched=True,
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on the test dataset",
         )
 
         ort_model = ORTModel(
-            optimized_model_path, optimizer._onnx_config, execution_provider=model_args.execution_provider
+            optimized_model_path, execution_provider=optim_args.execution_provider, label_names=["label"]
         )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
