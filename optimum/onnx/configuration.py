@@ -271,3 +271,82 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         decoder_sequence = "past_decoder_sequence" if direction == "inputs" else "past_decoder_sequence + sequence"
         for i in range(num_decoder_layers * num_pkv_per_layer):
             inputs_or_outputs[f"{name}_key_values_{i}"] = {0: "batch", 2: decoder_sequence}
+
+
+class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
+    extra_inputs = {
+        "default": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
+        "use_past": OrderedDict({"labels": {0: "batch"}}),
+    }
+    extra_outputs = OrderedDict({"loss": {}})
+
+    def __init__(self, config: DecoderOnnxConfig):
+        self.__dict__ = copy.deepcopy(config.__dict__)
+        self._decoder_config = config
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        inputs = self._decoder_config.inputs
+        if self.use_past:
+            inputs.update(self.extra_inputs["use_past"])
+        else:
+            inputs.update(self.extra_inputs["default"])
+        return inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = self._decoder_config.outputs
+        extra_outputs = self.extra_outputs
+        common_outputs.update(extra_outputs)
+        for key in reversed(extra_outputs.keys()):
+            common_outputs.move_to_end(key, last=False)
+        return copy.deepcopy(common_outputs)
+
+    def _generate_extra_dummy_inputs_pt(
+        self,
+        dummy_inputs,
+        batch_size,
+        seq_length,
+    ) -> Mapping[str, Any]:
+        import torch
+
+        extra_inputs = self.extra_inputs["use_past"] if self.use_past else self.extra_inputs["default"]
+        for label, input in extra_inputs.items():
+            if "sequence" in input.values():
+                dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
+            else:
+                dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
+        return dummy_inputs
+
+    def generate_dummy_inputs(
+        self,
+        tokenizer: "PreTrainedTokenizerBase",
+        batch_size: int = -1,
+        seq_length: int = -1,
+        is_pair: bool = False,
+        framework: Optional[TensorType] = None,
+    ) -> Mapping[str, Any]:
+        # Generate dummy labels
+        dummy_inputs = super().generate_dummy_inputs(
+            tokenizer=tokenizer,
+            batch_size=batch_size,
+            seq_length=seq_length,
+            is_pair=is_pair,
+            framework=framework,
+        )
+        print("decoder onnx cofig with wrapper")
+        print(dummy_inputs["input_ids"].shape)
+        label_batch_size = compute_effective_axis_dimension(
+            batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
+        )
+        label_seq_length = compute_effective_axis_dimension(
+            seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
+        )
+
+        if framework == TensorType.PYTORCH:
+            if is_torch_available():
+                return self._generate_extra_dummy_inputs_pt(dummy_inputs, label_batch_size, label_seq_length)
+            else:
+                raise RuntimeError(f"Could not generate dummy inputs because no PyTorch installation was found.")
+        else:
+            raise ValueError(f"Only PyTorch is supported for ONNX export, but {framework} was provided.")

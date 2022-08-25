@@ -16,6 +16,7 @@ The ORTSeq2SeqTrainer class, to easily train a sequence to sequence model in ðŸ¤
 """
 
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -35,7 +36,13 @@ import onnxruntime
 from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
 from ..onnx.modeling_seq2seq import _DecoderWithLMhead
 from .trainer import ORTTrainer
-from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
+from .utils import (
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    ONNX_ENCODER_NAME,
+    fix_atenops_to_gather,
+    wrap_onnx_config_for_loss,
+)
 
 
 if version.parse(torch.__version__) >= version.parse("1.8"):
@@ -347,7 +354,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
     def _export(
         self,
-        model_path: os.PathLike,
+        save_dir: Union[str, Path],
         model: Optional[PreTrainedModel] = None,
         opset: Optional[int] = None,
         device: str = "cpu",
@@ -358,8 +365,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         Load and export a model to an ONNX Intermediate Representation (IR).
 
         Args:
-            model_path (`os.PathLike`):
-                The path used to save the model exported to an ONNX Intermediate Representation (IR).
+            save_dir (`str` or `Path`):
+                The directory where the ONNX models(encoder, decoder...) should be saved, default to
+                `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
             device (`str`, *optional*, defaults to `cpu`):
                 The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
             with_loss (`bool`, defaults to `True`):
@@ -398,7 +406,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             model=encoder,
             config=onnx_config_encoder,
             opset=opset,
-            output=model_path,
+            output=Path(save_dir).joinpath(ONNX_ENCODER_NAME),
             device=device,
         )
         # Export the decoder without the past key values
@@ -407,7 +415,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             model=decoder_with_lm_head,
             config=onnx_config_decoder,
             opset=opset,
-            output=model_path,
+            output=Path(save_dir).joinpath(ONNX_DECODER_NAME),
             device=device,
         )
         # Export the decoder with the past key values
@@ -417,6 +425,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 model=decoder_with_lm_head,
                 config=onnx_config_decoder_with_past,
                 opset=opset,
-                output=model_path,
+                output=Path(save_dir).joinpath(ONNX_DECODER_WITH_PAST_NAME),
                 device=device,
             )

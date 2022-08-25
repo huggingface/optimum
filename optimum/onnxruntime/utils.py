@@ -14,13 +14,13 @@
 from enum import Enum
 
 import torch
-from transformers.onnx import OnnxConfig
+from transformers.onnx import OnnxConfig, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
 
-from ..onnx import OnnxConfigWithLoss
+from ..onnx import OnnxConfigWithLoss, OnnxSeq2SeqConfigWithPastAndLoss
 
 
 logger = logging.get_logger(__name__)
@@ -143,7 +143,10 @@ def fix_atenops_to_gather(model_path):
 
 
 def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
-    return OnnxConfigWithLoss(onnx_config)
+    if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
+        return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
+    else:
+        return OnnxConfigWithLoss(onnx_config)
 
 
 def get_device_for_provider(provider: str) -> torch.device:
