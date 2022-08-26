@@ -674,6 +674,10 @@ class ORTConfig(BaseConfig):
             ONNX opset version to export the model with.
         use_external_data_format (`bool`, *optional*, defaults to `False`):
             Allow exporting model >= than 2Gb.
+        all_tensors_to_one_file (`bool`, defaults to `True`):
+            Whether to save all tensors to one external file specified by location.
+            If false, save each tensor to a file named with the tensor name.
+            (Can not be set to `False` for the quantization)
         optimization (`OptimizationConfig`, *optional*, defaults to None):
             Specify a configuration to optimize ONNX Runtime model
         quantization (`QuantizationConfig`, *optional*, defaults to None):
@@ -687,6 +691,7 @@ class ORTConfig(BaseConfig):
         self,
         opset: Optional[int] = None,
         use_external_data_format: bool = False,
+        all_tensors_to_one_file: bool = True,
         optimization: Optional[OptimizationConfig] = None,
         quantization: Optional[QuantizationConfig] = None,
         **kwargs,
@@ -694,6 +699,7 @@ class ORTConfig(BaseConfig):
         super().__init__()
         self.opset = opset
         self.use_external_data_format = use_external_data_format
+        self.all_tensors_to_one_file = all_tensors_to_one_file
         self.optimization = self.dataclass_to_dict(optimization)
         self.quantization = self.dataclass_to_dict(quantization)
         self.optimum_version = kwargs.pop("optimum_version", None)

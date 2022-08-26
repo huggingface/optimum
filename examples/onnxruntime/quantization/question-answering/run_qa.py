@@ -37,7 +37,7 @@ from transformers.utils.versions import require_version
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.modeling_ort import ORTModelForQuestionAnswering
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
@@ -90,10 +90,6 @@ class ModelArguments:
             "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
             "with private models)."
         },
-    )
-    execution_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -207,10 +203,6 @@ class OptimizationArguments:
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
-    opset: Optional[int] = field(
-        default=12,
-        metadata={"help": "ONNX opset version to fit the model with."},
-    )
     quantization_approach: str = field(
         default="dynamic",
         metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
@@ -267,6 +259,10 @@ class OptimizationArguments:
             "set to True."
         },
     )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 @dataclass
@@ -320,7 +316,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
     # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
@@ -540,13 +535,13 @@ def main():
         operators_to_quantize=["MatMul", "Add"],
     )
 
-    # Create the quantizer
-    onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_args.model_name_or_path, from_transformers=True)
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-    trfs_model = FeaturesManager.get_model_from_feature(onnx_model.export_feature, model_args.model_name_or_path)
-    _, _onnx_config = FeaturesManager.check_supported_model_or_raise(trfs_model, feature=onnx_model.export_feature)
-    onnx_config = _onnx_config(trfs_model.config)
-    quantizer = ORTQuantizer.from_pretrained(onnx_model)
+
+    # Export the model
+    model = ORTModelForQuestionAnswering.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+
+    # Create the quantizer
+    quantizer = ORTQuantizer.from_pretrained(model)
 
     # Create the calibration dataset used for the static quantization calibration step
     if apply_static_quantization:
@@ -639,7 +634,6 @@ def main():
             quantizer.partial_fit(
                 dataset=shard,
                 calibration_config=calibration_config,
-                onnx_model_path=model_path,
                 operators_to_quantize=qconfig.operators_to_quantize,
                 batch_size=optim_args.calibration_batch_size,
                 use_external_data_format=onnx_export_args.use_external_data_format,
@@ -657,7 +651,7 @@ def main():
         # Exclude the Add nodes followed by the Softmax operator
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
-    # fit the quantized model
+    # Apply quantization on the model
     quantizer.quantize(
         save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
@@ -666,24 +660,15 @@ def main():
         use_external_data_format=onnx_export_args.use_external_data_format,
     )
 
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR fit and quantization
-    ort_config = ORTConfig(
-        opset=onnx_config.default_onnx_opset,
-        quantization=qconfig,
-        use_external_data_format=onnx_export_args.use_external_data_format,
-    )
-    # Save the configuration
-    ort_config.save_pretrained(training_args.output_dir)
-
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
         ort_model = ORTModel(
             Path(training_args.output_dir) / "model_quantized.onnx",
-            onnx_config,
-            execution_provider=model_args.execution_provider,
+            execution_provider=optim_args.execution_provider,
             compute_metrics=compute_metrics,
+            label_names=["start_positions", "end_positions"],
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         predictions = post_processing_function(eval_examples, eval_dataset, outputs.predictions)
@@ -699,8 +684,8 @@ def main():
 
         ort_model = ORTModel(
             Path(training_args.output_dir) / "model_quantized.onnx",
-            onnx_config,
-            execution_provider=model_args.execution_provider,
+            execution_provider=optim_args.execution_provider,
+            label_names=["start_positions", "end_positions"],
         )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)

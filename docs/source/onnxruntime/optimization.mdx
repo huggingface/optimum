@@ -14,6 +14,101 @@ specific language governing permissions and limitations under the License.
 
 🤗 Optimum provides an `optimum.onnxruntime` package that enables you to apply graph optimization on many model hosted on the 🤗 hub using the [ONNX Runtime](https://github.com/microsoft/onnxruntime/tree/master/onnxruntime/python/tools/transformers) model optimization tool.
 
+
+## Creating an `ORTOptimizer`
+
+The `ORTOptimizer` class is used to optimize your ONNX model. The class can be initialized using the `from_pretrained()` method, which supports different checkpoint formats.
+
+1. Using an already initialized `ORTModelForXXX` class.
+
+```python
+>>> from optimum.onnxruntime import ORTOptimizer, ORTModelForTextClassification
+
+# Loading ONNX Model from the Hub
+>>> model = ORTModelForTextClassification.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
+
+# Create an optimizer from an ORTModelForXXX
+>>> optimizer = ORTOptimizer.from_pretrained(model)
+```
+
+2. Using a local ONNX model from a directory.
+
+```python
+>>> from optimum.onnxruntime import ORTOptimizer
+
+# This assumes a model.onnx exists in path/to/model
+>>> optimizer = ORTOptimizer.from_pretrained("path/to/model")
+```
+
+
+## Optimization examples
+
+Below you will find an easy end-to-end example on how to optimize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
+
+```python
+>>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSequenceClassification
+>>> from optimum.onnxruntime.configuration import OptimizationConfig
+
+>>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> save_dir = "/tmp/outputs"
+
+# Load a PyTorch model and export it to the ONNX format
+>>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+
+# Create the optimizer
+>>> optimizer = ORTOptimizer.from_pretrained(model)
+
+# Define the optimization strategy by creating the appropriate configuration
+>>> optimization_config = OptimizationConfig(
+    optimization_level=2,
+    optimize_with_onnxruntime_only=False,
+    optimize_for_gpu=False,
+)
+
+# Optimize the model
+>>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
+```
+
+
+Below you will find an easy end-to-end example on how to optimize a Seq2Seq model [sshleifer/distilbart-cnn-12-6"](https://huggingface.co/sshleifer/distilbart-cnn-12-6).
+
+```python
+>>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSeq2SeqLM
+>>> from optimum.onnxruntime.configuration import OptimizationConfig
+>>> from transformers import AutoTokenizer
+
+>>> model_id = "sshleifer/distilbart-cnn-12-6"
+>>> save_dir = "/tmp/outputs"
+
+# Load a PyTorch model and export it to the ONNX format
+>>> model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+
+# Create the optimizer
+>>> optimizer = ORTOptimizer.from_pretrained(model)
+
+# Define the optimization strategy by creating the appropriate configuration
+>>> optimization_config = OptimizationConfig(
+    optimization_level=2,
+    optimize_with_onnxruntime_only=False,
+    optimize_for_gpu=False,
+)
+
+# Optimize the model
+>>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
+
+# Load the resulting optimized model
+>>> optimized_model = ORTModelForSeq2SeqLM.from_pretrained(
+    save_dir,
+    encoder_file_name="encoder_model_optimized.onnx",
+    decoder_file_name="decoder_model_optimized.onnx",
+    decoder_file_with_past_name="decoder_with_past_model_optimized.onnx",
+)
+>>> tokenizer = AutoTokenizer.from_pretrained(model_id)
+>>> tokens = tokenizer("This is a sample input", return_tensors="pt")
+>>> outputs = optimized_model.generate(**tokens)
+```
+
+
 ## ORTOptimizer
 
 [[autodoc]] onnxruntime.optimization.ORTOptimizer

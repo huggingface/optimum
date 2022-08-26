@@ -26,7 +26,7 @@ from onnxruntime.quantization import CalibrationDataReader, QuantFormat, Quantiz
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
-from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, QuantizationConfig
+from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
@@ -287,7 +287,7 @@ class ORTQuantizer(OptimumQuantizer):
         """
         use_qdq = quantization_config.is_static and quantization_config.format == QuantFormat.QDQ
         os.makedirs(save_dir, exist_ok=True)
-        save_dir = Path(save_dir).joinpath(f"{self.onnx_model_path.stem}_{file_suffix}.onnx")
+        quantized_model_path = Path(save_dir).joinpath(f"{self.onnx_model_path.stem}_{file_suffix}.onnx")
 
         if not quantization_config.is_static:
             if quantization_config.mode != QuantizationMode.IntegerOps:
@@ -344,7 +344,11 @@ class ORTQuantizer(OptimumQuantizer):
         quantizer.quantize_model()
 
         LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
-        quantizer.model.save_model_to_file(Path(save_dir).as_posix(), use_external_data_format)
+        quantizer.model.save_model_to_file(quantized_model_path.as_posix(), use_external_data_format)
+
+        # Create and save the configuration summarizing all the parameters related to quantization
+        ort_config = ORTConfig(quantization=quantization_config, use_external_data_format=use_external_data_format)
+        ort_config.save_pretrained(save_dir)
 
         return Path(save_dir)
 
