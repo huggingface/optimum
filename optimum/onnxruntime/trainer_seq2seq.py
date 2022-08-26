@@ -359,6 +359,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         opset: Optional[int] = None,
         device: str = "cpu",
         with_loss: bool = True,
+        decoders_only: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -401,14 +402,15 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         # transformers >= 4.21.0 is required to export with specified device
         check_min_version("4.21.0")
         # Export the encoder
-        _ = export(
-            preprocessor=self.tokenizer,
-            model=encoder,
-            config=onnx_config_encoder,
-            opset=opset,
-            output=Path(save_dir).joinpath(ONNX_ENCODER_NAME),
-            device=device,
-        )
+        if not decoders_only:
+            _ = export(
+                preprocessor=self.tokenizer,
+                model=encoder,
+                config=onnx_config_encoder,
+                opset=opset,
+                output=Path(save_dir).joinpath(ONNX_ENCODER_NAME),
+                device=device,
+            )
         # Export the decoder without the past key values
         export(
             preprocessor=self.tokenizer,
