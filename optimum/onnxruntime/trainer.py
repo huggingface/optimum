@@ -21,7 +21,7 @@ import sys
 import time
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from packaging.version import parse
 from tqdm.auto import tqdm
@@ -89,10 +89,18 @@ from transformers.trainer_utils import (
 from transformers.training_args import TrainingArguments
 from transformers.utils import check_min_version, logging
 
-import onnxruntime
-
-from ..pipelines import SUPPORTED_TASKS
-from .modeling_ort import ORTModel, ORTModelForCustomTasks
+from .modeling_ort import (
+    ORTModel,
+    ORTModelForCausalLM,
+    ORTModelForCustomTasks,
+    ORTModelForFeatureExtraction,
+    ORTModelForImageClassification,
+    ORTModelForMultipleChoice,
+    ORTModelForQuestionAnswering,
+    ORTModelForSequenceClassification,
+    ORTModelForTokenClassification,
+)
+from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .training_args import ORTOptimizerNames
 from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
 
@@ -103,10 +111,8 @@ if is_apex_available():
 if is_fairscale_available():
     dep_version_check("fairscale")
     import fairscale
-    from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.optim import OSS
-    from fairscale.optim.grad_scaler import ShardedGradScaler
 
 if TYPE_CHECKING:
     import optuna
@@ -119,6 +125,29 @@ TRAINER_STATE_NAME = "trainer_state.json"
 OPTIMIZER_NAME = "optimizer.pt"
 SCHEDULER_NAME = "scheduler.pt"
 SCALER_NAME = "scaler.pt"
+
+
+class ORTFeaturesManager:
+    _TASKS_TO_ORTMODELS = {
+        "default": ORTModelForFeatureExtraction,
+        "question-answering": ORTModelForQuestionAnswering,
+        "sequence-classification": ORTModelForSequenceClassification,
+        "token-classification": ORTModelForTokenClassification,
+        "multiple-choice": ORTModelForMultipleChoice,
+        "causal-lm": ORTModelForCausalLM,
+        "image-classification": ORTModelForImageClassification,
+        "seq2seq-lm": ORTModelForSeq2SeqLM,
+    }
+
+    SUPPORTED_FEATURES = _TASKS_TO_ORTMODELS.keys()
+
+    @staticmethod
+    def get_model_class_for_feature(feature: str) -> Type:
+        """
+        Gets the subclass of `ORTModel` associated with the feature.
+        """
+
+        return ORTFeaturesManager._TASKS_TO_ORTMODELS[feature]
 
 
 class ORTTrainer(Trainer):
@@ -785,7 +814,15 @@ class ORTTrainer(Trainer):
                 export_device = "cpu"
 
             with_loss = has_labels and not self.label_smoother
-            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+            if self.feature == "seq2seq-lm":
+                decoders_only = False
+                if self.onnx_model_path:
+                    # Only need to export decoders if the models have been exported before.
+                    decoders_only = True
+                self._export(onnx_model_path, with_loss=with_loss, device=export_device, decoders_only=decoders_only)
+            else:
+                self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
@@ -793,12 +830,14 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if self.exported_with_loss or self.feature not in SUPPORTED_TASKS.keys():
-            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference
-            ort_model_cls = ORTModelForCustomTasks
-        else:
+        if self.feature == "seq2seq-lm" or (
+            not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
+        ):
             # Exported with standard outputs, use specific ORTModels
-            ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+            ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
+        else:
+            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference(except for "seq2seq-lm").
+            ort_model_cls = ORTModelForCustomTasks
 
         model_id, file_name = os.path.split(self.onnx_model_path)
         self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
@@ -1020,12 +1059,18 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if self.exported_with_loss or self.feature not in SUPPORTED_TASKS.keys():
-            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference
-            ort_model_cls = ORTModelForCustomTasks
-        else:
+        if self.feature == "seq2seq-lm" or (
+            not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
+        ):
             # Exported with standard outputs, use specific ORTModels
-            ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+            ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
+            print(f"The feature is {self.feature}")
+            print(f"The ort class is {ort_model_cls}")
+        else:
+            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference(except for "seq2seq-lm").
+            ort_model_cls = ORTModelForCustomTasks
+            print(f"The feature is {self.feature}")
+            print(f"The ort class is {ort_model_cls}")
 
         model_id, file_name = os.path.split(self.onnx_model_path)
         self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)

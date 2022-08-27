@@ -23,7 +23,7 @@ import numpy as np
 import torch
 from packaging import version
 from torch import nn
-from torch.utils.data.dataset import Dataset
+from torch.utils.data import DataLoader, Dataset, RandomSampler
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.onnx import export
@@ -35,6 +35,7 @@ import onnxruntime
 
 from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
 from ..onnx.modeling_seq2seq import _DecoderWithLMhead
+from .modeling_ort import ORTModel
 from .trainer import ORTTrainer
 from .utils import (
     ONNX_DECODER_NAME,
@@ -58,43 +59,45 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         eval_dataset: Optional[Dataset] = None,
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
-        max_length: Optional[int] = None,
-        num_beams: Optional[int] = None,
         inference_with_ort: bool = False,
+        **gen_kwargs
     ) -> Dict[str, float]:
         """
         Run evaluation and returns metrics.
         The calling script will be responsible for providing a method to compute metrics, as they are task-dependent
-        (pass it to the init :obj:`compute_metrics` argument).
+        (pass it to the init `compute_metrics` argument).
         You can also subclass and override this method to inject custom behavior.
         Args:
-            eval_dataset (:obj:`Dataset`, `optional`):
-                Pass a dataset if you wish to override :obj:`self.eval_dataset`. If it is an :obj:`datasets.Dataset`,
-                columns not accepted by the ``model.forward()`` method are automatically removed. It must implement the
-                :obj:`__len__` method.
-            ignore_keys (:obj:`List[str]`, `optional`):
+            eval_dataset (`Dataset`, *optional*):
+                Pass a dataset if you wish to override `self.eval_dataset`. If it is an [`~datasets.Dataset`], columns
+                not accepted by the `model.forward()` method are automatically removed. It must implement the `__len__`
+                method.
+            ignore_keys (`List[str]`, *optional*):
                 A list of keys in the output of your model (if it is a dictionary) that should be ignored when
                 gathering predictions.
-            metric_key_prefix (:obj:`str`, `optional`, defaults to :obj:`"eval"`):
+            metric_key_prefix (`str`, *optional*, defaults to `"eval"`):
                 An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
-                "eval_bleu" if the prefix is ``"eval"`` (default)
-            max_length (:obj:`int`, `optional`):
+                "eval_bleu" if the prefix is `"eval"` (default)
+            max_length (`int`, *optional*):
                 The maximum target length to use when predicting with the generate method.
-            num_beams (:obj:`int`, `optional`):
+            num_beams (`int`, *optional*):
                 Number of beams for beam search that will be used when predicting with the generate method. 1 means no
                 beam search.
-            inference_with_ort (:obj:`bool`, `optional`):
-                Whether enable inference within ONNX Runtime backend. The inference will be done within PyTorch by default.
+            gen_kwargs:
+                Additional `generate` specific kwargs.
         Returns:
-            A dictionary containing the evaluation loss(only within PyTorch) and the potential metrics computed from the predictions. The
+            A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
             dictionary also contains the epoch number which comes from the training state.
         """
-        self._max_length = max_length
-        self._num_beams = num_beams
-        if self.args.predict_with_generate and inference_with_ort:
-            raise NotImplementedError(
-                "Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
-            )
+        gen_kwargs = gen_kwargs.copy()
+        gen_kwargs["max_length"] = (
+            gen_kwargs["max_length"] if gen_kwargs.get("max_length") is not None else self.args.generation_max_length
+        )
+        gen_kwargs["num_beams"] = (
+            gen_kwargs["num_beams"] if gen_kwargs.get("num_beams") is not None else self.args.generation_num_beams
+        )
+        self._gen_kwargs = gen_kwargs
+
         return super().evaluate(
             eval_dataset,
             ignore_keys=ignore_keys,
@@ -114,40 +117,37 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         """
         Run prediction and returns predictions and potential metrics.
         Depending on the dataset and your use case, your test dataset may contain labels. In that case, this method
-        will also return metrics, like in :obj:`evaluate()`.
+        will also return metrics, like in `evaluate()`.
         Args:
-            test_dataset (:obj:`Dataset`):
-                Dataset to run the predictions on. If it is an :obj:`datasets.Dataset`, columns not accepted by the
-                ``model.forward()`` method are automatically removed. Has to implement the method :obj:`__len__`
-            ignore_keys (:obj:`List[str]`, `optional`):
+            test_dataset (`Dataset`):
+                Dataset to run the predictions on. If it is a [`~datasets.Dataset`], columns not accepted by the
+                `model.forward()` method are automatically removed. Has to implement the method `__len__`
+            ignore_keys (`List[str]`, *optional*):
                 A list of keys in the output of your model (if it is a dictionary) that should be ignored when
                 gathering predictions.
-            metric_key_prefix (:obj:`str`, `optional`, defaults to :obj:`"eval"`):
+            metric_key_prefix (`str`, *optional*, defaults to `"eval"`):
                 An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
-                "eval_bleu" if the prefix is ``"eval"`` (default)
-            max_length (:obj:`int`, `optional`):
+                "eval_bleu" if the prefix is `"eval"` (default)
+            max_length (`int`, *optional*):
                 The maximum target length to use when predicting with the generate method.
-            num_beams (:obj:`int`, `optional`):
+            num_beams (`int`, *optional*):
                 Number of beams for beam search that will be used when predicting with the generate method. 1 means no
                 beam search.
-            inference_with_ort (:obj:`bool`, `optional`):
-                Whether enable inference within ONNX Runtime backend. The inference will be done within PyTorch by default.
-        .. note::
-            If your predictions or labels have different sequence lengths (for instance because you're doing dynamic
-            padding in a token classification task) the predictions will be padded (on the right) to allow for
-            concatenation into one array. The padding index is -100.
-        Returns: `NamedTuple` A namedtuple with the following keys:
-            - predictions (:obj:`np.ndarray`): The predictions on :obj:`test_dataset`.
-            - label_ids (:obj:`np.ndarray`, `optional`): The labels (if the dataset contained some).
-            - metrics (:obj:`Dict[str, float]`, `optional`): The potential dictionary of metrics (if the dataset
-              contained labels).
+            gen_kwargs:
+                Additional `generate` specific kwargs.
+        <Tip>
+        If your predictions or labels have different sequence lengths (for instance because you're doing dynamic
+        padding in a token classification task) the predictions will be padded (on the right) to allow for
+        concatenation into one array. The padding index is -100.
+        </Tip>
+        Returns: *NamedTuple* A namedtuple with the following keys:
+            - predictions (`np.ndarray`): The predictions on `test_dataset`.
+            - label_ids (`np.ndarray`, *optional*): The labels (if the dataset contained some).
+            - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
+              labels).
         """
         self._max_length = max_length
         self._num_beams = num_beams
-        if self.args.predict_with_generate and inference_with_ort:
-            raise NotImplementedError(
-                "Generate method is not available with prediction within ONNX Runtime. Remove `inference_with_ort` or `predict_with_generate`."
-            )
         return super().predict(
             test_dataset,
             ignore_keys=ignore_keys,
@@ -157,12 +157,11 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
     def prediction_step_ort(
         self,
-        model: nn.Module,
-        infer_sess: onnxruntime.InferenceSession,
+        model: ORTModel,
         inputs: Dict[str, Union[torch.Tensor, Any]],
         prediction_loss_only: bool,
         ignore_keys: Optional[List[str]] = None,
-    ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Perform an evaluation step on :obj:`model` using obj:`inputs`.
         Subclass and override to inject custom behavior.
@@ -184,12 +183,8 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
         if not self.args.predict_with_generate or prediction_loss_only:
             return super().prediction_step_ort(
-                model, infer_sess, inputs, prediction_loss_only=prediction_loss_only, ignore_keys=ignore_keys
+                model, inputs, prediction_loss_only=prediction_loss_only, ignore_keys=ignore_keys
             )
-
-        logger.warning(
-            "`predict_with_generate` is not available with ONNX Runtime inference for the moment. Evaluated with PyTorch backend instead."
-        )
 
         has_labels = "labels" in inputs
         inputs = self._prepare_inputs(inputs)
@@ -257,20 +252,16 @@ class ORTSeq2SeqTrainer(ORTTrainer):
     ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Perform an evaluation step on `model` using `inputs`.
-
         Subclass and override to inject custom behavior.
-
         Args:
             model (`nn.Module`):
                 The model to evaluate.
             inputs (`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.
-
                 The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
                 argument `labels`. Check your model's documentation for all accepted arguments.
             prediction_loss_only (`bool`):
                 Whether or not to return the loss only.
-
         Return:
             Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, logits and
             labels (each being optional).
@@ -285,11 +276,17 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         inputs = self._prepare_inputs(inputs)
 
         # XXX: adapt synced_gpus for fairscale as well
-        gen_kwargs = {
-            "max_length": self._max_length if self._max_length is not None else self.model.config.max_length,
-            "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
-            "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
-        }
+        gen_kwargs = self._gen_kwargs.copy()
+        gen_kwargs["max_length"] = (
+            gen_kwargs["max_length"] if gen_kwargs.get("max_length") is not None else self.model.config.max_length
+        )
+        gen_kwargs["num_beams"] = (
+            gen_kwargs["num_beams"] if gen_kwargs.get("num_beams") is not None else self.model.config.num_beams
+        )
+        default_synced_gpus = True if is_deepspeed_zero3_enabled() else False
+        gen_kwargs["synced_gpus"] = (
+            gen_kwargs["synced_gpus"] if gen_kwargs.get("synced_gpus") is not None else default_synced_gpus
+        )
 
         if "attention_mask" in inputs:
             gen_kwargs["attention_mask"] = inputs.get("attention_mask", None)
