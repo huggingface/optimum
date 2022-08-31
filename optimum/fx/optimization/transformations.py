@@ -22,7 +22,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List
 
 import torch
-from transformers.utils.fx import _gen_constructor_wrapper
+from transformers.utils.fx import _patch_fn_for_proxy
 
 
 if TYPE_CHECKING:
@@ -386,7 +386,7 @@ class FuseBiasInLinear(ReversibleTransformation):
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        torch_ones = _gen_constructor_wrapper(torch.ones)[0]
+        torch_ones = _patch_fn_for_proxy(torch.ones)
 
         def insert_concat(linear_input):
             shape = linear_input.shape[:-1] + (1,)
@@ -499,6 +499,17 @@ class LintAndRecompile(ReversibleTransformation):
         graph_module.graph.lint()
         graph_module.recompile()
         return graph_module
+
+class CollapseTiedWeights(ReversibleTransformation):
+    """
+    Transformation in order to have single occurence of all tied weights
+    """
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        raise NotImplementedError
+    def reverse(self, graph_module: "GraphModule") -> "GraphModule":
+        raise NotImplementedError
 
 
 def compose(*args: Transformation, inplace: bool = True) -> Transformation:
