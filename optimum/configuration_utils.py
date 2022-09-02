@@ -22,7 +22,9 @@ from typing import Any, Dict, Optional, Tuple, Union
 from packaging import version
 from transformers import PretrainedConfig
 from transformers import __version__ as transformers_version
-from transformers.file_utils import cached_path, get_list_of_files, hf_bucket_url, is_offline_mode, is_remote_url
+from transformers.utils import is_offline_mode
+
+from huggingface_hub import hf_hub_download
 
 from .utils import logging
 from .version import __version__
@@ -85,47 +87,24 @@ class BaseConfig(PretrainedConfig):
             logger.info(f"Configuration pushed to the hub in this commit: {url}")
 
     @classmethod
-    def get_configuration_file(
-        cls,
-        path_or_repo: Union[str, os.PathLike],
-        revision: Optional[str] = None,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        local_files_only: bool = False,
-    ) -> str:
+    def get_configuration_file(cls, configuration_files: List[str]) -> str:
         """
         Get the configuration file to use for this version of transformers.
-
         Args:
-            path_or_repo (:obj:`str` or :obj:`os.PathLike`):
-                Can be either the id of a repo on huggingface.co or a path to a `directory`.
-            revision(:obj:`str`, `optional`, defaults to :obj:`"main"`):
-                The specific model version to use. It can be a branch name, a tag name, or a commit id, since we use a
-                git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
-                identifier allowed by git.
-            use_auth_token (:obj:`str` or `bool`, `optional`):
-                The token to use as HTTP bearer authorization for remote files. If :obj:`True`, will use the token
-                generated when running :obj:`transformers-cli login` (stored in :obj:`~/.huggingface`).
-            local_files_only (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether to only rely on local files and not to attempt to download any files.
-
+            configuration_files (`List[str]`): The list of available configuration files.
         Returns:
-            :obj:`str`: The configuration file to use.
+            `str`: The configuration file to use.
         """
-        # Inspect all files from the repo/folder.
-        all_files = get_list_of_files(
-            path_or_repo, revision=revision, use_auth_token=use_auth_token, local_files_only=local_files_only
-        )
         configuration_files_map = {}
         _re_configuration_file = cls._re_configuration_file()
-        for file_name in all_files:
+        for file_name in configuration_files:
             search = _re_configuration_file.search(file_name)
             if search is not None:
                 v = search.groups()[0]
                 configuration_files_map[v] = file_name
         available_versions = sorted(configuration_files_map.keys())
 
-        # Defaults to FULL_CONFIGURATION_FILE and then try to look at some newer versions.
-        configuration_file = cls.FULL_CONFIGURATION_FILE
+        configuration_file = cls.CONFIG_NAME
         optimum_version = version.parse(__version__)
         for v in available_versions:
             if version.parse(v) <= optimum_version:
@@ -141,12 +120,38 @@ class BaseConfig(PretrainedConfig):
         cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
+        From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
+        [`PretrainedConfig`] using `from_dict`.
+        Parameters:
+            pretrained_model_name_or_path (`str` or `os.PathLike`):
+                The identifier of the pre-trained checkpoint from which we want the dictionary of parameters.
+        Returns:
+            `Tuple[Dict, Dict]`: The dictionary(ies) that will be used to instantiate the configuration object.
+        """
+        original_kwargs = copy.deepcopy(kwargs)
+        # Get config dict associated with the base config file
+        config_dict, kwargs = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+        if "_commit_hash" in config_dict:
+            original_kwargs["_commit_hash"] = config_dict["_commit_hash"]
+
+        # That config file may point us toward another config file to use.
+        if "configuration_files" in config_dict:
+            configuration_file = cls.get_configuration_file(config_dict["configuration_files"])
+            config_dict, kwargs = cls._get_config_dict(
+                pretrained_model_name_or_path, _configuration_file=configuration_file, **original_kwargs
+            )
+
+        return config_dict, kwargs
+
+    @classmethod
+    def _get_config_dict(
+        cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """
         From a ``pretrained_model_name_or_path``, resolve to a dictionary of parameters, to be used for instantiating a
         :class:`~transformers.PretrainedConfig` using ``from_dict``.
 
-
-
-        Parameters:
+        Args:
             pretrained_model_name_or_path (:obj:`str` or :obj:`os.PathLike`):
                 The identifier of the pre-trained checkpoint from which we want the dictionary of parameters.
 
@@ -173,64 +178,55 @@ class BaseConfig(PretrainedConfig):
             local_files_only = True
 
         pretrained_model_name_or_path = str(pretrained_model_name_or_path)
-        if os.path.isfile(pretrained_model_name_or_path) or is_remote_url(pretrained_model_name_or_path):
-            config_file = pretrained_model_name_or_path
-        else:
-            configuration_file = cls.get_configuration_file(
-                pretrained_model_name_or_path,
-                revision=revision,
-                use_auth_token=use_auth_token,
-                local_files_only=local_files_only,
-            )
+        configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
+        is_local = os.path.isdir(pretrained_model_name_or_path)
 
-            if os.path.isdir(pretrained_model_name_or_path):
-                config_file = os.path.join(pretrained_model_name_or_path, configuration_file)
-            else:
-                config_file = hf_bucket_url(
-                    pretrained_model_name_or_path, filename=configuration_file, revision=revision, mirror=None
+        if os.path.isfile(pretrained_model_name_or_path):
+            resolved_config_file = pretrained_model_name_or_path
+            is_local = True
+        elif os.path.isdir(pretrained_model_name_or_path):
+            resolved_config_file = os.path.join(pretrained_model_name_or_path, configuration_file)
+            if not os.path.isfile(resolved_config_file):
+                raise EnvironmentError(
+                    f"Could not locate {configuration_file} inside {pretrained_model_name_or_path}."
+                )
+        else:
+            try:
+                resolved_config_file = hf_hub_download(
+                    repo_id=pretrained_model_name_or_path,
+                    filename=configuration_file,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    resume_download=resume_download,
+                    proxies=proxies,
+                    use_auth_token=use_auth_token,
+                    local_files_only=local_files_only,
+                )
+            except EnvironmentError:
+                # Raise any environment error raise by `cached_file`. It will have a helpful error message adapted to
+                # the original exception.
+                raise
+            except Exception:
+                # For any other exception, we throw a generic error.
+                raise EnvironmentError(
+                    f"Can't load the configuration of '{pretrained_model_name_or_path}'. If you were trying to load it "
+                    "from 'https://huggingface.co/models', make sure you don't have a local directory with the same "
+                    f"name. Otherwise, make sure '{pretrained_model_name_or_path}' is the correct path to a directory "
+                    f"containing a {configuration_file} file"
                 )
 
         try:
-            # Load from URL or cache if already cached
-            resolved_config_file = cached_path(
-                config_file,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                proxies=proxies,
-                resume_download=resume_download,
-                local_files_only=local_files_only,
-                use_auth_token=use_auth_token,
-                user_agent=user_agent,
-            )
             # Load config dict
             config_dict = cls._dict_from_json_file(resolved_config_file)
-
-        except EnvironmentError as err:
-            logger.error(err)
-            msg = (
-                f"Can't load config for '{pretrained_model_name_or_path}'. Make sure that:\n\n"
-                f"- '{pretrained_model_name_or_path}' is a correct model identifier listed on 'https://huggingface.co/models'\n"
-                f"  (make sure '{pretrained_model_name_or_path}' is not a path to a local directory with something else, in that case)\n\n"
-                f"- or '{pretrained_model_name_or_path}' is the correct path to a directory containing a {cls.CONFIG_NAME} file\n\n"
-            )
-
-            if revision is not None:
-                msg += f"- or '{revision}' is a valid git identifier (branch name, a tag name, or a commit id) that exists for this model name as listed on its model page on 'https://huggingface.co/models'\n\n"
-
-            raise EnvironmentError(msg)
-
         except (json.JSONDecodeError, UnicodeDecodeError):
-            msg = (
-                f"Couldn't reach server at '{config_file}' to download configuration file or "
-                "configuration file is not a valid JSON file. "
-                f"Please check network or file content here: {resolved_config_file}."
+            raise EnvironmentError(
+                f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file."
             )
-            raise EnvironmentError(msg)
-
-        if resolved_config_file == config_file:
-            logger.info(f"loading configuration file {config_file}")
+        if is_local:
+            logger.info(f"Loading configuration file {resolved_config_file}")
         else:
-            logger.info(f"loading configuration file {config_file} from cache at {resolved_config_file}")
+            logger.info(f"Loading configuration file from cache at {resolved_config_file}")
 
         return config_dict, kwargs
 
