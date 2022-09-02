@@ -17,7 +17,7 @@ import copy
 import json
 import os
 import re
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from packaging import version
 from transformers import PretrainedConfig
