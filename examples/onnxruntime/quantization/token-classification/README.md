@@ -21,13 +21,13 @@ The script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examp
 allows us to apply different quantization approaches (such as dynamic and static quantization) as well as graph 
 optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for token classification tasks. 
 
-The following example applies post-training static quantization on a DistilBERT fine-tuned on the CoNLL-2003 task
+The following example applies post-training dynamic quantization on a DistilBERT fine-tuned on the CoNLL-2003 task
 
 ```bash
 python run_ner.py \
     --model_name_or_path elastic/distilbert-base-uncased-finetuned-conll03-english \
     --dataset_name conll2003 \
-    --quantization_approach static \
+    --quantization_approach dynamic \
     --do_eval \
     --output_dir /tmp/quantized_distilbert_conll2003
 ```

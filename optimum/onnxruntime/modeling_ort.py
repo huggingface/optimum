@@ -210,9 +210,12 @@ class ORTModel(OptimizedModel):
             file_name(`str`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
                 repository or directory.
+            local_files_only(`bool`, *optional*, defaults to `False`):
+                Whether or not to only look at local files (i.e., do not try to download the model).
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
+        local_files_only = kwargs.pop("local_files_only", False)
         config_dict = kwargs.pop("config", {})
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
         # load model from local directory
@@ -231,6 +234,7 @@ class ORTModel(OptimizedModel):
                 revision=revision,
                 cache_dir=cache_dir,
                 force_download=force_download,
+                local_files_only=local_files_only,
             )
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
@@ -270,7 +274,6 @@ class ORTModel(OptimizedModel):
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
-
         # create local save dir in cache dir
         save_dir = Path(save_dir).joinpath(model_id)
         save_dir.mkdir(parents=True, exist_ok=True)
