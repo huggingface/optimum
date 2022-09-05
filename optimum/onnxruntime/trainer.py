@@ -814,14 +814,7 @@ class ORTTrainer(Trainer):
                 export_device = "cpu"
 
             with_loss = has_labels and not self.label_smoother
-            if self.feature == "seq2seq-lm":
-                decoders_only = False
-                if self.onnx_model_path:
-                    # Only need to export decoders if the models have been exported before.
-                    decoders_only = True
-                self._export(onnx_model_path, with_loss=with_loss, device=export_device, decoders_only=decoders_only)
-            else:
-                self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
@@ -830,13 +823,10 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if self.feature == "seq2seq-lm" or (
-            not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
-        ):
+        if not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
             # Exported with standard outputs, use specific ORTModels
             ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
         else:
-            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference(except for "seq2seq-lm").
             ort_model_cls = ORTModelForCustomTasks
 
         model_id, file_name = os.path.split(self.onnx_model_path)
@@ -1047,30 +1037,21 @@ class ORTTrainer(Trainer):
             else:
                 export_device = "cpu"
 
-            if has_labels:
-                self._export(onnx_model_path, device=export_device)
-                self.exported_with_loss = True
-            else:
-                self._export(onnx_model_path, with_loss=False, device=export_device)
-                self.exported_with_loss = False
+            with_loss = has_labels and not self.label_smoother
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+
+            self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
             fix_atenops_to_gather(self.onnx_model_path)
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if self.feature == "seq2seq-lm" or (
-            not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
-        ):
+        if not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
             # Exported with standard outputs, use specific ORTModels
             ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
-            print(f"The feature is {self.feature}")
-            print(f"The ort class is {ort_model_cls}")
         else:
-            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference(except for "seq2seq-lm").
             ort_model_cls = ORTModelForCustomTasks
-            print(f"The feature is {self.feature}")
-            print(f"The ort class is {ort_model_cls}")
 
         model_id, file_name = os.path.split(self.onnx_model_path)
         self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)

@@ -28,14 +28,30 @@ from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
-from transformers.trainer_utils import PredictionOutput
+from transformers.trainer_pt_utils import (
+    DistributedTensorGatherer,
+    IterableDatasetShard,
+    SequentialDistributedSampler,
+    find_batch_size,
+    nested_concat,
+    nested_numpify,
+    nested_truncate,
+)
+from transformers.trainer_utils import (
+    EvalLoopOutput,
+    EvalPrediction,
+    PredictionOutput,
+    denumpify_detensorize,
+    has_length,
+)
 from transformers.utils import check_min_version, logging
 
 import onnxruntime
 
 from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
 from ..onnx.modeling_seq2seq import _DecoderWithLMhead
-from .modeling_ort import ORTModel
+from .modeling_ort import ORTModel, ORTModelForCustomTasks
+from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .trainer import ORTTrainer
 from .utils import (
     ONNX_DECODER_NAME,
@@ -154,6 +170,388 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             metric_key_prefix=metric_key_prefix,
             inference_with_ort=inference_with_ort,
         )
+
+    def evaluation_loop_ort(
+        self,
+        dataloader: DataLoader,
+        description: str,
+        prediction_loss_only: Optional[bool] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+    ) -> EvalLoopOutput:
+
+        """
+        Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
+        Works both with or without labels.
+        """
+        logger.info("[INFO] ONNX Runtime inference starts...")
+        self.ort_model = None
+
+        # Check if there are labels in the dataset
+        dummy_inputs = next(iter(dataloader))
+        has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
+
+        # Export ONNX models
+        if self.onnx_model_path and (has_labels == self.exported_with_loss):
+            logger.info("[INFO] Inference with given ONNX model")
+            self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            # Fix exported ONNX models
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
+        else:
+            onnx_model_path = Path(self.args.output_dir)
+            logger.info("[INFO] Exporting the model to ONNX...")
+            if self.args.deepspeed and self.args.fp16:
+                export_device = "cuda"
+            else:
+                export_device = "cpu"
+
+            with_loss = has_labels and not self.label_smoother
+            # Only need to export decoders if the models have been exported before.
+            decoders_only = True if self.onnx_model_path else False
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device, decoders_only=decoders_only)
+
+            self.exported_with_loss = with_loss
+            self.onnx_model_path = onnx_model_path.as_posix()
+            # Fix exported ONNX models
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
+            logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
+
+        # Load ORT model
+        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path)
+
+        args = self.args
+
+        prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
+
+        batch_size = dataloader.batch_size
+
+        logger.info(f"***** Running {description} *****")
+        if has_length(dataloader):
+            logger.info(f"  Num examples = {self.num_examples(dataloader)}")
+        else:
+            logger.info("  Num examples: Unknown")
+        logger.info(f"  Batch size = {batch_size}")
+
+        self.callback_handler.eval_dataloader = dataloader
+        # Do this before wrapping.
+        eval_dataset = getattr(dataloader, "dataset", None)
+
+        if args.past_index >= 0:
+            self._past = None
+
+        # Initialize containers
+        # losses/preds/labels on GPU/TPU (accumulated for eval_accumulation_steps)
+        losses_host = None
+        preds_host = None
+        labels_host = None
+        inputs_host = None
+
+        # losses/preds/labels on CPU (final containers)
+        all_losses = None
+        all_preds = None
+        all_labels = None
+        all_inputs = None
+        # Will be useful when we have an iterable dataset so don't know its length.
+
+        observed_num_examples = 0
+        # Main evaluation loop
+        for step, inputs in enumerate(dataloader):
+            # Update the observed num examples
+            observed_batch_size = find_batch_size(inputs)
+            if observed_batch_size is not None:
+                observed_num_examples += observed_batch_size
+                # For batch samplers, batch_size is not known by the dataloader in advance.
+                if batch_size is None:
+                    batch_size = observed_batch_size
+
+            # Prediction step(send also onnxruntime inference session)
+            loss, logits, labels = self.prediction_step_ort(
+                self.ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+            )
+            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
+
+            # Update containers on host
+            if loss is not None:
+                loss = loss.to(args.device)
+                losses = self._nested_gather(loss.repeat(batch_size))
+                losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+            if labels is not None:
+                labels = labels.to(args.device)
+                labels = self._pad_across_processes(labels)
+                labels = self._nested_gather(labels)
+                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+            if inputs_decode is not None:
+                inputs_decode = self._pad_across_processes(inputs_decode)
+                inputs_decode = self._nested_gather(inputs_decode)
+                inputs_host = (
+                    inputs_decode
+                    if inputs_host is None
+                    else nested_concat(inputs_host, inputs_decode, padding_index=-100)
+                )
+            if logits is not None:
+                logits = logits.to(args.device)
+                logits = self._pad_across_processes(logits)
+                logits = self._nested_gather(logits)
+                if self.preprocess_logits_for_metrics is not None:
+                    logits = self.preprocess_logits_for_metrics(logits, labels)
+                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+            self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
+
+            # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
+            if args.eval_accumulation_steps is not None and (step + 1) % args.eval_accumulation_steps == 0:
+                if losses_host is not None:
+                    losses = nested_numpify(losses_host)
+                    all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
+                if preds_host is not None:
+                    logits = nested_numpify(preds_host)
+                    all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
+                if inputs_host is not None:
+                    inputs_decode = nested_numpify(inputs_host)
+                    all_inputs = (
+                        inputs_decode
+                        if all_inputs is None
+                        else nested_concat(all_inputs, inputs_decode, padding_index=-100)
+                    )
+                if labels_host is not None:
+                    labels = nested_numpify(labels_host)
+                    all_labels = (
+                        labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+                    )
+
+                # Set back to None to begin a new accumulation
+                losses_host, preds_host, inputs_host, labels_host = None, None, None, None
+
+        if args.past_index and hasattr(self, "_past"):
+            # Clean the state at the end of the evaluation loop
+            delattr(self, "_past")
+
+        # Gather all remaining tensors and put them back on the CPU
+        if losses_host is not None:
+            losses = nested_numpify(losses_host)
+            all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
+        if preds_host is not None:
+            logits = nested_numpify(preds_host)
+            all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
+        if inputs_host is not None:
+            inputs_decode = nested_numpify(inputs_host)
+            all_inputs = (
+                inputs_decode if all_inputs is None else nested_concat(all_inputs, inputs_decode, padding_index=-100)
+            )
+        if labels_host is not None:
+            labels = nested_numpify(labels_host)
+            all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+
+        # Number of samples
+        if has_length(eval_dataset):
+            num_samples = len(eval_dataset)
+        # The instance check is weird and does not actually check for the type, but whether the dataset has the right
+        # methods. Therefore we need to make sure it also has the attribute.
+        elif isinstance(eval_dataset, IterableDatasetShard) and hasattr(eval_dataset, "num_examples"):
+            num_samples = eval_dataset.num_examples
+        else:
+            if has_length(dataloader):
+                num_samples = self.num_examples(dataloader)
+            else:  # both len(dataloader.dataset) and len(dataloader) fail
+                num_samples = observed_num_examples
+
+        # Number of losses has been rounded to a multiple of batch_size and in a distributed training, the number of
+        # samplers has been rounded to a multiple of batch_size, so we truncate.
+        if all_losses is not None:
+            all_losses = all_losses[:num_samples]
+        if all_preds is not None:
+            all_preds = nested_truncate(all_preds, num_samples)
+        if all_labels is not None:
+            all_labels = nested_truncate(all_labels, num_samples)
+        if all_inputs is not None:
+            all_inputs = nested_truncate(all_inputs, num_samples)
+
+        # Metrics!
+        if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
+            if args.include_inputs_for_metrics:
+                metrics = self.compute_metrics(
+                    EvalPrediction(predictions=all_preds, label_ids=all_labels, inputs=all_inputs)
+                )
+            else:
+                metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
+        else:
+            metrics = {}
+
+        # To be JSON-serializable, we need to remove numpy types or zero-d tensors
+        metrics = denumpify_detensorize(metrics)
+
+        if all_losses is not None:
+            metrics[f"{metric_key_prefix}_loss"] = all_losses.mean().item()
+
+        # Prefix all keys with metric_key_prefix + '_'
+        for key in list(metrics.keys()):
+            if not key.startswith(f"{metric_key_prefix}_"):
+                metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
+
+        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
+
+    def prediction_loop_ort(
+        self,
+        dataloader: DataLoader,
+        description: str,
+        prediction_loss_only: Optional[bool] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+    ) -> PredictionOutput:
+        """
+        Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
+        Works both with or without labels.
+        """
+        logger.info("[INFO] ONNX Runtime inference starts...")
+        self.ort_model = None
+
+        # Check if there are labels in the dataset
+        dummy_inputs = next(iter(dataloader))
+        has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
+
+        # Export ONNX models
+        if self.onnx_model_path and (has_labels == self.exported_with_loss):
+            logger.info("[INFO] Inference with given ONNX model")
+            self.onnx_model_path = Path(self.onnx_model_path).as_posix()
+            # Fix exported ONNX models
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
+        else:
+            onnx_model_path = Path(self.args.output_dir)
+            logger.info("[INFO] Exporting the model to ONNX...")
+            if self.args.deepspeed and self.args.fp16:
+                export_device = "cuda"
+            else:
+                export_device = "cpu"
+
+            with_loss = has_labels and not self.label_smoother
+            # Only need to export decoders if the models have been exported before.
+            decoders_only = True if self.onnx_model_path else False
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device, decoders_only=decoders_only)
+
+            self.exported_with_loss = with_loss
+            self.onnx_model_path = onnx_model_path.as_posix()
+            # Fix exported ONNX models
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
+            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
+            logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
+
+        # Load ORT model
+        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path)
+
+        args = self.args
+
+        if not has_length(dataloader):
+            raise ValueError("dataloader must implement a working __len__")
+
+        prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
+
+        batch_size = dataloader.batch_size
+        num_examples = self.num_examples(dataloader)
+        logger.info(f"***** Running {description} *****")
+        logger.info(f"  Num examples = {num_examples}")
+        logger.info(f"  Batch size = {batch_size}")
+        losses_host: torch.Tensor = None
+        preds_host: Union[torch.Tensor, List[torch.Tensor]] = None
+        labels_host: Union[torch.Tensor, List[torch.Tensor]] = None
+        inputs_host: Union[torch.Tensor, List[torch.Tensor]] = None
+
+        world_size = max(1, args.world_size)
+
+        eval_losses_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=batch_size)
+        if not prediction_loss_only:
+            # The actual number of eval_sample can be greater than num_examples in distributed settings (when we pass
+            # a batch size to the sampler)
+            make_multiple_of = None
+            if hasattr(dataloader, "sampler") and isinstance(dataloader.sampler, SequentialDistributedSampler):
+                make_multiple_of = dataloader.sampler.batch_size
+            preds_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+            labels_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+            inputs_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+
+        if args.past_index >= 0:
+            self._past = None
+
+        self.callback_handler.eval_dataloader = dataloader
+
+        for step, inputs in enumerate(dataloader):
+            loss, logits, labels = self.prediction_step_ort(
+                self.ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+            )
+            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
+
+            if loss is not None:
+                loss = loss.to(args.device)
+                losses = loss.repeat(batch_size)
+                losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+            if logits is not None:
+                logits = logits.to(args.device)
+                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+            if labels is not None:
+                labels = labels.to(args.device)
+                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+            if inputs_decode is not None:
+                inputs_host = (
+                    inputs_decode
+                    if inputs_host is None
+                    else nested_concat(inputs_host, inputs_decode, padding_index=-100)
+                )
+            self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
+
+            # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
+            if args.eval_accumulation_steps is not None and (step + 1) % args.eval_accumulation_steps == 0:
+                eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
+                if not prediction_loss_only:
+                    preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
+                    labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+                    inputs_gatherer.add_arrays(self._gather_and_numpify(inputs_host, "eval_inputs_ids"))
+
+                # Set back to None to begin a new accumulation
+                losses_host, preds_host, labels_host, inputs_host = None, None, None, None
+
+        if args.past_index and hasattr(self, "_past"):
+            # Clean the state at the end of the evaluation loop
+            delattr(self, "_past")
+
+        # Gather all remaining tensors and put them back on the CPU
+        eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
+        if not prediction_loss_only:
+            preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
+            labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+            inputs_gatherer.add_arrays(self._gather_and_numpify(inputs_host, "eval_inputs_ids"))
+
+        eval_loss = eval_losses_gatherer.finalize()
+        preds = preds_gatherer.finalize() if not prediction_loss_only else None
+        label_ids = labels_gatherer.finalize() if not prediction_loss_only else None
+        inputs_ids = inputs_gatherer.finalize() if not prediction_loss_only else None
+
+        if self.compute_metrics is not None and preds is not None and label_ids is not None:
+            if args.include_inputs_for_metrics:
+                metrics = self.compute_metrics(
+                    EvalPrediction(predictions=preds, label_ids=label_ids, inputs=inputs_ids)
+                )
+            else:
+                metrics = self.compute_metrics(EvalPrediction(predictions=preds, label_ids=label_ids))
+        else:
+            metrics = {}
+
+        # To be JSON-serializable, we need to remove numpy types or zero-d tensors
+        metrics = denumpify_detensorize(metrics)
+
+        if eval_loss is not None:
+            metrics[f"{metric_key_prefix}_loss"] = eval_loss.mean().item()
+
+        # Prefix all keys with metric_key_prefix + '_'
+        for key in list(metrics.keys()):
+            if not key.startswith(f"{metric_key_prefix}_"):
+                metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
+
+        return PredictionOutput(predictions=preds, label_ids=label_ids, metrics=metrics)
 
     def prediction_step_ort(
         self,
@@ -360,7 +758,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         **kwargs,
     ) -> None:
         """
-        Load and export a model to an ONNX Intermediate Representation (IR).
+        Load and export a sequence-to-sequence model to ONNX models(encoder and decoder(s)).
 
         Args:
             save_dir (`str` or `Path`):
