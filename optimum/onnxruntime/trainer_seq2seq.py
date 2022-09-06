@@ -105,6 +105,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
             dictionary also contains the epoch number which comes from the training state.
         """
+
         gen_kwargs = gen_kwargs.copy()
         gen_kwargs["max_length"] = (
             gen_kwargs["max_length"] if gen_kwargs.get("max_length") is not None else self.args.generation_max_length
@@ -126,9 +127,8 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         test_dataset: Dataset,
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
-        max_length: Optional[int] = None,
-        num_beams: Optional[int] = None,
         inference_with_ort: bool = False,
+        **gen_kwargs
     ) -> PredictionOutput:
         """
         Run prediction and returns predictions and potential metrics.
@@ -162,8 +162,16 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
               labels).
         """
-        self._max_length = max_length
-        self._num_beams = num_beams
+
+        gen_kwargs = gen_kwargs.copy()
+        gen_kwargs["max_length"] = (
+            gen_kwargs["max_length"] if gen_kwargs.get("max_length") is not None else self.args.generation_max_length
+        )
+        gen_kwargs["num_beams"] = (
+            gen_kwargs["num_beams"] if gen_kwargs.get("num_beams") is not None else self.args.generation_num_beams
+        )
+        self._gen_kwargs = gen_kwargs
+
         return super().predict(
             test_dataset,
             ignore_keys=ignore_keys,
@@ -195,10 +203,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         if self.onnx_model_path and (has_labels == self.exported_with_loss):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
-            # Fix exported ONNX models
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
         else:
             onnx_model_path = Path(self.args.output_dir)
             logger.info("[INFO] Exporting the model to ONNX...")
@@ -214,10 +218,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
-            # Fix exported ONNX models
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
@@ -416,10 +416,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         if self.onnx_model_path and (has_labels == self.exported_with_loss):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
-            # Fix exported ONNX models
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
         else:
             onnx_model_path = Path(self.args.output_dir)
             logger.info("[INFO] Exporting the model to ONNX...")
@@ -435,10 +431,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
-            # Fix exported ONNX models
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_ENCODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_NAME).as_posix())
-            fix_atenops_to_gather(Path(self.onnx_model_path).joinpath(ONNX_DECODER_WITH_PAST_NAME).as_posix())
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
@@ -588,11 +580,17 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         inputs = self._prepare_inputs(inputs)
 
         # XXX: adapt synced_gpus for fairscale as well
-        gen_kwargs = {
-            "max_length": self._max_length if self._max_length is not None else self.model.config.max_length,
-            "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
-            "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
-        }
+        gen_kwargs = self._gen_kwargs.copy()
+        gen_kwargs["max_length"] = (
+            gen_kwargs["max_length"] if gen_kwargs.get("max_length") is not None else self.model.config.max_length
+        )
+        gen_kwargs["num_beams"] = (
+            gen_kwargs["num_beams"] if gen_kwargs.get("num_beams") is not None else self.model.config.num_beams
+        )
+        default_synced_gpus = True if is_deepspeed_zero3_enabled() else False
+        gen_kwargs["synced_gpus"] = (
+            gen_kwargs["synced_gpus"] if gen_kwargs.get("synced_gpus") is not None else default_synced_gpus
+        )
 
         if "attention_mask" in inputs:
             gen_kwargs["attention_mask"] = inputs.get("attention_mask", None)
@@ -615,15 +613,26 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             **gen_kwargs,
         )
         # in case the batch is shorter than max length, the output should be padded
-        if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
+        if gen_kwargs.get("max_length") is not None and generated_tokens.shape[-1] < gen_kwargs["max_length"]:
             generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
+        elif gen_kwargs.get("max_new_tokens") is not None and generated_tokens.shape[-1] < (
+            gen_kwargs["max_new_tokens"] + 1
+        ):
+            generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_new_tokens"] + 1)
 
         with torch.no_grad():
             with self.compute_loss_context_manager():
-                outputs = model(**inputs)
+                if self.label_smoother is not None:
+                    onnx_inputs = {k: v for k, v in inputs.items() if k != "labels"}
+                    outputs = model(**onnx_inputs)
+                else:
+                    outputs = model(**inputs)
             if has_labels:
                 if self.label_smoother is not None:
-                    loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
+                    labels = inputs["labels"]
+                    # With label smoother, loss will be calculated out of box
+                    # So the outputs of InferenceSession need to be converted to tensor and sent to the same device
+                    loss = self.label_smoother(outputs, labels.to(outputs.logits.device)).mean().detach()
                 else:
                     loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
             else:
@@ -634,8 +643,12 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
         if has_labels:
             labels = inputs["labels"]
-            if labels.shape[-1] < gen_kwargs["max_length"]:
+            if gen_kwargs.get("max_length") is not None and labels.shape[-1] < gen_kwargs["max_length"]:
                 labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+            elif gen_kwargs.get("max_new_tokens") is not None and labels.shape[-1] < (
+                gen_kwargs["max_new_tokens"] + 1
+            ):
+                labels = self._pad_tensors_to_max_len(labels, (gen_kwargs["max_new_tokens"] + 1))
         else:
             labels = None
 
@@ -675,9 +688,8 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
         # XXX: adapt synced_gpus for fairscale as well
         gen_kwargs = self._gen_kwargs.copy()
-        gen_kwargs["max_length"] = (
-            gen_kwargs["max_length"] if gen_kwargs.get("max_length") is not None else self.model.config.max_length
-        )
+        if gen_kwargs.get("max_length") is None and gen_kwargs.get("max_new_tokens") is None:
+            gen_kwargs["max_length"] = self.model.config.max_length
         gen_kwargs["num_beams"] = (
             gen_kwargs["num_beams"] if gen_kwargs.get("num_beams") is not None else self.model.config.num_beams
         )
@@ -704,8 +716,12 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             **gen_kwargs,
         )
         # in case the batch is shorter than max length, the output should be padded
-        if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
+        if gen_kwargs.get("max_length") is not None and generated_tokens.shape[-1] < gen_kwargs["max_length"]:
             generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
+        elif gen_kwargs.get("max_new_tokens") is not None and generated_tokens.shape[-1] < (
+            gen_kwargs["max_new_tokens"] + 1
+        ):
+            generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_new_tokens"] + 1)
 
         with torch.no_grad():
             with self.compute_loss_context_manager():
@@ -723,23 +739,28 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
         if has_labels:
             labels = inputs["labels"]
-            if labels.shape[-1] < gen_kwargs["max_length"]:
+            if gen_kwargs.get("max_length") is not None and labels.shape[-1] < gen_kwargs["max_length"]:
                 labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+            elif gen_kwargs.get("max_new_tokens") is not None and labels.shape[-1] < (
+                gen_kwargs["max_new_tokens"] + 1
+            ):
+                labels = self._pad_tensors_to_max_len(labels, (gen_kwargs["max_new_tokens"] + 1))
         else:
             labels = None
 
         return (loss, generated_tokens, labels)
 
     def _pad_tensors_to_max_len(self, tensor, max_length):
-        if self.tokenizer is None:
-            raise ValueError(
-                f"Tensor need to be padded to `max_length={max_length}` but no tokenizer was passed when creating "
-                "this `Trainer`. Make sure to create your `Trainer` with the appropriate tokenizer."
+        if self.tokenizer is not None and hasattr(self.tokenizer, "pad_token_id"):
+            # If PAD token is not defined at least EOS token has to be defined
+            pad_token_id = (
+                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
             )
-        # If PAD token is not defined at least EOS token has to be defined
-        pad_token_id = (
-            self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
-        )
+        else:
+            if self.model.config.pad_token_id is not None:
+                pad_token_id = self.model.config.pad_token_id
+            else:
+                raise ValueError("Pad_token_id must be set in the configuration of the model, in order to pad tensors")
 
         padded_tensor = pad_token_id * torch.ones(
             (tensor.shape[0], max_length), dtype=tensor.dtype, device=tensor.device
