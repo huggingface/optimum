@@ -274,10 +274,6 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 
 class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
-    extra_inputs = {
-        "default": OrderedDict({"labels": {0: "batch", 1: "sequence"}}),
-        "use_past": OrderedDict({"labels": {0: "batch"}}),
-    }
     extra_outputs = OrderedDict({"loss": {}})
 
     def __init__(self, config: DecoderOnnxConfig):
@@ -287,10 +283,7 @@ class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         inputs = self._decoder_config.inputs
-        if self.use_past:
-            inputs.update(self.extra_inputs["use_past"])
-        else:
-            inputs.update(self.extra_inputs["default"])
+        inputs.update({"labels": inputs["input_ids"]})
         return inputs
 
     @property
@@ -301,22 +294,6 @@ class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
         for key in reversed(extra_outputs.keys()):
             common_outputs.move_to_end(key, last=False)
         return copy.deepcopy(common_outputs)
-
-    def _generate_extra_dummy_inputs_pt(
-        self,
-        dummy_inputs,
-        batch_size,
-        seq_length,
-    ) -> Mapping[str, Any]:
-        import torch
-
-        extra_inputs = self.extra_inputs["use_past"] if self.use_past else self.extra_inputs["default"]
-        for label, input in extra_inputs.items():
-            if "sequence" in input.values():
-                dummy_inputs[label] = torch.zeros(batch_size, seq_length, dtype=torch.long)
-            else:
-                dummy_inputs[label] = torch.zeros(batch_size, dtype=torch.long)
-        return dummy_inputs
 
     def generate_dummy_inputs(
         self,
@@ -334,19 +311,7 @@ class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
             is_pair=is_pair,
             framework=framework,
         )
-        print("decoder onnx cofig with wrapper")
-        print(dummy_inputs["input_ids"].shape)
-        label_batch_size = compute_effective_axis_dimension(
-            batch_size, fixed_dimension=self.default_fixed_batch, num_token_to_add=0
-        )
-        label_seq_length = compute_effective_axis_dimension(
-            seq_length, fixed_dimension=self.default_fixed_sequence, num_token_to_add=0
-        )
 
-        if framework == TensorType.PYTORCH:
-            if is_torch_available():
-                return self._generate_extra_dummy_inputs_pt(dummy_inputs, label_batch_size, label_seq_length)
-            else:
-                raise RuntimeError(f"Could not generate dummy inputs because no PyTorch installation was found.")
-        else:
-            raise ValueError(f"Only PyTorch is supported for ONNX export, but {framework} was provided.")
+        # Dummy labels would be the same as the dummy input_ids
+        dummy_inputs["labels"] = dummy_inputs["input_ids"]
+        return dummy_inputs
