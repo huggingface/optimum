@@ -24,6 +24,7 @@ from transformers import (
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
+    AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
@@ -36,6 +37,7 @@ from transformers.modeling_outputs import (
     CausalLMOutputWithCrossAttentions,
     ImageClassifierOutput,
     ModelOutput,
+    MultipleChoiceModelOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
@@ -270,9 +272,12 @@ class ORTModel(OptimizedModel):
             file_name(`str`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
                 repository or directory.
+            local_files_only(`bool`, *optional*, defaults to `False`):
+                Whether or not to only look at local files (i.e., do not try to download the model).
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
+        local_files_only = kwargs.pop("local_files_only", False)
         config_dict = kwargs.pop("config", {})
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
         # load model from local directory
@@ -291,6 +296,7 @@ class ORTModel(OptimizedModel):
                 revision=revision,
                 cache_dir=cache_dir,
                 force_download=force_download,
+                local_files_only=local_files_only,
             )
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
@@ -331,7 +337,6 @@ class ORTModel(OptimizedModel):
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
-
         # create local save dir in cache dir
         save_dir = Path(save_dir).joinpath(model_id)
         save_dir.mkdir(parents=True, exist_ok=True)
@@ -718,6 +723,86 @@ class ORTModelForTokenClassification(ORTModel):
         logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
         # converts output to namedtuple for pipelines post-processing
         return TokenClassifierOutput(logits=logits)
+
+
+MULTIPLE_CHOICE_EXAMPLE = r"""
+    Example of mutliple choice:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
+
+    >>> num_choices = 4
+    >>> first_sentence = ["Members of the procession walk down the street holding small horn brass instruments."] * num_choices
+    >>> second_sentence = [
+    "A drum line passes by walking down the street playing their instruments.",
+    "A drum line has heard approaching them.",
+    "A drum line arrives and they're outside dancing and asleep.",
+    "A drum line turns the lead singer watches the performance."
+]
+    >>> inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
+    # Unflatten the inputs values expanding it to the shape [batch_size, num_choices, seq_length]
+    >>> for k, v in inputs.items():
+    >>>     inputs[k] = [v[i: i + num_choices] for i in range(0, len(v), num_choices)]
+    >>> inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
+    >>> outputs = model(**inputs)
+    >>> logits = outputs.logits
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model with a multiple choice classification head on top (a linear layer on top of the pooled output and a
+    softmax) e.g. for RocStories/SWAG tasks.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForMultipleChoice(ORTModel):
+    """
+    Multiple choice model for ONNX.
+    """
+
+    # used in from_transformers to export model to onnx
+    export_feature = "multiple-choice"
+    auto_model_class = AutoModelForMultipleChoice
+
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + MULTIPLE_CHOICE_EXAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForMultipleChoice",
+            checkpoint="ehdwns1516/bert-base-uncased_SWAG",
+        )
+    )
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        # Converts pytorch inputs into numpy inputs
+        onnx_inputs = {
+            "input_ids": input_ids.cpu().detach().numpy(),
+            "attention_mask": attention_mask.cpu().detach().numpy(),
+        }
+
+        if token_type_ids is not None:
+            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
+        # Run inference
+        outputs = self.model.run(None, onnx_inputs)
+        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+
+        return MultipleChoiceModelOutput(logits=logits)
 
 
 TEXT_GENERATION_EXAMPLE = r"""

@@ -23,13 +23,13 @@ allows us to apply different quantization approaches (such as dynamic and static
 optimizations using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as 
 the ones from the [GLUE benchmark](https://gluebenchmark.com/).
 
-The following example applies post-training static quantization on a DistilBERT fine-tuned on the sst-2 task.
+The following example applies post-training dynamic quantization on a DistilBERT fine-tuned on the sst-2 task.
 
 ```bash
 python run_glue.py \
     --model_name_or_path distilbert-base-uncased-finetuned-sst-2-english \
     --task_name sst2 \
-    --quantization_approach static \
+    --quantization_approach dynamic \
     --do_eval \
     --output_dir /tmp/quantized_distilbert_sst2
 ```

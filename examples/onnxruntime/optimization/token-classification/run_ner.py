@@ -38,6 +38,7 @@ from transformers.utils.versions import require_version
 from optimum.onnxruntime import ORTModelForTokenClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime.optimization import ORTOptimizer
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.

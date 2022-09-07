@@ -314,8 +314,11 @@ class ORTModelForConditionalGeneration(ORTModel):
                 kwargs will be passed to the model during initialization.
             use_cache (`bool`, *optional*, defaults to `True`):
                 Whether or not to use the pre-computed key/values hidden-states in order to speed up sequential decoding.
+            local_files_only(`bool`, *optional*, defaults to `False`):
+                Whether or not to only look at local files (i.e., do not try to download the model).
         """
         use_cache = kwargs.pop("use_cache", True)
+        local_files_only = kwargs.pop("local_files_only", False)
         config_dict = kwargs.pop("config", {})
         config = PretrainedConfig.from_dict(config_dict)
         encoder_file_name = encoder_file_name or ONNX_ENCODER_NAME
@@ -351,6 +354,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
+                    local_files_only=local_files_only,
                 )
                 kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
             kwargs["model_save_dir"] = Path(model_cache_path).parent

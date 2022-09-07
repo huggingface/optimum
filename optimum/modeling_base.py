@@ -38,6 +38,8 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
         cache_dir (`str`, *optional*, defaults to `None`):
             Path to a directory in which a downloaded pretrained model configuration should be cached if the
             standard cache should not be used.
+        local_files_only(`bool`, *optional*, defaults to `False`):
+            Whether or not to only look at local files (i.e., do not try to download the model).
 """
 
 
@@ -179,7 +181,7 @@ class OptimizedModel(ABC):
         model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):
@@ -192,7 +194,7 @@ class OptimizedModel(ABC):
         cls,
         model_id: Union[str, Path],
         from_transformers: bool = False,
-        force_download: bool = True,
+        force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         **model_kwargs,
@@ -251,7 +253,7 @@ class OptimizedModel(ABC):
         model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):

@@ -64,7 +64,6 @@ class TestParity(unittest.TestCase):
             f" --max_seq_length 9999999999"  # rely on tokenizer.model_max_length for max_length
             f" --output_dir {self.dir_path}/textclassification_sst2_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --overwrite_cache True",
             shell=True,
@@ -110,7 +109,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 15},
+            "framework_args": {"optimization_level": 1},
             "max_eval_samples": n_samples,
         }
         run_instance = OnnxRuntimeRun(run_config)
@@ -152,7 +151,6 @@ class TestParity(unittest.TestCase):
             f" --do_eval"
             f" --output_dir {self.dir_path}/tokenclassification_conll2003_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --overwrite_cache True",
             shell=True,
@@ -197,7 +195,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 11},
+            "framework_args": {"optimization_level": 1},
             "max_eval_samples": n_samples,
         }
         run_instance = OnnxRuntimeRun(run_config)
@@ -241,7 +239,6 @@ class TestParity(unittest.TestCase):
             f" --do_eval"
             f" --output_dir {self.dir_path}/questionanswering_squad_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --max_seq_length 384",
             shell=True,
@@ -260,34 +257,12 @@ class TestParity(unittest.TestCase):
                 "ref_keys": ["answers"],
             },
             "metrics": ["squad"],
-            "framework": "pytorch",
-            "max_eval_samples": n_samples,
-        }
-        run_instance = PyTorchRun(run_config)
-        benchmark_results = run_instance.launch_eval()
-
-        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["f1"])
-        self.assertEqual(
-            transformers_results["eval_exact_match"],
-            benchmark_results["evaluation"]["others"]["exact_match"],
-        )
-
-        run_config = {
-            "task": "question-answering",
-            "model_name_or_path": model_name,
-            "dataset": {
-                "path": "squad",
-                "eval_split": "validation",
-                "data_keys": {"question": "question", "context": "context"},
-                "ref_keys": ["answers"],
-            },
-            "metrics": ["squad"],
             "quantization_approach": "dynamic",
             "operators_to_quantize": ["Add", "MatMul"],
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 15},
+            "framework_args": {"optimization_level": 1},
             "max_eval_samples": n_samples,
         }
         run_instance = OnnxRuntimeRun(run_config)
@@ -317,7 +292,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 15},
+            "framework_args": {"optimization_level": 1},
             "max_eval_samples": n_samples,
         }
         run_instance = OnnxRuntimeRun(run_config)
