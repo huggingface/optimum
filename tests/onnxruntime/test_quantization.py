@@ -23,7 +23,7 @@ from transformers import AutoTokenizer
 from onnx import load as onnx_load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
 from parameterized import parameterized
@@ -92,6 +92,12 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
                 save_dir=output_dir,
                 quantization_config=qconfig,
             )
+
+            expected_ort_config = ORTConfig(quantization=qconfig)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
             quantized_model = onnx_load(output_dir.joinpath("model_quantized.onnx"))
             num_quantized_matmul = 0
             for initializer in quantized_model.graph.initializer:
@@ -148,6 +154,11 @@ class ORTStaticQuantizationTest(unittest.TestCase):
                 quantization_config=qconfig,
             )
 
+            expected_ort_config = ORTConfig(quantization=qconfig)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
             quantized_model = onnx_load(output_dir.joinpath("model_quantized.onnx"))
             num_quantized_matmul = 0
             for initializer in quantized_model.graph.initializer:
@@ -155,7 +166,3 @@ class ORTStaticQuantizationTest(unittest.TestCase):
                     num_quantized_matmul += 1
             self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
-
-
-if __name__ == "__main__":
-    unittest.main()

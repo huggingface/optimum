@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-The Trainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task.
+The ORTTrainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task with ONNX Runtime.
 """
 
 import math
@@ -21,7 +21,7 @@ import sys
 import time
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from packaging.version import parse
 from tqdm.auto import tqdm
@@ -87,12 +87,20 @@ from transformers.trainer_utils import (
     speed_metrics,
 )
 from transformers.training_args import TrainingArguments
-from transformers.utils import logging
+from transformers.utils import check_min_version, logging
 
-import onnxruntime
-
-from ..pipelines import SUPPORTED_TASKS
-from .modeling_ort import ORTModel, ORTModelForCustomTasks
+from .modeling_ort import (
+    ORTModel,
+    ORTModelForCausalLM,
+    ORTModelForCustomTasks,
+    ORTModelForFeatureExtraction,
+    ORTModelForImageClassification,
+    ORTModelForMultipleChoice,
+    ORTModelForQuestionAnswering,
+    ORTModelForSequenceClassification,
+    ORTModelForTokenClassification,
+)
+from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .training_args import ORTOptimizerNames
 from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
 
@@ -103,10 +111,8 @@ if is_apex_available():
 if is_fairscale_available():
     dep_version_check("fairscale")
     import fairscale
-    from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.optim import OSS
-    from fairscale.optim.grad_scaler import ShardedGradScaler
 
 if TYPE_CHECKING:
     import optuna
@@ -119,6 +125,29 @@ TRAINER_STATE_NAME = "trainer_state.json"
 OPTIMIZER_NAME = "optimizer.pt"
 SCHEDULER_NAME = "scheduler.pt"
 SCALER_NAME = "scaler.pt"
+
+
+class ORTFeaturesManager:
+    _TASKS_TO_ORTMODELS = {
+        "default": ORTModelForFeatureExtraction,
+        "question-answering": ORTModelForQuestionAnswering,
+        "sequence-classification": ORTModelForSequenceClassification,
+        "token-classification": ORTModelForTokenClassification,
+        "multiple-choice": ORTModelForMultipleChoice,
+        "causal-lm": ORTModelForCausalLM,
+        "image-classification": ORTModelForImageClassification,
+        "seq2seq-lm": ORTModelForSeq2SeqLM,
+    }
+
+    SUPPORTED_FEATURES = _TASKS_TO_ORTMODELS.keys()
+
+    @staticmethod
+    def get_model_class_for_feature(feature: str) -> Type:
+        """
+        Gets the subclass of `ORTModel` associated with the feature.
+        """
+
+        return ORTFeaturesManager._TASKS_TO_ORTMODELS[feature]
 
 
 class ORTTrainer(Trainer):
@@ -762,7 +791,6 @@ class ORTTrainer(Trainer):
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
-        self.ort_model = None
 
         # Check if there are labels in the dataset
         dummy_inputs = next(iter(dataloader))
@@ -786,6 +814,7 @@ class ORTTrainer(Trainer):
 
             with_loss = has_labels and not self.label_smoother
             self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
@@ -793,15 +822,14 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if self.exported_with_loss or self.feature not in SUPPORTED_TASKS.keys():
-            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference
-            ort_model_cls = ORTModelForCustomTasks
-        else:
+        if not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
             # Exported with standard outputs, use specific ORTModels
-            ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+            ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
+        else:
+            ort_model_cls = ORTModelForCustomTasks
 
         model_id, file_name = os.path.split(self.onnx_model_path)
-        self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
+        ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
 
         args = self.args
 
@@ -850,7 +878,7 @@ class ORTTrainer(Trainer):
 
             # Prediction step(send also onnxruntime inference session)
             loss, logits, labels = self.prediction_step_ort(
-                self.ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+                ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
             inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
@@ -986,7 +1014,6 @@ class ORTTrainer(Trainer):
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
-        self.ort_model = None
 
         # Check if there are labels in the dataset
         dummy_inputs = next(iter(dataloader))
@@ -1008,27 +1035,24 @@ class ORTTrainer(Trainer):
             else:
                 export_device = "cpu"
 
-            if has_labels:
-                self._export(onnx_model_path, device=export_device)
-                self.exported_with_loss = True
-            else:
-                self._export(onnx_model_path, with_loss=False, device=export_device)
-                self.exported_with_loss = False
+            with_loss = has_labels and not self.label_smoother
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+
+            self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             # Fix exported ONNX IR
             fix_atenops_to_gather(self.onnx_model_path)
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if self.exported_with_loss or self.feature not in SUPPORTED_TASKS.keys():
-            # Exported ONNX with loss as a custom output, in this case, use `ORTModelForCustomTasks` for inference
-            ort_model_cls = ORTModelForCustomTasks
-        else:
+        if not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
             # Exported with standard outputs, use specific ORTModels
-            ort_model_cls = SUPPORTED_TASKS[self.feature]["class"][0]
+            ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
+        else:
+            ort_model_cls = ORTModelForCustomTasks
 
         model_id, file_name = os.path.split(self.onnx_model_path)
-        self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
+        ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
 
         args = self.args
 
@@ -1067,7 +1091,7 @@ class ORTTrainer(Trainer):
 
         for step, inputs in enumerate(dataloader):
             loss, logits, labels = self.prediction_step_ort(
-                self.ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+                ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
             inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
@@ -1253,15 +1277,13 @@ class ORTTrainer(Trainer):
             with_loss (`bool`, defaults to `True`):
                 Whether to export ONNX model with the loss in outputs.
         """
-        if model:
-            model = model
-        else:
+        if model is None:
             if not (self.args.fp16 and self.args.deepspeed):
                 # Taking CPU to export the model
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        model_type, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
+        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
         onnx_config = model_onnx_config(model.config)
         opset = onnx_config.default_onnx_opset if opset is None else opset
 
@@ -1269,29 +1291,16 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        if parse(transformers.__version__) >= parse("4.20.0"):
-            _ = export(
-                preprocessor=self.tokenizer,
-                model=model,
-                config=onnx_config,
-                opset=opset,
-                output=model_path,
-                device=device,
-            )
-        else:
-            if device == "cuda":
-                raise ImportError(
-                    f"Tried to export ONNX model on CUDA. However, the current transformers version is "
-                    f"{transformers.__version__}. Transformers version >4.19.2 is required to support ONNX export on CUDA.\n"
-                    "Please update transformers by running `pip install --upgrade transformers`"
-                )
-            _ = export(
-                preprocessor=self.tokenizer,
-                model=model,
-                config=onnx_config,
-                opset=opset,
-                output=model_path,
-            )
+        # transformers >= 4.21.0 is required to export with specified device
+        check_min_version("4.21.0")
+        _ = export(
+            preprocessor=self.tokenizer,
+            model=model,
+            config=onnx_config,
+            opset=opset,
+            output=model_path,
+            device=device,
+        )
 
     def _wrap_model(self, model, training=True, dataloader=None):
         if self.args.use_ipex:

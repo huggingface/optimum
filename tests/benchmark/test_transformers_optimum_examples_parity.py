@@ -64,7 +64,6 @@ class TestParity(unittest.TestCase):
             f" --max_seq_length 9999999999"  # rely on tokenizer.model_max_length for max_length
             f" --output_dir {self.dir_path}/textclassification_sst2_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --overwrite_cache True",
             shell=True,
@@ -90,7 +89,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 15},
+            "framework_args": {"optimization_level": 1},
             "batch_sizes": [8],
             "input_lengths": [128],
             "max_eval_samples": n_samples,
@@ -143,7 +142,6 @@ class TestParity(unittest.TestCase):
             f" --do_eval"
             f" --output_dir {self.dir_path}/tokenclassification_conll2003_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --overwrite_cache True",
             shell=True,
@@ -167,7 +165,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 11},
+            "framework_args": {"optimization_level": 1},
             "batch_sizes": [8],
             "input_lengths": [128],
             "max_eval_samples": n_samples,
@@ -224,7 +222,6 @@ class TestParity(unittest.TestCase):
             f" --do_eval"
             f" --output_dir {self.dir_path}/questionanswering_squad_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --max_seq_length 384",
             shell=True,
@@ -248,7 +245,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 15},
+            "framework_args": {"optimization_level": 1},
             "batch_sizes": [8],
             "input_lengths": [128],
             "max_eval_samples": n_samples,
