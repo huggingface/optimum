@@ -109,7 +109,10 @@ jobs:
           cd optimum
           sudo python docs/combine_docs.py --subpackages graphcore habana intel --version ${{ env.VERSION }}
           sudo cp -r optimum-doc-build/optimum/${{ env.VERSION }} ../build_dir/optimum
-          cd ..
+          echo "before combining supkacages"
+          cd ../build_dir/optimum
+          ls -l
+          cd ../..
 
       - name: Push to repositories
         run: |
