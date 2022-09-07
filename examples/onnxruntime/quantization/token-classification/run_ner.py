@@ -331,7 +331,7 @@ def main():
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
-        label2id = PretrainedConfig.from_pretrained(model_args.model_name_or_path)
+        label2id = PretrainedConfig.from_pretrained(model_args.model_name_or_path).label2id
         try:
             eval_dataset = eval_dataset.align_labels_with_mapping(
                 label2id=label2id,
