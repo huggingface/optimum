@@ -113,5 +113,7 @@ jobs:
       - name: Push to repositories
         run: |
           cd build_dir
+          echo "inside doc-builder folder:"
+          ls -l
           doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ secrets.HUGGINGFACE_PUSH }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
         shell: bash
