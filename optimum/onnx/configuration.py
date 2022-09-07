@@ -274,8 +274,6 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 
 class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
-    extra_outputs = OrderedDict({"loss": {}})
-
     def __init__(self, config: DecoderOnnxConfig):
         self.__dict__ = copy.deepcopy(config.__dict__)
         self._decoder_config = config
@@ -289,7 +287,7 @@ class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = self._decoder_config.outputs
-        extra_outputs = self.extra_outputs
+        extra_outputs = OrderedDict({"loss": {}})
         common_outputs.update(extra_outputs)
         for key in reversed(extra_outputs.keys()):
             common_outputs.move_to_end(key, last=False)

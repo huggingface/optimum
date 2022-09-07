@@ -791,7 +791,6 @@ class ORTTrainer(Trainer):
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
-        self.ort_model = None
 
         # Check if there are labels in the dataset
         dummy_inputs = next(iter(dataloader))
@@ -830,7 +829,7 @@ class ORTTrainer(Trainer):
             ort_model_cls = ORTModelForCustomTasks
 
         model_id, file_name = os.path.split(self.onnx_model_path)
-        self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
+        ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
 
         args = self.args
 
@@ -879,7 +878,7 @@ class ORTTrainer(Trainer):
 
             # Prediction step(send also onnxruntime inference session)
             loss, logits, labels = self.prediction_step_ort(
-                self.ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+                ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
             inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
@@ -1015,7 +1014,6 @@ class ORTTrainer(Trainer):
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
-        self.ort_model = None
 
         # Check if there are labels in the dataset
         dummy_inputs = next(iter(dataloader))
@@ -1054,7 +1052,7 @@ class ORTTrainer(Trainer):
             ort_model_cls = ORTModelForCustomTasks
 
         model_id, file_name = os.path.split(self.onnx_model_path)
-        self.ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
+        ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
 
         args = self.args
 
@@ -1093,7 +1091,7 @@ class ORTTrainer(Trainer):
 
         for step, inputs in enumerate(dataloader):
             loss, logits, labels = self.prediction_step_ort(
-                self.ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+                ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
             inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
