@@ -20,7 +20,7 @@ jobs:
         with:
           repository: 'huggingface/doc-builder'
           path: doc-builder
-          ref: doc-fix_optimum_docbuild
+          ref: fix_optimum_docbuild
 
       - uses: actions/checkout@v2
         with:
