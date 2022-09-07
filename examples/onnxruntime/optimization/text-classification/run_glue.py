@@ -35,7 +35,6 @@ from transformers import (
     AutoTokenizer,
     EvalPrediction,
     HfArgumentParser,
-    PretrainedConfig,
     PreTrainedTokenizer,
     TrainingArguments,
 )
@@ -149,13 +148,7 @@ class OptimizationArguments:
     optimization_level: Optional[int] = field(
         default=1,
         metadata={
-            "help": "Optimization level performed         except Exception as e:
-            logger.warning(
-                f"\nModel label mapping: {optimizer.model.config.label2id}"
-                f"\nDataset label features: {eval_dataset.features['label']}"
-                f"\nCould not guarantee the model label mapping and the dataset labels match."
-                f" Evaluation results may suffer from a wrong matching."
-            )by ONNX Runtime of the loaded graph."
+            "help": "Optimization level performed by ONNX Runtime of the loaded graph."
             "0 will disable all optimizations."
             "1 will enable basic optimizations."
             "2 will enable basic and extended optimizations, including complex node fusions applied to the nodes "
@@ -377,12 +370,10 @@ def main():
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
         try:
-            eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=model.config.label2id, label_column="label"
-            )
+            eval_dataset = eval_dataset.align_labels_with_mapping(label2id=model.config.label2id, label_column="label")
         except Exception as e:
             logger.warning(
-                f"\nModel label mapping: {optimizer.model.config.label2id}"
+                f"\nModel label mapping: {model.config.label2id}"
                 f"\nDataset label features: {eval_dataset.features['label']}"
                 f"\nCould not guarantee the model label mapping and the dataset labels match."
                 f" Evaluation results may suffer from a wrong matching."

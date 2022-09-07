@@ -31,7 +31,7 @@ import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset, load_metric
-from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
+from transformers import AutoTokenizer, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -331,12 +331,12 @@ def main():
 
             try:
                 eval_dataset = eval_dataset.align_labels_with_mapping(
-                    label2id=optimizer.model.config.label2id, label_column=label_column_name
+                    label2id=model.config.label2id, label_column=label_column_name
                 )
             except Exception as e:
                 logger.warning(
-                    f"\nModel label mapping: {optimizer.model.config.label2id}"
-                    f"\nDataset label features: {eval_dataset.features['label']}"
+                    f"\nModel label mapping: {model.config.label2id}"
+                    f"\nDataset label features: {eval_dataset.features[label_column_name]}"
                     f"\nCould not guarantee the model label mapping and the dataset labels match."
                     f" Evaluation results may suffer from a wrong matching."
                 )

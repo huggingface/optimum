@@ -479,9 +479,7 @@ def main():
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
         try:
-            eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=model.config.label2id, label_column="label"
-            )
+            eval_dataset = eval_dataset.align_labels_with_mapping(label2id=model.config.label2id, label_column="label")
         except Exception as e:
             logger.warning(
                 f"\nModel label mapping: {onnx_model.config.label2id}"
