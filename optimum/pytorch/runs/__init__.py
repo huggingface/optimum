@@ -2,6 +2,7 @@ import json
 import os
 from typing import Optional, Union
 
+import torch
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
@@ -60,7 +61,8 @@ class PyTorchRun(Run):
             warmup_runs=self.time_benchmark_args["warmup_runs"],
             duration=self.time_benchmark_args["duration"],
         )
-        time_metrics = time_benchmark.execute()
+        with torch.no_grad():
+            time_metrics = time_benchmark.execute()
 
         time_evaluation = {
             "batch_size": batch_size,

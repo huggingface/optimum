@@ -5,8 +5,8 @@ from typing import Optional, Union
 
 import transformers
 
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from onnxruntime import SessionOptions
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
 from ...pipelines import SUPPORTED_TASKS
 from ...pipelines import pipeline as _optimum_pipeline
