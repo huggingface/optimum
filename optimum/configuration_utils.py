@@ -46,6 +46,7 @@ class BaseConfig(PretrainedConfig):
     def _re_configuration_file(cls):
         return re.compile(rf"{cls.FULL_CONFIGURATION_FILE.split('.')[0]}(.*)\.json")
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig.save_pretrained
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
         """
         Save a configuration object to the directory ``save_directory``, so that it can be re-loaded using the
@@ -86,6 +87,7 @@ class BaseConfig(PretrainedConfig):
             url = self._push_to_hub(repo, commit_message=commit_message)
             logger.info(f"Configuration pushed to the hub in this commit: {url}")
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig.get_configuration_file
     @classmethod
     def get_configuration_file(cls, configuration_files: List[str]) -> str:
         """
@@ -115,6 +117,7 @@ class BaseConfig(PretrainedConfig):
 
         return configuration_file
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig.get_config_dict
     @classmethod
     def get_config_dict(
         cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs
@@ -143,6 +146,7 @@ class BaseConfig(PretrainedConfig):
 
         return config_dict, kwargs
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig._get_config_dict
     @classmethod
     def _get_config_dict(
         cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs
@@ -230,6 +234,7 @@ class BaseConfig(PretrainedConfig):
 
         return config_dict, kwargs
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig.from_dict
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "PretrainedConfig":
         """
@@ -269,6 +274,7 @@ class BaseConfig(PretrainedConfig):
         else:
             return config
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig.to_dict
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes this instance to a Python dictionary.
