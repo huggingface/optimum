@@ -211,7 +211,7 @@ class ORTModel(OptimizedModel):
         cls,
         model_id: Union[str, Path],
         from_transformers: bool = False,
-        force_download: bool = True,
+        force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         provider: Union[str, List[str]] = "CPUExecutionProvider",
