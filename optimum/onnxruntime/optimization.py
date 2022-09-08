@@ -93,7 +93,7 @@ class ORTOptimizer:
         self,
         optimization_config: OptimizationConfig,
         save_dir: Union[str, os.PathLike],
-        file_suffix: str = "optimized",
+        file_suffix: Optional[str] = "optimized",
         use_external_data_format: bool = False,
         all_tensors_to_one_file: bool = True,
     ):
@@ -152,7 +152,8 @@ class ORTOptimizer:
                 # keep_io_types to keep inputs/outputs as float32
                 optimizer.convert_float_to_float16(keep_io_types=True)
 
-            output_path = save_dir.joinpath(f"{model_path.stem}_{file_suffix}").with_suffix(model_path.suffix)
+            suffix = f"_{file_suffix}" if file_suffix else ""
+            output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
             optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format, all_tensors_to_one_file)
 
         LOGGER.info(
