@@ -12,7 +12,37 @@ specific language governing permissions and limitations under the License.
 
 # Trainer
 
+The `ORTTrainer` and `ORTSeq2SeqTrainer` classes provide APIs for training PyTorch models with [ONNX Runtime(ORT)](https://onnxruntime.ai/).
+Taking ONNX Runtime as backend, `ORTTrainer` and `ORTSeq2SeqTrainer` optimize the computation graph and the memory usage. They also support
+mixed precision training implemenred by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve shorter
+latency, larger throughput, and larger maximum batch size while training large transformers models.
+
 ## ORTTrainer
+
+The `ORTTrainer` class is similar to the [`Trainer`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#trainer)
+of Transformers. You can easily adapt the codes by replacing `Trainer` with `ORTTrainer` to take advantage of the acceleration
+empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compared with `Trainer`:
+
+```diff
+-from transformers import Trainer
++from optimum.onnxruntime import ORTTrainer
+
+# Step 1: Create your ONNX Runtime Trainer
+-trainer = Trainer(
++trainer = ORTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    compute_metrics=compute_metrics,
+    tokenizer=tokenizer,
+    data_collator=default_data_collator,
++    feature="sequence-classification",  # Determine the LM during inference with ORT(unnecessary for training)
+)
+
+# Step 2: Use ONNX Runtime for training!🤗
+train_result = trainer.train()
+```
 
 [[autodoc]] onnxruntime.trainer.ORTTrainer
     - all
@@ -22,3 +52,13 @@ specific language governing permissions and limitations under the License.
 [[autodoc]] onnxruntime.trainer_seq2seq.ORTSeq2SeqTrainer
     - evaluate
     - predict
+
+## ORTTrainingArguments
+
+[[autodoc]] onnxruntime.training_args.ORTTrainingArguments
+    - all
+
+## ORTTrainingArguments
+
+[[autodoc]] onnxruntime.training_args_seq2seq.ORTSeq2SeqTrainingArguments
+    - all
