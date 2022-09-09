@@ -292,7 +292,7 @@ class Run(_RunDefaults, _RunBase):
             ), "Calibration parameters should be passed for static quantization in the calibration key."
 
         # validate `aware_training`
-        assert self.aware_training == False, "Quantization-Aware Training not supported."
+        assert not self.aware_training == True, "Quantization-Aware Training not supported."
 
         # validate `framework_args`
         framework_args_dict = (
