@@ -94,6 +94,21 @@ class TokenClassificationProcessing(DatasetProcessing):
             join_by=" ",
         )
 
+        # seqeval gives metrics by class as well, which we are not interested about
+        if "seqeval" in metrics:
+            results = {
+                key: results[key]
+                for key in [
+                    "overall_precision",
+                    "overall_recall",
+                    "overall_f1",
+                    "overall_accuracy",
+                    "total_time_in_seconds",
+                    "samples_per_second",
+                    "latency_in_seconds",
+                ]
+            }
+
         return results
 
     def get_pipeline_kwargs(self):
