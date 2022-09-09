@@ -12,15 +12,40 @@ specific language governing permissions and limitations under the License.
 
 # Trainer
 
-The `ORTTrainer` and `ORTSeq2SeqTrainer` classes provide APIs for training PyTorch models with [ONNX Runtime(ORT)](https://onnxruntime.ai/).
-Taking ONNX Runtime as backend, `ORTTrainer` and `ORTSeq2SeqTrainer` optimize the computation graph and the memory usage. They also support
+The [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] classes provide APIs for training PyTorch models with [ONNX Runtime(ORT)](https://onnxruntime.ai/).
+Taking ONNX Runtime as backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] optimize the computation graph and the memory usage. They also support
 mixed precision training implemenred by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve shorter
 latency, larger throughput, and larger maximum batch size while training large transformers models.
 
+## Installation
+
+To use ONNX Runtime for training, you need a machine with at least one NVIDIA or AMD GPU.
+
+You can install the following dependencies in a local Python environment(for torch_ort 1.12.0 with CUDA 11.3):
+
+```bash
+pip install onnx==1.12.0 ninja
+pip install onnxruntime-training==1.12.0+cu113 -f https://download.onnxruntime.ai/onnxruntime_stable_cu113.html
+pip install torch==1.12.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+pip install torch-ort
+pip install transformers datasets accelerate
+pip install --upgrade protobuf==3.20.1
+```
+
+And run post-installation configuration:
+
+```bash
+python -m torch_ort.configure
+```
+
+It is __strongly recommended__ to setup your environment with Docker. You can find dockerfiles with more combinations [here]
+(https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
+
+
 ## ORTTrainer
 
-The `ORTTrainer` class is similar to the [`Trainer`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#trainer)
-of Transformers. You can easily adapt the codes by replacing `Trainer` with `ORTTrainer` to take advantage of the acceleration
+The [`ORTTrainer`] class is similar to the [`Trainer`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#trainer)
+of Transformers. You can easily adapt the codes by replacing `Trainer` of transformers with `ORTTrainer` to take advantage of the acceleration
 empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compared with `Trainer`:
 
 ```diff
@@ -37,7 +62,7 @@ empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compare
     compute_metrics=compute_metrics,
     tokenizer=tokenizer,
     data_collator=default_data_collator,
-+    feature="sequence-classification",  # Determine the LM during inference with ORT(unnecessary for training)
++    feature="sequence-classification",  # Determine the LM during inference with ORT
 )
 
 # Step 2: Use ONNX Runtime for training!🤗
