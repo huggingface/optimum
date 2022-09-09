@@ -61,7 +61,7 @@ class QuantizationApproach(str, Enum):
 
 def cpu_info_command():
     if platform.system() == "Linux":
-        return "lscpu"
+        return "lscpu && cat /proc/cpuinfo"
     elif platform.system() == "Darwin":
         return "sysctl -a | grep machdep.cpu"
     else:
