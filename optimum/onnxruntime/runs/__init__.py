@@ -10,7 +10,7 @@ from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
 from ...pipelines import SUPPORTED_TASKS
 from ...pipelines import pipeline as _optimum_pipeline
-from ...runs_base import Run, TimeBenchmark, task_processing_map
+from ...runs_base import ExtendedJSONEncoder, Run, TimeBenchmark, task_processing_map
 from .. import ORTQuantizer
 from ..configuration import ORTConfig, QuantizationConfig
 from ..modeling_ort import ORTModel
@@ -200,4 +200,4 @@ class OnnxRuntimeRun(Run):
 
         # save run config and evaluation results
         with open(os.path.join(save_directory, "results.json"), "w") as f:
-            json.dump(self.return_body, f, indent=4)
+            json.dump(self.return_body, f, indent=4, cls=ExtendedJSONEncoder)

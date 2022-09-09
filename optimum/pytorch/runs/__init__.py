@@ -6,7 +6,7 @@ import torch
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
 
-from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
+from ...runs_base import ExtendedJSONEncoder, Run, TimeBenchmark, get_autoclass_name, task_processing_map
 
 
 class PyTorchRun(Run):
@@ -108,4 +108,4 @@ class PyTorchRun(Run):
 
         # save run config and evaluation results
         with open(os.path.join(save_directory, "results.json"), "w") as f:
-            json.dump(self.return_body, f, indent=4)
+            json.dump(self.return_body, f, indent=4, cls=ExtendedJSONEncoder)
