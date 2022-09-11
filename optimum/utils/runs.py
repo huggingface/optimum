@@ -240,6 +240,12 @@ class _RunDefaults:
             "description": "Use 'int8' for asymmetric quantization, 'uint8' for symmetric quantization of weights."
         },
     )
+    reduce_range: Optional[bool] = field(
+        default=False,
+        metadata={
+            "description": "Indicate whether to use 8-bits integers (False) or reduce-range 7-bits integers (True)."
+        },
+    )
     apply_quantization: Optional[bool] = field(
         default=True, metadata={"description": "Whether to apply quantization on the model."}
     )

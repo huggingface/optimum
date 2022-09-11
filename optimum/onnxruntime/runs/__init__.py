@@ -85,7 +85,7 @@ class OnnxRuntimeRun(Run):
             activations_dtype=QuantType.QInt8 if self.static_quantization else QuantType.QUInt8,
             weights_dtype=QuantType.QUInt8 if self.run_config["weights_dtype"] == "uint8" else QuantType.QInt8,
             per_channel=self.run_config["per_channel"],
-            reduce_range=False,
+            reduce_range=self.run_config["reduce_range"],
             operators_to_quantize=self.run_config["operators_to_quantize"],
         )
 
