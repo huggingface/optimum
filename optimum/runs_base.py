@@ -112,10 +112,11 @@ class Run:
             "aware_training": run_config["aware_training"],
             "per_channel": run_config["per_channel"],
             "weights_dtype": run_config["weights_dtype"],
+            "reduce_range": run_config["reduce_range"],
             "calibration": run_config["calibration"],
             "framework": run_config["framework"],
             "framework_args": run_config["framework_args"],
-            "hardware": cpu_info,  # is this ok?
+            "hardware": cpu_info,
             "versions": {
                 "transformers": transformers.__version__,
                 "optimum": optimum_version.__version__,
