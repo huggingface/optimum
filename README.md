@@ -1,3 +1,6 @@
+This differs from `main` by the following:
+* Use Evaluator in the benchmark scripts
+
 [![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml)
 
 # Hugging Face Optimum

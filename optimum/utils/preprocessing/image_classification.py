@@ -2,9 +2,11 @@ from functools import partial
 from typing import Dict, List
 
 import torch
-from datasets import Dataset, Metric, load_dataset
+from datasets import Dataset, load_dataset
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import FeatureExtractionMixin, ImageClassificationPipeline
+
+from evaluate import combine, evaluator
 
 from .base import DatasetProcessing
 
@@ -27,8 +29,6 @@ class ImageClassificationProcessing(DatasetProcessing):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        max_eval_samples = 100  # TODO remove this
-
         normalize = Normalize(mean=self.preprocessor.image_mean, std=self.preprocessor.image_std)
         transforms = Compose(
             [
@@ -48,9 +48,30 @@ class ImageClassificationProcessing(DatasetProcessing):
             return examples
 
         eval_dataset = raw_datasets[self.eval_split]
-        if max_eval_samples is not None:
-            eval_dataset = eval_dataset.shuffle(seed=42).select(range(max_eval_samples))
-        eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.shuffle(seed=42).select(range(self.max_eval_samples))
+
+        try:
+            if self.dataset_path == "imagenet-1k":
+                if self.config.id2label[517] == "crane":
+                    print("Fixing crane2 bug.")
+                    self.config.label2id["crane2"] = 517
+                    self.config.id2label[517] = "crane2"
+                    self.config.label2id["crane"] = 134
+                    self.config.id2label[134] = "crane"
+                elif self.config.id2label[517] == "crane2" and "crane2" in self.config.label2id:
+                    pass
+                else:
+                    raise ValueError("bug crane")
+
+            eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
+        except Exception as e:
+            print(
+                f"\nModel label mapping: {self.config.label2id}"
+                f"\nDataset label features: {eval_dataset.features[self.ref_keys[0]]}"
+                f"\nCould not guarantee the model label mapping and the dataset labels match."
+                f" Evaluation results may suffer from a wrong matching."
+            )
 
         datasets_dict = {"eval": eval_dataset}
 
@@ -77,26 +98,21 @@ class ImageClassificationProcessing(DatasetProcessing):
 
         return datasets_dict
 
-    def run_inference(self, eval_dataset: Dataset, pipeline: ImageClassificationPipeline):
-        all_labels = [label for label in eval_dataset[self.ref_keys[0]]]
-        all_preds = []
-        for _, inputs in enumerate(eval_dataset):
-            pred = pipeline(inputs[self.data_keys["primary"]])
+    def run_evaluation(self, eval_dataset: Dataset, pipeline: ImageClassificationPipeline, metrics: List[str]):
+        all_metrics = combine(metrics)
 
-            pred_label = max(pred, key=lambda x: x["score"])["label"]
-            pred_index = pipeline.model.config.label2id[pred_label]
-            all_preds.append(pred_index)
+        task_evaluator = evaluator("image-classification")
 
-        return all_labels, all_preds
+        results = task_evaluator.compute(
+            model_or_pipeline=pipeline,
+            data=eval_dataset,
+            metric=all_metrics,
+            input_column=self.data_keys["primary"],
+            label_column=self.ref_keys[0],
+            label_mapping=self.config.label2id,
+        )
 
-    def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_res = metric.compute(predictions=predictions, references=references)
-
-        # `metric.compute` may return a dict or a number
-        if not isinstance(metrics_res, dict):
-            metrics_res = {metric.name: metrics_res}
-
-        return metrics_res
+        return results
 
     def get_pipeline_kwargs(self):
         return {}

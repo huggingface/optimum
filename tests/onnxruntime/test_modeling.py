@@ -555,6 +555,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         outputs = pipe(text)
 
         self.assertEqual(pipe.device, onnx_model.device)
+        # TODO: shouldn't it be all instead of any?
         self.assertTrue(all(item["score"] > 0.0 for item in outputs))
 
         gc.collect()

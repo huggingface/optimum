@@ -1,5 +1,7 @@
+import os
 from typing import Dict, List
 
+import numpy as np
 from datasets import Dataset
 
 from ...runs_base import Calibrator
@@ -18,6 +20,7 @@ class OnnxRuntimeCalibrator(Calibrator):
         qconfig: QuantizationConfig,
         calibration_params: Dict,
         node_exclusion: List[str],
+        run_dir_path: str,
     ):
         super().__init__(
             calibration_dataset=calibration_dataset,
@@ -26,6 +29,7 @@ class OnnxRuntimeCalibrator(Calibrator):
             qconfig=qconfig,
             calibration_params=calibration_params,
             node_exclusion=node_exclusion,
+            run_dir_path=run_dir_path,
         )
 
         # Remove the unnecessary columns of the calibration dataset before the calibration step
@@ -50,6 +54,10 @@ class OnnxRuntimeCalibrator(Calibrator):
         if "softmax" in self.node_exclusion:
             # Exclude the Add nodes followed by the Softmax operator
             quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
+        if "residual-add-relu" in self.node_exclusion:
+            quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Relu"))
+        if "residual-relu-conv" in self.node_exclusion:
+            quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Relu", "Conv"))
 
         # Create the calibration configuration given the selected calibration method
         if self.calibration_params["method"] == "entropy":
@@ -80,11 +88,17 @@ class OnnxRuntimeCalibrator(Calibrator):
             self.quantizer.partial_fit(
                 dataset=shard,
                 calibration_config=calibration_config,
-                onnx_model_path=self.model_path,
+                onnx_augmented_model_name=os.path.join(self.run_dir_path, "augmented_model.onnx"),
                 operators_to_quantize=self.qconfig.operators_to_quantize,
                 batch_size=8,
                 use_external_data_format=False,
             )
         ranges = self.quantizer.compute_ranges()
+
+        if self.calibration_params["method"] in ["percentile", "entropy"]:
+            np.save(
+                os.path.join(self.run_dir_path, "calibration_histograms.npy"),
+                self.quantizer._calibrator.collector.histogram_dict,
+            )
 
         return ranges, quantization_preprocessor

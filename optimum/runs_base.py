@@ -1,14 +1,19 @@
+import dataclasses
+import json
 import os
+import shutil
 import subprocess
+import tempfile
+import time
 from contextlib import contextmanager
-from time import perf_counter_ns
-from typing import Set
+from typing import Optional, Set, Union
 
 import numpy as np
 import torch
 import transformers
 from datasets import Dataset
 from tqdm import trange
+from transformers.onnx.utils import get_preprocessor
 
 import optuna
 
@@ -35,7 +40,14 @@ def get_autoclass_name(task):
 
 class Calibrator:
     def __init__(
-        self, calibration_dataset: Dataset, quantizer, model_path, qconfig, calibration_params, node_exclusion
+        self,
+        calibration_dataset: Dataset,
+        quantizer,
+        model_path,
+        qconfig,
+        calibration_params,
+        node_exclusion,
+        run_dir_path,
     ):
         self.calibration_dataset = calibration_dataset
         self.quantizer = quantizer
@@ -43,6 +55,7 @@ class Calibrator:
         self.qconfig = qconfig
         self.calibration_params = calibration_params
         self.node_exclusion = node_exclusion
+        self.run_dir_path = run_dir_path
 
     def fit(self):
         raise NotImplementedError()
@@ -57,21 +70,26 @@ class Run:
         Args:
             run_config (dict): Parameters to use for the run. See [`~utils.runs.RunConfig`] for the expected keys.
         """
-        RunConfig(**run_config)  # validate the data (useful if used as standalone)
+        run_config = RunConfig(**run_config)  # validate the data (useful if used as standalone)
+        run_config = dataclasses.asdict(run_config)
+
+        self.run_config = run_config
+
+        self.run_dir_path = tempfile.mkdtemp()
 
         self.task = run_config["task"]
+
+        self.batch_sizes = run_config["batch_sizes"]
+        self.input_lengths = run_config["input_lengths"]
+
+        self.preprocessor = get_preprocessor(run_config["model_name_or_path"])
+
+        self.time_benchmark_args = run_config["time_benchmark_args"]
 
         if run_config["quantization_approach"] == "static":
             self.static_quantization = True
         else:
             self.static_quantization = False
-
-        search_space = {"batch_size": run_config["batch_sizes"], "input_length": run_config["input_lengths"]}
-
-        self.study = optuna.create_study(
-            directions=["maximize", "minimize"],
-            sampler=optuna.samplers.GridSampler(search_space),
-        )
 
         cpu_info = subprocess.check_output([cpu_info_command()], shell=True).decode("utf-8")
 
@@ -87,15 +105,18 @@ class Run:
             "task": self.task,
             "task_args": run_config["task_args"],
             "dataset": run_config["dataset"],
+            "apply_quantization": run_config["apply_quantization"],
             "quantization_approach": run_config["quantization_approach"],
             "operators_to_quantize": run_config["operators_to_quantize"],
             "node_exclusion": run_config["node_exclusion"],
             "aware_training": run_config["aware_training"],
             "per_channel": run_config["per_channel"],
+            "weights_dtype": run_config["weights_dtype"],
+            "reduce_range": run_config["reduce_range"],
             "calibration": run_config["calibration"],
             "framework": run_config["framework"],
             "framework_args": run_config["framework_args"],
-            "hardware": cpu_info,  # is this ok?
+            "hardware": cpu_info,
             "versions": {
                 "transformers": transformers.__version__,
                 "optimum": optimum_version.__version__,
@@ -103,27 +124,60 @@ class Run:
             },
             "evaluation": {
                 "time": [],
-                "others": {"baseline": {}, "optimized": {}},
+                "others": {},
             },
             "max_eval_samples": run_config["max_eval_samples"],
             "time_benchmark_args": run_config["time_benchmark_args"],
+            "from_transformers": run_config["from_transformers"],
         }
 
-    def launch(self):
+        return run_config
+
+    def launch(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
         """Launch inference to compare metrics between the original and optimized model.
 
         These metrics are latency, throughput, model size, and user provided metrics.
+
+        Args:
+            save (`bool`, *optional*, defaults to `False`):
+                Save the evaluation results or not.
+            save_directory (`Union[str, os.PathLike]`, *optional*, defaults to `None`):
+                Path to save the run to. Models and evaluations will be saved in a subfolder of this directory,
+                named with the time as prefix and `run_name` as suffix. This parameter must be set if `save` is `True`.
+            run_name (`str`, *optional*, defaults to `None`):
+                Optional name of the run, to include as a suffix in the saved directory name.
 
         Returns:
             `dict`: Finalized run data with metrics stored in the "evaluation" key.
         """
         try:
-            self.study.optimize(self._launch_time)
+            self.launch_time()
             self.launch_eval()
+
+            if save:
+                self.save(save_directory, run_name)
         finally:
             self.finalize()
             print("Finished run.")
 
+        return self.return_body
+
+    def launch_time(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
+        search_space = {"batch_size": self.batch_sizes, "input_length": self.input_lengths}
+
+        self.study = optuna.create_study(
+            directions=["maximize", "minimize"],
+            sampler=optuna.samplers.GridSampler(search_space),
+        )
+
+        self.study.optimize(self._launch_time)
+
+        if save:
+            self.save(save_directory, run_name)
         return self.return_body
 
     def _launch_time(self, trial):
@@ -136,17 +190,54 @@ class Run:
         """
         raise NotImplementedError()
 
-    def launch_eval(self):
+    def launch_eval(
+        self, save: bool = False, save_directory: Union[str, os.PathLike] = None, run_name: Optional[str] = None
+    ):
         """
-        Run evaluation on the original and optimized model.
+        Run evaluation on the model.
 
-        Populate the `["evaluation"]["others"]` subdictionary of the run.
+        Populate the `["evaluation"]["others"]` subdictionary of the run, and optionally save models,
+        run configuration and results.
+
+        Args:
+            save (`bool`, *optional*, defaults to `False`):
+                Save the evaluation results or not.
+            save_directory (`Union[str, os.PathLike]`, *optional*, defaults to `None`):
+                Path to save the run to. Models and evaluations will be saved in a subfolder of this directory,
+                named with the time as prefix and `run_name` as suffix. This parameter must be set if `save` is `True`.
+            run_name (`str`, *optional*, defaults to `None`):
+                Optional name of the run, to include as a suffix in the saved directory name.
         """
         raise NotImplementedError()
 
+    def save(self, save_directory: Union[str, os.PathLike], run_name: str):
+        """
+        Save models created during the run, the run configuration and results.
+
+        Args:
+            save_directory (`Union[str, os.PathLike]`, *optional*, defaults to `None`):
+                Path to save the run to. Models and evaluations will be saved in a subfolder of this directory,
+                named with the time as prefix and `run_name` as suffix.
+            run_name (`str`, *optional*, defaults to `None`):
+                Optional name of the run, to include as a suffix in the saved directory name.
+        """
+        if save_directory is None:
+            raise ValueError("A valid `save_directory` needs to be provided to save a run.")
+
+        subdir = time.strftime("%Y%m%d-h%Hm%Ms%S")
+        subdir += ("_" + run_name) if run_name is not None else ""
+        save_directory = os.path.join(save_directory, subdir)
+
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
+
+        print(f"Saving run in {save_directory}.")
+
+        return save_directory
+
     def load_datasets(self):
         """Load evaluation dataset, and if needed, calibration dataset for static quantization."""
-        datasets_dict = self.processor.load_datasets()
+        datasets_dict = self.task_processor.load_datasets()
 
         self._eval_dataset = datasets_dict["eval"]
         if self.static_quantization:
@@ -166,7 +257,7 @@ class Run:
         """
         Get evaluation dataset.  The dataset needs to be loaded first with [`~optimum.runs_base.Run.load_datasets`].
 
-         Returns:
+        Returns:
             `datasets.Dataset`: Evaluation dataset.
         """
         if not hasattr(self, "_eval_dataset"):
@@ -174,8 +265,9 @@ class Run:
         return self._eval_dataset
 
     def finalize(self):
-        """Cleanup intermediary files."""
-        raise NotImplementedError()
+        """Cleanup possible intermediary files."""
+        if os.path.exists(self.run_dir_path) and os.path.isdir(self.run_dir_path):
+            shutil.rmtree(self.run_dir_path)
 
 
 SEC_TO_NS_SCALE = 1000000000
@@ -209,9 +301,9 @@ class TimeBenchmark:
 
     @contextmanager
     def track(self):
-        start = perf_counter_ns()
+        start = time.perf_counter_ns()
         yield
-        end = perf_counter_ns()
+        end = time.perf_counter_ns()
 
         # Append the time to the buffer
         self.latencies.append(end - start)
@@ -248,10 +340,13 @@ class TimeBenchmark:
         if "token_type_ids" in self.model_input_names:
             inputs["token_type_ids"] = torch.ones(self.batch_size, self.input_length, dtype=torch.int64)
         if "pixel_values" in self.model_input_names:
-            # TODO support grayscale?
-            inputs["pixel_values"] = torch.rand(
-                self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32
-            )
+            if hasattr(self.model.config, "image_size"):
+                # TODO support grayscale?
+                inputs["pixel_values"] = torch.rand(
+                    self.batch_size, 3, self.model.config.image_size, self.model.config.image_size, dtype=torch.float32
+                )
+            else:  # default
+                inputs["pixel_values"] = torch.rand(self.batch_size, 3, 224, 224, dtype=torch.float32)
 
         if np.any([k not in checked_inputs for k in self.model_input_names]):
             raise NotImplementedError(
@@ -288,3 +383,14 @@ task_processing_map = {
     "question-answering": QuestionAnsweringProcessing,
     "image-classification": ImageClassificationProcessing,
 }
+
+
+class ExtendedJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        return super().default(o)
