@@ -25,13 +25,15 @@ RUN apt-get autoremove -y
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 RUN apt-get install -y python3-pip
 RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
-RUN pip install --upgrade pip
+RUN pip install -U pip
+RUN pip install pygit2 pgzip
 
 # Install onnxruntime-training dependencies
 RUN pip install onnx==1.11.0 ninja
 RUN pip install torch==1.11.0+cu115 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install onnxruntime-training==1.12.0+cu115 -f https://download.onnxruntime.ai/onnxruntime_stable_cu115.html
 RUN pip install torch-ort
+RUN pip install --upgrade protobuf==3.20.1
 # RUN python -m torch_ort.configure
 
 WORKDIR .
