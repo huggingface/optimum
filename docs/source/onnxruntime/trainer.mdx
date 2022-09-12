@@ -17,11 +17,13 @@ Taking ONNX Runtime as backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] optimiz
 mixed precision training implemented by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve shorter
 latency, larger throughput, and larger maximum batch size while training large transformers models.
 
-## Installation
-
-### Install ONNX Runtime
+## Prerequisite
 
 To use ONNX Runtime for training, you need a machine with at least one NVIDIA or AMD GPU.
+
+To use `ORTTrainer` or `ORTSeq2SeqTrainer`, you need to install ONNX Runtime Training module and Optimum.
+
+### Install ONNX Runtime
 
 To setup the environment, we __strongly recommend__ you to install the dependencies with Docker to ensure that the versions are correct and well
 configured. You can find dockerfiles with various combinations [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
@@ -32,7 +34,8 @@ For example, if you want to install [nightly-built onnxruntime-training](https:/
 docker build -f Dockerfile-ort-nightly-cu113 -t <imagename:tag> .
 ```
 
-You can also install the following dependencies in a local Python environment(example of torch_ort 1.12.0 with CUDA 11.3):
+If you want to install the dependencies in a local Python environment. Here is an example of installing and configuring
+`onnxruntime-training` 1.12.0. Before installing the dependencies, make sure that you have at least CUDA 10.2 well installed.
 
 ```bash
 pip install onnx==1.12.0 ninja
