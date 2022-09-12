@@ -42,7 +42,6 @@ EXTRAS_REQUIRE = {
     "intel": "optimum-intel",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
-    "habana-deepspeed": "optimum-habana[deepspeed]",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
