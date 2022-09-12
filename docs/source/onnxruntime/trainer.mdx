@@ -14,14 +14,25 @@ specific language governing permissions and limitations under the License.
 
 The [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] classes provide APIs for training PyTorch models with [ONNX Runtime(ORT)](https://onnxruntime.ai/).
 Taking ONNX Runtime as backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] optimize the computation graph and the memory usage. They also support
-mixed precision training implemenred by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve shorter
+mixed precision training implemented by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve shorter
 latency, larger throughput, and larger maximum batch size while training large transformers models.
 
 ## Installation
 
+### Install ONNX Runtime
+
 To use ONNX Runtime for training, you need a machine with at least one NVIDIA or AMD GPU.
 
-You can install the following dependencies in a local Python environment(for torch_ort 1.12.0 with CUDA 11.3):
+To setup the environment, we __strongly recommend__ you to install the dependencies with Docker to ensure that the versions are correct and well
+configured. You can find dockerfiles with various combinations [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
+
+For example, if you want to install [nightly-built onnxruntime-training](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort-nightly-cu113) via Dockerfile:
+
+```bash
+docker build -f Dockerfile-ort-nightly-cu113 -t <imagename:tag> .
+```
+
+You can also install the following dependencies in a local Python environment(example of torch_ort 1.12.0 with CUDA 11.3):
 
 ```bash
 pip install onnx==1.12.0 ninja
@@ -38,9 +49,23 @@ And run post-installation configuration:
 python -m torch_ort.configure
 ```
 
-It is __strongly recommended__ to setup your environment with Docker. You can find dockerfiles with more combinations [here]
-(https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
+### Install Optimum
 
+You can install Optimum via pypi:
+
+```bash
+pip install optimum
+```
+
+Or install from source:
+
+```bash
+pip install git+https://github.com/huggingface/optimum.git
+```
+
+This command installs the current main dev version of Optimum, which could include latest developments(new features, bug fixes). However, the
+main version might not be very stable. If you run into any problem, please open an [issue](https://github.com/huggingface/optimum/issues) so
+that we can fix it as soon as possible.
 
 ## ORTTrainer
 
@@ -87,3 +112,12 @@ train_result = trainer.train()
 
 [[autodoc]] onnxruntime.training_args_seq2seq.ORTSeq2SeqTrainingArguments
     - all
+
+## Other Resources
+
+* ONNX Runtime github
+* Torch ORT github
+* Blog posts
+
+If you have any problems or questions regarding `ORTTrainer`, please file an issue with [Optimum Github](https://github.com/huggingface/optimum)
+or discuss with us on [HuggingFace's community forum](https://discuss.huggingface.co/c/optimum/), cheers!
