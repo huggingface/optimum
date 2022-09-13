@@ -96,7 +96,7 @@ empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compare
 train_result = trainer.train()
 ```
 
-Check out more detailed [example scripts](https://github.com/huggingface/optimum) in the optimum repository.
+Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
 
 [[autodoc]] onnxruntime.trainer.ORTTrainer
     - all
@@ -128,7 +128,7 @@ trainer = ORTSeq2SeqTrainer(
 train_result = trainer.train()
 ```
 
-Check out more detailed [example scripts](https://github.com/huggingface/optimum) in the optimum repository.
+Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
 
 [[autodoc]] onnxruntime.trainer_seq2seq.ORTSeq2SeqTrainer
     - evaluate
@@ -154,7 +154,7 @@ with `ORTTrainingArguments`:
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir=tmp_dir,
-    optim="adamw_ort_fused",  # Fused Adam optimizer
+    optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
 )
 ```
 
@@ -189,7 +189,7 @@ with `ORTSeq2SeqTrainingArguments`:
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir=tmp_dir,
-    optim="adamw_ort_fused",  # Fused Adam optimizer
+    optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
 )
 ```
 
@@ -214,4 +214,4 @@ in the Optimum repository.
     * [ONNX Runtime Training Technical Deep Dive](https://techcommunity.microsoft.com/t5/ai-machine-learning-blog/onnx-runtime-training-technical-deep-dive/ba-p/1398310)
 
 If you have any problems or questions regarding `ORTTrainer`, please file an issue with [Optimum Github](https://github.com/huggingface/optimum)
-or discuss with us on [HuggingFace's community forum](https://discuss.huggingface.co/c/optimum/), cheers!
+or discuss with us on [HuggingFace's community forum](https://discuss.huggingface.co/c/optimum/), cheers 🤗 !
