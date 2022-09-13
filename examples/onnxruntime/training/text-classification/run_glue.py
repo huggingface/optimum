@@ -191,18 +191,32 @@ class ModelArguments:
     )
 
 
+@dataclass
+class InferenceArguments:
+    """
+    Arguments for inference(evaluate, predict).
+    """
+
+    inference_with_ort: bool = field(
+        default=False,
+        metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
+    )
+
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, ORTTrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, ORTTrainingArguments, InferenceArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, inference_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, inference_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -533,7 +547,7 @@ def main():
 
         logger.info("*** Evaluate within ONNX Runtime ***")
         for eval_dataset, task in zip(eval_datasets, tasks):
-            metrics = trainer.evaluate(eval_dataset=eval_dataset, inference_with_ort=training_args.inference_with_ort)
+            metrics = trainer.evaluate(eval_dataset=eval_dataset, inference_with_ort=inference_args.inference_with_ort)
 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
@@ -555,7 +569,7 @@ def main():
             # Removing the `label` columns because it contains -1 and Trainer won't like that.
             predict_dataset = predict_dataset.remove_columns("label")
             predictions = trainer.predict(
-                predict_dataset, metric_key_prefix="predict", inference_with_ort=training_args.inference_with_ort
+                predict_dataset, metric_key_prefix="predict", inference_with_ort=inference_args.inference_with_ort
             ).predictions
             predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
 
