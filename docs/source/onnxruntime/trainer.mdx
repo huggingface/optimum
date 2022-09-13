@@ -161,6 +161,14 @@ with `ORTTrainingArguments`:
 [[autodoc]] onnxruntime.training_args.ORTTrainingArguments
     - all
 
+<Tip warning={false}>
+
+DeepSpeed is supported by ONNX Runtime(only ZeRO stage 1 and 2 for the moment).
+You can find some [DeepSpeed configuration examples](https://github.com/huggingface/optimum/tree/main/tests/onnxruntime/ds_configs)
+in the Optimum repository.
+
+</Tip>
+
 ## ORTSeq2SeqTrainingArguments
 
 The [`ORTSeq2SeqTrainingArguments`] class inherits the [`Seq2SeqTrainingArguments`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.Seq2SeqTrainingArguments)
@@ -187,6 +195,14 @@ with `ORTSeq2SeqTrainingArguments`:
 
 [[autodoc]] onnxruntime.training_args_seq2seq.ORTSeq2SeqTrainingArguments
     - all
+
+<Tip warning={false}>
+
+DeepSpeed is supported by ONNX Runtime(only ZeRO stage 1 and 2 for the moment).
+You can find some [DeepSpeed configuration examples](https://github.com/huggingface/optimum/tree/main/tests/onnxruntime/ds_configs)
+in the Optimum repository.
+
+</Tip>
 
 ## Other Resources
 
