@@ -558,7 +558,7 @@ def main():
     if training_args.do_eval:
 
         logger.info("*** Evaluate within ONNX Runtime ***")
-        metrics = trainer.evaluate(eval_dataset=eval_dataset)
+        metrics = trainer.evaluate(eval_dataset=eval_dataset, inference_with_ort=training_args.inference_with_ort)
 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
@@ -570,7 +570,9 @@ def main():
     if training_args.do_predict:
 
         logger.info("*** Predict within ONNX Runtime ***")
-        predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict")
+        predictions, labels, metrics = trainer.predict(
+            predict_dataset, metric_key_prefix="predict", inference_with_ort=training_args.inference_with_ort
+        )
 
         predictions = np.argmax(predictions, axis=2)
 

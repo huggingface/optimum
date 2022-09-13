@@ -573,7 +573,12 @@ def main():
         logger.info("*** Evaluate within ONNX Runtime ***")
 
         print(type(data_collator))
-        metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
+        metrics = trainer.evaluate(
+            max_length=max_length,
+            num_beams=num_beams,
+            metric_key_prefix="eval",
+            inference_with_ort=training_args.inference_with_ort,
+        )
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
@@ -584,7 +589,11 @@ def main():
         logger.info("*** Predict within ONNX Runtime ***")
 
         predict_results = trainer.predict(
-            predict_dataset, metric_key_prefix="predict", max_length=max_length, num_beams=num_beams
+            predict_dataset,
+            metric_key_prefix="predict",
+            max_length=max_length,
+            num_beams=num_beams,
+            inference_with_ort=training_args.inference_with_ort,
         )
         metrics = predict_results.metrics
         max_predict_samples = (
