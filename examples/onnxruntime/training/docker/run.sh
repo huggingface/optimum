@@ -14,7 +14,7 @@ GPU_DEVICES=${2:-"all"}
 # Install dependencies
 # Install transformers from source as there was a bug on the 4.21.0 release: https://github.com/huggingface/transformers/issues/18350
 pip install git+https://github.com/huggingface/transformers
-pip install datasets accelerate #transformers
+pip install datasets accelerate evaluate #transformers
 pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized sentencepiece
 pip install fairscale deepspeed mpi4py
 # pip install optuna ray sigopt wandb # Hyper parameter search

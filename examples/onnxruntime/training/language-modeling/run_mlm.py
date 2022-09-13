@@ -31,7 +31,7 @@ from typing import Optional
 
 import datasets
 import transformers
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 from transformers import (
     CONFIG_MAPPING,
     MODEL_FOR_MASKED_LM_MAPPING,
@@ -47,6 +47,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
+import evaluate
 from optimum.onnxruntime import ORTTrainer
 from optimum.onnxruntime.training_args import ORTTrainingArguments
 
@@ -515,7 +516,7 @@ def main():
                 logits = logits[0]
             return logits.argmax(dim=-1)
 
-        metric = load_metric("accuracy")
+        metric = evaluate.load("accuracy")
 
         def compute_metrics(eval_preds):
             preds, labels = eval_preds

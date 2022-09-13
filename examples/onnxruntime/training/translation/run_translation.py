@@ -27,7 +27,7 @@ from typing import Optional
 import datasets
 import numpy as np
 import transformers
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
@@ -46,6 +46,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+import evaluate
 from optimum.onnxruntime import ORTSeq2SeqTrainer
 from optimum.onnxruntime.training_args_seq2seq import ORTSeq2SeqTrainingArguments
 
@@ -499,7 +500,7 @@ def main():
         )
 
     # Metric
-    metric = load_metric("sacrebleu")
+    metric = evaluate.load("sacrebleu")
 
     def postprocess_text(preds, labels):
         preds = [pred.strip() for pred in preds]
