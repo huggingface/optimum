@@ -19,11 +19,11 @@ limitations under the License.
 ## SQuAD Tasks
 
 By running the script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/question-answering/run_qa.py),
-we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) to fine-tune the models from the 
-[HuggingFace hub](https://huggingface.co/models) for question answering tasks such as SQuAD.  
+we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) to fine-tune the models from the
+[HuggingFace hub](https://huggingface.co/models) for question answering tasks such as SQuAD.
 
-Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along 
-the flag `--version_2_with_negative`.  
+Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along
+the flag `--version_2_with_negative`.
 
 __The following example applies the acceleration features powered by ONNX Runtime.__
 
@@ -41,7 +41,10 @@ python run_qa.py \
     --output_dir /tmp/ort_bert_squad/
 ```
 
-__Note__   
+__Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
-*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
-*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*  
+*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions*
+*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*
+
+> *The inference will use PyTorch by default, if you want to use ONNX Runtime backend instead, add the flag `--inference_with_ort`.*
+---

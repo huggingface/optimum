@@ -17,7 +17,7 @@ limitations under the License.
 
 By running the scripts [`run_clm.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/language-modeling/run_clm.py)
 and [`run_mlm.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/language-modeling/run_mlm.py),
-we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to train the language models from the 
+we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to train the language models from the
 [HuggingFace hub](https://huggingface.co/models).
 
 
@@ -35,11 +35,14 @@ python run_clm.py \
     --dataset_config_name wikitext-2-raw-v1 \
     --do_train \
     --output_dir /tmp/test-clm \
-    --fp16 
+    --fp16
 ```
+
 
 __Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
-*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
+*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions*
 *in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*
+
+> *The inference will use PyTorch by default, if you want to use ONNX Runtime backend instead, add the flag `--inference_with_ort`.*
 ---
