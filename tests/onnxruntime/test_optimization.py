@@ -34,7 +34,7 @@ from parameterized import parameterized
 class ORTOptimizerTest(unittest.TestCase):
 
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForCustomTasks, "hf-internal-testing/tiny-random-mt5")
+        (ORTModelForCustomTasks, "hf-internal-testing/tiny-random-mt5"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
