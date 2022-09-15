@@ -24,7 +24,7 @@ from transformers import AutoConfig, AutoTokenizer
 
 import onnx
 from onnxruntime import InferenceSession
-from optimum.onnxruntime import ORTConfig, ORTModelForCustomTasks, ORTModelForSequenceClassification, ORTOptimizer
+from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
@@ -34,7 +34,6 @@ from parameterized import parameterized
 class ORTOptimizerTest(unittest.TestCase):
 
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForCustomTasks, "hf-internal-testing/tiny-random-mt5"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
@@ -74,6 +73,7 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mt5", False),
     )
 
     @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
