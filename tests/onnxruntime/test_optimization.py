@@ -24,7 +24,7 @@ from transformers import AutoConfig, AutoTokenizer
 
 import onnx
 from onnxruntime import InferenceSession
-from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
+from optimum.onnxruntime import ORTConfig, ORTModelForCustomTasks, ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
@@ -34,14 +34,15 @@ from parameterized import parameterized
 class ORTOptimizerTest(unittest.TestCase):
 
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
+        (ORTModelForCustomTasks, "hf-internal-testing/tiny-random-mt5")
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-gpt2"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
