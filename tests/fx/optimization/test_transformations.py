@@ -22,8 +22,6 @@ from transformers import (
     BertModel,
     GroupViTConfig,
     GroupViTModel,
-    LevitConfig,
-    LevitForImageClassification,
 )
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
@@ -371,45 +369,6 @@ class CustomTransformationsTests(unittest.TestCase):
                 atol=1e-6,
             )
         )
-
-        config = LevitConfig()
-        model = LevitForImageClassification(config)
-        model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.weight.data = torch.rand(
-            model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.weight.data.shape
-        )
-        model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.bias.data = torch.rand(
-            model.levit.encoder.stages[0].layers[0].module.projection.batch_norm.bias.data.shape
-        )
-
-        model.classifier.batch_norm.weight.data = torch.rand(model.classifier.batch_norm.weight.data.shape)
-        model.classifier.batch_norm.bias.data = torch.rand(model.classifier.batch_norm.bias.data.shape)
-        model.eval()
-
-        traced_model = symbolic_trace(model, input_names=["pixel_values"], disable_check=True)
-
-        num_batchnorm1d = sum(1 if isinstance(mod, torch.nn.BatchNorm1d) else 0 for mod in traced_model.modules())
-        self.assertNotEqual(
-            num_batchnorm1d,
-            0,
-            msg="there should be at least one BatchNorm1d in the model to actually perform the test",
-        )
-
-        transformation = FuseBatchNorm1dInLinear()
-        transformed_model = transformation(traced_model)
-
-        num_batchnorm1d = sum(1 if isinstance(mod, torch.nn.BatchNorm1d) else 0 for mod in transformed_model.modules())
-        self.assertEqual(
-            num_batchnorm1d, 0, msg="there should be no BatchNorm1d left in the model after the transformation"
-        )
-
-        dummy_input = {
-            "pixel_values": torch.rand(4, 3, 224, 224, dtype=torch.float32),
-        }
-
-        output_original = model(**dummy_input)
-        output_transformed = transformed_model(**dummy_input)
-
-        self.assertTrue(torch.allclose(output_transformed["logits"], output_original.logits))
 
     def test_get_parent(self):
         class MyModel(torch.nn.Module):
