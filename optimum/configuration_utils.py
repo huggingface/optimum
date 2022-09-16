@@ -139,6 +139,7 @@ class BaseConfig(PretrainedConfig):
 
         Returns:
             `Tuple[Dict, Dict]`: The dictionary(ies) that will be used to instantiate the configuration object.
+
         """
         original_kwargs = copy.deepcopy(kwargs)
         # Get config dict associated with the base config file
