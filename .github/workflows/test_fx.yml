@@ -34,4 +34,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m pytest tests/fx
+        python -m pytest fx --exitfirst
