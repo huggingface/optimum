@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from packaging import version
 from transformers import PretrainedConfig
 from transformers import __version__ as transformers_version
+from transformers.dynamic_module_utils import custom_object_save
 from transformers.utils import is_offline_mode
 
 from huggingface_hub import hf_hub_download
@@ -49,34 +50,35 @@ class BaseConfig(PretrainedConfig):
     # Adapted from transformers.configuration_utils.PretrainedConfig.save_pretrained
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
         """
-        Save a configuration object to the directory ``save_directory``, so that it can be re-loaded using the
-        :func:`~transformers.PretrainedConfig.from_pretrained` class method.
+        Save a configuration object to the directory `save_directory`, so that it can be re-loaded using the
+        [`~PretrainedConfig.from_pretrained`] class method.
 
         Args:
-            save_directory (:obj:`str` or :obj:`os.PathLike`):
+            save_directory (`str` or `os.PathLike`):
                 Directory where the configuration JSON file will be saved (will be created if it does not exist).
-            push_to_hub (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether to push your model to the Hugging Face model hub after saving it.
-
-                .. warning::
-
-                    Using :obj:`push_to_hub=True` will synchronize the repository you are pushing to with
-                    :obj:`save_directory`, which requires :obj:`save_directory` to be a local clone of the repo you are
-                    pushing to if it's an existing folder. Pass along :obj:`temp_dir=True` to use a temporary directory
-                    instead.
-
+            push_to_hub (`bool`, *optional*, defaults to `False`):
+                Whether or not to push your model to the Hugging Face model hub after saving it. You can specify the
+                repository you want to push to with `repo_id` (will default to the name of `save_directory` in your
+                namespace).
             kwargs:
-                Additional key word arguments passed along to the
-                :meth:`~transformers.file_utils.PushToHubMixin.push_to_hub` method.
+                Additional key word arguments passed along to the [`~utils.PushToHubMixin.push_to_hub`] method.
         """
         if os.path.isfile(save_directory):
             raise AssertionError(f"Provided path ({save_directory}) should be a directory, not a file")
 
+        os.makedirs(save_directory, exist_ok=True)
+
         if push_to_hub:
             commit_message = kwargs.pop("commit_message", None)
-            repo = self._create_or_get_repo(save_directory, **kwargs)
+            repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
+            repo_id, token = self._create_repo(repo_id, **kwargs)
+            files_timestamps = self._get_files_timestamps(save_directory)
 
-        os.makedirs(save_directory, exist_ok=True)
+        # If we have a custom config, we copy the file defining it in the folder and set the attributes so it can be
+        # loaded from the Hub.
+        if self._auto_class is not None:
+            custom_object_save(self, save_directory, config=self)
+
         # If we save using the predefined names, we can load using `from_pretrained`
         output_config_file = os.path.join(save_directory, self.CONFIG_NAME)
 
@@ -84,8 +86,9 @@ class BaseConfig(PretrainedConfig):
         logger.info(f"Configuration saved in {output_config_file}")
 
         if push_to_hub:
-            url = self._push_to_hub(repo, commit_message=commit_message)
-            logger.info(f"Configuration pushed to the hub in this commit: {url}")
+            self._upload_modified_files(
+                save_directory, repo_id, files_timestamps, commit_message=commit_message, token=token
+            )
 
     # Adapted from transformers.configuration_utils.PretrainedConfig.get_configuration_file
     @classmethod
@@ -125,9 +128,11 @@ class BaseConfig(PretrainedConfig):
         """
         From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
         [`PretrainedConfig`] using `from_dict`.
+
         Parameters:
             pretrained_model_name_or_path (`str` or `os.PathLike`):
                 The identifier of the pre-trained checkpoint from which we want the dictionary of parameters.
+
         Returns:
             `Tuple[Dict, Dict]`: The dictionary(ies) that will be used to instantiate the configuration object.
         """
