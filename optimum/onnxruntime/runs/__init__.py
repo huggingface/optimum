@@ -2,9 +2,9 @@ import copy
 import os
 from pathlib import Path
 
-from transformers import AutoTokenizer
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
+from transformers.onnx.utils import get_preprocessor
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
@@ -42,10 +42,9 @@ class OnnxRuntimeRun(Run):
         trfs_model = FeaturesManager.get_model_from_feature(
             onnx_model.export_feature, run_config["model_name_or_path"]
         )
-        tokenizer = AutoTokenizer.from_pretrained(run_config["model_name_or_path"])
         quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
-        self.preprocessor = copy.deepcopy(tokenizer)
+        self.preprocessor = get_preprocessor(run_config["model_name_or_path"])
 
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]

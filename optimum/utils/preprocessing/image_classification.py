@@ -6,6 +6,8 @@ from datasets import Dataset, load_dataset
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import FeatureExtractionMixin, ImageClassificationPipeline
 
+from evaluate import Metric, combine, evaluator
+
 from .base import DatasetProcessing
 
 
@@ -97,6 +99,8 @@ class ImageClassificationProcessing(DatasetProcessing):
             label_column=self.ref_keys[0],
             label_mapping=self.config.label2id,
         )
+
+        return results
 
     def get_metrics(self, predictions: List, references: List, metric: Metric):
         metrics_res = metric.compute(predictions=predictions, references=references)
