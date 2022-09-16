@@ -124,6 +124,37 @@ class BaseConfig(PretrainedConfig):
 
         return configuration_file
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig.get_config_dict
+    @classmethod
+    def get_config_dict(
+        cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """
+        From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
+        [`PretrainedConfig`] using `from_dict`.
+
+        Parameters:
+            pretrained_model_name_or_path (`str` or `os.PathLike`):
+                The identifier of the pre-trained checkpoint from which we want the dictionary of parameters.
+
+        Returns:
+            `Tuple[Dict, Dict]`: The dictionary(ies) that will be used to instantiate the configuration object.
+        """
+        original_kwargs = copy.deepcopy(kwargs)
+        # Get config dict associated with the base config file
+        config_dict, kwargs = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+        if "_commit_hash" in config_dict:
+            original_kwargs["_commit_hash"] = config_dict["_commit_hash"]
+
+        # That config file may point us toward another config file to use.
+        if "configuration_files" in config_dict:
+            configuration_file = cls.get_configuration_file(config_dict["configuration_files"])
+            config_dict, kwargs = cls._get_config_dict(
+                pretrained_model_name_or_path, _configuration_file=configuration_file, **original_kwargs
+            )
+
+        return config_dict, kwargs
+
     # Adapted from transformers.configuration_utils.PretrainedConfig._get_config_dict
     @classmethod
     def _get_config_dict(
