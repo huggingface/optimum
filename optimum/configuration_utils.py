@@ -220,20 +220,26 @@ class BaseConfig(PretrainedConfig):
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "PretrainedConfig":
         """
-        Instantiates a :class:`~transformers.PretrainedConfig` from a Python dictionary of parameters.
+        Instantiates a [`PretrainedConfig`] from a Python dictionary of parameters.
 
         Args:
-            config_dict (:obj:`Dict[str, Any]`):
+            config_dict (`Dict[str, Any]`):
                 Dictionary that will be used to instantiate the configuration object. Such a dictionary can be
-                retrieved from a pretrained checkpoint by leveraging the
-                :func:`~transformers.PretrainedConfig.get_config_dict` method.
-            kwargs (:obj:`Dict[str, Any]`):
+                retrieved from a pretrained checkpoint by leveraging the [`~PretrainedConfig.get_config_dict`] method.
+            kwargs (`Dict[str, Any]`):
                 Additional parameters from which to initialize the configuration object.
 
         Returns:
-            :class:`PretrainedConfig`: The configuration object instantiated from those parameters.
+            [`PretrainedConfig`]: The configuration object instantiated from those parameters.
         """
         return_unused_kwargs = kwargs.pop("return_unused_kwargs", False)
+        # Those arguments may be passed along for our internal telemetry.
+        # We remove them so they don't appear in `return_unused_kwargs`.
+        kwargs.pop("_from_auto", None)
+        kwargs.pop("_from_pipeline", None)
+        # The commit hash might have been updated in the `config_dict`, we don't want the kwargs to erase that update.
+        if "_commit_hash" in kwargs and "_commit_hash" in config_dict:
+            kwargs["_commit_hash"] = config_dict["_commit_hash"]
 
         config = cls(**config_dict)
 
@@ -241,6 +247,15 @@ class BaseConfig(PretrainedConfig):
             config.pruned_heads = dict((int(key), value) for key, value in config.pruned_heads.items())
 
         # Update config with kwargs if needed
+        if "num_labels" in kwargs and "id2label" in kwargs:
+            num_labels = kwargs["num_labels"]
+            id2label = kwargs["id2label"] if kwargs["id2label"] is not None else []
+            if len(id2label) != num_labels:
+                raise ValueError(
+                    f"You passed along `num_labels={num_labels }` with an incompatible id to label map: "
+                    f"{kwargs['id2label']}. Since those arguments are inconsistent with each other, you should remove "
+                    "one of them."
+                )
         to_remove = []
         for key, value in kwargs.items():
             if hasattr(config, key):
