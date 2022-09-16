@@ -34,4 +34,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m pytest fx --exitfirst
+        python -m pytest fx/optimization/test_transformations.py --exitfirst
