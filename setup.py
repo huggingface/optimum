@@ -15,11 +15,11 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.18.0",
+    "transformers[sentencepiece]>=4.20.1",
     "torch>=1.9",
     "packaging",
     "numpy",
-    "huggingface_hub>=0.4.0",
+    "huggingface_hub>=0.8.0",
 ]
 
 TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"]
@@ -33,12 +33,14 @@ EXTRAS_REQUIRE = {
         "onnx",
         "onnxruntime>=1.9.0",
         "datasets>=1.2.1",
+        "evaluate",
         "protobuf==3.20.1",
     ],
     "onnxruntime-gpu": [
         "onnx",
         "onnxruntime-gpu>=1.9.0",
         "datasets>=1.2.1",
+        "evaluate",
         "protobuf==3.20.1",
     ],
     "intel": "optimum-intel",

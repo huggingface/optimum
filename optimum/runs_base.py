@@ -44,7 +44,7 @@ class Calibrator:
         self.calibration_params = calibration_params
         self.node_exclusion = node_exclusion
 
-    def calibrate(self):
+    def fit(self):
         raise NotImplementedError()
 
 

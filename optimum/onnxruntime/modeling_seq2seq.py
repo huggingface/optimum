@@ -154,7 +154,7 @@ TRANSLATION_EXAMPLE = r"""
 class ORTModelForConditionalGeneration(ORTModel):
     # Used in from_transformers to export model to onnx
     base_model_prefix = "onnx_model"
-    pipeline_task = "seq2seq-lm"
+    export_feature = "seq2seq-lm"
     auto_model_class = AutoModelForSeq2SeqLM
 
     def __init__(
@@ -299,8 +299,11 @@ class ORTModelForConditionalGeneration(ORTModel):
                 kwargs will be passed to the model during initialization.
             use_cache (`bool`, *optional*, defaults to `True`):
                 Whether or not to use the pre-computed key/values hidden-states in order to speed up sequential decoding.
+            local_files_only(`bool`, *optional*, defaults to `False`):
+                Whether or not to only look at local files (i.e., do not try to download the model).
         """
         use_cache = kwargs.pop("use_cache", True)
+        local_files_only = kwargs.pop("local_files_only", False)
         config_dict = kwargs.pop("config", {})
         config = PretrainedConfig.from_dict(config_dict)
         encoder_file_name = encoder_file_name or ONNX_ENCODER_NAME
@@ -335,6 +338,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
+                    local_files_only=local_files_only,
                 )
                 kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
             kwargs["model_save_dir"] = Path(model_cache_path).parent
@@ -392,13 +396,13 @@ class ORTModelForConditionalGeneration(ORTModel):
         kwargs["model_save_dir"] = save_dir
         use_cache = kwargs.get("use_cache", True)
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = FeaturesManager.get_model_from_feature(cls.pipeline_task, model_id)
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.pipeline_task)
+        model = FeaturesManager.get_model_from_feature(cls.export_feature, model_id)
+        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
         onnx_config = model_onnx_config(model.config)
         onnx_opset = onnx_config.default_onnx_opset
         onnx_config_encoder = EncoderOnnxConfig(model.config, task="default")
-        onnx_config_decoder = DecoderOnnxConfig(model.config, task=cls.pipeline_task, use_past=False)
-        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=cls.pipeline_task, use_past=True)
+        onnx_config_decoder = DecoderOnnxConfig(model.config, task=cls.export_feature, use_past=False)
+        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=cls.export_feature, use_past=True)
 
         # Extract the encoder for ONNX export
         encoder = model.get_encoder()
@@ -440,6 +444,10 @@ class ORTModelForConditionalGeneration(ORTModel):
         """
         Changes the ONNX Runtime provider according to the device.
         """
+        # convert string device input (ie. "cuda") to torch.device
+        if type(device) == str:
+            device = torch.device(device)
+
         self.device = device
         provider = get_provider_for_device(device)
         self.encoder._device = device
@@ -506,6 +514,7 @@ class ORTDecoder:
         self._device = device
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
 
     @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
     def forward(
@@ -528,10 +537,9 @@ class ORTDecoder:
         if past_key_values is not None:
             # Flatten the past_key_values
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
-
             # Add the past_key_values to the decoder inputs
-            for i, past_key_value in enumerate(past_key_values):
-                onnx_inputs[f"past_key_values_{i}.1"] = past_key_value.cpu().detach().numpy()
+            for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
+                onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
         # Run inference
         outputs = self.session.run(None, onnx_inputs)
@@ -541,7 +549,7 @@ class ORTDecoder:
         past_key_values = tuple(
             torch.from_numpy(outputs[self.output_names[key]]).to(self._device)
             for key in self.output_names
-            if "past_key_values" in key
+            if "key_values" in key
         )
 
         # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and

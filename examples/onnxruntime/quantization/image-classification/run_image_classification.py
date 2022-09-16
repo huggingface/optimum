@@ -22,6 +22,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import Optional
 
 import datasets
@@ -31,12 +32,14 @@ import transformers
 from datasets import load_dataset, load_metric
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import AutoFeatureExtractor, EvalPrediction, HfArgumentParser, TrainingArguments
+from transformers.onnx import FeaturesManager
 from transformers.utils.versions import require_version
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime.modeling_ort import ORTModelForImageClassification
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
@@ -108,10 +111,6 @@ class ModelArguments:
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
-    execution_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
-    )
 
 
 @dataclass
@@ -120,10 +119,6 @@ class OptimizationArguments:
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
-    opset: Optional[int] = field(
-        default=None,
-        metadata={"help": "ONNX opset version to export the model with."},
-    )
     quantization_approach: str = field(
         default="dynamic",
         metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
@@ -180,6 +175,10 @@ class OptimizationArguments:
             "set to True."
         },
     )
+    execution_provider: str = field(
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+    )
 
 
 def main():
@@ -221,14 +220,12 @@ def main():
         raise ValueError("Need either a dataset name or a training/validation folder.")
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
-    quantized_model_path = os.path.join(training_args.output_dir, "model-quantized.onnx")
 
     # Get the datasets: you can either provide your own training and evaluation files (see below)
     # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
     if data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
-        dataset = load_dataset(data_args.dataset_name, task="image-classification")
+        dataset = load_dataset(data_args.dataset_name)
     else:
         data_files = {}
         if data_args.train_dir is not None:
@@ -243,6 +240,10 @@ def main():
         )
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.0.0/en/image_process#imagefolder.
+
+    labels_column = (
+        "labels" if "labels" in dataset["validation"].column_names else dataset["validation"].column_names[1]
+    )
 
     feature_extractor = AutoFeatureExtractor.from_pretrained(model_args.model_name_or_path)
 
@@ -275,10 +276,11 @@ def main():
         result = metric.compute(predictions=preds, references=p.label_ids)
         return result
 
+    # Export the model
+    model = ORTModelForImageClassification.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+
     # Create the quantizer
-    quantizer = ORTQuantizer.from_pretrained(
-        model_name_or_path=model_args.model_name_or_path, feature="image-classification", opset=optim_args.opset
-    )
+    quantizer = ORTQuantizer.from_pretrained(model)
 
     apply_static_quantization = optim_args.quantization_approach == "static"
 
@@ -300,7 +302,9 @@ def main():
     if apply_static_quantization:
         calibration_dataset = dataset["train"]
         if optim_args.num_calibration_samples is not None:
-            calibration_dataset = calibration_dataset.select(range(optim_args.num_calibration_samples))
+            calibration_dataset = calibration_dataset.shuffle(seed=training_args.seed).select(
+                range(optim_args.num_calibration_samples)
+            )
 
         # all images are loaded in memory, which could prove expensive if num_calibration_samples is large
         calibration_dataset = calibration_dataset.map(
@@ -340,7 +344,6 @@ def main():
             quantizer.partial_fit(
                 dataset=shard,
                 calibration_config=calibration_config,
-                onnx_model_path=model_path,
                 operators_to_quantize=qconfig.operators_to_quantize,
                 batch_size=optim_args.calibration_batch_size,
                 use_external_data_format=False,
@@ -358,40 +361,42 @@ def main():
         # Exclude the Add nodes followed by the Softmax operator
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
-    # Export the quantized model
-    quantizer.export(
-        onnx_model_path=model_path,
-        onnx_quantized_model_output_path=quantized_model_path,
+    # Apply quantization on the model
+    quantizer.quantize(
+        save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
     )
 
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
-    # Save the configuration
-    ort_config.save_pretrained(training_args.output_dir)
-
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
+        eval_dataset = dataset["validation"]
         if data_args.max_eval_samples is not None:
-            dataset["validation"] = dataset["validation"].select(range(data_args.max_eval_samples))
+            eval_dataset = eval_dataset.shuffle(seed=training_args.seed).select(range(data_args.max_eval_samples))
 
-        if quantizer.model.config.label2id:
+        try:
             eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=quantizer.model.config.label2id, label_column="labels"
+                label2id=model.config.label2id, label_column=labels_column
             )
+        except Exception as e:
+            logger.warning(
+                f"\nModel label mapping: {model.config.label2id}"
+                f"\nDataset label features: {eval_dataset.features[labels_column]}"
+                f"\nCould not guarantee the model label mapping and the dataset labels match."
+                f" Evaluation results may suffer from a wrong matching."
+            )
+
         # Set the validation transforms
-        eval_dataset = dataset["validation"].with_transform(preprocess_function)
+        eval_dataset = eval_dataset.with_transform(preprocess_function)
 
         ort_model = ORTModel(
-            quantized_model_path,
-            quantizer._onnx_config,
-            execution_provider=model_args.execution_provider,
+            Path(training_args.output_dir) / "model_quantized.onnx",
+            execution_provider=optim_args.execution_provider,
             compute_metrics=compute_metrics,
-            label_names=["labels"],
+            label_names=[labels_column],
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics

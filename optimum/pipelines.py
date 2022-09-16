@@ -87,7 +87,7 @@ if is_onnxruntime_available():
         "translation": {
             "impl": TranslationPipeline,
             "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
-            "default": "t5-base",
+            "default": "t5-small",
             "type": "text",
         },
         "text2text-generation": {

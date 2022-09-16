@@ -32,13 +32,17 @@ class OnnxRuntimeRun(Run):
             operators_to_quantize=run_config["operators_to_quantize"],
         )
 
-        quantizer = ORTQuantizer.from_pretrained(
-            run_config["model_name_or_path"],
-            feature=get_autoclass_name(self.task),
-            opset=run_config["framework_args"]["opset"],
+        onnx_model = SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
+            run_config["model_name_or_path"], from_transformers=True
         )
 
-        self.preprocessor = copy.deepcopy(quantizer.preprocessor)
+        trfs_model = FeaturesManager.get_model_from_feature(
+            onnx_model.export_feature, run_config["model_name_or_path"]
+        )
+        tokenizer = AutoTokenizer.from_pretrained(run_config["model_name_or_path"])
+        quantizer = ORTQuantizer.from_pretrained(onnx_model)
+
+        self.preprocessor = copy.deepcopy(tokenizer)
 
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]
@@ -46,7 +50,7 @@ class OnnxRuntimeRun(Run):
         self.time_benchmark_args = run_config["time_benchmark_args"]
 
         self.model_path = "model.onnx"
-        self.quantized_model_path = "quantized_model.onnx"
+        self.quantized_model_path = "model_quantized.onnx"
 
         processing_class = task_processing_map[self.task]
         self.task_processor = processing_class(
@@ -62,7 +66,7 @@ class OnnxRuntimeRun(Run):
             num_calibration_samples=run_config["calibration"]["num_calibration_samples"]
             if self.static_quantization
             else None,
-            config=quantizer.model.config,
+            config=trfs_model.config,
             max_eval_samples=run_config["max_eval_samples"],
         )
 
@@ -82,22 +86,23 @@ class OnnxRuntimeRun(Run):
                 calibration_params=run_config["calibration"],
                 node_exclusion=run_config["node_exclusion"],
             )
-            ranges, quantization_preprocessor = calibrator.calibrate()
+            ranges, quantization_preprocessor = calibrator.fit()
 
         # Export the quantized model
-        quantizer.export(
-            onnx_model_path=self.model_path,
-            onnx_quantized_model_output_path=self.quantized_model_path,
+        quantizer.quantize(
+            save_dir="./",
             calibration_tensors_range=ranges,
             quantization_config=qconfig,
             preprocessor=quantization_preprocessor,
         )
 
         # onnxruntime benchmark
-        ort_session = ORTModel.load_model(self.quantized_model_path)
+        ort_session = ORTModel.load_model(
+            str(Path("./") / self.quantized_model_path),
+        )
 
         # necessary to pass the config for the pipeline not to complain later
-        self.ort_model = task_ortmodel_map[self.task](ort_session, config=quantizer.model.config)
+        self.ort_model = task_ortmodel_map[self.task](ort_session, config=trfs_model.config)
 
         # pytorch benchmark
         model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
