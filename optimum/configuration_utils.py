@@ -1,3 +1,4 @@
+# coding=utf-8
 #  Copyright 2021 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -95,8 +96,10 @@ class BaseConfig(PretrainedConfig):
     def get_configuration_file(cls, configuration_files: List[str]) -> str:
         """
         Get the configuration file to use for this version of transformers.
+
         Args:
             configuration_files (`List[str]`): The list of available configuration files.
+
         Returns:
             `str`: The configuration file to use.
         """
@@ -109,6 +112,7 @@ class BaseConfig(PretrainedConfig):
                 configuration_files_map[v] = file_name
         available_versions = sorted(configuration_files_map.keys())
 
+        # Defaults to FULL_CONFIGURATION_FILE and then try to look at some newer versions.
         configuration_file = cls.CONFIG_NAME
         optimum_version = version.parse(__version__)
         for v in available_versions:
