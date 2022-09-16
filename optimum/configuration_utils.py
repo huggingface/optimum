@@ -24,7 +24,12 @@ from packaging import version
 from transformers import PretrainedConfig
 from transformers import __version__ as transformers_version
 from transformers.dynamic_module_utils import custom_object_save
-from transformers.utils import is_offline_mode
+from transformers.utils import (
+    cached_file,
+    download_url,
+    extract_commit_hash,
+    is_remote_url,
+)
 
 from huggingface_hub import hf_hub_download
 
@@ -129,18 +134,6 @@ class BaseConfig(PretrainedConfig):
     def _get_config_dict(
         cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """
-        From a ``pretrained_model_name_or_path``, resolve to a dictionary of parameters, to be used for instantiating a
-        :class:`~transformers.PretrainedConfig` using ``from_dict``.
-
-        Args:
-            pretrained_model_name_or_path (:obj:`str` or :obj:`os.PathLike`):
-                The identifier of the pre-trained checkpoint from which we want the dictionary of parameters.
-
-        Returns:
-            :obj:`Tuple[Dict, Dict]`: The dictionary(ies) that will be used to instantiate the configuration object.
-
-        """
         cache_dir = kwargs.pop("cache_dir", None)
         force_download = kwargs.pop("force_download", False)
         resume_download = kwargs.pop("resume_download", False)
@@ -148,43 +141,52 @@ class BaseConfig(PretrainedConfig):
         use_auth_token = kwargs.pop("use_auth_token", None)
         local_files_only = kwargs.pop("local_files_only", False)
         revision = kwargs.pop("revision", None)
+        trust_remote_code = kwargs.pop("trust_remote_code", None)
+        subfolder = kwargs.pop("subfolder", "")
         from_pipeline = kwargs.pop("_from_pipeline", None)
         from_auto_class = kwargs.pop("_from_auto", False)
+        commit_hash = kwargs.pop("_commit_hash", None)
+
+        if trust_remote_code is True:
+            logger.warning(
+                "The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is"
+                " ignored."
+            )
 
         user_agent = {"file_type": "config", "from_auto_class": from_auto_class}
         if from_pipeline is not None:
             user_agent["using_pipeline"] = from_pipeline
 
-        if is_offline_mode() and not local_files_only:
-            logger.info("Offline mode: forcing local_files_only=True")
-            local_files_only = True
-
         pretrained_model_name_or_path = str(pretrained_model_name_or_path)
-        configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
-        is_local = os.path.isdir(pretrained_model_name_or_path)
 
-        if os.path.isfile(pretrained_model_name_or_path):
+        is_local = os.path.isdir(pretrained_model_name_or_path)
+        if os.path.isfile(os.path.join(subfolder, pretrained_model_name_or_path)):
+            # Special case when pretrained_model_name_or_path is a local file
             resolved_config_file = pretrained_model_name_or_path
             is_local = True
-        elif os.path.isdir(pretrained_model_name_or_path):
-            resolved_config_file = os.path.join(pretrained_model_name_or_path, configuration_file)
-            if not os.path.isfile(resolved_config_file):
-                raise EnvironmentError(
-                    f"Could not locate {configuration_file} inside {pretrained_model_name_or_path}."
-                )
+        elif is_remote_url(pretrained_model_name_or_path):
+            configuration_file = pretrained_model_name_or_path
+            resolved_config_file = download_url(pretrained_model_name_or_path)
         else:
+            configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
+
             try:
-                resolved_config_file = hf_hub_download(
-                    repo_id=pretrained_model_name_or_path,
-                    filename=configuration_file,
-                    revision=revision,
+                # Load from local folder or from cache or download from model Hub and cache
+                resolved_config_file = cached_file(
+                    pretrained_model_name_or_path,
+                    configuration_file,
                     cache_dir=cache_dir,
                     force_download=force_download,
-                    resume_download=resume_download,
                     proxies=proxies,
-                    use_auth_token=use_auth_token,
+                    resume_download=resume_download,
                     local_files_only=local_files_only,
+                    use_auth_token=use_auth_token,
+                    user_agent=user_agent,
+                    revision=revision,
+                    subfolder=subfolder,
+                    _commit_hash=commit_hash,
                 )
+                commit_hash = extract_commit_hash(resolved_config_file, commit_hash)
             except EnvironmentError:
                 # Raise any environment error raise by `cached_file`. It will have a helpful error message adapted to
                 # the original exception.
@@ -192,23 +194,25 @@ class BaseConfig(PretrainedConfig):
             except Exception:
                 # For any other exception, we throw a generic error.
                 raise EnvironmentError(
-                    f"Can't load the configuration of '{pretrained_model_name_or_path}'. If you were trying to load it "
-                    "from 'https://huggingface.co/models', make sure you don't have a local directory with the same "
-                    f"name. Otherwise, make sure '{pretrained_model_name_or_path}' is the correct path to a directory "
-                    f"containing a {configuration_file} file"
+                    f"Can't load the configuration of '{pretrained_model_name_or_path}'. If you were trying to load it"
+                    " from 'https://huggingface.co/models', make sure you don't have a local directory with the same"
+                    f" name. Otherwise, make sure '{pretrained_model_name_or_path}' is the correct path to a directory"
+                    f" containing a {configuration_file} file"
                 )
 
         try:
             # Load config dict
             config_dict = cls._dict_from_json_file(resolved_config_file)
+            config_dict["_commit_hash"] = commit_hash
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(
                 f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file."
             )
+
         if is_local:
-            logger.info(f"Loading configuration file {resolved_config_file}")
+            logger.info(f"loading configuration file {resolved_config_file}")
         else:
-            logger.info(f"Loading configuration file from cache at {resolved_config_file}")
+            logger.info(f"loading configuration file {configuration_file} from cache at {resolved_config_file}")
 
         return config_dict, kwargs
 
@@ -258,11 +262,15 @@ class BaseConfig(PretrainedConfig):
         Serializes this instance to a Python dictionary.
 
         Returns:
-            :obj:`Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
+            `Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
         """
         output = copy.deepcopy(self.__dict__)
         if hasattr(self.__class__, "model_type"):
             output["model_type"] = self.__class__.model_type
+        if "_auto_class" in output:
+            del output["_auto_class"]
+        if "_commit_hash" in output:
+            del output["_commit_hash"]
 
         # Transformers version when serializing the model
         output["transformers_version"] = transformers_version
