@@ -37,7 +37,7 @@ _transformers_version_is_below_threshold = (
 ) < _transformers_version_threshold
 
 if _transformers_version_is_below_threshold:
-    from huggingface_hub import hf_hub_download
+    from transformers.utils import cached_path, hf_bucket_url
 else:
     from transformers.dynamic_module_utils import custom_object_save
     from transformers.utils import cached_file, download_url, extract_commit_hash, is_remote_url
@@ -235,16 +235,23 @@ class BaseConfig(PretrainedConfig):
             try:
                 # TODO: remove once transformers release version is way above 4.22.
                 if _transformers_version_is_below_threshold:
-                    resolved_config_file = hf_hub_download(
-                        repo_id=pretrained_model_name_or_path,
+                    config_file = hf_bucket_url(
+                        pretrained_model_name_or_path,
                         filename=configuration_file,
                         revision=revision,
+                        subfolder=subfolder if len(subfolder) > 0 else None,
+                        mirror=None,
+                    )
+                    # Load from URL or cache if already cached
+                    resolved_config_file = cached_path(
+                        config_file,
                         cache_dir=cache_dir,
                         force_download=force_download,
-                        resume_download=resume_download,
                         proxies=proxies,
-                        use_auth_token=use_auth_token,
+                        resume_download=resume_download,
                         local_files_only=local_files_only,
+                        use_auth_token=use_auth_token,
+                        user_agent=user_agent,
                     )
                 else:
                     # Load from local folder or from cache or download from model Hub and cache
