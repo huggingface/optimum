@@ -217,6 +217,7 @@ class BaseConfig(PretrainedConfig):
             # Special case when pretrained_model_name_or_path is a local file
             resolved_config_file = pretrained_model_name_or_path
             is_local = True
+        # TODO: remove once transformers release version is way above 4.22.
         elif _transformers_version_is_below_threshold and os.path.isdir(pretrained_model_name_or_path):
             configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
             resolved_config_file = os.path.join(pretrained_model_name_or_path, configuration_file)
