@@ -18,18 +18,29 @@ import copy
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 from packaging import version
 from transformers import PretrainedConfig
-from transformers import __version__ as transformers_version
-from transformers.dynamic_module_utils import custom_object_save
-from transformers.utils import cached_file, download_url, extract_commit_hash, is_remote_url
-
-from huggingface_hub import hf_hub_download
+from transformers import __version__ as transformers_version_str
 
 from .utils import logging
 from .version import __version__
+
+
+# TODO: remove once transformers release version is way above 4.22.
+_transformers_version = version.parse(transformers_version_str)
+_transformers_version_threshold = (4, 22)
+_transformers_version_is_below_threshold = (
+    _transformers_version.major,
+    _transformers_version.minor,
+) < _transformers_version_threshold
+
+if _transformers_version_is_below_threshold:
+    from huggingface_hub import hf_hub_download
+else:
+    from transformers.dynamic_module_utils import custom_object_save
+    from transformers.utils import cached_file, download_url, extract_commit_hash, is_remote_url
 
 
 logger = logging.get_logger(__name__)
@@ -67,13 +78,23 @@ class BaseConfig(PretrainedConfig):
         if os.path.isfile(save_directory):
             raise AssertionError(f"Provided path ({save_directory}) should be a directory, not a file")
 
-        os.makedirs(save_directory, exist_ok=True)
+        # TODO: remove conditon once transformers release version is way above 4.22.
+        if not _transformers_version_is_below_threshold:
+            os.makedirs(save_directory, exist_ok=True)
 
         if push_to_hub:
             commit_message = kwargs.pop("commit_message", None)
-            repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
-            repo_id, token = self._create_repo(repo_id, **kwargs)
-            files_timestamps = self._get_files_timestamps(save_directory)
+            # TODO: remove once transformers release version is way above 4.22.
+            if _transformers_version_is_below_threshold:
+                repo = self._create_or_get_repo(save_directory, **kwargs)
+            else:
+                repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
+                repo_id, token = self._create_repo(repo_id, **kwargs)
+                files_timestamps = self._get_files_timestamps(save_directory)
+
+        # TODO: remove once transformers release version is way above 4.22.
+        if _transformers_version_is_below_threshold:
+            os.makedirs(save_directory, exist_ok=True)
 
         # If we have a custom config, we copy the file defining it in the folder and set the attributes so it can be
         # loaded from the Hub.
@@ -87,9 +108,14 @@ class BaseConfig(PretrainedConfig):
         logger.info(f"Configuration saved in {output_config_file}")
 
         if push_to_hub:
-            self._upload_modified_files(
-                save_directory, repo_id, files_timestamps, commit_message=commit_message, token=token
-            )
+            # TODO: remove once transformers release version is way above 4.22.
+            if _transformers_version_is_below_threshold:
+                url = self._push_to_hub(repo, commit_message=commit_message)
+                logger.info(f"Configuration pushed to the hub in this commit: {url}")
+            else:
+                self._upload_modified_files(
+                    save_directory, repo_id, files_timestamps, commit_message=commit_message, token=token
+                )
 
     # Adapted from transformers.configuration_utils.PretrainedConfig.get_configuration_file
     @classmethod
@@ -191,29 +217,51 @@ class BaseConfig(PretrainedConfig):
             # Special case when pretrained_model_name_or_path is a local file
             resolved_config_file = pretrained_model_name_or_path
             is_local = True
-        elif is_remote_url(pretrained_model_name_or_path):
+        elif _transformers_version_is_below_threshold and os.path.isdir(pretrained_model_name_or_path):
+            configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
+            resolved_config_file = os.path.join(pretrained_model_name_or_path, configuration_file)
+            if not os.path.isfile(resolved_config_file):
+                raise EnvironmentError(
+                    f"Could not locate {configuration_file} inside {pretrained_model_name_or_path}."
+                )
+        # TODO: remove condition once transformers release version is way above 4.22.
+        elif not _transformers_version_is_below_threshold and is_remote_url(pretrained_model_name_or_path):
             configuration_file = pretrained_model_name_or_path
             resolved_config_file = download_url(pretrained_model_name_or_path)
         else:
             configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
 
             try:
-                # Load from local folder or from cache or download from model Hub and cache
-                resolved_config_file = cached_file(
-                    pretrained_model_name_or_path,
-                    configuration_file,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    proxies=proxies,
-                    resume_download=resume_download,
-                    local_files_only=local_files_only,
-                    use_auth_token=use_auth_token,
-                    user_agent=user_agent,
-                    revision=revision,
-                    subfolder=subfolder,
-                    _commit_hash=commit_hash,
-                )
-                commit_hash = extract_commit_hash(resolved_config_file, commit_hash)
+                # TODO: remove once transformers release version is way above 4.22.
+                if _transformers_version_is_below_threshold:
+                    resolved_config_file = hf_hub_download(
+                        repo_id=pretrained_model_name_or_path,
+                        filename=configuration_file,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        resume_download=resume_download,
+                        proxies=proxies,
+                        use_auth_token=use_auth_token,
+                        local_files_only=local_files_only,
+                    )
+                else:
+                    # Load from local folder or from cache or download from model Hub and cache
+                    resolved_config_file = cached_file(
+                        pretrained_model_name_or_path,
+                        configuration_file,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        proxies=proxies,
+                        resume_download=resume_download,
+                        local_files_only=local_files_only,
+                        use_auth_token=use_auth_token,
+                        user_agent=user_agent,
+                        revision=revision,
+                        subfolder=subfolder,
+                        _commit_hash=commit_hash,
+                    )
+                    commit_hash = extract_commit_hash(resolved_config_file, commit_hash)
             except EnvironmentError:
                 # Raise any environment error raise by `cached_file`. It will have a helpful error message adapted to
                 # the original exception.
@@ -230,7 +278,9 @@ class BaseConfig(PretrainedConfig):
         try:
             # Load config dict
             config_dict = cls._dict_from_json_file(resolved_config_file)
-            config_dict["_commit_hash"] = commit_hash
+            # TODO: remove once transformers release version is way above 4.22.
+            if _transformers_version_is_below_threshold:
+                config_dict["_commit_hash"] = commit_hash
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(
                 f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file."
@@ -315,7 +365,7 @@ class BaseConfig(PretrainedConfig):
             del output["_commit_hash"]
 
         # Transformers version when serializing the model
-        output["transformers_version"] = transformers_version
+        output["transformers_version"] = transformers_version_str
         output["optimum_version"] = __version__
 
         self.dict_torch_dtype_to_str(output)
