@@ -54,6 +54,7 @@ class CalibrationMethods(str, Enum):
 
 class QuantizationApproach(str, Enum):
     static = "static"
+    qat = "qat"
     dynamic = "dynamic"
 
 

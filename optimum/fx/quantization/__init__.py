@@ -11,4 +11,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from .functions import fuse_fx, prepare_fx, prepare_qat_fx
+from .configuration import CalibrationMethod, QConfig, QConfigUnit, QuantizationConfig  # noqa
+from .functions import fuse_fx, prepare_fx, prepare_qat_fx  # noqa
+from .quantizer import quantize  # noqa
