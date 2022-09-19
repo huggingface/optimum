@@ -26,17 +26,21 @@ TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
+BENCHMARK_REQUIRE = ["optuna", "tqdm", "sklearn", "seqeval", "torchvision", "evaluate>=0.2.0"]
+
 EXTRAS_REQUIRE = {
     "onnxruntime": [
         "onnx",
         "onnxruntime>=1.9.0",
         "datasets>=1.2.1",
+        "evaluate",
         "protobuf==3.20.1",
     ],
     "onnxruntime-gpu": [
         "onnx",
         "onnxruntime-gpu>=1.9.0",
         "datasets>=1.2.1",
+        "evaluate",
         "protobuf==3.20.1",
     ],
     "intel": "optimum-intel",
@@ -45,7 +49,7 @@ EXTRAS_REQUIRE = {
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
-    "benchmark": ["optuna", "tqdm", "sklearn", "seqeval", "torchvision"],
+    "benchmark": BENCHMARK_REQUIRE,
 }
 
 setup(
