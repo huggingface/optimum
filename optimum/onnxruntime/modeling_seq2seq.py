@@ -647,8 +647,11 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
                 logits=decoder_outputs.logits,
                 past_key_values=decoder_outputs.past_key_values,
             )
-        else:
-            return Seq2SeqLMOutput(logits=decoder_outputs.logits, past_key_values=decoder_outputs.past_key_values)
+        return Seq2SeqLMOutput(
+            loss=decoder_outputs.get("loss", None),
+            logits=decoder_outputs.logits,
+            past_key_values=decoder_outputs.past_key_values,
+        )
 
     def prepare_inputs_for_generation(
         self,
