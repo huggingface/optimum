@@ -542,7 +542,7 @@ class ORTDecoder:
             for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                 onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
-        if labels is not None:
+        if "labels" in self.input_names:
             # TODO: Any preprocessing like  `self._shift_right(labels)`?
             onnx_inputs["labels"] = labels.cpu().detach().numpy()
 
