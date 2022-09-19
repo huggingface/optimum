@@ -494,32 +494,13 @@ class FuseBatchNorm2dInConv2d(Transformation):
 
     Example:
     ```python
-    from transformers import ResNetModel, ResNetConfig
-
-    import torch
-    import time
-
     from transformers.utils.fx import symbolic_trace
+    from transformers import AutoModelForImageClassification
 
     from optimum.fx.optimization import FuseBatchNorm2dInConv2d
 
-    def benchmark(model, inp, iters=20):
-        # warmup
-        for _ in range(10):
-            model(**inp)
-
-        start = time.time()
-        for _ in range(iters):
-            model(**inp)
-        end = time.time()
-        return end - start
-
-    config = ResNetConfig()
-    model = ResNetModel(config)
+    model = AutoModelForImageClassification.from_pretrained("microsoft/resnet-50")
     model.eval()
-
-    model.config.image_size = 224  # just a hack for symbolic_trace not to complain
-    inp = {"pixel_values": torch.rand(8, 3, 224, 224)}
 
     traced_model = symbolic_trace(
         model,
@@ -527,25 +508,9 @@ class FuseBatchNorm2dInConv2d(Transformation):
         disable_check=True
     )
 
-    non_transformed_time = benchmark(traced_model, inp)
-
     transformation = FuseBatchNorm2dInConv2d()
     transformed_model = transformation(traced_model)
-
-    transformed_time = benchmark(transformed_model, inp)
-    print(f"Non-transformed: {non_transformed_time:.2f} s")
-    print(f"Transformed: {transformed_time:.2f} s")
-    print(f"Gain: {(non_transformed_time - transformed_time) / non_transformed_time * 100:.2f} % in latency")
     ```
-
-    Outputs:
-    ```
-    Non-transformed: 5.06 s
-    Transformed: 4.57 s
-    Gain: 9.71 % in latency
-    ```
-
-    Note that the gain may depend on the batch size, image size, hardware used.
     """
 
     preserves_computation = True
@@ -580,8 +545,6 @@ class FuseBatchNorm2dInConv2d(Transformation):
         return graph_module
 
     def fuse(self, conv2d: torch.nn.Conv2d, bn2d: torch.nn.BatchNorm2d):
-        fused_conv = copy.deepcopy(conv2d)
-
         # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
         conv_b = conv2d.bias if conv2d.bias is not None else torch.zeros_like(bn2d.running_mean)
         bn_w = bn2d.weight if bn2d.weight is not None else torch.ones_like(bn2d.running_mean)
@@ -589,13 +552,13 @@ class FuseBatchNorm2dInConv2d(Transformation):
 
         bn_var_rsqrt = torch.rsqrt(bn2d.running_var + bn2d.eps)
 
-        fused_conv.weight = torch.nn.Parameter(
+        conv2d.weight = torch.nn.Parameter(
             conv2d.weight * (bn_w * bn_var_rsqrt).reshape([-1] + [1] * (len(conv2d.weight.shape) - 1))
         )
 
-        fused_conv.bias = torch.nn.Parameter(conv_b - bn2d.running_mean * bn_var_rsqrt * bn_w + bn_b)
+        conv2d.bias = torch.nn.Parameter(conv_b - bn2d.running_mean * bn_var_rsqrt * bn_w + bn_b)
 
-        return fused_conv
+        return conv2d
 
 
 @add_end_docstrings(_ATTRIBUTES_DOCSTRING)
@@ -613,61 +576,25 @@ class FuseBatchNorm1dInLinear(Transformation):
     ReLU   BatchNorm1d
     ```
 
-    Example on GPU:
+    Example:
     ```python
-    import torch
-    import time
-
     from transformers.utils.fx import symbolic_trace
-    from transformers import AutoModelForImageClassification
+    from transformers import AutoModel
 
     from optimum.fx.optimization import FuseBatchNorm1dInLinear
 
-    def benchmark(model, inp, iters=2000):
-        # warmup
-        for _ in range(10):
-            model(**inp)
-
-        start = time.time()
-        for _ in range(iters):
-            model(**inp)
-        end = time.time()
-        return end - start
-
-    inp = {"pixel_values": torch.rand(2, 3, 224, 224, dtype=torch.float32).to("cuda")}
-
-    model = AutoModelForImageClassification.from_pretrained("facebook/levit-256")
+    model = AutoModel.from_pretrained("nvidia/groupvit-gcc-yfcc")
     model.eval()
 
     traced_model = symbolic_trace(
         model,
-        input_names=['pixel_values'],
+        input_names=["input_ids", "attention_mask", "pixel_values"],
         disable_check=True
     )
 
-    traced_model = traced_model.to("cuda")
-
-    non_transformed_time = benchmark(traced_model, inp)
-
     transformation = FuseBatchNorm1dInLinear()
     transformed_model = transformation(traced_model)
-
-    transformed_model = transformed_model.to("cuda")
-
-    transformed_time = benchmark(transformed_model, inp)
-    print(f"Non-transformed: {non_transformed_time:.2f} s")
-    print(f"Transformed: {transformed_time:.2f} s")
-    print(f"Gain: {(non_transformed_time - transformed_time) / non_transformed_time * 100:.2f} % in latency")
     ```
-
-    Outputs:
-    ```
-    Non-transformed: 8.98 s
-    Transformed: 6.36 s
-    Gain: 29.12 % in latency
-    ```
-
-    Note that the gain may depend on the batch size, image size, hardware used.
     """
 
     preserves_computation = True
@@ -740,8 +667,6 @@ class FuseBatchNorm1dInLinear(Transformation):
         return graph_module
 
     def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d, bn1d_before: bool):
-        fused_linear = copy.deepcopy(linear)
-
         # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
         linear_b = linear.bias if linear.bias is not None else torch.zeros_like(bn1d.running_mean)
         bn_w = bn1d.weight if bn1d.weight is not None else torch.ones_like(bn1d.running_mean)
@@ -750,15 +675,15 @@ class FuseBatchNorm1dInLinear(Transformation):
         bn_var_rsqrt = torch.rsqrt(bn1d.running_var + bn1d.eps)
 
         if bn1d_before:
-            fused_linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[None, :])
-            fused_linear.bias = torch.nn.Parameter(
+            linear.bias = torch.nn.Parameter(
                 linear.weight @ (-bn_w * bn1d.running_mean * bn_var_rsqrt + bn_b) + linear_b
             )
+            linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[None, :])
         else:
-            fused_linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[:, None])
-            fused_linear.bias = torch.nn.Parameter((linear_b - bn1d.running_mean) * bn_var_rsqrt * bn_w + bn_b)
+            linear.bias = torch.nn.Parameter((linear_b - bn1d.running_mean) * bn_var_rsqrt * bn_w + bn_b)
+            linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[:, None])
 
-        return fused_linear
+        return linear
 
 
 class DeepCopy(ReversibleTransformation):

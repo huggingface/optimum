@@ -16,13 +16,10 @@ import operator
 import unittest
 
 import torch
-from transformers import (
-    AutoModelForImageClassification,
-    AutoTokenizer,
-    BertModel,
-    GroupViTConfig,
-    GroupViTModel,
-)
+
+
+torch.manual_seed(42)
+from transformers import AutoModelForImageClassification, AutoTokenizer, BertModel, GroupViTConfig, GroupViTModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
 
@@ -287,6 +284,9 @@ class CustomTransformationsTests(unittest.TestCase):
             msg="there should be at least one BatchNorm2d in the model to actually perform the test",
         )
 
+        dummy_input = torch.rand(8, 3, 224, 224)
+        output_original = model(pixel_values=dummy_input)
+
         transformation = FuseBatchNorm2dInConv2d()
         transformed_model = transformation(traced_model)
 
@@ -295,9 +295,6 @@ class CustomTransformationsTests(unittest.TestCase):
             num_batchnorm2d, 0, msg="there should be no BatchNorm2d left in the model after the transformation"
         )
 
-        dummy_input = torch.rand(8, 3, 224, 224)
-
-        output_original = model(pixel_values=dummy_input)
         output_transformed = transformed_model(pixel_values=dummy_input)
 
         self.assertTrue(torch.allclose(output_original.logits, output_transformed["logits"], atol=1e-6))
@@ -319,6 +316,12 @@ class CustomTransformationsTests(unittest.TestCase):
             0,
             msg="there should be at least one BatchNorm1d in the model to actually perform the test",
         )
+        dummy_input = {
+            "pixel_values": torch.rand(1, 3, 224, 224, dtype=torch.float32),
+            "input_ids": torch.randint(low=0, high=100, size=(2, 32)),
+            "attention_mask": torch.ones(2, 32),
+        }
+        output_original = model(**dummy_input)
 
         transformation = FuseBatchNorm1dInLinear()
         transformed_model = transformation(traced_model)
@@ -328,17 +331,14 @@ class CustomTransformationsTests(unittest.TestCase):
             num_batchnorm1d, 0, msg="there should be no BatchNorm1d left in the model after the transformation"
         )
 
-        dummy_input = {
-            "pixel_values": torch.rand(1, 3, 224, 224, dtype=torch.float32),
-            "input_ids": torch.randint(low=0, high=100, size=(2, 32)),
-            "attention_mask": torch.ones(2, 32),
-        }
-
-        output_original = model(**dummy_input)
         output_transformed = transformed_model(**dummy_input)
 
-        self.assertTrue(torch.allclose(output_transformed["logits_per_image"], output_original.logits_per_image))
-        self.assertTrue(torch.allclose(output_transformed["logits_per_text"], output_original.logits_per_text))
+        self.assertTrue(
+            torch.allclose(output_transformed["logits_per_image"], output_original.logits_per_image, atol=1e-6)
+        )
+        self.assertTrue(
+            torch.allclose(output_transformed["logits_per_text"], output_original.logits_per_text, atol=1e-6)
+        )
         self.assertTrue(torch.allclose(output_transformed["text_embeds"], output_original.text_embeds, atol=1e-6))
         self.assertTrue(torch.allclose(output_transformed["image_embeds"], output_original.image_embeds, atol=1e-6))
         self.assertTrue(
