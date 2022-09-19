@@ -16,9 +16,6 @@ import operator
 import unittest
 
 import torch
-
-
-torch.manual_seed(42)
 from transformers import AutoModelForImageClassification, AutoTokenizer, BertModel, GroupViTConfig, GroupViTModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
