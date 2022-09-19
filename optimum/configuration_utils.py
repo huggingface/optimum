@@ -46,6 +46,7 @@ class BaseConfig(PretrainedConfig):
     def _re_configuration_file(cls):
         return re.compile(rf"{cls.FULL_CONFIGURATION_FILE.split('.')[0]}(.*)\.json")
 
+    # Adapted from transformers.configuration_utils.PretrainedConfig.save_pretrained
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
         """
         Save a configuration object to the directory ``save_directory``, so that it can be re-loaded using the
