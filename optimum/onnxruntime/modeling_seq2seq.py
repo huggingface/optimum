@@ -635,10 +635,10 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
         if past_key_values is None or self.decoder_with_past is None:
             decoder_inputs["input_ids"] = decoder_input_ids
-            decoder_inputs["past_key_values"] = past_key_values
             decoder_outputs = self.decoder(**decoder_inputs)
         else:
             decoder_inputs["input_ids"] = decoder_input_ids[:, -1:]  # Cut decoder_input_ids if past is used
+            decoder_inputs["past_key_values"] = past_key_values
             decoder_outputs = self.decoder_with_past(**decoder_inputs)
 
         if "loss" in decoder_outputs.keys():
