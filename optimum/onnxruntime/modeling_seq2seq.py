@@ -544,6 +544,7 @@ class ORTDecoder:
         encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
     ) -> Seq2SeqLMOutput:
 
         onnx_inputs = {
@@ -562,6 +563,10 @@ class ORTDecoder:
             for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                 onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
+        if "labels" in self.input_names:
+            # TODO: Any preprocessing like  `self._shift_right(labels)`?
+            onnx_inputs["labels"] = labels.cpu().detach().numpy()
+
         # Run inference
         outputs = self.session.run(None, onnx_inputs)
 
@@ -579,7 +584,10 @@ class ORTDecoder:
         past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
         logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self._device)
 
-        return Seq2SeqLMOutput(logits=logits, past_key_values=past_key_values)
+        loss = None
+        if "loss" in self.output_names:
+            loss = torch.from_numpy(outputs[self.output_names["loss"]]).to(self._device)
+        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -609,6 +617,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
 
@@ -622,6 +631,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
                 input_ids=decoder_input_ids,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
+                labels=labels,
             )
         else:
             decoder_outputs = self.decoder_with_past(
@@ -629,9 +639,14 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
                 past_key_values=past_key_values,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
+                labels=labels,
             )
 
-        return Seq2SeqLMOutput(logits=decoder_outputs.logits, past_key_values=decoder_outputs.past_key_values)
+        return Seq2SeqLMOutput(
+            loss=decoder_outputs.get("loss", None),
+            logits=decoder_outputs.logits,
+            past_key_values=decoder_outputs.past_key_values,
+        )
 
     def prepare_inputs_for_generation(
         self,
