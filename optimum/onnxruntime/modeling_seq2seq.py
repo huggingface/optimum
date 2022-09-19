@@ -16,7 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, Mapping, Optional, Set, Tuple, Union
+from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import torch
 import transformers
@@ -167,7 +167,10 @@ class ORTModelForConditionalGeneration(ORTModel):
     ):
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
+
+        self.providers = encoder_session.get_providers()
         self._device = get_device_for_provider(encoder_session.get_providers()[0])
+
         self.encoder = ORTEncoder(session=encoder_session, device=self._device)
         self.decoder = ORTDecoder(session=decoder_session, device=self._device)
         self.use_cache = decoder_with_past_session is not None
@@ -189,7 +192,9 @@ class ORTModelForConditionalGeneration(ORTModel):
         encoder_path: Union[str, Path],
         decoder_path: Union[str, Path],
         decoder_with_past_path: Union[str, Path] = None,
-        provider: str = None,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[onnxruntime.SessionOptions] = None,
+        **kwargs
     ):
         """
         Creates an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
@@ -203,19 +208,33 @@ class ORTModelForConditionalGeneration(ORTModel):
                 The path of the decoder ONNX model.
             decoder_with_past_path (`str` or `Path`, *optional*):
                 The path of the decoder with past key values ONNX model.
-            provider(`str`, *optional*):
-                The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
+            provider (`str`, *optional*):
+                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
+                for possible providers. Defaults to `CPUExecutionProvider`.
+            session_options (`onnxruntime.SessionOptions`, *optional*),:
+                ONNX Runtime session options to use for loading the model. Defaults to `None`.
         """
-        if provider is None:
-            provider = "CPUExecutionProvider"
+        available_providers = onnxruntime.get_available_providers()
+        if provider not in available_providers:
+            raise ValueError(
+                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+            )
 
-        encoder_session = onnxruntime.InferenceSession(str(encoder_path), providers=[provider])
-        decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=[provider])
+        encoder_session = onnxruntime.InferenceSession(
+            str(encoder_path), providers=[provider], sess_options=session_options
+        )
+        decoder_session = onnxruntime.InferenceSession(
+            str(decoder_path), providers=[provider], sess_options=session_options
+        )
+
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         if decoder_with_past_path is not None:
-            decoder_with_past_session = onnxruntime.InferenceSession(str(decoder_with_past_path), providers=[provider])
+            decoder_with_past_session = onnxruntime.InferenceSession(
+                str(decoder_with_past_path), providers=[provider], sess_options=session_options
+            )
+
         return encoder_session, decoder_session, decoder_with_past_session
 
     def _save_pretrained(
@@ -261,7 +280,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         model_id: Union[str, Path],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         encoder_file_name: Optional[str] = None,
         decoder_file_name: Optional[str] = None,
@@ -317,6 +336,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=os.path.join(model_id, encoder_file_name),
                 decoder_path=os.path.join(model_id, decoder_file_name),
                 decoder_with_past_path=decoder_with_past_path,
+                **kwargs,
             )
             kwargs["model_save_dir"] = Path(model_id)
             kwargs["last_encoder_name"] = encoder_file_name
@@ -350,6 +370,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_encoder_model_name"]),
                 decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
                 decoder_with_past_path=last_decoder_with_past_name,
+                **kwargs,
             )
 
         return cls(*model, config=config, **kwargs)
