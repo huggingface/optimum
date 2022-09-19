@@ -192,7 +192,8 @@ class ORTModelForConditionalGeneration(ORTModel):
         encoder_path: Union[str, Path],
         decoder_path: Union[str, Path],
         decoder_with_past_path: Union[str, Path] = None,
-        provider: Union[str, List[str]] = "CPUExecutionProvider",
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[onnxruntime.SessionOptions] = None,
         **kwargs
     ):
         """
@@ -207,29 +208,32 @@ class ORTModelForConditionalGeneration(ORTModel):
                 The path of the decoder ONNX model.
             decoder_with_past_path (`str` or `Path`, *optional*):
                 The path of the decoder with past key values ONNX model.
-            provider(`str`, *optional*):
-                The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
+            provider (`str`, *optional*):
+                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
+                for possible providers. Defaults to `CPUExecutionProvider`.
+            session_options (`onnxruntime.SessionOptions`, *optional*),:
+                ONNX Runtime session options to use for loading the model. Defaults to `None`.
         """
-        if isinstance(provider, str):
-            providers = [provider]
-        elif isinstance(provider, list):
-            providers = provider
-
         available_providers = onnxruntime.get_available_providers()
-        for provider in providers:
-            if provider not in available_providers:
-                raise ValueError(
-                    f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
-                )
+        if provider not in available_providers:
+            raise ValueError(
+                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+            )
 
-        encoder_session = onnxruntime.InferenceSession(str(encoder_path), providers=providers)
-        decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=providers)
+        encoder_session = onnxruntime.InferenceSession(
+            str(encoder_path), providers=[provider], sess_options=session_options
+        )
+        decoder_session = onnxruntime.InferenceSession(
+            str(decoder_path), providers=[provider], sess_options=session_options
+        )
 
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         if decoder_with_past_path is not None:
-            decoder_with_past_session = onnxruntime.InferenceSession(str(decoder_with_past_path), providers=providers)
+            decoder_with_past_session = onnxruntime.InferenceSession(
+                str(decoder_with_past_path), providers=[provider], sess_options=session_options
+            )
 
         return encoder_session, decoder_session, decoder_with_past_session
 

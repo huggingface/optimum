@@ -158,7 +158,7 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def load_model(
         path: Union[str, Path],
-        provider: Optional[Union[str, List[str]]] = "CPUExecutionProvider",
+        provider: Optional[str] = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         **kwargs
     ):
@@ -168,25 +168,19 @@ class ORTModel(OptimizedModel):
         Arguments:
             path (`str` or `Path`):
                 Directory from which to load the model.
-            provider (`str` or `List[str]`, *optional*):
-                ONNX Runtime providers to use for loading the model. This can either be a single provider given as a string (for example
-                `CUDAExecutionProvider`) or a list of execution providers to use in priority order.
-                See https://onnxruntime.ai/docs/execution-providers/ for more details. Defaults to `CPUExecutionProvider`.
+            provider (`str`, *optional*):
+                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
+                for possible providers. Defaults to `CPUExecutionProvider`.
             session_options (`onnxruntime.SessionOptions`, *optional*),:
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
         """
-        if isinstance(provider, str):
-            providers = [provider]
-        elif isinstance(provider, list):
-            providers = provider
-
         available_providers = ort.get_available_providers()
-        for provider in providers:
-            if provider not in available_providers:
-                raise ValueError(
-                    f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
-                )
-        return ort.InferenceSession(path, providers=providers, sess_options=session_options)
+        if provider not in available_providers:
+            raise ValueError(
+                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+            )
+
+        return ort.InferenceSession(path, providers=[provider], sess_options=session_options)
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
@@ -214,16 +208,15 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
-        provider: Union[str, List[str]] = "CPUExecutionProvider",
-        session_options: ort.SessionOptions = None,
+        provider: Optional[str] = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
         *args,
         **kwargs
     ):
         """
-        provider (`str` or `List[str]`, *optional*):
-            ONNX Runtime providers to use for loading the model. This can either be a single provider given as a string (for example
-            `CUDAExecutionProvider`) or a list of execution providers to use in priority order.
-            See https://onnxruntime.ai/docs/execution-providers/ for more details. Defaults to `CPUExecutionProvider`.
+        provider (`str`, *optional*):
+            ONNX Runtime providers to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
+            possible providers. Defaults to `CPUExecutionProvider`.
         session_options (`onnxruntime.SessionOptions`, *optional*),:
             ONNX Runtime session options to use for loading the model. Defaults to `None`.
 
