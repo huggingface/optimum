@@ -89,7 +89,6 @@ class _DecoderWithLMhead(PreTrainedModel):
             return lm_logits, decoder_outputs.past_key_values
         else:
             # Calculate loss
-            loss = None
             loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
             return loss, lm_logits, decoder_outputs.past_key_values

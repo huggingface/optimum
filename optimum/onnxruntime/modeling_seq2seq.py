@@ -606,26 +606,28 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
         # Decode
         decoder_inputs = {
-            "input_ids": decoder_input_ids
-            if (past_key_values is None or self.decoder_with_past is None)
-            else decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
             "encoder_hidden_states": encoder_outputs.last_hidden_state,
             "encoder_attention_mask": attention_mask,
         }
-        if past_key_values is not None and self.decoder_with_past:
-            decoder_inputs["past_key_values"] = past_key_values
         if labels is not None:
             decoder_inputs["labels"] = labels
-        decoder_outputs = self.decoder(**decoder_inputs)
 
-        if labels is None:
-            return Seq2SeqLMOutput(logits=decoder_outputs.logits, past_key_values=decoder_outputs.past_key_values)
+        if past_key_values is None or self.decoder_with_past is None:
+            decoder_inputs["input_ids"] = decoder_input_ids
+            decoder_inputs["past_key_values"] = past_key_values
+            decoder_outputs = self.decoder(**decoder_inputs)
         else:
+            decoder_inputs["input_ids"] = decoder_input_ids[:, -1:]  # Cut decoder_input_ids if past is used
+            decoder_outputs = self.decoder_with_past(**decoder_inputs)
+
+        if "loss" in decoder_outputs.keys():
             return Seq2SeqLMOutput(
                 loss=decoder_outputs.loss,
                 logits=decoder_outputs.logits,
                 past_key_values=decoder_outputs.past_key_values,
             )
+        else:
+            return Seq2SeqLMOutput(logits=decoder_outputs.logits, past_key_values=decoder_outputs.past_key_values)
 
     def prepare_inputs_for_generation(
         self,
