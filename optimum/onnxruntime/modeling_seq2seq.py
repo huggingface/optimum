@@ -563,11 +563,10 @@ class ORTDecoder:
         past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
         logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self._device)
 
-        if labels is None:
-            return Seq2SeqLMOutput(logits=logits, past_key_values=past_key_values)
-        else:
+        loss = None
+        if "loss" in self.output_names:
             loss = torch.from_numpy(outputs[self.output_names["loss"]]).to(self._device)
-            return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
+        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
