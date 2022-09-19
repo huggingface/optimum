@@ -263,9 +263,12 @@ class MergeLinears(ReversibleTransformation):
                 mod = getattr(mod, name)
         return mod, names[-1]
 
-    @staticmethod
     def _merge_linears(
-        graph_module: "GraphModule", input_node: "Node", linear_nodes: List["Node"], linears: List[torch.nn.Linear]
+        self,
+        graph_module: "GraphModule",
+        input_node: "Node",
+        linear_nodes: List["Node"],
+        linears: List[torch.nn.Linear],
     ):
         in_features = linears[0].in_features
         out_features = [linear.out_features for linear in linears]
@@ -308,7 +311,7 @@ class MergeLinears(ReversibleTransformation):
         with graph.inserting_before(linear_nodes[0]):
             fully_qualified_merged_linear_name = ".".join([fully_qualified_parent_name, merged_linear_name])
             merged_linear_node = graph.call_module(fully_qualified_merged_linear_name, args=(input_node,))
-            merged_linear_node.was_transformed = "MergeLinears"
+            self.mark_as_transformed(merged_linear_node)
             merged_linear_node.linear_node_targets = [n.target for n in linear_nodes]
 
         accum_out_features = list(itertools.accumulate([0] + out_features))
@@ -384,11 +387,8 @@ class MergeLinears(ReversibleTransformation):
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        for node in graph_module.graph.nodes:
-            if node.op == "call_module":
-                if getattr(node, "was_transformed", "") == "MergeLinears":
-                    self._unmerge_linears(graph_module, node, graph_module.get_submodule(node.target))
-
+        for node in self.get_transformed_nodes(graph_module):
+            self._unmerge_linears(graph_module, node, graph_module.get_submodule(node.target))
         return graph_module
 
 
@@ -423,26 +423,26 @@ class FuseBiasInLinear(ReversibleTransformation):
                         node.start_node = linear_input_proxy.node
                         node.end_node = output_proxy.node
                         node.args = (output_proxy.node,)
-                        node.was_transformed = "FuseBiasInLinear"
+                        self.mark_as_transformed(node)
                     new_weight = torch.nn.Parameter(torch.cat([module.weight, module.bias[:, None]], dim=1))
                     module.weight = new_weight
                     module.bias = None
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        for node in graph_module.graph.nodes:
-            if getattr(node, "was_transformed", "") == "FuseBiasInLinear":
-                node.args = (node.start_node,)
-                n = node.end_node
-                while n is not node.start_node:
-                    if n not in node.nodes_to_ignore:
-                        graph_module.graph.erase_node(n)
-                    n = n.prev
-                module = graph_module.get_submodule(node.target)
-                new_weight = torch.nn.Parameter(module.weight[:, :-1])
-                new_bias = torch.nn.Parameter(module.weight[:, -1].squeeze())
-                module.weight = new_weight
-                module.bias = new_bias
+        for node in self.get_transformed_nodes(graph_module):
+            node.args = (node.start_node,)
+            n = node.end_node
+            while n is not node.start_node:
+                if n not in node.nodes_to_ignore:
+                    graph_module.graph.erase_node(n)
+                n = n.prev
+            self.mark_as_restored(node)
+            module = graph_module.get_submodule(node.target)
+            new_weight = torch.nn.Parameter(module.weight[:, :-1])
+            new_bias = torch.nn.Parameter(module.weight[:, -1].squeeze())
+            module.weight = new_weight
+            module.bias = new_bias
         return graph_module
 
 
@@ -463,17 +463,16 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
                 if not isinstance(y, torch.fx.Node):
                     node.target = operator.mul
                     node.args = (x, 1 / y)
-                    node.was_transformed = "ChangeTrueDivToMulByInverse"
+                    self.mark_as_transformed(node)
 
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        graph = graph_module.graph
-        for node in graph.nodes:
-            if getattr(node, "was_transformed", "") == "ChangeTrueDivToMulByInverse":
-                node.target = operator.truediv
-                x, y = node.args
-                node.args = (x, 1 / y)
+        for node in self.get_transformed_nodes(graph_module):
+            node.target = operator.truediv
+            x, y = node.args
+            node.args = (x, 1 / y)
+            self.mark_as_restored(node)
 
         return graph_module
 
@@ -490,8 +489,8 @@ class DeepCopy(ReversibleTransformation):
         # This is needed because copy.deepcopy does not take care of it.
         # Without these attributes, the reverse transformation cannot be done.
         for n1, n2 in zip(graph_module.graph.nodes, clone.graph.nodes):
-            if hasattr(n1, "was_transformed"):
-                n2.was_transformed = n1.was_transformed
+            if hasattr(n1, "transformations"):
+                n2.transformations = n1.transformations
         return clone
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
@@ -511,9 +510,7 @@ class LintAndRecompile(ReversibleTransformation):
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        graph_module.graph.lint()
-        graph_module.recompile()
-        return graph_module
+        return self.transform(graph_module)
 
 
 def compose(*args: Transformation, inplace: bool = True) -> Transformation:
