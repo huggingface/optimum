@@ -72,21 +72,18 @@ At its core, 🤗 Optimum uses configuration objects to define parameters for op
 Before applying quantization or optimization, we first need to export our model to the ONNX format.
 
 ```python
-import os
 from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import AutoTokenizer
 
 model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
 save_directory = "tmp/onnx/"
-file_name = "model.onnx"
-onnx_path = os.path.join(save_directory, "model.onnx")
 
-# Load a model from transformers and export it through the ONNX format
-model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
+# Load a model from transformers and export it to ONNX
+ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
 # Save the onnx model and tokenizer
-model.save_pretrained(save_directory, file_name=file_name)
+ort_model.save_pretrained(save_directory)
 tokenizer.save_pretrained(save_directory)
 ```
 
@@ -100,17 +97,13 @@ from optimum.onnxruntime import ORTQuantizer
 
 # Define the quantization methodology
 qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
-quantizer = ORTQuantizer.from_pretrained(model_checkpoint, feature="sequence-classification")
+quantizer = ORTQuantizer.from_pretrained(ort_model)
 
 # Apply dynamic quantization on the model
-quantizer.export(
-    onnx_model_path=onnx_path,
-    onnx_quantized_model_output_path=os.path.join(save_directory, "model-quantized.onnx"),
-    quantization_config=qconfig,
-)
+quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
 ```
 
-In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The `feature` argument in the `from_pretrained()` method corresponds to the type of task that we wish to quantize the model for. The result from applying the `export()` method is a `model-quantized.onnx` file that can be used to run inference.
+In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference.
 
 Here's an example of how to load an ONNX Runtime model and generate predictions with it:
 
@@ -118,7 +111,7 @@ Here's an example of how to load an ONNX Runtime model and generate predictions 
 from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import pipeline, AutoTokenizer
 
-model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model-quantized.onnx")
+model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
 tokenizer = AutoTokenizer.from_pretrained(save_directory)
 
 cls_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
@@ -146,7 +139,7 @@ def preprocess_fn(ex, tokenizer):
 calibration_dataset = quantizer.get_calibration_dataset(
     "glue",
     dataset_config_name="sst2",
-    preprocess_function=partial(preprocess_fn, tokenizer=quantizer.preprocessor),
+    preprocess_function=partial(preprocess_fn, tokenizer=tokenizer),
     num_samples=50,
     dataset_split="train",
 )
@@ -156,13 +149,12 @@ calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
 ranges = quantizer.fit(
     dataset=calibration_dataset,
     calibration_config=calibration_config,
-    onnx_model_path=onnx_path,
     operators_to_quantize=qconfig.operators_to_quantize,
 )
+
 # Apply static quantization on the model
-quantizer.export(
-    onnx_model_path=onnx_path,
-    onnx_quantized_model_output_path=os.path.join(save_directory, "model-quantized.onnx"),
+quantizer.quantize(
+    save_dir=save_directory,
     calibration_tensors_range=ranges,
     quantization_config=qconfig,
 )
@@ -186,17 +178,10 @@ Next, we load an _optimizer_ to apply these optimisations to our model:
 ```python
 from optimum.onnxruntime import ORTOptimizer
 
-optimizer = ORTOptimizer.from_pretrained(
-    model_checkpoint,
-    feature="sequence-classification",
-)
+optimizer = ORTOptimizer.from_pretrained(ort_model)
 
-# Export the optimized model
-optimizer.export(
-    onnx_model_path=onnx_path,
-    onnx_optimized_model_output_path=os.path.join(save_directory, "model-optimized.onnx"),
-    optimization_config=optimization_config,
-)
+# Optimize the model
+optimizer.optimize(save_dir=save_directory, optimization_config=optimization_config)
 ```
 
 And that's it - the model is now optimized and ready for inference!
@@ -205,7 +190,7 @@ As you can see, the process is similar in each case:
 
 1. Define the optimization / quantization strategies via an `OptimizationConfig` / `QuantizationConfig` object
 2. Instantiate an `ORTQuantizer` or `ORTOptimizer` class
-3. Apply the `export()` method
+3. Apply the `quantize()` or `optimize()` method
 4. Run inference
 
 ### Training
