@@ -78,7 +78,7 @@ from transformers import AutoTokenizer
 model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
 save_directory = "tmp/onnx/"
 
-# Load a model from transformers and export it through the ONNX format
+# Load a model from transformers and export it to ONNX
 ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
@@ -180,6 +180,7 @@ from optimum.onnxruntime import ORTOptimizer
 
 optimizer = ORTOptimizer.from_pretrained(ort_model)
 
+# Optimize the model
 optimizer.optimize(save_dir=save_directory, optimization_config=optimization_config)
 ```
 
