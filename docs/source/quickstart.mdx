@@ -22,10 +22,10 @@ Before applying quantization or optimization, we first need to export our model 
 >>> model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
 >>> save_directory = "tmp/onnx/"
 >>> # Load a model from transformers and export it through the ONNX format
->>> model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
 >>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 >>> # Save the onnx model and tokenizer
->>> model.save_pretrained(save_directory)
+>>> ort_model.save_pretrained(save_directory)
 >>> tokenizer.save_pretrained(save_directory)
 ```
 
@@ -36,7 +36,7 @@ Let's see now how we can apply dynamic quantization with ONNX Runtime:
 >>> from optimum.onnxruntime import ORTQuantizer
 >>> # Define the quantization methodology
 >>> qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
->>> quantizer = ORTQuantizer.from_pretrained(model)
+>>> quantizer = ORTQuantizer.from_pretrained(ort_model)
 >>> # Apply dynamic quantization on the model
 >>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
 ```
@@ -68,7 +68,7 @@ Static quantization relies on feeding batches of data through the model to estim
 >>> calibration_dataset = quantizer.get_calibration_dataset(
 ...     "glue",
 ...     dataset_config_name="sst2",
-...     preprocess_function=partial(preprocess_fn, tokenizer=quantizer.preprocessor),
+...     preprocess_function=partial(preprocess_fn, tokenizer=tokenizer),
 ...     num_samples=50,
 ...     dataset_split="train",
 ... )
