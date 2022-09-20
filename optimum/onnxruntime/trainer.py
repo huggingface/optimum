@@ -672,28 +672,15 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
+            logger.warning("[INFO] Evaluating with ONNX Runtime backend.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-            try:
-                output = eval_loop(
-                    eval_dataloader,
-                    description="Evaluation",
-                    # No point gathering the predictions if there are no metrics, otherwise we defer to
-                    # self.args.prediction_loss_only
-                    prediction_loss_only=True if self.compute_metrics is None else None,
-                    ignore_keys=ignore_keys,
-                    metric_key_prefix=metric_key_prefix,
-                )
-            except Exception as error:
-                logger.error(error)
-                logger.warning(
-                    f"[ERROR!] Evaluation with ONNX Runtime is not available for {self.model.config.name_or_path} model. Remove `inference_with_ort` to evaluate within PyTorch."
-                )
-                raise
         else:
             logger.warning(
                 "[INFO] Evaluating with PyTorch backend. If you want to use ONNX Runtime for the evaluation, set `trainer.evaluate(inference_with_ort=True)`."
             )
             eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+
+        try:
             output = eval_loop(
                 eval_dataloader,
                 description="Evaluation",
@@ -703,6 +690,13 @@ class ORTTrainer(Trainer):
                 ignore_keys=ignore_keys,
                 metric_key_prefix=metric_key_prefix,
             )
+        except Exception as error:
+            logger.error(error)
+            if inference_with_ort:
+                logger.warning(
+                    f"[ERROR!] Evaluation with ONNX Runtime is not available for {self.model.config.name_or_path} model. Set `inference_with_ort=False` to evaluate with PyTorch."
+                )
+            raise
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
@@ -740,28 +734,28 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
+            logger.warning("[INFO] Predicting with ONNX Runtime backend.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-            try:
-                output = eval_loop(
-                    test_dataloader,
-                    description="Prediction",
-                    ignore_keys=ignore_keys,
-                    metric_key_prefix=metric_key_prefix,
-                )
-            except Exception as error:
-                logger.error(error)
-                logger.warning(
-                    f"[ERROR!] Prediction with ONNX Runtime is not available with {self.model.config.name_or_path} model. Remove `inference_with_ort` to predict within PyTorch."
-                )
-                raise
         else:
             logger.warning(
                 "[INFO] Predicting with PyTorch backend. If you want to use ONNX Runtime for the prediction, set `trainer.predict(inference_with_ort=True)`."
             )
             eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+
+        try:
             output = eval_loop(
-                test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
+                test_dataloader,
+                description="Prediction",
+                ignore_keys=ignore_keys,
+                metric_key_prefix=metric_key_prefix,
             )
+        except Exception as error:
+            logger.error(error)
+            if inference_with_ort:
+                logger.warning(
+                    f"[ERROR!] Prediction with ONNX Runtime is not available for {self.model.config.name_or_path} model. Set `inference_with_ort=False` to predict with PyTorch."
+                )
+            raise
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
