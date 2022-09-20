@@ -64,6 +64,10 @@ Static quantization relies on feeding batches of data through the model to estim
 >>> from functools import partial
 >>> from optimum.onnxruntime.configuration import AutoCalibrationConfig
 
+# Define the processing function to apply to each example after loading the dataset
+>>> def preprocess_fn(ex, tokenizer):
+...     return tokenizer(ex["sentence"])
+
 >>> # Create the calibration dataset
 >>> calibration_dataset = quantizer.get_calibration_dataset(
 ...     "glue",
