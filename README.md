@@ -195,7 +195,9 @@ As you can see, the process is similar in each case:
 
 ### Training
 
-Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runtime training, reducing the memory and computations needed during training. This can be achieved by using the class `ORTTrainer`, which possess a similar behavior than the `Trainer` of 🤗 Transformers:
+Besides supporting ONNX Runtime inference, 🤗 Optimum also supports training with ONNX Runtime backend. The `ORTTrainer` class possess a similar behavior than the `Trainer` of 🤗 Transformers, but reduces the memory consumption and optimize the computation graphs during training. As a result, you will experience an acceleration and feed larger batch size to your device.
+
+Replace `Trainer` with `ORTTrainer` to leverage ONNX Runtime on fine-tuning tasks:
 
 ```diff
 -from transformers import Trainer
@@ -211,17 +213,14 @@ Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runti
     compute_metrics=compute_metrics,
     tokenizer=tokenizer,
     data_collator=default_data_collator,
-    feature="sequence-classification",
++    feature="sequence-classification",
 )
 
-# Step 2: Use ONNX Runtime for training and evalution!🤗
+# Step 2: Use ONNX Runtime for training!🤗
 train_result = trainer.train()
-eval_metrics = trainer.evaluate()
 ```
 
-By replacing `Trainer` by `ORTTrainer`, you will be able to leverage ONNX Runtime for fine-tuning tasks.
-
-Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) directory for more sophisticated usage.
+Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) for more sophisticated usage.
 
 Happy optimizing 🤗!
 
