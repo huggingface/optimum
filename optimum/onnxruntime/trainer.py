@@ -1403,9 +1403,6 @@ class ORTTrainer(Trainer):
                 )
                 if FSDPOption.OFFLOAD not in self.args.fsdp:
                     model.to(self.args.device)
-            # raise NotImplementedError(
-            #     "PyTorch's distrubuted data parallel features are not supported by `ORTTrainer` yet."
-            # )
         elif is_sagemaker_dp_enabled():
             raise NotImplementedError(
                 "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet."
