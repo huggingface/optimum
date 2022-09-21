@@ -213,7 +213,7 @@ Replace `Trainer` with `ORTTrainer` to leverage ONNX Runtime on fine-tuning task
     compute_metrics=compute_metrics,
     tokenizer=tokenizer,
     data_collator=default_data_collator,
-+    feature="sequence-classification",
++   feature="sequence-classification",
 )
 
 # Step 2: Use ONNX Runtime for training!🤗
