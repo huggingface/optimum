@@ -14,7 +14,7 @@
 """
 The ORTTrainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task with ONNX Runtime.
 """
-
+import functools
 import math
 import os
 import sys
@@ -23,7 +23,6 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
-from packaging.version import parse
 from tqdm.auto import tqdm
 
 
@@ -57,6 +56,7 @@ from transformers.file_utils import (
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.onnx import export
 from transformers.onnx.features import FeaturesManager
+from transformers.pytorch_utils import is_torch_less_than_1_11
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
 from transformers.trainer_callback import TrainerCallback, TrainerState
@@ -65,6 +65,7 @@ from transformers.trainer_pt_utils import (
     IterableDatasetShard,
     SequentialDistributedSampler,
     find_batch_size,
+    get_module_class_from_name,
     get_parameter_names,
     nested_concat,
     nested_detach,
@@ -74,6 +75,7 @@ from transformers.trainer_pt_utils import (
 from transformers.trainer_utils import (
     EvalLoopOutput,
     EvalPrediction,
+    FSDPOption,
     HPSearchBackend,
     PredictionOutput,
     ShardedDDPOption,
@@ -237,6 +239,7 @@ class ORTTrainer(Trainer):
             raise TypeError(f"train() received got unexpected keyword arguments: {', '.join(list(kwargs.keys()))}.")
         # This might change the seed so needs to run first.
         self._hp_search_setup(trial)
+        self._train_batch_size = self.args.train_batch_size
 
         # Model re-init
         model_reloaded = False
@@ -469,7 +472,7 @@ class ORTTrainer(Trainer):
                 is_random_sampler = hasattr(train_dataloader, "sampler") and isinstance(
                     train_dataloader.sampler, RandomSampler
                 )
-                if version.parse(torch.__version__) < version.parse("1.11") or not is_random_sampler:
+                if is_torch_less_than_1_11 or not is_random_sampler:
                     # We just need to begin an iteration to create the randomization of the sampler.
                     # That was before PyTorch 1.11 however...
                     for _ in train_dataloader:
@@ -958,13 +961,15 @@ class ORTTrainer(Trainer):
             num_samples = len(eval_dataset)
         # The instance check is weird and does not actually check for the type, but whether the dataset has the right
         # methods. Therefore we need to make sure it also has the attribute.
-        elif isinstance(eval_dataset, IterableDatasetShard) and hasattr(eval_dataset, "num_examples"):
+        elif isinstance(eval_dataset, IterableDatasetShard) and getattr(eval_dataset, "num_examples", 0) > 0:
             num_samples = eval_dataset.num_examples
         else:
             if has_length(dataloader):
                 num_samples = self.num_examples(dataloader)
             else:  # both len(dataloader.dataset) and len(dataloader) fail
                 num_samples = observed_num_examples
+        if num_samples == 0 and observed_num_examples > 0:
+            num_samples = observed_num_examples
 
         # Number of losses has been rounded to a multiple of batch_size and in a distributed training, the number of
         # samplers has been rounded to a multiple of batch_size, so we truncate.
@@ -1353,9 +1358,54 @@ class ORTTrainer(Trainer):
                 )
         # Distributed training using PyTorch FSDP
         elif self.fsdp is not None:
-            raise NotImplementedError(
-                "PyTorch's distrubuted data parallel features are not supported by `ORTTrainer` yet."
-            )
+            # PyTorch FSDP!
+            from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
+            from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
+            from torch.distributed.fsdp.fully_sharded_data_parallel import MixedPrecision
+            from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy, transformer_auto_wrap_policy
+
+            if FSDPOption.OFFLOAD in self.args.fsdp:
+                raise NotImplementedError("CPU offload is not compatible with `torch_ort.ORTModule`.")
+            else:
+                cpu_offload = CPUOffload(offload_params=False)
+
+            auto_wrap_policy = None
+            if FSDPOption.AUTO_WRAP in self.args.fsdp:
+                if self.args.fsdp_min_num_params > 0:
+                    auto_wrap_policy = functools.partial(
+                        size_based_auto_wrap_policy, min_num_params=self.args.fsdp_min_num_params
+                    )
+                elif self.args.fsdp_transformer_layer_cls_to_wrap is not None:
+                    transformer_cls_to_wrap = get_module_class_from_name(
+                        model, self.args.fsdp_transformer_layer_cls_to_wrap
+                    )
+                    auto_wrap_policy = functools.partial(
+                        transformer_auto_wrap_policy,
+                        # Transformer layer class to wrap
+                        transformer_layer_cls={transformer_cls_to_wrap},
+                    )
+            mixed_precision_policy = None
+            dtype = None
+            if self.args.fp16:
+                dtype = torch.float16
+            elif self.args.bf16:
+                dtype = torch.bfloat16
+            if dtype is not None:
+                mixed_precision_policy = MixedPrecision(param_dtype=dtype, reduce_dtype=dtype, buffer_dtype=dtype)
+            if type(model) != FSDP:
+                # XXX: Breaking the self.model convention but I see no way around it for now.
+                self.model = model = FSDP(
+                    model,
+                    sharding_strategy=self.fsdp,
+                    cpu_offload=cpu_offload,
+                    auto_wrap_policy=auto_wrap_policy,
+                    mixed_precision=mixed_precision_policy,
+                )
+                if FSDPOption.OFFLOAD not in self.args.fsdp:
+                    model.to(self.args.device)
+            # raise NotImplementedError(
+            #     "PyTorch's distrubuted data parallel features are not supported by `ORTTrainer` yet."
+            # )
         elif is_sagemaker_dp_enabled():
             raise NotImplementedError(
                 "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet."
