@@ -372,6 +372,7 @@ doc: build_doc_docker_image
 	doc-builder build optimum.habana /optimum-habana/docs/source/ \
 		--build_dir $(BUILD_DIR) \
 		--version $(VERSION) \
+		--version_tag_suffix "" \
 		--html \
 		--clean
 ```
