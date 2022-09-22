@@ -195,7 +195,7 @@ As you can see, the process is similar in each case:
 
 ### Training
 
-Besides supporting ONNX Runtime inference, 🤗 Optimum also supports training with ONNX Runtime backend. The `ORTTrainer` class possess a similar behavior than the `Trainer` of 🤗 Transformers, but reduces the memory consumption and optimize the computation graphs during training. As a result, you will experience an acceleration and feed larger batch size to your device.
+Besides supporting ONNX Runtime inference, 🤗 Optimum also supports training with ONNX Runtime backend. The `ORTTrainer` class possesses a similar behavior to the `Trainer` of 🤗 Transformers, but reduces the memory consumption and optimizes the computation graphs during training. As a result, you will experience an acceleration and feed larger batch size to your device.
 
 Replace `Trainer` with `ORTTrainer` to leverage ONNX Runtime on fine-tuning tasks:
 
