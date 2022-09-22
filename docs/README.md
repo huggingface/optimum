@@ -270,7 +270,7 @@ includes an example of how to transcribe speech to text in the [docstring of its
 forward
 function](https://huggingface.co/docs/transformers/model_doc/wav2vec2#transformers.Wav2Vec2ForCTC.forward).
 
-## Writing documenation examples
+## Writing documentation examples
 
 The syntax for Example docstrings can look as follows:
 
