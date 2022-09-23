@@ -9,12 +9,6 @@
     title: Accelerated inference
   title: Get started
 - sections:
-  - local: quantization
-    title: Quantization
-  - local: pruning
-    title: Pruning
-  title: Conceptual guides
-- sections:
   - local: onnxruntime/overview
     title: Overview
   - local: onnxruntime/quicktour
@@ -50,6 +44,12 @@
   - local: fx/optimization
     title: Optimization
   title: Torch FX
+- sections:
+  - local: quantization
+    title: Quantization
+  - local: pruning
+    title: Pruning
+  title: Conceptual guides
 - sections:
   - local: modeling_base
     title: Optimized models
