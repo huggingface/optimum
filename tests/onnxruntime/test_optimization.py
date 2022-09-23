@@ -75,7 +75,7 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
-        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", True),
     )
 
