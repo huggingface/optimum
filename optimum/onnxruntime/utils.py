@@ -55,20 +55,22 @@ class ORTConfigManager:
             and the hidden size model config attribute names as well as the corresponding ONNX Runtime model type.
     """
 
+    # Contribution note: Please add new models in alphabetical order
     _conf = {
-        "bert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),
+        "bart": ("encoder_attention_heads", "d_model", "bart"),
+        "bert": ("num_attention_heads", "hidden_size", "bert"),
         "big_bird": ("num_attention_heads", "hidden_size", "bert"),
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
         "codegen": ("n_head", "n_embd", "gpt2"),
-        "distilbert": ("n_heads", "dim", "bert"),
         "deberta": ("num_attention_heads", "hidden_size", "bert"),
         "deberta-v2": ("num_attention_heads", "hidden_size", "bert"),
+        "distilbert": ("n_heads", "dim", "bert"),
         "electra": ("num_attention_heads", "hidden_size", "bert"),
-        "roberta": ("num_attention_heads", "hidden_size", "bert"),
-        "bart": ("encoder_attention_heads", "d_model", "bart"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
+        "marian": ("encoder_attention_heads", "d_model", "bart"),
+        "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
     }
 
