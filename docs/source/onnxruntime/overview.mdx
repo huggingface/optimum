@@ -1,0 +1,34 @@
+# Overview
+
+ONNX is an open standard that defines a common set of operators and a common file format to represent deep learning models in a wide variety of frameworks, including PyTorch and TensorFlow. When a model is exported to the ONNX format, these operators are used to construct a computational graph (often called an _intermediate representation_) that represents the flow of data through the neural network.
+
+<Tip>
+
+You can use [Netron](https://netron.app/) to visualize any ONNX file on the Hugging Face Hub. Simply append append the file's URL to `http://netron.app?url=` as in [this example](https://netron.app/?url=https://huggingface.co/cmarkea/distilcamembert-base-ner/blob/main/model.onnx)
+
+</Tip>
+
+By exposing a graph with standardized operators and data types, ONNX makes it easy to switch between frameworks. For example, a model trained in PyTorch can be exported to ONNX format and then imported in TensorFlow (and vice versa).
+
+Where ONNX really shines is when it is coupled with a dedicated accelerator like ONNX Runtime, or ORT for short. ORT provides tools to optimize the ONNX graph through techniques like operator fusion and constant folding, and defines an interface to execution providers that allow you to run the model on different types of hardware. This is a powerful abstraction - check out the links below to learn more!
+
+<div class="mt-10">
+  <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="/onnxruntime/tutorial"
+      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Tutorials</div>
+      <p class="text-gray-700">Learn the basics and become familiar with quantizing and optimizing transformers with 🤗 Optimum. Start here if you are using 🤗 Optimum for the first time!</p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="/docs/datasets/how_to"
+      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">How-to guides</div>
+      <p class="text-gray-700">Practical guides to help you achieve a specific goal. Take a look at these guides to learn how to use 🤗 Optimum to solve real-world problems.</p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="/docs/datasets/about_arrow"
+      ><div class="w-full text-center bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Conceptual guides</div>
+      <p class="text-gray-700">High-level explanations for building a better understanding about important topics such as quantization and graph optimization.</p>
+   </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="/docs/datasets/package_reference/main_classes"
+      ><div class="w-full text-center bg-gradient-to-br from-purple-400 to-purple-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Reference</div>
+      <p class="text-gray-700">Technical descriptions of how the ONNX Runtime classes and methods of 🤗 Optimum work.</p>
+    </a>
+  </div>
+</div>

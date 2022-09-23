@@ -1,0 +1,29 @@
+# Installation
+
+🤗 Optimum can be installed using `pip` as follows:
+
+```bash
+python -m pip install optimum
+```
+
+If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
+
+| Accelerator                                                                                                            | Installation                                 |
+|:-----------------------------------------------------------------------------------------------------------------------|:---------------------------------------------|
+| [ONNX runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]` |
+| [Intel Neural Compressor (INC)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) | `python -m pip install optimum[intel]`       |
+| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`   |
+| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`      |
+
+
+If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
+
+```bash
+python -m pip install git+https://github.com/huggingface/optimum.git
+```
+
+For the accelerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
+
+```bash
+python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
+```

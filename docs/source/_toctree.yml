@@ -1,22 +1,50 @@
 - sections:
   - local: index
     title: 🤗 Optimum
-  - local: quickstart
-    title: Quickstart
-  - local: pipelines
-    title: Pipelines for inference
+  - local: installation
+    title: Installation
+  - local: quicktour
+    title: Quick tour
+  - local: training
+    title: Accelerated training
+  - local: inference
+    title: Accelerated inference
   title: Get started
 - sections:
-  - local: onnxruntime/modeling_ort
-    title: Inference
-  - local: onnxruntime/configuration
-    title: Configuration
-  - local: onnxruntime/optimization
-    title: Optimization
-  - local: onnxruntime/quantization
+  - local: quantization
     title: Quantization
-  - local: onnxruntime/trainer
-    title: Trainer
+  - local: pruning
+    title: Pruning
+  title: Conceptual guides
+- sections:
+  - local: onnxruntime/overview
+    title: Overview
+  - sections:
+    - local: onnxruntime/tutorials
+      title: Overview
+    - local: onnxruntime/inference
+      title: Inference
+    title: Tutorials
+  - sections:
+    - local: onnxruntime/inference
+      title: Inference
+    title: How-to guides
+  - sections:
+    - local: onnxruntime/inference
+      title: Inference
+    title: Conceptual guides
+  - sections:
+    - local: onnxruntime/package_reference/modeling_ort
+      title: ORT Models
+    - local: onnxruntime/package_reference/configuration
+      title: Configuration
+    - local: onnxruntime/package_reference/optimization
+      title: Optimization
+    - local: onnxruntime/package_reference/quantization
+      title: Quantization
+    - local: onnxruntime/package_reference/trainer
+      title: Trainer
+    title: Reference
   title: ONNX Runtime
 - sections:
   - local: fx/optimization
