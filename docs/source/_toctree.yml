@@ -3,8 +3,6 @@
     title: 🤗 Optimum
   - local: installation
     title: Installation
-  - local: quicktour
-    title: Quick tour
   - local: training
     title: Accelerated training
   - local: inference
@@ -19,6 +17,8 @@
 - sections:
   - local: onnxruntime/overview
     title: Overview
+  - local: onnxruntime/quicktour
+    title: Quick tour
   - sections:
     - local: onnxruntime/tutorials
       title: Overview
@@ -26,16 +26,16 @@
       title: Inference
     title: Tutorials
   - sections:
-    - local: onnxruntime/inference
-      title: Inference
+    - local: onnxruntime/how_to
+      title: Overview
     title: How-to guides
   - sections:
-    - local: onnxruntime/inference
-      title: Inference
+    - local: onnxruntime/onnx
+      title: What is ONNX?
     title: Conceptual guides
   - sections:
     - local: onnxruntime/package_reference/modeling_ort
-      title: ORT Models
+      title: ONNX Runtime Models
     - local: onnxruntime/package_reference/configuration
       title: Configuration
     - local: onnxruntime/package_reference/optimization
