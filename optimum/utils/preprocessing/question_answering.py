@@ -1,8 +1,10 @@
 from functools import partial
 from typing import Dict, List
 
-from datasets import Dataset, Metric, load_dataset
+from datasets import Dataset, load_dataset
 from transformers import PreTrainedTokenizerBase, QuestionAnsweringPipeline
+
+from evaluate import combine, evaluator, load
 
 from .base import DatasetProcessing
 
@@ -81,27 +83,24 @@ class QuestionAnsweringProcessing(DatasetProcessing):
 
         return datasets_dict
 
-    def run_inference(self, eval_dataset: Dataset, pipeline: QuestionAnsweringPipeline):
-        all_labels = [{"id": inputs["id"], "answers": inputs[self.ref_keys[0]]} for inputs in eval_dataset]
-        all_preds = []
-        kwargs = {"padding": "max_length"}
-        for _, inputs in enumerate(eval_dataset):
-            preds = pipeline(
-                question=inputs[self.data_keys["question"]], context=inputs[self.data_keys["context"]], **kwargs
-            )
+    def run_evaluation(self, eval_dataset: Dataset, pipeline: QuestionAnsweringPipeline, metrics: List[str]):
+        if len(metrics) == 1:
+            all_metrics = load(metrics[0])
+        else:
+            all_metrics = combine(metrics)
 
-            preds = {"prediction_text": preds["answer"], "id": inputs["id"]}
-            all_preds.append(preds)
-        return all_labels, all_preds
+        task_evaluator = evaluator("question-answering")
 
-    def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_res = metric.compute(predictions=predictions, references=references)
+        results = task_evaluator.compute(
+            model_or_pipeline=pipeline,
+            data=eval_dataset,
+            metric=all_metrics,
+            question_column=self.data_keys["question"],
+            context_column=self.data_keys["context"],
+            label_column=self.ref_keys[0],
+        )
 
-        # `metric.compute` may return a dict or a number
-        if not isinstance(metrics_res, dict):
-            metrics_res = {metric.name: metrics_res}
-
-        return metrics_res
+        return results
 
     def get_pipeline_kwargs(self):
-        return {}
+        return {"max_answer_len": 30, "padding": "max_length"}

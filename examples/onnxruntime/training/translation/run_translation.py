@@ -116,14 +116,14 @@ class DataTrainingArguments:
     validation_file: Optional[str] = field(
         default=None,
         metadata={
-            "help": "An optional input evaluation data file to evaluate the metrics (sacreblue) on "
+            "help": "An optional input evaluation data file to evaluate the metrics (sacrebleu) on "
             "a jsonlines file."
         },
     )
     test_file: Optional[str] = field(
         default=None,
         metadata={
-            "help": "An optional input test data file to evaluate the metrics (sacreblue) on " "a jsonlines file."
+            "help": "An optional input test data file to evaluate the metrics (sacrebleu) on " "a jsonlines file."
         },
     )
     overwrite_cache: bool = field(

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Union
 
-from transformers import AutoConfig
+from transformers import AutoConfig, add_start_docstrings
 
 import requests
 from huggingface_hub import HfApi, HfFolder, hf_hub_download
@@ -15,6 +15,32 @@ from .utils import CONFIG_NAME
 
 
 logger = logging.getLogger(__name__)
+
+FROM_PRETRAINED_START_DOCSTRING = r"""
+    Instantiate a pretrained model from a pre-trained model configuration.
+
+    Arguments:
+        model_id (`Union[str, Path]`):
+            Can be either:
+                - A string, the *model id* of a pretrained model hosted inside a model repo on huggingface.co.
+                    Valid model ids can be located at the root-level, like `bert-base-uncased`, or namespaced under a
+                    user or organization name, like `dbmdz/bert-base-german-cased`.
+                - A path to a *directory* containing a model saved using [`~OptimizedModel.save_pretrained`],
+                    e.g., `./my_model_directory/`.
+        from_transformers (`bool`, *optional*, defaults to `False`):
+            Defines whether the provided `model_id` contains a vanilla Transformers checkpoint.
+        force_download (`bool`, *optional*, defaults to `True`):
+            Whether or not to force the (re-)download of the model weights and configuration files, overriding the
+            cached versions if they exist.
+        use_auth_token (`str`, *optional*, defaults to `None`):
+            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+            when running `transformers-cli login` (stored in `~/.huggingface`).
+        cache_dir (`str`, *optional*, defaults to `None`):
+            Path to a directory in which a downloaded pretrained model configuration should be cached if the
+            standard cache should not be used.
+        local_files_only(`bool`, *optional*, defaults to `False`):
+            Whether or not to only look at local files (i.e., do not try to download the model).
+"""
 
 
 class OptimizedModel(ABC):
@@ -155,7 +181,7 @@ class OptimizedModel(ABC):
         model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):
@@ -163,37 +189,17 @@ class OptimizedModel(ABC):
         raise NotImplementedError("Overwrite this method in subclass to define how to load your model from pretrained")
 
     @classmethod
+    @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
         from_transformers: bool = False,
-        force_download: bool = True,
+        force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         **model_kwargs,
     ):
-        """Instantiate a pretrained model from a pre-trained model configuration.
-
-        Arguments:
-            model_id (`Union[str, Path]`):
-                Can be either:
-                    - A string, the *model id* of a pretrained model hosted inside a model repo on huggingface.co.
-                      Valid model ids can be located at the root-level, like `bert-base-uncased`, or namespaced under a
-                      user or organization name, like `dbmdz/bert-base-german-cased`.
-                    - A path to a *directory* containing a model saved using [`~OptimizedModel.save_pretrained`],
-                      e.g., `./my_model_directory/`.
-            from_transformers (`bool`, *optional*, defaults to `False`):
-                Defines whether the provided `model_id` contains a vanilla Transformers checkpoint.
-            force_download (`bool`, *optional*, defaults to `True`):
-                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
-                cached versions if they exist.
-            use_auth_token (`str`, *optional*, defaults to `None`):
-                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
-                when running `transformers-cli login` (stored in `~/.huggingface`).
-            cache_dir (`str`, *optional*, defaults to `None`):
-                Path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
-
+        """
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
@@ -247,7 +253,7 @@ class OptimizedModel(ABC):
         model_id: Union[str, os.PathLike],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         **kwargs,
     ):

@@ -74,7 +74,7 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 >>> from optimum.pipelines import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
->>> # loading the pytorch checkpoint and converting to ORT format by providing the from_transformers=True parameter
+>>> # Loading the pytorch checkpoint and converting to ORT format by providing the from_transformers=True parameter
 >>> model = ORTModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2",from_transformers=True)
 
 >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
@@ -97,7 +97,7 @@ and `AutoTokenizer'/`AutoFeatureExtractor` class. For example, here's how you ca
 >>> from optimum.pipelines import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
->>> # loading already converted and optimized ORT checkpoint for inference
+>>> # Loading already converted and optimized ORT checkpoint for inference
 >>> model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
 
 >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
@@ -116,89 +116,71 @@ Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] a
 #### Quantizing with `ORTQuantizer`
 
 ```python
->>> from pathlib import Path
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTQuantizer
 >>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
 >>> from optimum.pipelines import pipeline
 >>> from transformers import AutoTokenizer
 
-# define model_id and load tokenizer
+# Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> save_dir = "tmp/onnx/"
 >>> tokenizer = AutoTokenizer.from_pretrained(model_id)
->>> save_path = Path("optimum_model")
->>> save_path.mkdir(exist_ok=True)
+>>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
 
-# use ORTQuantizer to export the model and define quantization configuration
->>> quantizer = ORTQuantizer.from_pretrained(model_id, feature="sequence-classification")
+# Load the quantization configuration detailing the quantization we wish to apply
 >>> qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=True)
+>>> quantizer = ORTQuantizer.from_pretrained(model)
+# Apply dynamic quantization and save the resulting model
+>>> quantizer.quantize(save_dir=save_dir, quantization_config=qconfig)
 
-# apply the quantization configuration to the model
->>> quantizer.export(
-    onnx_model_path=save_path / "model.onnx",
-    onnx_quantized_model_output_path=save_path / "model-quantized.onnx",
-    quantization_config=qconfig,
-    )
->>> quantizer.model.config.save_pretrained(save_path) # saves config.json
+# Load the quantized model from a local repository
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_dir, file_name="model_quantized.onnx")
 
-# load optimized model from local path or repository
->>> model = ORTModelForSequenceClassification.from_pretrained(save_path,file_name="model-quantized.onnx")
-
-# create transformers pipeline
+# Create the transformers pipeline
 >>> onnx_clx = pipeline("text-classification", model=model, tokenizer=tokenizer)
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
 >>> print(pred)
 
-# save model & push model to the hub
+# Save and push the model to the hub
 >>> tokenizer.save_pretrained("new_path_for_directory")
 >>> model.save_pretrained("new_path_for_directory")
->>> model.push_to_hub("new_path_for_directory",
-                  repository_id="my-onnx-repo",
-                  use_auth_token=True
-                  )
+>>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
 ```
 
 #### Optimizing with `ORTOptimizer`
 
 ```python
->>> from pathlib import Path
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
 >>> from optimum.onnxruntime.configuration import OptimizationConfig
 >>> from optimum.pipelines import pipeline
+>>> from transformers import AutoTokenizer
 
-# define model_id and load tokenizer
+# Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> save_dir = "tmp/onnx/"
 >>> tokenizer = AutoTokenizer.from_pretrained(model_id)
->>> save_path = Path("optimum_model")
->>> save_path.mkdir(exist_ok=True)
+>>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
 
-# use ORTOptimizer to export the model and define quantization configuration
->>> optimizer = ORTOptimizer.from_pretrained(model_id, feature="sequence-classification")
+# Load the optimization configuration detailing the optimization we wish to apply
 >>> optimization_config = OptimizationConfig(optimization_level=2)
+>>> optimizer = ORTOptimizer.from_pretrained(model)
+# Apply optimization and save the resulting model
+>>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
 
-# apply the optimization configuration to the model
->>> optimizer.export(
-    onnx_model_path=save_path / "model.onnx",
-    onnx_optimized_model_output_path=save_path / "model-optimized.onnx",
-    optimization_config=optimization_config,
-)
->>> optimizer.model.config.save_pretrained(save_path) # saves config.json
+# Load the optimized model from a local repository
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_dir, file_name="model_optimized.onnx")
 
-# load optimized model from local path or repository
->>> model = ORTModelForSequenceClassification.from_pretrained(save_path,file_name="model-optimized.onnx")
-
-# create transformers pipeline
+# Create the transformers pipeline
 >>> onnx_clx = pipeline("text-classification", model=model, tokenizer=tokenizer)
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
 >>> print(pred)
 
-# save model & push model to the hub
+# Save and push the model to the hub
 >>> tokenizer.save_pretrained("new_path_for_directory")
 >>> model.save_pretrained("new_path_for_directory")
->>> model.push_to_hub("new_path_for_directory",
-                  repository_id="my-onnx-repo",
-                  use_auth_token=True)
+>>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
 ```
 
 ### Transformers pipeline usage

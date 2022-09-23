@@ -1,12 +1,14 @@
 import copy
 import os
+from pathlib import Path
 
-from datasets import load_metric
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
+from transformers.onnx.utils import get_preprocessor
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
+from ...pipelines import SUPPORTED_TASKS
 from ...pipelines import pipeline as _optimum_pipeline
 from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 from .. import ORTQuantizer
@@ -33,13 +35,16 @@ class OnnxRuntimeRun(Run):
             operators_to_quantize=run_config["operators_to_quantize"],
         )
 
-        quantizer = ORTQuantizer.from_pretrained(
-            run_config["model_name_or_path"],
-            feature=get_autoclass_name(self.task),
-            opset=run_config["framework_args"]["opset"],
+        onnx_model = SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
+            run_config["model_name_or_path"], from_transformers=True
         )
 
-        self.preprocessor = copy.deepcopy(quantizer.preprocessor)
+        trfs_model = FeaturesManager.get_model_from_feature(
+            onnx_model.export_feature, run_config["model_name_or_path"]
+        )
+        quantizer = ORTQuantizer.from_pretrained(onnx_model)
+
+        self.preprocessor = get_preprocessor(run_config["model_name_or_path"])
 
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]
@@ -47,10 +52,10 @@ class OnnxRuntimeRun(Run):
         self.time_benchmark_args = run_config["time_benchmark_args"]
 
         self.model_path = "model.onnx"
-        self.quantized_model_path = "quantized_model.onnx"
+        self.quantized_model_path = "model_quantized.onnx"
 
         processing_class = task_processing_map[self.task]
-        self.processor = processing_class(
+        self.task_processor = processing_class(
             dataset_path=run_config["dataset"]["path"],
             dataset_name=run_config["dataset"]["name"],
             calibration_split=run_config["dataset"]["calibration_split"],
@@ -63,7 +68,7 @@ class OnnxRuntimeRun(Run):
             num_calibration_samples=run_config["calibration"]["num_calibration_samples"]
             if self.static_quantization
             else None,
-            config=quantizer.model.config,
+            config=trfs_model.config,
             max_eval_samples=run_config["max_eval_samples"],
         )
 
@@ -83,22 +88,23 @@ class OnnxRuntimeRun(Run):
                 calibration_params=run_config["calibration"],
                 node_exclusion=run_config["node_exclusion"],
             )
-            ranges, quantization_preprocessor = calibrator.calibrate()
+            ranges, quantization_preprocessor = calibrator.fit()
 
         # Export the quantized model
-        quantizer.export(
-            onnx_model_path=self.model_path,
-            onnx_quantized_model_output_path=self.quantized_model_path,
+        quantizer.quantize(
+            save_dir="./",
             calibration_tensors_range=ranges,
             quantization_config=qconfig,
             preprocessor=quantization_preprocessor,
         )
 
         # onnxruntime benchmark
-        ort_session = ORTModel.load_model(self.quantized_model_path)
+        ort_session = ORTModel.load_model(
+            str(Path("./") / self.quantized_model_path),
+        )
 
         # necessary to pass the config for the pipeline not to complain later
-        self.ort_model = task_ortmodel_map[self.task](ort_session, config=quantizer.model.config)
+        self.ort_model = task_ortmodel_map[self.task](ort_session, config=trfs_model.config)
 
         # pytorch benchmark
         model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
@@ -150,7 +156,7 @@ class OnnxRuntimeRun(Run):
         return 0, 0
 
     def launch_eval(self):
-        kwargs = self.processor.get_pipeline_kwargs()
+        kwargs = self.task_processor.get_pipeline_kwargs()
 
         # transformers pipelines are smart enought to detect whether the tokenizer or feature_extractor is needed
         ort_pipeline = _optimum_pipeline(
@@ -172,22 +178,22 @@ class OnnxRuntimeRun(Run):
 
         eval_dataset = self.get_eval_dataset()
 
-        # may be better to avoid to get labels twice
-        print("Running inference...")
-        all_labels, all_preds_baseline = self.processor.run_inference(eval_dataset, transformers_pipeline)
-        _, all_preds_optimized = self.processor.run_inference(eval_dataset, ort_pipeline)
+        print("Running evaluation...")
+        baseline_metrics_dict = self.task_processor.run_evaluation(
+            eval_dataset, transformers_pipeline, self.metric_names
+        )
+        optimized_metrics_dict = self.task_processor.run_evaluation(eval_dataset, ort_pipeline, self.metric_names)
 
-        print("Computing metrics...")
-        for metric_name in self.metric_names:
-            metric = load_metric(metric_name)
-            baseline_metrics_dict = self.processor.get_metrics(
-                predictions=all_preds_baseline, references=all_labels, metric=metric
-            )
-            optimized_metrics_dict = self.processor.get_metrics(
-                predictions=all_preds_optimized, references=all_labels, metric=metric
-            )
-            self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
-            self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
+        baseline_metrics_dict.pop("total_time_in_seconds", None)
+        baseline_metrics_dict.pop("samples_per_second", None)
+        baseline_metrics_dict.pop("latency_in_seconds", None)
+
+        optimized_metrics_dict.pop("total_time_in_seconds", None)
+        optimized_metrics_dict.pop("samples_per_second", None)
+        optimized_metrics_dict.pop("latency_in_seconds", None)
+
+        self.return_body["evaluation"]["others"]["baseline"].update(baseline_metrics_dict)
+        self.return_body["evaluation"]["others"]["optimized"].update(optimized_metrics_dict)
 
     def finalize(self):
         if os.path.isfile(self.quantized_model_path):

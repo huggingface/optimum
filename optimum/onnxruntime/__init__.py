@@ -21,8 +21,10 @@ _import_structure = {
     "model": ["ORTModel"],
     "modeling_ort": [
         "ORTModelForCausalLM",
+        "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
+        "ORTModelForMultipleChoice",
         "ORTModelForQuestionAnswering",
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
@@ -50,8 +52,10 @@ if TYPE_CHECKING:
     from .model import ORTModel
     from .modeling_ort import (
         ORTModelForCausalLM,
+        ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
