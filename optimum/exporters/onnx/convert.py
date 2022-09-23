@@ -342,34 +342,34 @@ def export(
 
 def validate_model_outputs(
     config: OnnxConfig,
-    preprocessor: Union["PreTrainedTokenizer", "FeatureExtractionMixin", "ProcessorMixin"],
+    # preprocessor: Union["PreTrainedTokenizer", "FeatureExtractionMixin", "ProcessorMixin"],
     reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
     onnx_model: Path,
     onnx_named_outputs: List[str],
     atol: float,
-    tokenizer: "PreTrainedTokenizer" = None,
+    # tokenizer: "PreTrainedTokenizer" = None,
 ):
     from onnxruntime import InferenceSession, SessionOptions
 
     logger.info("Validating ONNX model...")
 
-    if isinstance(preprocessor, PreTrainedTokenizerBase) and tokenizer is not None:
-        raise ValueError("You cannot provide both a tokenizer and a preprocessor to validate the model outputs.")
-    if tokenizer is not None:
-        warnings.warn(
-            "The `tokenizer` argument is deprecated and will be removed in version 5 of Transformers. Use"
-            " `preprocessor` instead.",
-            FutureWarning,
-        )
-        logger.info("Overwriting the `preprocessor` argument with `tokenizer` to generate dummmy inputs.")
-        preprocessor = tokenizer
+    # if isinstance(preprocessor, PreTrainedTokenizerBase) and tokenizer is not None:
+    #     raise ValueError("You cannot provide both a tokenizer and a preprocessor to validate the model outputs.")
+    # if tokenizer is not None:
+    #     warnings.warn(
+    #         "The `tokenizer` argument is deprecated and will be removed in version 5 of Transformers. Use"
+    #         " `preprocessor` instead.",
+    #         FutureWarning,
+    #     )
+    #     logger.info("Overwriting the `preprocessor` argument with `tokenizer` to generate dummmy inputs.")
+    #     preprocessor = tokenizer
 
     # TODO: generate inputs with a different batch_size and seq_len that was used for conversion to properly test
     # dynamic input shapes.
     if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
-        reference_model_inputs = config.generate_dummy_inputs(preprocessor, framework=TensorType.PYTORCH)
+        reference_model_inputs = config.generate_dummy_inputs(framework="pt")
     else:
-        reference_model_inputs = config.generate_dummy_inputs(preprocessor, framework=TensorType.TENSORFLOW)
+        reference_model_inputs = config.generate_dummy_inputs(framework="tf")
 
     # Create ONNX Runtime session
     options = SessionOptions()

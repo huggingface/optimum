@@ -28,6 +28,7 @@ from .utils import ParameterFormat, compute_effective_axis_dimension, compute_se
 if TYPE_CHECKING:
     import torch
     from transformers import PretrainedConfig
+    from ...utils import DummyInputGenerator
 
 
 if is_vision_available():
@@ -102,14 +103,18 @@ class OnnxConfig(ABC):
     }
 
     def __init__(self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List[PatchingSpec]] = None):
-        self._config = config
-        self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
-
         if task not in self._tasks_to_common_outputs:
             raise ValueError(
                 f"{task} is not a supported task, supported tasks: {self._tasks_to_common_outputs.keys()}"
             )
         self.task = task
+
+        self._config = config
+        self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
+
+        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
+        self.dummy_inputs_generators = [cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]]
+        self.dummy_inputs_generators.insert(0, first_inputs_gen)
 
         self._patching_specs = []
         for spec in patching_specs if patching_specs is not None else []:
@@ -197,11 +202,10 @@ class OnnxConfig(ABC):
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
     def generate_dummy_inputs(self, framework: str = "pt") -> Mapping[str, "torch.Tensor"]:
-        generators = [cls_(self.task, self._normalized_config) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES]
         dummy_inputs = OrderedDict()
         for input_name in self.inputs:
             input_was_inserted = False
-            for dummy_input_gen in generators:
+            for dummy_input_gen in self.dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
                     dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                     input_was_inserted = True
@@ -209,15 +213,6 @@ class OnnxConfig(ABC):
             if not input_was_inserted:
                 raise RuntimeError(f"Could not generate dummy input for \"{input_name}\", try adding the proper dummy input generator to the model onnx config.")
         return dummy_inputs
-
-    # def _generate_dummy_images(
-    #     self, batch_size: int = 2, num_channels: int = 3, image_height: int = 40, image_width: int = 40
-    # ):
-    #     images = []
-    #     for _ in range(batch_size):
-    #         data = np.random.rand(image_height, image_width, num_channels) * 255
-    #         images.append(Image.fromarray(data.astype("uint8")).convert("RGB"))
-    #     return images
 
     def patch_ops(self):
         for spec in self._patching_specs:
@@ -246,3 +241,87 @@ class OnnxConfig(ABC):
         from itertools import chain
 
         return {f"{name}.{idx}": item for idx, item in enumerate(chain.from_iterable(field))}
+
+
+class OnnxConfigWithPast(OnnxConfig, ABC):
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        patching_specs: List[PatchingSpec] = None,
+        use_past: bool = False,
+    ):
+        super().__init__(config, task=task, patching_specs=patching_specs)
+        self.use_past = use_past
+
+    @classmethod
+    def with_past(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfigWithPast":
+        """
+        Instantiate a OnnxConfig with `use_past` attribute set to True
+
+        Args:
+            config: The underlying model's config to use when exporting to ONNX
+
+        Returns:
+            OnnxConfig with `.use_past = True`
+        """
+        return cls(config, task=task, use_past=True)
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self.use_past:
+            self.add_past_key_values(common_outputs, direction="outputs")
+
+        return common_outputs
+
+    @property
+    def values_override(self) -> Optional[Mapping[str, Any]]:
+        if hasattr(self._config, "use_cache"):
+            return {"use_cache": self.use_past}
+
+    # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
+    def generate_dummy_inputs(self, framework: str = "pt") -> Mapping[str, "torch.Tensor"]:
+        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+
+        if self.use_past and "attention_mask" in dummy_inputs:
+            import pdb; pdb.set_trace()
+            batch_size, past_key_values_length = dummy_inputs["past_key_values.0.key"].shape
+            mask_dtype = dummy_inputs["attention_mask"].dtype
+            dummy_inputs["attention_mask"] = torch.cat(
+                [dummy_inputs["attention_mask"], torch.ones(batch_size, past_key_values_length, dtype=mask_dtype)],
+                dim=1,
+            )
+        return dummy_inputs
+
+    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+        """
+        Fill the input_or_outputs mapping with past_key_values dynamic axes considering the direction.
+
+        Args:
+            inputs_or_outputs: The mapping to fill.
+            direction: either "inputs" or "outputs", it specifies whether input_or_outputs is the input mapping or the
+                output mapping, this is important for axes naming.
+
+        """
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        name = "past_key_values" if direction == "inputs" else "present"
+        for i in range(self._normalized_config.num_layers):
+            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
+            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
+
+    def _flatten_past_key_values_(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.key"] = t[0]
+        flattened_output[f"{name}.{idx}.value"] = t[1]
+
+    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+        flattened_output = {}
+        if name in ["present", "past_key_values"]:
+            for idx, t in enumerate(field):
+                self._flatten_past_key_values_(flattened_output, name, idx, t)
+        else:
+            flattened_output = super().flatten_output_collection_property(name, field)
+
+        return flattened_output

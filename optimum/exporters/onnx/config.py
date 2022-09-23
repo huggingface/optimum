@@ -13,9 +13,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from ...utils import DummyTextInputGenerator
-from .base import OnnxConfig
+from ...utils import DummyTextInputGenerator, DummyPastKeyValuesGenerator
+from .base import OnnxConfig, OnnxConfigWithPast
 
 
 class AutoEncoderOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
+
+
+class DecoderOnnxConfig(OnnxConfigWithPast):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
