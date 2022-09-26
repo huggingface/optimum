@@ -186,7 +186,10 @@ class ORTModel(OptimizedModel):
 
         # `providers` list must of be of the same length as `provider_options` list
         return ort.InferenceSession(
-            path, providers=[provider], sess_options=session_options, provider_options=[provider_options]
+            path,
+            providers=[provider],
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
         )
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):

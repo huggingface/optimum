@@ -225,10 +225,16 @@ class ORTModelForConditionalGeneration(ORTModel):
             )
 
         encoder_session = onnxruntime.InferenceSession(
-            str(encoder_path), providers=[provider], sess_options=session_options, provider_options=[provider_options]
+            str(encoder_path),
+            providers=[provider],
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
         )
         decoder_session = onnxruntime.InferenceSession(
-            str(decoder_path), providers=[provider], sess_options=session_options, provider_options=[provider_options]
+            str(decoder_path),
+            providers=[provider],
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
         )
 
         decoder_with_past_session = None
@@ -239,7 +245,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 str(decoder_with_past_path),
                 providers=[provider],
                 sess_options=session_options,
-                provider_options=[provider_options],
+                provider_options=None if provider_options is None else [provider_options],
             )
 
         return encoder_session, decoder_session, decoder_with_past_session
