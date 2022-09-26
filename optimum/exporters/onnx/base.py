@@ -19,15 +19,17 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 import numpy as np
+import torch
 from packaging import version
-
 from transformers.utils import is_torch_available, is_vision_available, logging
+
 from .utils import ParameterFormat, compute_effective_axis_dimension, compute_serialized_parameters_size
 
 
 if TYPE_CHECKING:
     import torch
     from transformers import PretrainedConfig
+
     from ...utils import DummyInputGenerator
 
 
@@ -66,6 +68,7 @@ class OnnxConfig(ABC):
     """
     Base class for ONNX exportable model describing metadata on how to export the model through the ONNX format.
     """
+
     NORMALIZED_CONFIG_CLASS = None
     DUMMY_INPUT_GENERATOR_CLASSES = ()
     DEFAULT_ONNX_OPSET = 11
@@ -102,7 +105,9 @@ class OnnxConfig(ABC):
         "token-classification": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
     }
 
-    def __init__(self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List[PatchingSpec]] = None):
+    def __init__(
+        self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List[PatchingSpec]] = None
+    ):
         if task not in self._tasks_to_common_outputs:
             raise ValueError(
                 f"{task} is not a supported task, supported tasks: {self._tasks_to_common_outputs.keys()}"
@@ -111,10 +116,7 @@ class OnnxConfig(ABC):
 
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
-
-        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
-        self.dummy_inputs_generators = [cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]]
-        self.dummy_inputs_generators.insert(0, first_inputs_gen)
+        self._create_dummy_input_generator_classes()
 
         self._patching_specs = []
         for spec in patching_specs if patching_specs is not None else []:
@@ -122,6 +124,14 @@ class OnnxConfig(ABC):
             if spec.orig_op is None:
                 final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
             self._patching_specs.append(final_spec)
+
+    def _create_dummy_input_generator_classes(self):
+        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
+        self.dummy_inputs_generators = [
+            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size)
+            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+        ]
+        self.dummy_inputs_generators.insert(0, first_inputs_gen)
 
     @property
     @abstractmethod
@@ -211,7 +221,9 @@ class OnnxConfig(ABC):
                     input_was_inserted = True
                     break
             if not input_was_inserted:
-                raise RuntimeError(f"Could not generate dummy input for \"{input_name}\", try adding the proper dummy input generator to the model onnx config.")
+                raise RuntimeError(
+                    f'Could not generate dummy input for "{input_name}", try adding the proper dummy input generator to the model onnx config.'
+                )
         return dummy_inputs
 
     def patch_ops(self):
@@ -244,6 +256,8 @@ class OnnxConfig(ABC):
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
+    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
+
     def __init__(
         self,
         config: "PretrainedConfig",
@@ -251,8 +265,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         patching_specs: List[PatchingSpec] = None,
         use_past: bool = False,
     ):
-        super().__init__(config, task=task, patching_specs=patching_specs)
         self.use_past = use_past
+        super().__init__(config, task=task, patching_specs=patching_specs)
 
     @classmethod
     def with_past(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfigWithPast":
@@ -282,16 +296,34 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
     def generate_dummy_inputs(self, framework: str = "pt") -> Mapping[str, "torch.Tensor"]:
-        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        dummy_inputs = OrderedDict()
+        input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
+        if self.use_past:
+            input_names.append("past_key_values")
+        for input_name in input_names:
+            input_was_inserted = False
+            for dummy_input_gen in self.dummy_inputs_generators:
+                if dummy_input_gen.supports_input(input_name):
+                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                    input_was_inserted = True
+                    break
+            if not input_was_inserted:
+                raise RuntimeError(
+                    f'Could not generate dummy input for "{input_name}", try adding the proper dummy input generator to the model onnx config.'
+                )
 
-        if self.use_past and "attention_mask" in dummy_inputs:
-            import pdb; pdb.set_trace()
-            batch_size, past_key_values_length = dummy_inputs["past_key_values.0.key"].shape
+        if (
+            self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH
+            and self.use_past
+            and "attention_mask" in dummy_inputs
+        ):
+            shape = dummy_inputs["past_key_values"][0][0].shape
             mask_dtype = dummy_inputs["attention_mask"].dtype
             dummy_inputs["attention_mask"] = torch.cat(
-                [dummy_inputs["attention_mask"], torch.ones(batch_size, past_key_values_length, dtype=mask_dtype)],
+                [dummy_inputs["attention_mask"], torch.ones(shape[0], shape[2], dtype=mask_dtype)],
                 dim=1,
             )
+
         return dummy_inputs
 
     def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
@@ -312,7 +344,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
             inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
 
-    def _flatten_past_key_values_(self, flattened_output, name, idx, t):
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key"] = t[0]
         flattened_output[f"{name}.{idx}.value"] = t[1]
 
@@ -320,8 +352,47 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         flattened_output = {}
         if name in ["present", "past_key_values"]:
             for idx, t in enumerate(field):
-                self._flatten_past_key_values_(flattened_output, name, idx, t)
+                self.flatten_past_key_values(flattened_output, name, idx, t)
         else:
             flattened_output = super().flatten_output_collection_property(name, field)
 
         return flattened_output
+
+
+class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
+    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super(OnnxConfigWithPast, self).outputs
+        # Renaming the outputs axes properly.
+        for name, axes_names in common_outputs.items():
+            sequence_name = "encoder_sequence" if "encoder" in name else "decoder_sequence"
+            for axis_idx, name in axes_names.items():
+                if "sequence" in name:
+                    axes_names[axis_idx] = sequence_name
+                # We reset the value as the order in common_outputs (OrderedDict) is lost otherwise
+                else:
+                    axes_names[axis_idx] = name
+        if self.use_past:
+            self.add_past_key_values(common_outputs, direction="outputs")
+
+        return common_outputs
+
+    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+        name = "past_key_values" if direction == "inputs" else "present"
+        encoder_sequence = "past_encoder_sequence"
+        decoder_sequence = "past_decoder_sequence" if direction == "inputs" else "past_decoder_sequence + sequence"
+        for i in range(self._normalized_config.decoder_num_layers):
+            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch", 2: decoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch", 2: decoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch", 2: encoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch", 2: encoder_sequence}
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
+        flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
+        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]

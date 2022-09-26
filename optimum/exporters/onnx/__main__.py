@@ -15,9 +15,10 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
+from ...utils import logging
+
 # from ..models.auto import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
 from ..onnx.utils import get_preprocessor
-from ...utils import logging
 from .convert import export, validate_model_outputs
 from .features import FeaturesManager
 

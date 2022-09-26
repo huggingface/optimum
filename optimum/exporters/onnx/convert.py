@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Iterable, List, Tuple, Union
 
 import numpy as np
 from packaging.version import Version, parse
-
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.utils import (
     TensorType,
@@ -30,6 +29,7 @@ from transformers.utils import (
     is_torch_onnx_dict_inputs_support_available,
     logging,
 )
+
 from .base import OnnxConfig
 
 
@@ -40,7 +40,7 @@ if is_torch_available():
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
 
-#if TYPE_CHECKING:
+# if TYPE_CHECKING:
 #    from ..feature_extraction_utils import FeatureExtractionMixin
 #    from ..processing_utils import ProcessorMixin
 #    from ..tokenization_utils import PreTrainedTokenizer
@@ -151,7 +151,7 @@ def export_pytorch(
             onnx_outputs = list(config.outputs.keys())
 
             if not inputs_match:
-                raise ValueError("Model and config inputs doesn't match")
+                raise ValueError("Model and config inputs doesn't match.")
 
             config.patch_ops()
 

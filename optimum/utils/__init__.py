@@ -27,4 +27,12 @@ def is_onnxruntime_available():
 def is_pydantic_available():
     return _pydantic_available
 
-from .input_generators import NormalizedConfig, DummyTextInputGenerator, DummyPastKeyValuesGenerator
+
+from .input_generators import (
+    DummyDecoderTextInputGenerator,
+    DummyPastKeyValuesGenerator,
+    DummySeq2SeqPastKeyValuesGenerator,
+    DummyTextInputGenerator,
+    NormalizedConfig,
+    NormalizedSeq2SeqConfig,
+)

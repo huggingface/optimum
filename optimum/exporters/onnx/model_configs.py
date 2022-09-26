@@ -15,8 +15,15 @@
 from collections import OrderedDict
 from typing import Any, Mapping, Optional
 
-from ...utils import NormalizedConfig
-from .config import AutoEncoderOnnxConfig, DecoderOnnxConfig
+from ...utils import (
+    DummyDecoderTextInputGenerator,
+    DummyPastKeyValuesGenerator,
+    DummySeq2SeqPastKeyValuesGenerator,
+    DummyTextInputGenerator,
+    NormalizedConfig,
+    NormalizedSeq2SeqConfig,
+)
+from .config import AutoEncoderOnnxConfig, DecoderOnnxConfig, Seq2SeqOnnxConfig
 
 
 class BertOnnxConfig(AutoEncoderOnnxConfig):
@@ -35,6 +42,10 @@ class BertOnnxConfig(AutoEncoderOnnxConfig):
                 ("token_type_ids", dynamic_axis),
             ]
         )
+
+    @property
+    def atol_for_validation(self):
+        return 1e-4
 
 
 class DistilBertOnnxConfig(BertOnnxConfig):
@@ -56,92 +67,99 @@ class RobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
-class GPT2NormalizedConfig(NormalizedConfig):
-    NUM_LAYERS = "n_layer"
-    NUM_ATTENTION_HEADS = "n_head"
-
-
 class GPT2OnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = GPT2NormalizedConfig
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict({"input_ids": {0: "batch", 1: "sequence"}})
-        if self.use_past:
-            self.add_past_key_values(common_inputs, direction="inputs")
-            common_inputs["attention_mask"] = {0: "batch", 1: "past_sequence + sequence"}
-        else:
-            common_inputs["attention_mask"] = {0: "batch", 1: "sequence"}
-
-        return common_inputs
-
-    # @property
-    # def values_override(self) -> Optional[Mapping[str, Any]]:
-    #     if not getattr(self._config, "pad_token_id", None):
-    #         return {"pad_token_id": 0}
-
-
-class GPTNeoNormalizedConfig(NormalizedConfig):
-    NUM_ATTENTION_HEADS = "num_heads"
+    def values_override(self) -> Optional[Mapping[str, Any]]:
+        pad_value_override = {}
+        if not getattr(self._config, "pad_token_id", None):
+            pad_value_override = {"pad_token_id": 0}
+        super_values_override = super().values_override
+        if super_values_override:
+            return {**super_values_override, **pad_value_override}
+        return pad_value_override
 
 
 class GPTNeoOnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = GPTNeoNormalizedConfig
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_attention_heads="num_heads")
 
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict({"input_ids": {0: "batch", 1: "sequence"}})
-        if self.use_past:
-            self.add_past_key_values(common_inputs, direction="inputs")
-            common_inputs["attention_mask"] = {0: "batch", 1: "past_sequence + sequence"}
-        else:
-            common_inputs["attention_mask"] = {0: "batch", 1: "sequence"}
 
-        return common_inputs
+class T5OnnxConfig(Seq2SeqOnnxConfig):
+    DEFAULT_ONNX_OPSET = 13
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
+        num_attention_heads="num_heads", decoder_num_layers="num_decoder_layers"
+    )
 
-    # def generate_dummy_inputs(
-    #     self,
-    #     tokenizer: PreTrainedTokenizer,
-    #     batch_size: int = -1,
-    #     seq_length: int = -1,
-    #     is_pair: bool = False,
-    #     framework: Optional[TensorType] = None,
-    # ) -> Mapping[str, Any]:
 
-    #     common_inputs = super(OnnxConfigWithPast, self).generate_dummy_inputs(
-    #         tokenizer, batch_size=batch_size, seq_length=seq_length, is_pair=is_pair, framework=framework
-    #     )
-
-    #     # We need to order the input in the way they appears in the forward()
-    #     ordered_inputs = OrderedDict({"input_ids": common_inputs["input_ids"]})
-
-    #     # Need to add the past_keys
-    #     if self.use_past:
-    #         if not is_torch_available():
-    #             raise ValueError("Cannot generate dummy past_keys inputs without PyTorch installed.")
-    #         else:
-    #             import torch
-
-    #             batch, seqlen = common_inputs["input_ids"].shape
-    #             # Not using the same length for past_key_values
-    #             past_key_values_length = seqlen + 2
-    #             past_shape = (
-    #                 batch,
-    #                 self.num_attention_heads,
-    #                 past_key_values_length,
-    #                 self._config.hidden_size // self.num_attention_heads,
-    #             )
-    #             ordered_inputs["past_key_values"] = [
-    #                 (torch.zeros(past_shape), torch.zeros(past_shape)) for _ in range(self.num_layers)
-    #             ]
-
-    #     ordered_inputs["attention_mask"] = common_inputs["attention_mask"]
-    #     if self.use_past:
-    #         mask_dtype = ordered_inputs["attention_mask"].dtype
-    #         ordered_inputs["attention_mask"] = torch.cat(
-    #             [ordered_inputs["attention_mask"], torch.ones(batch, past_key_values_length, dtype=mask_dtype)], dim=1
-    #         )
-
-    #     return ordered_inputs
+# class BartOnnxConfig(Seq2SeqOnnxConfig):
+#     DUMMY_INPUT_GENERATOR_CLASSES = (
+#         DummyTextInputGenerator,
+#         DummyDecoderTextInputGenerator,
+#         {
+#             "default": DummySeq2SeqPastKeyValuesGenerator,
+#             "causal-lm": DummyPastKeyValuesGenerator,
+#         }
+#     )
+#     def _create_dummy_input_generator_classes(self):
+#         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
+#         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
+#             self.task,
+#             self._normalized_config,
+#             batch_size=dummy_text_input_generator.batch_size,
+#             sequence_length=1 if self.use_past else None,
+#         )
+#         task = "default" if self.task != "causal-lm" else "causal-lm"
+#         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
+#             self.task,
+#             self._normalized_config,
+#             batch_size=dummy_text_input_generator.batch_size,
+#             encoder_sequence_length=dummy_text_input_generator.sequence_length,
+#         )
+#         self.dummy_inputs_generators = [dummy_text_input_generator, dummy_decoder_text_input_generator, dummy_seq2seq_past_key_values_generator]
+#
+#     @property
+#     def inputs(self) -> Mapping[str, Mapping[int, str]]:
+#         if self.task in ["default", "seq2seq-lm"]:
+#             common_inputs = OrderedDict(
+#                 [
+#                     ("input_ids", {0: "batch", 1: "encoder_sequence"}),
+#                     ("attention_mask", {0: "batch", 1: "encoder_sequence"}),
+#                 ]
+#             )
+#
+#             if self.use_past:
+#                 common_inputs["decoder_input_ids"] = {0: "batch"}
+#                 common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
+#             else:
+#                 common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
+#                 common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
+#
+#             if self.use_past:
+#                 self.add_past_key_values(common_inputs, direction="inputs")
+#         elif self.task == "causal-lm":
+#             # TODO: figure this case out.
+#             common_inputs = OrderedDict(
+#                 [
+#                     ("input_ids", {0: "batch", 1: "encoder_sequence"}),
+#                     ("attention_mask", {0: "batch", 1: "encoder_sequence"}),
+#                 ]
+#             )
+#             if self.use_past:
+#                 num_encoder_layers, _ = self.num_layers
+#                 for i in range(num_encoder_layers):
+#                     common_inputs[f"past_key_values.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
+#                     common_inputs[f"past_key_values.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
+#         else:
+#             common_inputs = OrderedDict(
+#                 [
+#                     ("input_ids", {0: "batch", 1: "encoder_sequence"}),
+#                     ("attention_mask", {0: "batch", 1: "encoder_sequence"}),
+#                     ("decoder_input_ids", {0: "batch", 1: "decoder_sequence"}),
+#                     ("decoder_attention_mask", {0: "batch", 1: "decoder_sequence"}),
+#                 ]
+#             )
+#
+#         return common_inputs

@@ -3,7 +3,6 @@ import os
 from functools import partial, reduce
 from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Type, Union
 
-
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
@@ -275,15 +274,15 @@ class FeaturesManager:
         #     "image-segmentation",
         #     onnx_config_cls="models.detr.DetrOnnxConfig",
         # ),
-        # "distilbert": supported_features_mapping(
-        #     "default",
-        #     "masked-lm",
-        #     "sequence-classification",
-        #     "multiple-choice",
-        #     "token-classification",
-        #     "question-answering",
-        #     onnx_config_cls="models.distilbert.DistilBertOnnxConfig",
-        # ),
+        "distilbert": supported_features_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx_config_cls="DistilBertOnnxConfig",
+        ),
         # "electra": supported_features_mapping(
         #     "default",
         #     "masked-lm",
@@ -439,16 +438,16 @@ class FeaturesManager:
         #     "image-classification",
         #     onnx_config_cls="models.resnet.ResNetOnnxConfig",
         # ),
-        # "roberta": supported_features_mapping(
-        #     "default",
-        #     "masked-lm",
-        #     "causal-lm",
-        #     "sequence-classification",
-        #     "multiple-choice",
-        #     "token-classification",
-        #     "question-answering",
-        #     onnx_config_cls="models.roberta.RobertaOnnxConfig",
-        # ),
+        "roberta": supported_features_mapping(
+            "default",
+            "masked-lm",
+            "causal-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx_config_cls="RobertaOnnxConfig",
+        ),
         # "roformer": supported_features_mapping(
         #     "default",
         #     "masked-lm",
@@ -475,13 +474,13 @@ class FeaturesManager:
         #     "question-answering",
         #     onnx_config_cls="models.squeezebert.SqueezeBertOnnxConfig",
         # ),
-        # "t5": supported_features_mapping(
-        #     "default",
-        #     "default-with-past",
-        #     "seq2seq-lm",
-        #     "seq2seq-lm-with-past",
-        #     onnx_config_cls="models.t5.T5OnnxConfig",
-        # ),
+        "t5": supported_features_mapping(
+            "default",
+            "default-with-past",
+            "seq2seq-lm",
+            "seq2seq-lm-with-past",
+            onnx_config_cls="T5OnnxConfig",
+        ),
         # "vit": supported_features_mapping(
         #     "default", "image-classification", "masked-im", onnx_config_cls="models.vit.ViTOnnxConfig"
         # ),
