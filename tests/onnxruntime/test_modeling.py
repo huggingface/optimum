@@ -240,6 +240,19 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, session_options=options)
         self.assertEqual(model.encoder.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
+    
+    def test_passing_provider_options(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
+        session_provider_options = model.model.get_provider_options()
+        self.assertEqual(session_provider_options["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1")
+
+        """
+        provider_options = {"do_copy_in_default_stream": 0}
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
+        session_provider_options = model.model.get_provider_options()
+        self.assertEqual(session_provider_options["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0")
+        """
+    #def test_passing_provider_options_seq2seq(self):
 
     def test_seq2seq_model_on_cpu(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)

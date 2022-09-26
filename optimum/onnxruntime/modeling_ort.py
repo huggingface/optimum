@@ -160,6 +160,7 @@ class ORTModel(OptimizedModel):
         path: Union[str, Path],
         provider: Optional[str] = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict] = None,
         **kwargs
     ):
         """
@@ -171,8 +172,11 @@ class ORTModel(OptimizedModel):
             provider (`str`, *optional*):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers. Defaults to `CPUExecutionProvider`.
-            session_options (`onnxruntime.SessionOptions`, *optional*),:
+            session_options (`onnxruntime.SessionOptions`, *optional*):
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
+            provider_options (`Dict`, **optional**):
+                Provider option dictionaries corresponding to the provider used. See available options
+                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
         available_providers = ort.get_available_providers()
         if provider not in available_providers:
@@ -180,7 +184,10 @@ class ORTModel(OptimizedModel):
                 f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
             )
 
-        return ort.InferenceSession(path, providers=[provider], sess_options=session_options)
+        # `providers` list must of be of the same length as `provider_options` list
+        return ort.InferenceSession(
+            path, providers=[provider], sess_options=session_options, provider_options=[provider_options]
+        )
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
         """
@@ -210,6 +217,7 @@ class ORTModel(OptimizedModel):
         cache_dir: Optional[str] = None,
         provider: Optional[str] = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict] = None,
         *args,
         **kwargs
     ):
@@ -231,6 +239,7 @@ class ORTModel(OptimizedModel):
             cache_dir,
             provider=provider,
             session_options=session_options,
+            provider_options=provider_options,
             *args,
             **kwargs,
         )
