@@ -675,10 +675,10 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
-            logger.warning("[INFO] Evaluating with ONNX Runtime backend.")
+            logger.info("[INFO] Evaluating with ONNX Runtime backend.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
         else:
-            logger.warning(
+            logger.info(
                 "[INFO] Evaluating with PyTorch backend. If you want to use ONNX Runtime for the evaluation, set `trainer.evaluate(inference_with_ort=True)`."
             )
             eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
@@ -696,7 +696,7 @@ class ORTTrainer(Trainer):
         except Exception as error:
             logger.error(error)
             if inference_with_ort:
-                logger.warning(
+                logger.error(
                     f"[ERROR!] Evaluation with ONNX Runtime is not available for {self.model.config.name_or_path} model. Set `inference_with_ort=False` to evaluate with PyTorch."
                 )
             raise
@@ -737,10 +737,10 @@ class ORTTrainer(Trainer):
         start_time = time.time()
 
         if inference_with_ort:
-            logger.warning("[INFO] Predicting with ONNX Runtime backend.")
+            logger.info("[INFO] Predicting with ONNX Runtime backend.")
             eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
         else:
-            logger.warning(
+            logger.info(
                 "[INFO] Predicting with PyTorch backend. If you want to use ONNX Runtime for the prediction, set `trainer.predict(inference_with_ort=True)`."
             )
             eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
@@ -755,7 +755,7 @@ class ORTTrainer(Trainer):
         except Exception as error:
             logger.error(error)
             if inference_with_ort:
-                logger.warning(
+                logger.error(
                     f"[ERROR!] Prediction with ONNX Runtime is not available for {self.model.config.name_or_path} model. Set `inference_with_ort=False` to predict with PyTorch."
                 )
             raise
