@@ -33,7 +33,7 @@ Theorectically, all sequence-to-sequence models with [ONNXConfig](https://github
 __The following example applies the acceleration features powered by ONNX Runtime.__
 
 
-### Onnxruntime Training
+### Onnx Runtime Training
 
 The following example fine-tunes a BERT on the SQuAD 1.0 dataset.
 
