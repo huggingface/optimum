@@ -47,8 +47,7 @@ from transformers.utils.versions import require_version
 
 import evaluate
 from filelock import FileLock
-from optimum.onnxruntime import ORTSeq2SeqTrainer
-from optimum.onnxruntime.training_args_seq2seq import ORTSeq2SeqTrainingArguments
+from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTSeq2SeqTrainingArguments
 
 
 # Might have error if the minimal version of Transformers is not installed. Remove at your own risks.
