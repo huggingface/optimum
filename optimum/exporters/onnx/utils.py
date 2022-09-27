@@ -14,19 +14,24 @@
 # limitations under the License.
 """Utility functions."""
 
-import packaging
 from ctypes import c_float, sizeof
 from enum import Enum
 
+import packaging
 from transformers.utils import is_torch_available
+
 
 MIN_TORCH_VERSION = packaging.version.parse("1.8.0")
 TORCH_VERSION = None
 if is_torch_available():
     import torch
+
     TORCH_VERSION = packaging.version.parse(torch.__version__)
 
-_is_torch_onnx_support_available = is_torch_available() and (MIN_TORCH_VERSION.major, MIN_TORCH_VERSION.minor) <= (TORCH_VERSION.major, TORCH_VERSION.minor)
+_is_torch_onnx_support_available = is_torch_available() and (MIN_TORCH_VERSION.major, MIN_TORCH_VERSION.minor) <= (
+    TORCH_VERSION.major,
+    TORCH_VERSION.minor,
+)
 
 
 def is_torch_onnx_support_available():

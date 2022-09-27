@@ -12,11 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Entry point to the optimum.exporters.onnx command line."""
 from argparse import ArgumentParser
 from pathlib import Path
 
 from ...utils import logging
-
 from .convert import export, validate_model_outputs
 from .features import FeaturesManager
 
@@ -47,8 +47,8 @@ def main():
             " or what is available in the environment."
         ),
     )
-    parser.add_argument("output", type=Path, help="Path indicating where to store generated ONNX model.")
     parser.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+    parser.add_argument("output", type=Path, help="Path indicating where to store generated ONNX model.")
 
     # Retrieve CLI arguments
     args = parser.parse_args()

@@ -43,11 +43,7 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf==3.20.1",
     ],
-    "exporters-tf": [
-        "tensorflow",
-        "onnx",
-        "tf2onnx"
-    ],
+    "exporters-tf": ["tensorflow", "onnx", "tf2onnx"],
     "intel": "optimum-intel",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",

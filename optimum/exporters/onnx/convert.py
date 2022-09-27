@@ -20,10 +20,7 @@ from pathlib import Path
 from typing import Iterable, List, Tuple, Union
 
 import numpy as np
-from transformers.utils import (
-    is_tf_available,
-    is_torch_available,
-)
+from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import logging
 from .base import OnnxConfig
@@ -142,9 +139,7 @@ def export_pytorch(
                     f=output.as_posix(),
                     input_names=list(config.inputs.keys()),
                     output_names=onnx_outputs,
-                    dynamic_axes={
-                        name: axes for name, axes in chain(config.inputs.items(), config.outputs.items())
-                    },
+                    dynamic_axes={name: axes for name, axes in chain(config.inputs.items(), config.outputs.items())},
                     do_constant_folding=True,
                     use_external_data_format=config.use_external_data_format(model.num_parameters()),
                     enable_onnx_checker=True,
@@ -207,13 +202,16 @@ def export_tensorflow(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
         the ONNX configuration.
     """
-    import tensorflow as tf
     # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
     import sys
+
+    import tensorflow as tf
+
     sys_path_backup = sys.path
     sys.path.pop(0)
     import onnx
     import tf2onnx
+
     sys.path = sys_path_backup
 
     logger.info(f"Using framework TensorFlow: {tf.__version__}")
@@ -281,7 +279,9 @@ def export(
         import torch
 
         if not is_torch_onnx_support_available():
-            raise AssertionError(f"Unsupported PyTorch version, minimum required is {MIN_TORCH_VERSION}, got: {torch.__version__}")
+            raise AssertionError(
+                f"Unsupported PyTorch version, minimum required is {MIN_TORCH_VERSION}, got: {torch.__version__}"
+            )
 
         if not config.is_torch_support_available:
             logger.warning(
@@ -296,7 +296,9 @@ def export(
         return export_tensorflow(model, config, opset, output)
 
     else:
-        raise RuntimeError("You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed.")
+        raise RuntimeError(
+            "You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed."
+        )
 
 
 def validate_model_outputs(
@@ -388,14 +390,8 @@ def validate_model_outputs(
 
     if shape_failures:
         msg = "\n\t".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
-        raise ValueError(
-            "Outputs shape doesn't match between reference model and ONNX exported model:\n"
-            f"{msg}"
-        )
+        raise ValueError("Outputs shape doesn't match between reference model and ONNX exported model:\n" f"{msg}")
 
     if value_failures:
         msg = "\n\t".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
-        raise ValueError(
-            "Outputs values doesn't match between reference model and ONNX exported model:\n"
-            f"{msg}"
-        )
+        raise ValueError("Outputs values doesn't match between reference model and ONNX exported model:\n" f"{msg}")

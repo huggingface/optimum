@@ -15,23 +15,27 @@
 """Onnx configuration base classes."""
 import copy
 import dataclasses
+import itertools
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional
 
-import torch
-from packaging import version
-from transformers.utils import is_torch_available, is_vision_available, logging
+from transformers.utils import is_tf_available, is_torch_available, is_vision_available
 
+from ...utils import logging
+from ...utils.input_generators import DummyInputGenerator
+from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 from .utils import ParameterFormat, compute_serialized_parameters_size
 
 
 if TYPE_CHECKING:
-    import torch
     from transformers import PretrainedConfig
 
-    from ...utils import DummyInputGenerator
+if is_torch_available():
+    import torch
 
+if is_tf_available():
+    import tensorflow as tf
 
 if is_vision_available():
     from PIL import Image
@@ -67,13 +71,26 @@ class PatchingSpec:
 class OnnxConfig(ABC):
     """
     Base class for ONNX exportable model describing metadata on how to export the model through the ONNX format.
+
+    Class attributes:
+
+    - NORMALIZED_CONFIG_CLASS (`Type`) -- A class derived from [`~optimum.utils.NormalizedConfig`] specifying how to normalize the model config.
+    - DUMMY_INPUT_GENERATOR_CLASSES (`Tuple[Type]`) -- A tuple of classes derived from [`~optimum.utils.DummyInputGenerator`] specifying how to create dummy inputs.
+    - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
+    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.MIN_TORCH_VERSION`]) -- The minimum torch version supporting the export of the model to ONNX.
+
+    Args:
+        config (`transformers.PretrainedConfig`):
+            The model configuration.
+        task (`str`, defaults to `"default"`):
+            The task the model should be exported for.
     """
 
     NORMALIZED_CONFIG_CLASS = None
     DUMMY_INPUT_GENERATOR_CLASSES = ()
     DEFAULT_ONNX_OPSET = 11
-    torch_onnx_minimum_version = version.parse("1.8")
-    _tasks_to_common_outputs = {
+    MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
+    _TASK_TO_COMMON_OUTPUTS = {
         "causal-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
         "default": OrderedDict({"last_hidden_state": {0: "batch", 1: "sequence"}}),
         "image-classification": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
@@ -108,15 +125,15 @@ class OnnxConfig(ABC):
     def __init__(
         self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List[PatchingSpec]] = None
     ):
-        if task not in self._tasks_to_common_outputs:
+        if task not in self._TASK_TO_COMMON_OUTPUTS:
             raise ValueError(
-                f"{task} is not a supported task, supported tasks: {self._tasks_to_common_outputs.keys()}"
+                f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
             )
         self.task = task
 
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
-        self._create_dummy_input_generator_classes()
+        self.create_dummy_input_generator_classes()
 
         self._patching_specs = []
         for spec in patching_specs if patching_specs is not None else []:
@@ -125,7 +142,14 @@ class OnnxConfig(ABC):
                 final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
             self._patching_specs.append(final_spec)
 
-    def _create_dummy_input_generator_classes(self):
+    def create_dummy_input_generator_classes(self):
+        """
+        Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
+
+        Each dummy input generator being independent, this method takes care of instantiating the first generator, and
+        forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
+        size. Override this method for custom behavior.
+        """
         first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
         self.dummy_inputs_generators = [
             cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size)
@@ -137,31 +161,31 @@ class OnnxConfig(ABC):
     @abstractmethod
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         """
-        Mapping containing the axis definition of the input tensors to provide to the model
+        Mapping containing the axis definition of the input tensors to provide to the model.
 
         Returns:
-            For each input: its name associated to the axes symbolic name and the axis position within the tensor
+            For each input: its name associated to the axes symbolic name and the axis position within the tensor.
         """
         raise NotImplementedError()
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         """
-        Mapping containing the axis definition of the output tensors to provide to the model
+        Mapping containing the axis definition of the output tensors to provide to the model.
 
         Returns:
-            For each output: its name associated to the axes symbolic name and the axis position within the tensor
+            For each output: its name associated to the axes symbolic name and the axis position within the tensor.
         """
-        common_outputs = self._tasks_to_common_outputs[self.task]
+        common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
         """
-        Dictionary of keys to override in the model's config before exporting
+        Dictionary of keys to override in the model's config before exporting.
 
         Returns:
-            Dictionary with the keys (and their corresponding values) to override
+            `Optional[Mapping[str, Any]]`: A dictionary specifying the configuration items to override.
         """
         if hasattr(self._config, "use_cache"):
             return {"use_cache": False}
@@ -174,7 +198,7 @@ class OnnxConfig(ABC):
         What absolute tolerance value to use during model conversion validation.
 
         Returns:
-            Float absolute tolerance value.
+            `float`: Absolute tolerance value.
         """
         return 1e-5
 
@@ -186,23 +210,24 @@ class OnnxConfig(ABC):
         Returns:
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
-        if is_torch_available():
-            from transformers.utils import torch_version
 
-            return torch_version >= self.torch_onnx_minimum_version
-        else:
-            return False
+        if is_torch_available():
+            from .utils import TORCH_VERSION
+
+            return TORCH_VERSION >= self.MIN_TORCH_VERSION
+        return False
 
     @staticmethod
     def use_external_data_format(num_parameters: int) -> bool:
         """
-        Flag indicating if the model requires using external data format
+        Flag indicating if the model requires using external data format.
 
         Args:
-            num_parameters: Number of parameter on the model
+            num_parameters (`int`):
+                The number of parameters in the model.
 
         Returns:
-            True if model.num_parameters() * size_of(float32) >= 2Gb False otherwise
+            `bool`: True if model.num_parameters() * size_of(float32) >= 2Gb, False otherwise
         """
 
         return (
@@ -211,7 +236,17 @@ class OnnxConfig(ABC):
         )
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
-    def generate_dummy_inputs(self, framework: str = "pt") -> Mapping[str, "torch.Tensor"]:
+    def generate_dummy_inputs(self, framework: str = "pt"):
+        """
+        Generates the dummy inputs necessary for tracing the model.
+
+        Args:
+            framework (`str`, defaults to `"pt"`):
+                The framework for which to create the dummy inputs.
+
+        Returns:
+            An `collections.OrderedDict` mapping the input names to dummy tensor in the proper framework format.
+        """
         dummy_inputs = OrderedDict()
         for input_name in self.inputs:
             input_was_inserted = False
@@ -239,20 +274,20 @@ class OnnxConfig(ABC):
     @classmethod
     def flatten_output_collection_property(cls, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         """
-        Flatten any potential nested structure expanding the name of the field with the index of the element within the
+        Flattens any potential nested structure expanding the name of the field with the index of the element within the
         structure.
 
         Args:
-            name: The name of the nested structure
-            field: The structure to, potentially, be flattened
+            name (`str`):
+                The name of the nested structure.
+            field (`Iterable[Any]`):
+                The structure to potentially flattened.
 
         Returns:
-            (Dict[str, Any]): Outputs with flattened structure and key mapping this new structure.
+            `Dict[str, Any]`: Outputs with flattened structure and key mapping this new structure.
 
         """
-        from itertools import chain
-
-        return {f"{name}.{idx}": item for idx, item in enumerate(chain.from_iterable(field))}
+        return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
@@ -271,13 +306,16 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     @classmethod
     def with_past(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfigWithPast":
         """
-        Instantiate a OnnxConfig with `use_past` attribute set to True
+        Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to True
 
         Args:
-            config: The underlying model's config to use when exporting to ONNX
+            config (`transformers.PretrainedConfig`):
+                The underlying model's config to use when exporting to ONNX.
+            task (`str`, defaults to `"default"`):
+                The task the model should be exported for.
 
         Returns:
-            OnnxConfig with `.use_past = True`
+            [`~optimum.exporters.onnx.OnnxConfig`]: The onnx config with `.use_past = True`
         """
         return cls(config, task=task, use_past=True)
 
@@ -295,7 +333,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             return {"use_cache": self.use_past}
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
-    def generate_dummy_inputs(self, framework: str = "pt") -> Mapping[str, "torch.Tensor"]:
+    def generate_dummy_inputs(self, framework: str = "pt"):
         dummy_inputs = OrderedDict()
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
         if self.use_past:
@@ -319,22 +357,27 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         ):
             shape = dummy_inputs["past_key_values"][0][0].shape
             mask_dtype = dummy_inputs["attention_mask"].dtype
-            dummy_inputs["attention_mask"] = torch.cat(
-                [dummy_inputs["attention_mask"], torch.ones(shape[0], shape[2], dtype=mask_dtype)],
-                dim=1,
+            padding = DummyInputGenerator.constant_tensor(
+                [shape[0], shape[1]], 1, dtype=mask_dtype, framework=framework
             )
+            values = [dummy_inputs["attention_mask"], padding]
+            if framework == "pt":
+                dummy_inputs["attention_mask"] = torch.cat(values, dim=1)
+            else:
+                dummy_inputs["attention_mask"] = tf.concat(values, axis=1)
 
         return dummy_inputs
 
     def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         """
-        Fill the input_or_outputs mapping with past_key_values dynamic axes considering the direction.
+        Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
-            inputs_or_outputs: The mapping to fill.
-            direction: either "inputs" or "outputs", it specifies whether input_or_outputs is the input mapping or the
+            inputs_or_outputs (`Mappping[str, Mapping[int str]]`):
+                The mapping to fill.
+            direction (`str`):
+                either "inputs" or "outputs", it specifies whether `input_or_outputs` is the input mapping or the
                 output mapping, this is important for axes naming.
-
         """
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')

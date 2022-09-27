@@ -1,23 +1,25 @@
 # coding=utf-8
-#  Copyright 2022 The HuggingFace Team. All rights reserved.
+# Copyright 2022 The HuggingFace Team. All rights reserved.
 #
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Dummy input generation classes."""
+
 import functools
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
 
-from transformers.utils import is_torch_available, is_tf_available
+from transformers.utils import is_tf_available, is_torch_available
 
 
 if is_torch_available():
@@ -70,7 +72,6 @@ class NormalizedSeq2SeqConfig(NormalizedConfig):
 
 
 def check_framework_is_available(func):
-
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         framework = kwargs.get("framework", "pt")
@@ -94,22 +95,29 @@ class DummyInputGenerator(ABC):
     def generate(self, input_name: str, framework: Optional[str] = "pt"):
         raise NotImplementedError
 
+    @staticmethod
     @check_framework_is_available
-    def random_int_tensor(
-        self, shape: List[int], max_value: int, min_value: int = 0, framework: Optional[str] = "pt"
-    ):
+    def random_int_tensor(shape: List[int], max_value: int, min_value: int = 0, framework: Optional[str] = "pt"):
         if framework == "pt":
             return torch.randint(low=min_value, high=max_value, size=shape)
         return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.int32)
 
+    @staticmethod
     @check_framework_is_available
-    def random_float_tensor(
-        self, shape: List[int], max_value: float, min_value: float = 0, framework: Optional[str] = "pt"
-    ):
+    def random_float_tensor(shape: List[int], max_value: float, min_value: float = 0, framework: Optional[str] = "pt"):
         if framework == "pt":
             tensor = torch.empty(shape, dtype=torch.float32).uniform_(min_value, max_value)
             return tensor
         return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.float32)
+
+    @staticmethod
+    @check_framework_is_available
+    def constant_tensor(
+        shape: List[int], value: Union[int, float] = 1, dtype: Optional[Any] = None, framework: Optional[str] = "pt"
+    ):
+        if framework == "pt":
+            return torch.full(shape, value, dtype=dtype)
+        return tf.constant(value, dtype=dtype, shape=shape)
 
 
 class DummyTextInputGenerator(DummyInputGenerator):
@@ -173,7 +181,13 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
             self.sequence_length,
             self.hidden_size // self.num_attention_heads,
         )
-        return [(self.random_float_tensor(shape, framework=framework), self.random_float_tensor(shape, framework=framework)) for _ in range(self.num_layers)]
+        return [
+            (
+                self.random_float_tensor(shape, framework=framework),
+                self.random_float_tensor(shape, framework=framework),
+            )
+            for _ in range(self.num_layers)
+        ]
 
 
 class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
@@ -209,10 +223,10 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         )
         return [
             (
-                torch.zeros(decoder_shape, framework=framework),
-                torch.zeros(decoder_shape, framework=framework),
-                torch.zeros(encoder_shape, framework=framework),
-                torch.zeros(encoder_shape, framework=framework),
+                self.random_float_tensor(decoder_shape, framework=framework),
+                self.random_float_tensor(decoder_shape, framework=framework),
+                self.random_float_tensor(encoder_shape, framework=framework),
+                self.random_float_tensor(encoder_shape, framework=framework),
             )
             for _ in range(self.normalized_config.decoder_num_layers)
         ]
