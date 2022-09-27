@@ -17,12 +17,12 @@ limitations under the License.
 # Summarization
 
 By running the script [`run_summarization.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/summarization/run_summarization.py),
-you will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) to fine-tune and evaluate models from the
+you will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune and evaluate models from the
 [HuggingFace hub](https://huggingface.co/models) on summarization tasks.
 
 ### Supported models
 
-Theorectically, all sequence-to-sequence models with [ONNXConfig](https://github.com/huggingface/transformers/blob/main/src/transformers/onnx/features.py) support in Transformers shall work, here are models that Optimum team has tested and validated.
+Theoretically, all sequence-to-sequence models with [ONNXConfig](https://github.com/huggingface/transformers/blob/main/src/transformers/onnx/features.py) support in Transformers shall work, here are the models that the Optimum team has tested and validated.
 
 * `Bart`
 * `T5`
@@ -33,7 +33,7 @@ Theorectically, all sequence-to-sequence models with [ONNXConfig](https://github
 __The following example applies the acceleration features powered by ONNX Runtime.__
 
 
-### Onnxruntime Training
+### Onnx Runtime Training
 
 The following example fine-tunes a BERT on the SQuAD 1.0 dataset.
 
