@@ -67,6 +67,26 @@ class RobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
+# TODO: validate that
+class DebertaOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._config.type_vocab_size == 0:
+            common_inputs.pop("token_type_ids")
+        return common_inputs
+
+
+class DebertaV2OnnxConfig(DebertaOnnxConfig):
+    pass
+
+
+class FlaubertOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
 class GPT2OnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")

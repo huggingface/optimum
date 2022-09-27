@@ -1,4 +1,5 @@
-# Copyright 2021 The HuggingFace Team. All rights reserved.
+# coding=utf-8
+# Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,19 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Onnx configuration base classes."""
 import copy
 import dataclasses
-import warnings
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from packaging import version
 from transformers.utils import is_torch_available, is_vision_available, logging
 
-from .utils import ParameterFormat, compute_effective_axis_dimension, compute_serialized_parameters_size
+from .utils import ParameterFormat, compute_serialized_parameters_size
 
 
 if TYPE_CHECKING:
