@@ -17,7 +17,7 @@ limitations under the License.
 # Summarization
 
 By running the script [`run_summarization.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/summarization/run_summarization.py),
-you will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) to fine-tune and evaluate models from the
+you will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune and evaluate models from the
 [HuggingFace hub](https://huggingface.co/models) on summarization tasks.
 
 ### Supported models
