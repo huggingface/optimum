@@ -22,7 +22,7 @@ you will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/o
 
 ### Supported models
 
-Theorectically, all sequence-to-sequence models with [ONNXConfig](https://github.com/huggingface/transformers/blob/main/src/transformers/onnx/features.py) support in Transformers shall work, here are models that Optimum team has tested and validated.
+Theoretically, all sequence-to-sequence models with [ONNXConfig](https://github.com/huggingface/transformers/blob/main/src/transformers/onnx/features.py) support in Transformers shall work, here are the models that the Optimum team has tested and validated.
 
 * `Bart`
 * `T5`
