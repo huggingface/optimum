@@ -208,13 +208,17 @@ def export_tensorflow(
         the ONNX configuration.
     """
     import tensorflow as tf
+    # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
+    import sys
+    sys_path_backup = sys.path
+    sys.path.pop(0)
     import onnx
     import tf2onnx
+    sys.path = sys_path_backup
 
     logger.info(f"Using framework TensorFlow: {tf.__version__}")
 
     model.config.return_dict = True
-    model.eval()
 
     # Check if we need to override certain configuration item
     if config.values_override is not None:

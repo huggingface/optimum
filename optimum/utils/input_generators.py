@@ -17,7 +17,14 @@ import random
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Callable, List, Optional
 
-import torch
+from transformers.utils import is_torch_available, is_tf_available
+
+
+if is_torch_available():
+    import torch
+
+if is_tf_available():
+    import tensorflow as tf
 
 
 if TYPE_CHECKING:
@@ -62,7 +69,21 @@ class NormalizedSeq2SeqConfig(NormalizedConfig):
     DECODER_NUM_ATTENTION_HEADS = NormalizedConfig.NUM_ATTENTION_HEADS
 
 
-# TODO: make it framework agnostic
+def check_framework_is_available(func):
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        framework = kwargs.get("framework", "pt")
+        pt_asked_but_not_available = framework == "pt" and not is_torch_available()
+        tf_asked_but_not_available = framework == "tf" and not is_tf_available()
+        if pt_asked_but_not_available or tf_asked_but_not_available:
+            framework_name = "PyTorch" if framework == "pt" else "TensorFlow"
+            raise RuntimeError(f"Requested the {framework_name} framework, but it does not seem installed.")
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 class DummyInputGenerator(ABC):
     SUPPORTED_INPUT_NAMES = ()
 
@@ -70,13 +91,25 @@ class DummyInputGenerator(ABC):
         return any(input_name.startswith(supported_input_name) for supported_input_name in self.SUPPORTED_INPUT_NAMES)
 
     @abstractmethod
-    def generate(self, input_name: str, framework: Optional[str] = "pt") -> torch.Tensor:
+    def generate(self, input_name: str, framework: Optional[str] = "pt"):
         raise NotImplementedError
 
+    @check_framework_is_available
     def random_int_tensor(
         self, shape: List[int], max_value: int, min_value: int = 0, framework: Optional[str] = "pt"
-    ) -> torch.Tensor:
-        return torch.randint(low=min_value, high=max_value, size=shape)
+    ):
+        if framework == "pt":
+            return torch.randint(low=min_value, high=max_value, size=shape)
+        return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.int32)
+
+    @check_framework_is_available
+    def random_float_tensor(
+        self, shape: List[int], max_value: float, min_value: float = 0, framework: Optional[str] = "pt"
+    ):
+        if framework == "pt":
+            tensor = torch.empty(shape, dtype=torch.float32).uniform_(min_value, max_value)
+            return tensor
+        return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.float32)
 
 
 class DummyTextInputGenerator(DummyInputGenerator):
@@ -100,7 +133,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         self.sequence_length = random.randint(128, 384) if sequence_length is None else sequence_length
         self.num_choices = random.randint(2, 4) if num_choices is None else num_choices
 
-    def generate(self, input_name: str, framework: Optional[str] = "pt") -> torch.Tensor:
+    def generate(self, input_name: str, framework: Optional[str] = "pt"):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
         shape = [self.batch_size, self.sequence_length]
@@ -133,14 +166,14 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         self.batch_size = random.randint(2, 4) if batch_size is None else batch_size
         self.sequence_length = random.randint(128, 384) if sequence_length is None else sequence_length
 
-    def generate(self, input_name: str, framework: Optional[str] = "pt") -> torch.Tensor:
+    def generate(self, input_name: str, framework: Optional[str] = "pt"):
         shape = (
             self.batch_size,
             self.num_attention_heads,
             self.sequence_length,
             self.hidden_size // self.num_attention_heads,
         )
-        return [(torch.zeros(shape), torch.zeros(shape)) for _ in range(self.num_layers)]
+        return [(self.random_float_tensor(shape, framework=framework), self.random_float_tensor(shape, framework=framework)) for _ in range(self.num_layers)]
 
 
 class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
@@ -161,7 +194,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             self.sequence_length if encoder_sequence_length is None else encoder_sequence_length
         )
 
-    def generate(self, input_name: str, framework: Optional[str] = "pt") -> torch.Tensor:
+    def generate(self, input_name: str, framework: Optional[str] = "pt"):
         encoder_shape = (
             self.batch_size,
             self.normalized_config.encoder_num_attention_heads,
@@ -176,10 +209,10 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         )
         return [
             (
-                torch.zeros(decoder_shape),
-                torch.zeros(decoder_shape),
-                torch.zeros(encoder_shape),
-                torch.zeros(encoder_shape),
+                torch.zeros(decoder_shape, framework=framework),
+                torch.zeros(decoder_shape, framework=framework),
+                torch.zeros(encoder_shape, framework=framework),
+                torch.zeros(encoder_shape, framework=framework),
             )
             for _ in range(self.normalized_config.decoder_num_layers)
         ]
