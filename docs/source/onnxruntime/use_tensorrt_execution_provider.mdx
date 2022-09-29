@@ -31,7 +31,7 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 
 # Use quantized models with TensorRT
 
-TensorRT supports only models using **static** quantization with **symmetric** weights and activation. Thus, for model quantized through Optimum to later be consumed by TensorRT, the following configuration needs to be passed when doing calibration for static quantization:
+TensorRT supports only models that use **static** quantization with **symmetric** weights and activations. Thus, for model quantized through Optimum to later be consumed by TensorRT, the following configuration needs to be passed when doing calibration for static quantization:
 
 ```python
 qconfig = QuantizationConfig(
@@ -48,7 +48,7 @@ The parameter `qdq_dedicated_pair=True` is required by TensorRT, that expects a 
 
 The parameter `qdq_add_pair_to_weight=True` is also required by TensorRT, that consumes a graph where the weights are stored in float32 with a QDQ pair. Normally, weights would be stored in int8 format and only a `DequantizeLinear` would be applied on the weights. As such, the storage savings from quantization can not be leveraged when we expect to later use the quantized `.onnx` model with TensorRT.
 
-After performing static quantization [LINK], we can load the model into the `ORTModel` class using TensorRT as the execution provider. The fact that int8 operations are used needs to be specified to TensorRT, and ONNX Runtime graph optimization need to be disabled for the model to be consumed rather by TensorRT.
+After performing static quantization, we can load the model into the `ORTModel` class using TensorRT as the execution provider. The fact that int8 operations are used needs to be specified to TensorRT, and ONNX Runtime graph optimization need to be disabled for the model to be consumed rather by TensorRT.
 
 ```python
 session_options = onnxruntime.SessionOptions()
