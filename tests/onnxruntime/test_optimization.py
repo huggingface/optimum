@@ -33,6 +33,7 @@ from parameterized import parameterized
 
 class ORTOptimizerTest(unittest.TestCase):
 
+    # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
@@ -70,9 +71,12 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertTrue(torch.allclose(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4))
             gc.collect()
 
+    # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", False),
     )
 

@@ -16,7 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, Mapping, Optional, Set, Tuple, Union
+from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import torch
 import transformers
@@ -167,7 +167,10 @@ class ORTModelForConditionalGeneration(ORTModel):
     ):
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
+
+        self.providers = encoder_session.get_providers()
         self._device = get_device_for_provider(encoder_session.get_providers()[0])
+
         self.encoder = ORTEncoder(session=encoder_session, device=self._device)
         self.decoder = ORTDecoder(session=decoder_session, device=self._device)
         self.use_cache = decoder_with_past_session is not None
@@ -189,7 +192,10 @@ class ORTModelForConditionalGeneration(ORTModel):
         encoder_path: Union[str, Path],
         decoder_path: Union[str, Path],
         decoder_with_past_path: Union[str, Path] = None,
-        provider: str = None,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[onnxruntime.SessionOptions] = None,
+        provider_options: Optional[Dict] = None,
+        **kwargs
     ):
         """
         Creates an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
@@ -203,19 +209,45 @@ class ORTModelForConditionalGeneration(ORTModel):
                 The path of the decoder ONNX model.
             decoder_with_past_path (`str` or `Path`, *optional*):
                 The path of the decoder with past key values ONNX model.
-            provider(`str`, *optional*):
-                The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
+            provider (`str`, *optional*):
+                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
+                for possible providers. Defaults to `CPUExecutionProvider`.
+            session_options (`onnxruntime.SessionOptions`, *optional*),:
+                ONNX Runtime session options to use for loading the model. Defaults to `None`.
+            provider_options (`Dict`, **optional**):
+                Provider option dictionaries corresponding to the provider used. See available options
+                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        if provider is None:
-            provider = "CPUExecutionProvider"
+        available_providers = onnxruntime.get_available_providers()
+        if provider not in available_providers:
+            raise ValueError(
+                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+            )
 
-        encoder_session = onnxruntime.InferenceSession(str(encoder_path), providers=[provider])
-        decoder_session = onnxruntime.InferenceSession(str(decoder_path), providers=[provider])
+        encoder_session = onnxruntime.InferenceSession(
+            str(encoder_path),
+            providers=[provider],
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
+        )
+        decoder_session = onnxruntime.InferenceSession(
+            str(decoder_path),
+            providers=[provider],
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
+        )
+
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         if decoder_with_past_path is not None:
-            decoder_with_past_session = onnxruntime.InferenceSession(str(decoder_with_past_path), providers=[provider])
+            decoder_with_past_session = onnxruntime.InferenceSession(
+                str(decoder_with_past_path),
+                providers=[provider],
+                sess_options=session_options,
+                provider_options=None if provider_options is None else [provider_options],
+            )
+
         return encoder_session, decoder_session, decoder_with_past_session
 
     def _save_pretrained(
@@ -261,7 +293,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         model_id: Union[str, Path],
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
-        force_download: bool = True,
+        force_download: bool = False,
         cache_dir: Optional[str] = None,
         encoder_file_name: Optional[str] = None,
         decoder_file_name: Optional[str] = None,
@@ -317,6 +349,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=os.path.join(model_id, encoder_file_name),
                 decoder_path=os.path.join(model_id, decoder_file_name),
                 decoder_with_past_path=decoder_with_past_path,
+                **kwargs,
             )
             kwargs["model_save_dir"] = Path(model_id)
             kwargs["last_encoder_name"] = encoder_file_name
@@ -350,6 +383,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 encoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_encoder_model_name"]),
                 decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
                 decoder_with_past_path=last_decoder_with_past_name,
+                **kwargs,
             )
 
         return cls(*model, config=config, **kwargs)
@@ -523,6 +557,7 @@ class ORTDecoder:
         encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
     ) -> Seq2SeqLMOutput:
 
         onnx_inputs = {
@@ -541,6 +576,10 @@ class ORTDecoder:
             for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                 onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
+        if "labels" in self.input_names:
+            # TODO: Any preprocessing like  `self._shift_right(labels)`?
+            onnx_inputs["labels"] = labels.cpu().detach().numpy()
+
         # Run inference
         outputs = self.session.run(None, onnx_inputs)
 
@@ -558,7 +597,10 @@ class ORTDecoder:
         past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
         logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self._device)
 
-        return Seq2SeqLMOutput(logits=logits, past_key_values=past_key_values)
+        loss = None
+        if "loss" in self.output_names:
+            loss = torch.from_numpy(outputs[self.output_names["loss"]]).to(self._device)
+        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -588,6 +630,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
 
@@ -601,6 +644,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
                 input_ids=decoder_input_ids,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
+                labels=labels,
             )
         else:
             decoder_outputs = self.decoder_with_past(
@@ -608,9 +652,14 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
                 past_key_values=past_key_values,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
+                labels=labels,
             )
 
-        return Seq2SeqLMOutput(logits=decoder_outputs.logits, past_key_values=decoder_outputs.past_key_values)
+        return Seq2SeqLMOutput(
+            loss=decoder_outputs.get("loss", None),
+            logits=decoder_outputs.logits,
+            past_key_values=decoder_outputs.past_key_values,
+        )
 
     def prepare_inputs_for_generation(
         self,

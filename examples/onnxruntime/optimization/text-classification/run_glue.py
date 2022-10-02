@@ -35,7 +35,6 @@ from transformers import (
     AutoTokenizer,
     EvalPrediction,
     HfArgumentParser,
-    PretrainedConfig,
     PreTrainedTokenizer,
     TrainingArguments,
 )
@@ -369,9 +368,15 @@ def main():
         eval_dataset = raw_datasets[validation_split]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        if optimizer.config.label2id:
-            eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=optimizer.config.label2id, label_column="label"
+
+        try:
+            eval_dataset = eval_dataset.align_labels_with_mapping(label2id=model.config.label2id, label_column="label")
+        except Exception as e:
+            logger.warning(
+                f"\nModel label mapping: {model.config.label2id}"
+                f"\nDataset label features: {eval_dataset.features['label']}"
+                f"\nCould not guarantee the model label mapping and the dataset labels match."
+                f" Evaluation results may suffer from a wrong matching."
             )
 
         eval_dataset = eval_dataset.map(
