@@ -69,6 +69,7 @@ class ORTConfigManager:
         "electra": ("num_attention_heads", "hidden_size", "bert"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
+        "mt5": ("num_heads", "d_model", "bart"),
         "marian": ("encoder_attention_heads", "d_model", "bart"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
