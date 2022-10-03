@@ -44,6 +44,8 @@ EXTRAS_REQUIRE = {
         "protobuf==3.20.1",
     ],
     "intel": "optimum-intel",
+    "openvino": "optimum-intel[openvino]",
+    "neural-compressor": "optimum-intel[neural-compressor]",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
