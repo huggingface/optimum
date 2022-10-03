@@ -142,6 +142,23 @@ class ORTModelIntegrationTest(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
+    @require_torch_gpu
+    def test_load_model_cuda_provider(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    def test_load_model_cpu_provider(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CPUExecutionProvider")
+        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cpu"))
+
+    def test_load_model_unknown_provider(self):
+        with self.assertRaises(ValueError):
+            ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
+
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
@@ -156,6 +173,25 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
 
+    @require_torch_gpu
+    def test_load_seq2seq_model_cuda_provider(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
+        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda"))
+
+    def test_load_seq2seq_model_cpu_provider(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CPUExecutionProvider")
+        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
+        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
+        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cpu"))
+
+    def test_load_seq2seq_model_unknown_provider(self):
+        with self.assertRaises(ValueError):
+            ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
+
     def test_load_model_from_hub_without_onnx_model(self):
         with self.assertRaises(EntryNotFoundError):
             ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
@@ -165,6 +201,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         cpu = torch.device("cpu")
         model.to(cpu)
         self.assertEqual(model.device, cpu)
+        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     # test string device input for to()
     def test_model_on_cpu_str(self):
@@ -172,6 +209,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         cpu = torch.device("cpu")
         model.to("cpu")
         self.assertEqual(model.device, cpu)
+        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     @require_torch_gpu
     def test_model_on_gpu(self):
@@ -179,6 +217,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         gpu = torch.device("cuda")
         model.to(gpu)
         self.assertEqual(model.device, gpu)
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
     # test string device input for to()
     @require_torch_gpu
@@ -187,6 +226,54 @@ class ORTModelIntegrationTest(unittest.TestCase):
         gpu = torch.device("cuda")
         model.to("cuda")
         self.assertEqual(model.device, gpu)
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+
+    def test_passing_session_options(self):
+        options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads = 3
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, session_options=options)
+        self.assertEqual(model.model.get_session_options().intra_op_num_threads, 3)
+
+    def test_passing_session_options_seq2seq(self):
+        options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads = 3
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, session_options=options)
+        self.assertEqual(model.encoder.session.get_session_options().intra_op_num_threads, 3)
+        self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
+
+    @require_torch_gpu
+    def test_passing_provider_options(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1")
+
+        model = ORTModel.from_pretrained(
+            self.ONNX_MODEL_ID,
+            provider="CUDAExecutionProvider",
+            provider_options={"do_copy_in_default_stream": 0},
+        )
+        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0")
+
+    @require_torch_gpu
+    def test_passing_provider_options_seq2seq(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
+        )
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID,
+            provider="CUDAExecutionProvider",
+            provider_options={"do_copy_in_default_stream": 0},
+        )
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
+        )
 
     def test_seq2seq_model_on_cpu(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
@@ -199,6 +286,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     # test string device input for to()
     def test_seq2seq_model_on_cpu_str(self):
@@ -212,6 +300,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     @require_torch_gpu
     def test_seq2seq_model_on_gpu(self):
@@ -225,6 +314,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
     # test string device input for to()
     @require_torch_gpu
@@ -239,6 +329,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
     @require_hf_token
     def test_load_model_from_hub_private(self):

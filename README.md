@@ -15,7 +15,7 @@ As such, Optimum enables users to efficiently use any of these platforms with th
 To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
 - [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. More information [here](https://www.graphcore.ai/products/ipu).
 - [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - [HPUs](https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html) are designed to maximize training throughput and efficiency. More information [here](https://habana.ai/training/).
-- [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate end-to-end pipelines on Intel architectures. More information [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
+- [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate end-to-end pipelines on Intel architectures. More information about [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and [OpenVINO](https://docs.openvino.ai/latest/index.html).
 - More to come soon! :star:
 
 ## Optimizing models towards inference
@@ -23,7 +23,7 @@ To achieve this, we are collaborating with the following hardware manufacturers 
 Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
 platforms.
 
-Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with Intel [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) (INC).
+Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
 
 | Features                           | ONNX Runtime          | Intel Neural Compressor |
 |:----------------------------------:|:---------------------:|:-----------------------:|
@@ -43,12 +43,13 @@ python -m pip install optimum
 
 If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
 
-| Accelerator                                                                                                            | Installation                                 |
-|:-----------------------------------------------------------------------------------------------------------------------|:---------------------------------------------|
-| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]` |
-| [Intel Neural Compressor (INC)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) | `python -m pip install optimum[intel]`       |
-| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`   |
-| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`      |
+| Accelerator                                                                                                            | Installation                                      |
+|:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
+| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]`      |
+| [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `python -m pip install optimum[neural-compressor]`|
+| [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `python -m pip install optimum[openvino]`         |
+| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`        |
+| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`           |
 
 
 If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
@@ -72,21 +73,18 @@ At its core, 🤗 Optimum uses configuration objects to define parameters for op
 Before applying quantization or optimization, we first need to export our model to the ONNX format.
 
 ```python
-import os
 from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import AutoTokenizer
 
 model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
 save_directory = "tmp/onnx/"
-file_name = "model.onnx"
-onnx_path = os.path.join(save_directory, "model.onnx")
 
-# Load a model from transformers and export it through the ONNX format
-model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
+# Load a model from transformers and export it to ONNX
+ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
 tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
 # Save the onnx model and tokenizer
-model.save_pretrained(save_directory, file_name=file_name)
+ort_model.save_pretrained(save_directory)
 tokenizer.save_pretrained(save_directory)
 ```
 
@@ -100,17 +98,13 @@ from optimum.onnxruntime import ORTQuantizer
 
 # Define the quantization methodology
 qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
-quantizer = ORTQuantizer.from_pretrained(model_checkpoint, feature="sequence-classification")
+quantizer = ORTQuantizer.from_pretrained(ort_model)
 
 # Apply dynamic quantization on the model
-quantizer.export(
-    onnx_model_path=onnx_path,
-    onnx_quantized_model_output_path=os.path.join(save_directory, "model-quantized.onnx"),
-    quantization_config=qconfig,
-)
+quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
 ```
 
-In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The `feature` argument in the `from_pretrained()` method corresponds to the type of task that we wish to quantize the model for. The result from applying the `export()` method is a `model-quantized.onnx` file that can be used to run inference.
+In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference.
 
 Here's an example of how to load an ONNX Runtime model and generate predictions with it:
 
@@ -118,7 +112,7 @@ Here's an example of how to load an ONNX Runtime model and generate predictions 
 from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import pipeline, AutoTokenizer
 
-model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model-quantized.onnx")
+model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
 tokenizer = AutoTokenizer.from_pretrained(save_directory)
 
 cls_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
@@ -146,7 +140,7 @@ def preprocess_fn(ex, tokenizer):
 calibration_dataset = quantizer.get_calibration_dataset(
     "glue",
     dataset_config_name="sst2",
-    preprocess_function=partial(preprocess_fn, tokenizer=quantizer.preprocessor),
+    preprocess_function=partial(preprocess_fn, tokenizer=tokenizer),
     num_samples=50,
     dataset_split="train",
 )
@@ -156,13 +150,12 @@ calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
 ranges = quantizer.fit(
     dataset=calibration_dataset,
     calibration_config=calibration_config,
-    onnx_model_path=onnx_path,
     operators_to_quantize=qconfig.operators_to_quantize,
 )
+
 # Apply static quantization on the model
-quantizer.export(
-    onnx_model_path=onnx_path,
-    onnx_quantized_model_output_path=os.path.join(save_directory, "model-quantized.onnx"),
+quantizer.quantize(
+    save_dir=save_directory,
     calibration_tensors_range=ranges,
     quantization_config=qconfig,
 )
@@ -186,17 +179,10 @@ Next, we load an _optimizer_ to apply these optimisations to our model:
 ```python
 from optimum.onnxruntime import ORTOptimizer
 
-optimizer = ORTOptimizer.from_pretrained(
-    model_checkpoint,
-    feature="sequence-classification",
-)
+optimizer = ORTOptimizer.from_pretrained(ort_model)
 
-# Export the optimized model
-optimizer.export(
-    onnx_model_path=onnx_path,
-    onnx_optimized_model_output_path=os.path.join(save_directory, "model-optimized.onnx"),
-    optimization_config=optimization_config,
-)
+# Optimize the model
+optimizer.optimize(save_dir=save_directory, optimization_config=optimization_config)
 ```
 
 And that's it - the model is now optimized and ready for inference!
@@ -205,12 +191,14 @@ As you can see, the process is similar in each case:
 
 1. Define the optimization / quantization strategies via an `OptimizationConfig` / `QuantizationConfig` object
 2. Instantiate an `ORTQuantizer` or `ORTOptimizer` class
-3. Apply the `export()` method
+3. Apply the `quantize()` or `optimize()` method
 4. Run inference
 
 ### Training
 
-Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runtime training, reducing the memory and computations needed during training. This can be achieved by using the class `ORTTrainer`, which possess a similar behavior than the `Trainer` of 🤗 Transformers:
+Besides supporting ONNX Runtime inference, 🤗 Optimum also supports training with ONNX Runtime backend. The `ORTTrainer` class possesses a similar behavior to the `Trainer` of 🤗 Transformers, but reduces the memory consumption and optimizes the computation graphs during training. As a result, you will experience an acceleration and feed larger batch size to your device.
+
+Replace `Trainer` with `ORTTrainer` to leverage ONNX Runtime on fine-tuning tasks:
 
 ```diff
 -from transformers import Trainer
@@ -226,17 +214,14 @@ Besides supporting ONNX Runtime inference, 🤗 Optimum also supports ONNX Runti
     compute_metrics=compute_metrics,
     tokenizer=tokenizer,
     data_collator=default_data_collator,
-    feature="sequence-classification",
++   feature="sequence-classification",
 )
 
-# Step 2: Use ONNX Runtime for training and evalution!🤗
+# Step 2: Use ONNX Runtime for training!🤗
 train_result = trainer.train()
-eval_metrics = trainer.evaluate()
 ```
 
-By replacing `Trainer` by `ORTTrainer`, you will be able to leverage ONNX Runtime for fine-tuning tasks.
-
-Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) directory for more sophisticated usage.
+Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) for more sophisticated usage.
 
 Happy optimizing 🤗!
 

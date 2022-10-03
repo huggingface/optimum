@@ -35,7 +35,9 @@ logger = logging.get_logger(__name__)
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
     """
-    Wrapper for the children classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format with loss in outputs.
+    Wrapper for the children classes of `transformers.onnx.OnnxConfig` to export the model through the ONNX format
+    with loss in outputs and labels in the inputs. For seq-to-seq models, labels will be appended to the inputs of
+    decoders.
     """
 
     _tasks_to_extra_inputs = {
@@ -268,17 +270,6 @@ class OnnxConfigWithPastAndLoss(OnnxConfigWithLoss, ABC):
             )
 
 
-class OnnxSeq2SeqConfigWithPastAndLoss(OnnxConfigWithPastAndLoss):
-    @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = self._onnx_config.outputs
-        extra_outputs = self._tasks_to_extra_outputs["default"]
-        common_outputs.update(extra_outputs)
-        for key in reversed(extra_outputs.keys()):
-            common_outputs.move_to_end(key, last=False)
-        return copy.deepcopy(common_outputs)
-
-
 class EncoderOnnxConfig(OnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -347,3 +338,45 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         decoder_sequence = "past_decoder_sequence" if direction == "inputs" else "past_decoder_sequence + sequence"
         for i in range(num_decoder_layers * num_pkv_per_layer):
             inputs_or_outputs[f"{name}_key_values_{i}"] = {0: "batch", 2: decoder_sequence}
+
+
+class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
+    def __init__(self, config: DecoderOnnxConfig):
+        self.__dict__ = copy.deepcopy(config.__dict__)
+        self._decoder_config = config
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        inputs = self._decoder_config.inputs
+        inputs.update({"labels": inputs["input_ids"]})
+        return inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = self._decoder_config.outputs
+        extra_outputs = OrderedDict({"loss": {}})
+        common_outputs.update(extra_outputs)
+        for key in reversed(extra_outputs.keys()):
+            common_outputs.move_to_end(key, last=False)
+        return copy.deepcopy(common_outputs)
+
+    def generate_dummy_inputs(
+        self,
+        tokenizer: "PreTrainedTokenizerBase",
+        batch_size: int = -1,
+        seq_length: int = -1,
+        is_pair: bool = False,
+        framework: Optional[TensorType] = None,
+    ) -> Mapping[str, Any]:
+        # Generate dummy labels
+        dummy_inputs = super().generate_dummy_inputs(
+            tokenizer=tokenizer,
+            batch_size=batch_size,
+            seq_length=seq_length,
+            is_pair=is_pair,
+            framework=framework,
+        )
+
+        # Dummy labels would be the same as the dummy input_ids
+        dummy_inputs["labels"] = dummy_inputs["input_ids"]
+        return dummy_inputs

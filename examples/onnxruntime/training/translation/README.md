@@ -17,15 +17,15 @@ limitations under the License.
 # Translation
 
 By running the script [`run_translation.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/translation/run_translation.py),
-we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) to fine-tune the models from the 
-[HuggingFace hub](https://huggingface.co/models) for translation tasks.  
+we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) to fine-tune the models from the
+[HuggingFace hub](https://huggingface.co/models) for translation tasks.
 
 ### Supported Architectures
 
 - `BartForConditionalGeneration`
 - `T5ForConditionalGeneration`
 
-`run_translation.py` is a lightweight examples of how to download and preprocess a dataset from the [🤗 Datasets](https://github.com/huggingface/datasets) library 
+`run_translation.py` is a lightweight examples of how to download and preprocess a dataset from the [🤗 Datasets](https://github.com/huggingface/datasets) library
 or use your own files (jsonlines or csv), then fine-tune one of the architectures above on it.
 
 For custom datasets in `jsonlines` format please see: https://huggingface.co/docs/datasets/loading_datasets.html#json-files.
@@ -57,20 +57,23 @@ python run_translation.py \
 We get the following results for [t5-large](https://huggingface.co/t5-large) mixed precision training(fp16) on the previous
 task under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the experiment for 3 epochs::
 
-| Model    | Backend      | Runtime(s) | Train samples(/s) | 
-| -------- | ------------ | ---------- | ----------------- | 
-| t5-large | PyTorch      | 2038.8     | 44.1              | 
+| Model    | Backend      | Runtime(s) | Train samples(/s) |
+| -------- | ------------ | ---------- | ----------------- |
+| t5-large | PyTorch      | 2038.8     | 44.1              |
 | t5-large | ONNX Runtime | 1536.7     | 58.6              |
 
 We observe the gain of ONNX Runtime compared to PyTorch as follow:
 
-|       | Latency | Throughput | 
-| ----- | ------- | ---------- | 
+|       | Latency | Throughput |
+| ----- | ------- | ---------- |
 | Gain  | 24.63%  | 32.67%     |
 
 
 __Note__
 
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
-*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
-*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*  
+*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions*
+*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*
+
+> *The inference will use PyTorch by default, if you want to use ONNX Runtime backend instead, add the flag `--inference_with_ort`.*
+---

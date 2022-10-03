@@ -19,8 +19,8 @@ limitations under the License.
 ## NER Tasks
 
 By running the script [`run_ner.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/token-classification/run_ner.py),
-we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune the models from the 
-[HuggingFace hub](https://huggingface.co/models) for token classification tasks such as Named Entity Recognition (NER).  
+we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune the models from the
+[HuggingFace hub](https://huggingface.co/models) for token classification tasks such as Named Entity Recognition (NER).
 
 
 __The following example applies the acceleration features powered by ONNX Runtime.__
@@ -41,22 +41,25 @@ python run_ner.py \
 
 ### Performance
 
-We get the following results for [bert-large-cased](https://huggingface.co/bert-large-cased) model mixed precision training(fp16) on the previous 
+We get the following results for [bert-large-cased](https://huggingface.co/bert-large-cased) model mixed precision training(fp16) on the previous
 task under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the experiment for 7 epochs:
 
-| Model            | Backend      | Runtime(s) | Train samples(/s) | 
-| ---------------- | ------------ | ---------- | ----------------- | 
-| bert-large-cased | PyTorch      | 711.5      | 138.1             | 
+| Model            | Backend      | Runtime(s) | Train samples(/s) |
+| ---------------- | ------------ | ---------- | ----------------- |
+| bert-large-cased | PyTorch      | 711.5      | 138.1             |
 | bert-large-cased | ONNX Runtime | 637.2      | 154.3             |
 
 We observe the gain of ONNX Runtime compared to PyTorch as follow:
 
-|       | Latency | Throughput | 
-| ----- | ------- | ---------- | 
+|       | Latency | Throughput |
+| ----- | ------- | ---------- |
 | Gain  | 10.45%  | 11.67%     |
 
 
 __Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
-*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
-*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*  
+*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions*
+*in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*
+
+> *The inference will use PyTorch by default, if you want to use ONNX Runtime backend instead, add the flag `--inference_with_ort`.*
+---

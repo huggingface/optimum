@@ -16,12 +16,14 @@ import operator
 import unittest
 
 import torch
-from transformers import AutoTokenizer, BertModel
+from transformers import AutoModel, AutoModelForImageClassification, AutoTokenizer, BertModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
 
 from optimum.fx.optimization import (
     ChangeTrueDivToMulByInverse,
+    FuseBatchNorm1dInLinear,
+    FuseBatchNorm2dInConv2d,
     FuseBiasInLinear,
     MergeLinears,
     ReversibleTransformation,
@@ -46,11 +48,40 @@ class DummyTransformation(Transformation):
         return graph_module
 
 
-_TRANSFORMATIONS_TO_TEST = ((DummyTransformation(),),)
+_TRANSFORMATIONS_TO_TEST = (
+    (DummyTransformation(), BertModel, _MODEL_NAME, ["input_ids", "attention_mask", "token_type_ids"], None, False),
+    (
+        FuseBatchNorm2dInConv2d(),
+        AutoModelForImageClassification,
+        "fxmarty/resnet-tiny-beans",
+        ["pixel_values"],
+        {"pixel_values": torch.rand(8, 3, 224, 224)},
+        False,
+    ),
+    (
+        FuseBatchNorm1dInLinear(),
+        AutoModel,
+        "hf-internal-testing/tiny-random-groupvit",
+        ["input_ids", "attention_mask", "pixel_values"],
+        {
+            "pixel_values": torch.rand(2, 3, 30, 30, dtype=torch.float32),
+            "input_ids": torch.randint(low=0, high=100, size=(2, 32)),
+            "attention_mask": torch.ones(2, 32),
+        },
+        True,
+    ),
+)
 _REVERSIBLE_TRANSFORMATIONS_TO_TEST = (
-    (MergeLinears(),),
-    (FuseBiasInLinear(),),
-    (ChangeTrueDivToMulByInverse(),),
+    (MergeLinears(), BertModel, _MODEL_NAME, ["input_ids", "attention_mask", "token_type_ids"], None, False),
+    (FuseBiasInLinear(), BertModel, _MODEL_NAME, ["input_ids", "attention_mask", "token_type_ids"], None, False),
+    (
+        ChangeTrueDivToMulByInverse(),
+        BertModel,
+        _MODEL_NAME,
+        ["input_ids", "attention_mask", "token_type_ids"],
+        None,
+        False,
+    ),
 )
 
 
@@ -73,10 +104,17 @@ class TransformationTester(unittest.TestCase):
                 flatten.append(x)
         return flatten
 
-    def _check_original_and_transformed_outputs_match(self, transformation):
-        model, traced = get_bert_model()
-        tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
-        inputs = tokenizer("This is a test.", return_tensors="pt")
+    def _check_original_and_transformed_outputs_match(
+        self, transformation, model_class, model_name, model_input_names, inputs, disable_check
+    ):
+        model = model_class.from_pretrained(model_name)
+        model.eval()
+        traced = symbolic_trace(model, input_names=model_input_names, disable_check=disable_check)
+
+        if inputs is None:
+            tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
+            inputs = tokenizer("This is a test.", return_tensors="pt")
+
         model_output = model(**inputs)
         transformed = transformation(traced)
         transformed_output = transformed(**inputs)
@@ -94,13 +132,21 @@ class TransformationTester(unittest.TestCase):
 
     @parameterized.expand(_TRANSFORMATIONS_TO_TEST, skip_on_empty=True)
     @unittest.skipIf(not are_fx_features_available(), "not supported with this transformers version")
-    def test_transformation(self, transformation):
-        self._check_original_and_transformed_outputs_match(transformation)
+    def test_transformation(
+        self, transformation, model_class, model_name, model_input_names, dummy_inputs, disable_check
+    ):
+        self._check_original_and_transformed_outputs_match(
+            transformation, model_class, model_name, model_input_names, dummy_inputs, disable_check
+        )
 
     @parameterized.expand(_REVERSIBLE_TRANSFORMATIONS_TO_TEST)
     @unittest.skipIf(not are_fx_features_available(), "not supported with this transformers version")
-    def test_reversible_transformation(self, transformation):
-        inputs, model, transformed, model_output = self._check_original_and_transformed_outputs_match(transformation)
+    def test_reversible_transformation(
+        self, transformation, model_class, model_name, model_input_names, dummy_inputs, disable_check
+    ):
+        inputs, model, transformed, model_output = self._check_original_and_transformed_outputs_match(
+            transformation, model_class, model_name, model_input_names, dummy_inputs, disable_check
+        )
 
         restored = transformation(transformed, reverse=True)
         restored_output = restored(**inputs)
@@ -267,3 +313,61 @@ def test_change_truediv_to_mul_by_inverse():
     restored_num_mul = sum((1 if node.target == operator.mul else 0 for node in restored.graph.nodes))
 
     assert (orig_num_truediv == restored_num_truediv) and (orig_num_mul == restored_num_mul)
+
+
+def test_fuse_conv2d_batchnorm2d():
+    model = AutoModelForImageClassification.from_pretrained("fxmarty/resnet-tiny-beans")
+
+    traced_model = symbolic_trace(model, input_names=["pixel_values"], disable_check=True)
+
+    num_batchnorm2d = sum(1 if isinstance(mod, torch.nn.BatchNorm2d) else 0 for mod in traced_model.modules())
+    assert num_batchnorm2d != 0, "there should be at least one BatchNorm2d in the model to actually perform the test"
+
+    transformation = FuseBatchNorm2dInConv2d()
+    transformed_model = transformation(traced_model)
+
+    num_batchnorm2d = sum(1 if isinstance(mod, torch.nn.BatchNorm2d) else 0 for mod in transformed_model.modules())
+    assert num_batchnorm2d == 0, "there should be no BatchNorm2d left in the model after the transformation"
+
+
+def test_fuse_linear_batchnorm1d():
+    model = AutoModel.from_pretrained("hf-internal-testing/tiny-random-groupvit")
+    model.eval()
+
+    traced_model = symbolic_trace(
+        model, input_names=["input_ids", "attention_mask", "pixel_values"], disable_check=True
+    )
+
+    num_batchnorm1d = sum(1 if isinstance(mod, torch.nn.BatchNorm1d) else 0 for mod in traced_model.modules())
+    assert num_batchnorm1d != 0, "there should be at least one BatchNorm1d in the model to actually perform the test"
+
+    transformation = FuseBatchNorm1dInLinear()
+    transformed_model = transformation(traced_model)
+
+    num_batchnorm1d = sum(1 if isinstance(mod, torch.nn.BatchNorm1d) else 0 for mod in transformed_model.modules())
+    assert num_batchnorm1d == 0, "there should be no BatchNorm1d left in the model after the transformation"
+
+
+def test_get_parent():
+    class MyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.conv2d = torch.nn.Conv2d(10, 20, kernel_size=3)
+            self.bn2d = torch.nn.BatchNorm2d(20)
+
+        def forward(self, x):
+            x = self.conv2d(x)
+            x = self.bn2d(x)
+            return x
+
+    model = MyModel()
+    model.eval()
+
+    traced_model = torch.fx.symbolic_trace(model)
+
+    for node in traced_model.graph.nodes:
+        if node.target == "conv2d":
+            parent_name, _, name = node.target.rpartition(".")
+            assert parent_name == ""
+            parent_module = traced_model.get_submodule(parent_name)
+            assert parent_module == traced_model

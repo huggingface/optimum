@@ -146,7 +146,7 @@ class Run:
 
     def load_datasets(self):
         """Load evaluation dataset, and if needed, calibration dataset for static quantization."""
-        datasets_dict = self.processor.load_datasets()
+        datasets_dict = self.task_processor.load_datasets()
 
         self._eval_dataset = datasets_dict["eval"]
         if self.static_quantization:
@@ -166,7 +166,7 @@ class Run:
         """
         Get evaluation dataset.  The dataset needs to be loaded first with [`~optimum.runs_base.Run.load_datasets`].
 
-         Returns:
+        Returns:
             `datasets.Dataset`: Evaluation dataset.
         """
         if not hasattr(self, "_eval_dataset"):
