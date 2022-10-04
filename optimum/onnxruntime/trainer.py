@@ -1219,7 +1219,7 @@ class ORTTrainer(Trainer):
             return (loss, None, None)
 
         if isinstance(logits, (list, tuple)):
-            logits = [torch.Tensor(arr) for arr in logits]
+            logits = [torch.tensor(arr) for arr in logits]
 
         logits = nested_detach(logits)
 
