@@ -89,7 +89,7 @@ empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compare
     compute_metrics=compute_metrics,
     tokenizer=tokenizer,
     data_collator=default_data_collator,
-+    feature="sequence-classification",  # Determine the LM during inference with ORT
++   feature="sequence-classification",
 )
 
 # Step 2: Use ONNX Runtime for training!🤗
@@ -121,7 +121,7 @@ trainer = ORTSeq2SeqTrainer(
     compute_metrics=compute_metrics if training_args.predict_with_generate else None,
     tokenizer=tokenizer,
     data_collator=data_collator,
-+    feature="seq2seq-lm",
++   feature="seq2seq-lm",
 )
 
 # Step 2: Use ONNX Runtime for training!🤗
