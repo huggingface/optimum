@@ -11,8 +11,10 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import copy
 import logging
 import os
+from dataclasses import fields
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -125,7 +127,8 @@ class ORTOptimizer:
         hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(model_type))
         model_type = ORTConfigManager.get_model_ort_type(model_type)
         optimization_config.model_type = model_type
-        optimization_options = FusionOptions.parse(optimization_config)
+        optimization_options = self.parse_fusion_options(optimization_config)
+        print("OPTIONS", optimization_options.__dict__)
         LOGGER.info("Optimizing model...")
 
         for model_path in self.onnx_model_path:
@@ -137,7 +140,7 @@ class ORTOptimizer:
                 opt_level=optimization_config.optimization_level,
                 optimization_options=optimization_options,
                 use_gpu=optimization_config.optimize_for_gpu,
-                only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
+                only_onnxruntime=not optimization_config.fuse_operators,
             )
 
             if optimization_config.fp16:
@@ -234,3 +237,28 @@ class ORTOptimizer:
 
         operators_difference = dict(map(lambda op_type: (op_type, nodes_difference_given_type(op_type)), op_types))
         return {k: v for k, v in operators_difference.items() if v != 0}
+
+    @classmethod
+    def parse_fusion_options(cls, optimization_config: OptimizationConfig) -> FusionOptions:
+        """
+        Parses fusion options in the optimization configuration.
+        This is needed because we do not use the same option names as
+        ONNX Runtime because they are misleading.
+
+        Args:
+            optimization_config (`OptimizationConfig`): optimization configuration.
+
+        Returns:
+            FusionOptions: fusion options in the ONNX Runtime format.
+        """
+
+        tmp_optimization_config = copy.deepcopy(optimization_config)
+
+        for field in fields(optimization_config):
+            # Field names finishing with "_fusion" are not understood by ORT.
+            # The "_fusion" suffix has to be removed.
+            if field.name.endswith("_fusion"):
+                ort_field_name = field.name.split("_fusion")[0]
+                setattr(tmp_optimization_config, ort_field_name, getattr(optimization_config, field.name))
+
+        return FusionOptions.parse(tmp_optimization_config)

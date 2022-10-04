@@ -620,19 +620,19 @@ class OptimizationConfig:
             The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
         fp16 (`bool`, defaults to `False`):
             Whether all weights and nodes should be converted from float32 to float16.
-        optimize_with_onnxruntime_only (`bool`, defaults to `False`):
-            Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python.
-        disable_gelu (`bool`, defaults to `False`):
+        fuse_operators (`bool`, defaults to `True`):
+            Whether to fuse operators in addition to ONNX Runtime graph optimizations.
+        disable_gelu_fusion (`bool`, defaults to `False`):
             Whether to disable the Gelu fusion.
-        disable_layer_norm (`bool`, defaults to `False`):
+        disable_layer_norm_fusion (`bool`, defaults to `False`):
             Whether to disable Layer Normalization fusion.
-        disable_attention (`bool`, defaults to `False`):
+        disable_attention_fusion (`bool`, defaults to `False`):
             Whether to disable Attention fusion.
-        disable_skip_layer_norm (`bool`, defaults to `False`):
+        disable_skip_layer_norm_fusion (`bool`, defaults to `False`):
             Whether to disable SkipLayerNormalization fusion.
-        disable_bias_skip_layer_norm (`bool`, defaults to `False`):
+        disable_bias_skip_layer_norm_fusion (`bool`, defaults to `False`):
             Whether to disable Add Bias and SkipLayerNormalization fusion.
-        disable_bias_gelu (`bool`, defaults to `False`):
+        disable_bias_gelu_fusion (`bool`, defaults to `False`):
             Whether to disable Add Bias and Gelu / FastGelu fusion.
         enable_gelu_approximation (`bool`, defaults to `False`):
             Whether to enable Gelu / BiasGelu to FastGelu conversion.
@@ -641,25 +641,25 @@ class OptimizationConfig:
             Whether to use mask index instead of raw attention mask in the attention operator.
         no_attention_mask (`bool`, defaults to `False`):
             Whether to not use attention masks. Only works for bert model type.
-        disable_embed_layer_norm (`bool`, defaults to `True`):
+        disable_embed_layer_norm_fusion (`bool`, defaults to `True`):
             Whether to disable EmbedLayerNormalization fusion.
-            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
+            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization.
     """
 
     optimization_level: int = 1
     optimize_for_gpu: bool = False
     fp16: bool = False
-    optimize_with_onnxruntime_only: bool = False
-    disable_gelu: bool = False
-    disable_layer_norm: bool = False
-    disable_attention: bool = False
-    disable_skip_layer_norm: bool = False
-    disable_bias_skip_layer_norm: bool = False
-    disable_bias_gelu: bool = False
+    fuse_operators: bool = True
+    disable_gelu_fusion: bool = False
+    disable_layer_norm_fusion: bool = False
+    disable_attention_fusion: bool = False
+    disable_skip_layer_norm_fusion: bool = False
+    disable_bias_skip_layer_norm_fusion: bool = False
+    disable_bias_gelu_fusion: bool = False
     enable_gelu_approximation: bool = False
     use_mask_index: bool = False
     no_attention_mask: bool = False
-    disable_embed_layer_norm: bool = True
+    disable_embed_layer_norm_fusion: bool = True
 
 
 class ORTConfig(BaseConfig):
