@@ -71,7 +71,7 @@ that we can fix it as soon as possible.
 
 ## ORTTrainer
 
-The [`ORTTrainer`] class is similar to the [`Trainer`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#trainer)
+The [`ORTTrainer`] class inherits the [`Trainer`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#trainer)
 of Transformers. You can easily adapt the codes by replacing `Trainer` of transformers with `ORTTrainer` to take advantage of the acceleration
 empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compared with `Trainer`:
 
