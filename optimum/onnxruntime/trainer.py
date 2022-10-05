@@ -153,7 +153,8 @@ class ORTFeaturesManager:
 
 class ORTTrainer(Trainer):
     """
-    Trainer is a simple but feature-complete training and eval loop for PyTorch, optimized for 🤗 Transformers.
+    ORTTrainer is a simple but feature-complete training and eval loop for ONNX Runtime, optimized for 🤗 Transformers.
+
     Args:
         model ([`~transformers.PreTrainedModel`] or `torch.nn.Module`, *optional*):
             The model to train, evaluate or use for predictions. If not provided, a `model_init` must be passed.
@@ -1286,7 +1287,7 @@ class ORTTrainer(Trainer):
         Perform an evaluation step on `model` using `inputs`.
 
         Args:
-            model (`nn.Module`):
+            model (`ORTModel`):
                 The model to evaluate.
             inputs (`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.

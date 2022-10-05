@@ -79,28 +79,20 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         **gen_kwargs
     ) -> Dict[str, float]:
         """
-        Run evaluation and returns metrics.
-        The calling script will be responsible for providing a method to compute metrics, as they are task-dependent
-        (pass it to the init `compute_metrics` argument).
-        You can also subclass and override this method to inject custom behavior.
+        Run evaluation with ONNX Runtime or PyTorch backend and returns metrics.
+
         Args:
             eval_dataset (`Dataset`, *optional*):
-                Pass a dataset if you wish to override `self.eval_dataset`. If it is an [`~datasets.Dataset`], columns
+                Pass a dataset if you wish to override `self.eval_dataset`. If it is a [`~datasets.Dataset`], columns
                 not accepted by the `model.forward()` method are automatically removed. It must implement the `__len__`
                 method.
-            ignore_keys (`List[str]`, *optional*):
+            ignore_keys (`Lst[str]`, *optional*):
                 A list of keys in the output of your model (if it is a dictionary) that should be ignored when
                 gathering predictions.
             metric_key_prefix (`str`, *optional*, defaults to `"eval"`):
                 An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
-                "eval_bleu" if the prefix is `"eval"` (default)
-            max_length (`int`, *optional*):
-                The maximum target length to use when predicting with the generate method.
-            num_beams (`int`, *optional*):
-                Number of beams for beam search that will be used when predicting with the generate method. 1 means no
-                beam search.
-            gen_kwargs:
-                Additional `generate` specific kwargs.
+                "eval_bleu" if the prefix is "eval" (default)
+
         Returns:
             A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
             dictionary also contains the epoch number which comes from the training state.
@@ -131,31 +123,31 @@ class ORTSeq2SeqTrainer(ORTTrainer):
     ) -> PredictionOutput:
         """
         Run prediction and returns predictions and potential metrics.
+
         Depending on the dataset and your use case, your test dataset may contain labels. In that case, this method
         will also return metrics, like in `evaluate()`.
+
         Args:
             test_dataset (`Dataset`):
-                Dataset to run the predictions on. If it is a [`~datasets.Dataset`], columns not accepted by the
+                Dataset to run the predictions on. If it is an `datasets.Dataset`, columns not accepted by the
                 `model.forward()` method are automatically removed. Has to implement the method `__len__`
-            ignore_keys (`List[str]`, *optional*):
+            ignore_keys (`Lst[str]`, *optional*):
                 A list of keys in the output of your model (if it is a dictionary) that should be ignored when
                 gathering predictions.
-            metric_key_prefix (`str`, *optional*, defaults to `"eval"`):
+            metric_key_prefix (`str`, *optional*, defaults to `"test"`):
                 An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
-                "eval_bleu" if the prefix is `"eval"` (default)
-            max_length (`int`, *optional*):
-                The maximum target length to use when predicting with the generate method.
-            num_beams (`int`, *optional*):
-                Number of beams for beam search that will be used when predicting with the generate method. 1 means no
-                beam search.
-            gen_kwargs:
-                Additional `generate` specific kwargs.
+                "test_bleu" if the prefix is "test" (default)
+
         <Tip>
-        If your predictions or labels have different sequence lengths (for instance because you're doing dynamic
-        padding in a token classification task) the predictions will be padded (on the right) to allow for
-        concatenation into one array. The padding index is -100.
+
+        If your predictions or labels have different sequence length (for instance because you're doing dynamic padding
+        in a token classification task) the predictions will be padded (on the right) to allow for concatenation into
+        one array. The padding index is -100.
+
         </Tip>
+
         Returns: *NamedTuple* A namedtuple with the following keys:
+
             - predictions (`np.ndarray`): The predictions on `test_dataset`.
             - label_ids (`np.ndarray`, *optional*): The labels (if the dataset contained some).
             - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
@@ -188,6 +180,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
         """
         Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
+
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
@@ -400,7 +393,8 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         metric_key_prefix: str = "eval",
     ) -> PredictionOutput:
         """
-        Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
+        Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
+
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
@@ -551,22 +545,27 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         ignore_keys: Optional[List[str]] = None,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
-        Perform an evaluation step on :obj:`model` using obj:`inputs`.
+        Perform an evaluation step on `model` using `inputs`.
+
         Subclass and override to inject custom behavior.
+
         Args:
-            model (:obj:`nn.Module`):
+            model (`ORTModel`):
                 The model to evaluate.
-            infer_sess (:obj:`onnxruntime.InferenceSession`):
-                The inference session of ONNX Runtime.
-            inputs (:obj:`Dict[str, Union[torch.Tensor, Any]]`):
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.
+
                 The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
-                argument :obj:`labels`. Check your model's documentation for all accepted arguments.
-            prediction_loss_only (:obj:`bool`):
+                argument `labels`. Check your model's documentation for all accepted arguments.
+            prediction_loss_only (`bool`):
                 Whether or not to return the loss only.
+            ignore_keys (`Lst[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+
         Return:
-            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss=None, logits and
-            labels (each being optional).
+            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss=None, generated
+            tokens and labels (each being optional).
         """
 
         if not self.args.predict_with_generate or prediction_loss_only:
@@ -660,7 +659,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
     ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Perform an evaluation step on `model` using `inputs`.
+
         Subclass and override to inject custom behavior.
+
         Args:
             model (`nn.Module`):
                 The model to evaluate.
@@ -670,9 +671,10 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 argument `labels`. Check your model's documentation for all accepted arguments.
             prediction_loss_only (`bool`):
                 Whether or not to return the loss only.
+
         Return:
-            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, logits and
-            labels (each being optional).
+            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, generated
+            tokens and labels (each being optional).
         """
 
         if not self.args.predict_with_generate or prediction_loss_only:
