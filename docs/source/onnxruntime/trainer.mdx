@@ -12,13 +12,205 @@ specific language governing permissions and limitations under the License.
 
 # Trainer
 
+The [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] classes provide APIs for training PyTorch models with __[ONNX Runtime (ORT)](https://onnxruntime.ai/)__.
+Taking ONNX Runtime as backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] optimize the computation graph and the memory usage. They also support
+mixed precision training implemented by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve
+__lower latency, higher throughput, and larger maximum batch size__ while training large transformers models.
+
+## Prerequisite
+
+To use ONNX Runtime for training, you need a machine with at least one NVIDIA or AMD GPU.
+
+To use `ORTTrainer` or `ORTSeq2SeqTrainer`, you need to install ONNX Runtime Training module and Optimum.
+
+### Install ONNX Runtime
+
+To set up the environment, we __strongly recommend__ you install the dependencies with Docker to ensure that the versions are correct and well
+configured. You can find dockerfiles with various combinations [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
+
+For example, if you want to install [onnxruntime-training 1.12.0](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort1.12.0-cu113) via Dockerfile:
+
+```bash
+docker build -f Dockerfile-ort1.12.0-cu113 -t <imagename:tag> .
+```
+
+If you want to install the dependencies beyond in a local Python environment. You can pip install them once you have CUDA 11.3 and cuDNN 8 well installed.
+
+```bash
+pip install onnx==1.12.0 ninja
+pip install onnxruntime-training==1.12.0+cu113 -f https://download.onnxruntime.ai/onnxruntime_stable_cu113.html
+pip install torch==1.12.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+pip install torch-ort
+pip install transformers datasets accelerate
+pip install --upgrade protobuf==3.20.1
+```
+
+And run post-installation configuration:
+
+```bash
+python -m torch_ort.configure
+```
+
+### Install Optimum
+
+You can install Optimum via pypi:
+
+```bash
+pip install optimum
+```
+
+Or install from source:
+
+```bash
+pip install git+https://github.com/huggingface/optimum.git
+```
+
+This command installs the current main dev version of Optimum, which could include latest developments(new features, bug fixes). However, the
+main version might not be very stable. If you run into any problem, please open an [issue](https://github.com/huggingface/optimum/issues) so
+that we can fix it as soon as possible.
+
 ## ORTTrainer
+
+The [`ORTTrainer`] class inherits the [`Trainer`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#trainer)
+of Transformers. You can easily adapt the codes by replacing `Trainer` of transformers with `ORTTrainer` to take advantage of the acceleration
+empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compared with `Trainer`:
+
+```diff
+-from transformers import Trainer
++from optimum.onnxruntime import ORTTrainer
+
+# Step 1: Create your ONNX Runtime Trainer
+-trainer = Trainer(
++trainer = ORTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    compute_metrics=compute_metrics,
+    tokenizer=tokenizer,
+    data_collator=default_data_collator,
++   feature="sequence-classification",
+)
+
+# Step 2: Use ONNX Runtime for training!🤗
+train_result = trainer.train()
+```
+
+Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
 
 [[autodoc]] onnxruntime.trainer.ORTTrainer
     - all
 
 ## ORTSeq2SeqTrainer
 
+The [`ORTSeq2SeqTrainer`] class is similar to the [`Seq2SeqTrainer`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.Seq2SeqTrainer)
+of Transformers. You can easily adapt the codes by replacing `Seq2SeqTrainer` of transformers with `ORTSeq2SeqTrainer` to take advantage of the acceleration
+empowered by ONNX Runtime. Here is an example of how to use `ORTSeq2SeqTrainer` compared with `Seq2SeqTrainer`:
+
+```diff
+-from transformers import Seq2SeqTrainer
++from optimum.onnxruntime import ORTSeq2SeqTrainer
+
+# Step 1: Create your ONNX Runtime Seq2SeqTrainer
+-trainer = Seq2SeqTrainer(
+trainer = ORTSeq2SeqTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=valid_dataset,
+    compute_metrics=compute_metrics if training_args.predict_with_generate else None,
+    tokenizer=tokenizer,
+    data_collator=data_collator,
++   feature="seq2seq-lm",
+)
+
+# Step 2: Use ONNX Runtime for training!🤗
+train_result = trainer.train()
+```
+
+Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
+
 [[autodoc]] onnxruntime.trainer_seq2seq.ORTSeq2SeqTrainer
     - evaluate
     - predict
+
+## ORTTrainingArguments
+
+The [`ORTTrainingArguments`] class inherits the [`TrainingArguments`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments)
+class in Transformers. Besides the optimizers implemented in Transformers, it allows you to use the optimizers implemented in ONNX Runtime.
+Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
+
+```diff
+-from transformers import TrainingArguments
++from optimum.onnxruntime import ORTTrainingArguments
+
+-training_args = TrainingArguments(
++training_args =  ORTTrainingArguments(
+    output_dir=tmp_dir,
+    num_train_epochs=1,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir=tmp_dir,
+    optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
+)
+```
+
+[[autodoc]] onnxruntime.training_args.ORTTrainingArguments
+    - all
+
+<Tip warning={false}>
+
+DeepSpeed is supported by ONNX Runtime(only ZeRO stage 1 and 2 for the moment).
+You can find some [DeepSpeed configuration examples](https://github.com/huggingface/optimum/tree/main/tests/onnxruntime/ds_configs)
+in the Optimum repository.
+
+</Tip>
+
+## ORTSeq2SeqTrainingArguments
+
+The [`ORTSeq2SeqTrainingArguments`] class inherits the [`Seq2SeqTrainingArguments`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.Seq2SeqTrainingArguments)
+class in Transformers. Besides the optimizers implemented in Transformers, it allows you to use the optimizers implemented in ONNX Runtime.
+Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
+
+
+```diff
+-from transformers import Seq2SeqTrainingArguments
++from optimum.onnxruntime import ORTSeq2SeqTrainingArguments
+
+-training_args = Seq2SeqTrainingArguments(
++training_args =  ORTSeq2SeqTrainingArguments(
+    output_dir=tmp_dir,
+    num_train_epochs=1,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir=tmp_dir,
+    optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
+)
+```
+
+[[autodoc]] onnxruntime.training_args_seq2seq.ORTSeq2SeqTrainingArguments
+    - all
+
+<Tip warning={false}>
+
+DeepSpeed is supported by ONNX Runtime(only ZeRO stage 1 and 2 for the moment).
+You can find some [DeepSpeed configuration examples](https://github.com/huggingface/optimum/tree/main/tests/onnxruntime/ds_configs)
+in the Optimum repository.
+
+</Tip>
+
+## Other Resources
+
+* [ONNX Runtime github](https://github.com/microsoft/onnxruntime)
+* [Torch ORT github](https://github.com/pytorch/ort)
+* [Download ONNX Runtime stable versions](https://download.onnxruntime.ai/)
+* Blog posts
+    * [Accelerate PyTorch transformer model training with ONNX Runtime – a deep dive](https://techcommunity.microsoft.com/t5/ai-machine-learning-blog/accelerate-pytorch-transformer-model-training-with-onnx-runtime/ba-p/2540471)
+    * [ONNX Runtime Training Technical Deep Dive](https://techcommunity.microsoft.com/t5/ai-machine-learning-blog/onnx-runtime-training-technical-deep-dive/ba-p/1398310)
+
+If you have any problems or questions regarding `ORTTrainer`, please file an issue with [Optimum Github](https://github.com/huggingface/optimum)
+or discuss with us on [HuggingFace's community forum](https://discuss.huggingface.co/c/optimum/), cheers 🤗 !

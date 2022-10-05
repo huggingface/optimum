@@ -88,7 +88,6 @@ from transformers.trainer_utils import (
     set_seed,
     speed_metrics,
 )
-from transformers.training_args import TrainingArguments
 from transformers.utils import check_min_version, logging
 
 from .modeling_ort import (
@@ -103,7 +102,7 @@ from .modeling_ort import (
     ORTModelForTokenClassification,
 )
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
-from .training_args import ORTOptimizerNames
+from .training_args import ORTOptimizerNames, ORTTrainingArguments
 from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
 
 
@@ -153,12 +152,87 @@ class ORTFeaturesManager:
 
 
 class ORTTrainer(Trainer):
+    """
+    ORTTrainer is a simple but feature-complete training and eval loop for ONNX Runtime, optimized for 🤗 Transformers.
+
+    Args:
+        model ([`~transformers.PreTrainedModel`] or `torch.nn.Module`, *optional*):
+            The model to train, evaluate or use for predictions. If not provided, a `model_init` must be passed.
+
+            <Tip>
+
+            [`ORTTrainer`] is optimized to work with the [`~transformers.PreTrainedModel`] provided by the transformers library.
+            You can still use your own models defined as `torch.nn.Module` for training with ONNX Runtime backend
+            and inference with PyTorch backend as long as they work the same way as the 🤗 Transformers models.
+
+            </Tip>
+
+        args ([`ORTTrainingArguments`], *optional*):
+            The arguments to tweak for training. Will default to a basic instance of [`ORTTrainingArguments`] with the
+            `output_dir` set to a directory named *tmp_trainer* in the current directory if not provided.
+        data_collator ([`~transformers.DataCollator`], *optional*):
+            The function to use to form a batch from a list of elements of `train_dataset` or `eval_dataset`. Will
+            default to [`~transformers.default_data_collator`] if no `tokenizer` is provided, an instance of
+            [`~transformers.DataCollatorWithPadding`] otherwise.
+        train_dataset (`torch.utils.data.Dataset` or `torch.utils.data.IterableDataset`, *optional*):
+            The dataset to use for training. If it is a [`~datasets.Dataset`], columns not accepted by the
+            `model.forward()` method are automatically removed.
+            Note that if it's a `torch.utils.data.IterableDataset` with some randomization and you are training in a
+            distributed fashion, your iterable dataset should either use a internal attribute `generator` that is a
+            `torch.Generator` for the randomization that must be identical on all processes (and the ORTTrainer will
+            manually set the seed of this `generator` at each epoch) or have a `set_epoch()` method that internally
+            sets the seed of the RNGs used.
+        eval_dataset (`torch.utils.data.Dataset`, *optional*):
+             The dataset to use for evaluation. If it is a [`~datasets.Dataset`], columns not accepted by the
+             `model.forward()` method are automatically removed.
+        tokenizer ([`~transformers.PreTrainedTokenizerBase`], *optional*):
+            The tokenizer used to preprocess the data. If provided, will be used to automatically pad the inputs the
+            maximum length when batching inputs, and it will be saved along the model to make it easier to rerun an
+            interrupted training or reuse the fine-tuned model.
+        model_init (`Callable[[], PreTrainedModel]`, *optional*):
+            A function that instantiates the model to be used. If provided, each call to [`ORTTrainer.train`] will start
+            from a new instance of the model as given by this function.
+            The function may have zero argument, or a single one containing the optuna/Ray Tune/SigOpt trial object, to
+            be able to choose different architectures according to hyper parameters (such as layer count, sizes of
+            inner layers, dropout probabilities etc).
+        compute_metrics (`Callable[[EvalPrediction], Dict]`, *optional*):
+            The function that will be used to compute metrics at evaluation. Must take a [`EvalPrediction`] and return
+            a dictionary string to metric values.
+        callbacks (List of [`TrainerCallback`], *optional*):
+            A list of callbacks to customize the training loop. Will add those to the list of default callbacks
+            detailed in [here](callback).
+            If you want to remove one of the default callbacks used, use the [`ORTTrainer.remove_callback`] method.
+        optimizers (`Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]`, *optional*): A tuple
+            containing the optimizer and the scheduler to use. Will default to an instance of [`AdamW`] on your model
+            and a scheduler given by [`get_linear_schedule_with_warmup`] controlled by `args`.
+        preprocess_logits_for_metrics (`Callable[[torch.Tensor, torch.Tensor], torch.Tensor]`, *optional*):
+            A function that preprocess the logits right before caching them at each evaluation step. Must take two
+            tensors, the logits and the labels, and return the logits once processed as desired. The modifications made
+            by this function will be reflected in the predictions received by `compute_metrics`.
+            Note that the labels (second parameter) will be `None` if the dataset does not have them.
+    Important attributes:
+        - **model** -- Always points to the core model. If using a transformers model, it will be a [`~transformers.PreTrainedModel`]
+          subclass.
+        - **model_wrapped** -- Always points to the most external model in case one or more other modules wrap the
+          original model. This is the model that should be used for the forward pass. For example, under `DeepSpeed`,
+          the inner model is first wrapped in `ORTModule` and then in `DeepSpeed` and then again in
+          `torch.nn.DistributedDataParallel`. If the inner model hasn't been wrapped, then `self.model_wrapped` is the
+          same as `self.model`.
+        - **is_model_parallel** -- Whether or not a model has been switched to a model parallel mode (different from
+          data parallelism, this means some of the model layers are split on different GPUs).
+        - **place_model_on_device** -- Whether or not to automatically place the model on the device - it will be set
+          to `False` if model parallel or deepspeed is used, or if the default
+          `ORTTrainingArguments.place_model_on_device` is overridden to return `False` .
+        - **is_in_train** -- Whether or not a model is currently running `train` (e.g. when `evaluate` is called while
+          in `train`)
+    """
+
     def __init__(
         self,
         model: Union[PreTrainedModel, nn.Module] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         feature: str = "default",
-        args: TrainingArguments = None,
+        args: ORTTrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Dataset] = None,
@@ -198,12 +272,13 @@ class ORTTrainer(Trainer):
         **kwargs,
     ):
         """
-        Main onnxruntime training entry point.
+        Main entry point for training with ONNX Runtime accelerator.
+
         Args:
             resume_from_checkpoint (`str` or `bool`, *optional*):
-                If a `str`, local path to a saved checkpoint as saved by a previous instance of [`Trainer`]. If a
+                If a `str`, local path to a saved checkpoint as saved by a previous instance of [`ORTTrainer`]. If a
                 `bool` and equals `True`, load the last checkpoint in *args.output_dir* as saved by a previous instance
-                of [`Trainer`]. If present, training will resume from the model/optimizer/scheduler states loaded here.
+                of [`ORTTrainer`]. If present, training will resume from the model/optimizer/scheduler states loaded here.
             trial (`optuna.Trial` or `Dict[str, Any]`, *optional*):
                 The trial run or the hyperparameter dictionary for hyperparameter search.
             ignore_keys_for_eval (`List[str]`, *optional*)
@@ -666,7 +741,23 @@ class ORTTrainer(Trainer):
         inference_with_ort: bool = False,
     ) -> Dict[str, float]:
         """
-        Run evaluation within ONNX Runtime or PyTorch backend and returns metrics.(Overriden from `Trainer.evaluate()`)
+        Run evaluation with ONNX Runtime or PyTorch backend and returns metrics.
+
+        Args:
+            eval_dataset (`Dataset`, *optional*):
+                Pass a dataset if you wish to override `self.eval_dataset`. If it is a [`~datasets.Dataset`], columns
+                not accepted by the `model.forward()` method are automatically removed. It must implement the `__len__`
+                method.
+            ignore_keys (`List[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+            metric_key_prefix (`str`, *optional*, defaults to `"eval"`):
+                An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
+                "eval_bleu" if the prefix is "eval" (default)
+
+        Returns:
+            A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
+            dictionary also contains the epoch number which comes from the training state.
         """
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
@@ -727,8 +818,36 @@ class ORTTrainer(Trainer):
         inference_with_ort: bool = False,
     ) -> PredictionOutput:
         """
-        Run prediction within ONNX Runtime or PyTorch backend and returns predictions and potential metrics.
-        (Overriden from `Trainer.predict()`)
+        Run prediction and returns predictions and potential metrics.
+
+        Depending on the dataset and your use case, your test dataset may contain labels. In that case, this method
+        will also return metrics, like in `evaluate()`.
+
+        Args:
+            test_dataset (`Dataset`):
+                Dataset to run the predictions on. If it is an `datasets.Dataset`, columns not accepted by the
+                `model.forward()` method are automatically removed. Has to implement the method `__len__`
+            ignore_keys (`List[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+            metric_key_prefix (`str`, *optional*, defaults to `"test"`):
+                An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
+                "test_bleu" if the prefix is "test" (default)
+
+        <Tip>
+
+        If your predictions or labels have different sequence length (for instance because you're doing dynamic padding
+        in a token classification task) the predictions will be padded (on the right) to allow for concatenation into
+        one array. The padding index is -100.
+
+        </Tip>
+
+        Returns: *NamedTuple* A namedtuple with the following keys:
+
+            - predictions (`np.ndarray`): The predictions on `test_dataset`.
+            - label_ids (`np.ndarray`, *optional*): The labels (if the dataset contained some).
+            - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
+              labels).
         """
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
@@ -785,6 +904,7 @@ class ORTTrainer(Trainer):
 
         """
         Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
+
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
@@ -796,8 +916,6 @@ class ORTTrainer(Trainer):
         if self.onnx_model_path and (has_labels == self.exported_with_loss):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
-            # Fix exported ONNX IR
-            fix_atenops_to_gather(self.onnx_model_path)
         else:
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
@@ -814,8 +932,6 @@ class ORTTrainer(Trainer):
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
-            # Fix exported ONNX IR
-            fix_atenops_to_gather(self.onnx_model_path)
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
@@ -1010,7 +1126,8 @@ class ORTTrainer(Trainer):
         metric_key_prefix: str = "eval",
     ) -> PredictionOutput:
         """
-        Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
+        Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
+
         Works both with or without labels.
         """
         logger.info("[INFO] ONNX Runtime inference starts...")
@@ -1170,6 +1287,27 @@ class ORTTrainer(Trainer):
         prediction_loss_only: bool,
         ignore_keys: Optional[List[str]] = None,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """
+        Perform an evaluation step on `model` using `inputs`.
+
+        Args:
+            model (`ORTModel`):
+                The model to evaluate.
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
+                The inputs and targets of the model.
+
+                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
+                argument `labels`. Check your model's documentation for all accepted arguments.
+            prediction_loss_only (`bool`):
+                Whether or not to return the loss only.
+            ignore_keys (`Lst[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+
+        Return:
+            Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss,
+            logits and labels (each being optional).
+        """
 
         has_labels = all(inputs.get(k) is not None for k in self.label_names)
         inputs = self._prepare_inputs(inputs)
@@ -1230,7 +1368,7 @@ class ORTTrainer(Trainer):
 
     def compute_loss_ort(self, model, inputs, return_outputs=False):
         """
-        How the loss is computed by Trainer. By default, all models return the loss in the first element.
+        How the loss is computed by ORTTrainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
         """
         if self.label_smoother is not None and "labels" in inputs:
@@ -1267,11 +1405,15 @@ class ORTTrainer(Trainer):
         with_loss: bool = True,
     ) -> None:
         """
-        Load and export a model to an ONNX Intermediate Representation (IR).
+        Load and export a model to an ONNX format.
 
         Args:
             model_path (`os.PathLike`):
-                The path used to save the model exported to an ONNX Intermediate Representation (IR).
+                The path used to save the model exported to an ONNX format.
+            model ([`PreTrainedModel`], *optional*):
+                The model to export. If not provided, a `model_path` must be passed.
+            opset (`int`, *optional*):
+                ONNX opset version to export the model with.
             device (`str`, *optional*, defaults to `cpu`):
                 The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
             with_loss (`bool`, defaults to `True`):
@@ -1303,17 +1445,21 @@ class ORTTrainer(Trainer):
         )
 
     def _wrap_model(self, model, training=True, dataloader=None):
-        if self.args.use_ipex:
-            raise NotImplementedError(
-                "The optimization with IPEX(Intel® Extension for PyTorch) is not supported by `ORTTrainer` yet."
-            )
 
+        # TODO: ipex only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
+        # whether be able to use ipex will depend on both `self.args.use_ipex` and `self.args.ort_mode_eval`.
+        if self.args.use_ipex:
+            dtype = torch.bfloat16 if self.use_cpu_amp else torch.float32
+            model = self.ipex_optimize_model(model, training, dtype=dtype)
+
+        # TODO: jit_mode_eval only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
+        # whether be able to use jit_mode_eval will depend on both `self.args.jit_mode_eval` and `self.args.ort_mode_eval`.
         if self.args.jit_mode_eval:
-            raise NotImplementedError("The inference with PyTorch jit trace is not supported by `ORTTrainer` yet.")
+            model = self.torch_jit_model_eval(model, dataloader, training)
 
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(
-                "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet."
+                "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer`."
             )
 
         # already initialized its own DDP and AMP
@@ -1427,6 +1573,7 @@ class ORTTrainer(Trainer):
     def create_optimizer(self):
         """
         Setup the optimizer.
+
         We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
         ORTTrainer's init through `optimizers`, or subclass and override this method in a subclass.
         """
@@ -1477,11 +1624,12 @@ class ORTTrainer(Trainer):
         return self.optimizer
 
     @staticmethod
-    def get_ort_optimizer_cls_and_kwargs(args: TrainingArguments) -> Tuple[Any, Any]:
+    def get_ort_optimizer_cls_and_kwargs(args: ORTTrainingArguments) -> Tuple[Any, Any]:
         """
-        Returns the optimizer class and optimizer parameters based on the ORT training arguments.
+        Returns the optimizer class and optimizer parameters implemented in ONNX Runtime based on `ORTTrainingArguments`.
+
         Args:
-            args (`optimum.onnxruntime.training_args.ORTTrainingArguments`):
+            args (`ORTTrainingArguments`):
                 The training arguments for the training session.
         """
         optimizer_kwargs = {"lr": args.learning_rate}
