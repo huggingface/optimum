@@ -12,7 +12,7 @@ specific language governing permissions and limitations under the License.
 
 # Trainer
 
-The [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] classes provide APIs for training PyTorch models with __[ONNX Runtime(ORT)](https://onnxruntime.ai/)__.
+The [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] classes provide APIs for training PyTorch models with __[ONNX Runtime (ORT)](https://onnxruntime.ai/)__.
 Taking ONNX Runtime as backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] optimize the computation graph and the memory usage. They also support
 mixed precision training implemented by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve
 __lower latency, higher throughput, and larger maximum batch size__ while training large transformers models.
@@ -137,9 +137,8 @@ Check out more detailed [example scripts](https://github.com/huggingface/optimum
 ## ORTTrainingArguments
 
 The [`ORTTrainingArguments`] class inherits the [`TrainingArguments`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments)
-class in Transformers. Besides the optimizers implemented in Transformers, it allows you to use the optimizers implemented by ORT.
-If you just want to use features implemented in Transformers, you can keep with `TrainingArguments`, otherwise replace it
-with `ORTTrainingArguments`:
+class in Transformers. Besides the optimizers implemented in Transformers, it allows you to use the optimizers implemented in ONNX Runtime.
+Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
 
 ```diff
 -from transformers import TrainingArguments
@@ -172,9 +171,9 @@ in the Optimum repository.
 ## ORTSeq2SeqTrainingArguments
 
 The [`ORTSeq2SeqTrainingArguments`] class inherits the [`Seq2SeqTrainingArguments`](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.Seq2SeqTrainingArguments)
-class in Transformers. Besides the optimizers implemented in Transformers, it allows you to use the optimizers implemented by ORT.
-If you just want to use features implemented in Transformers, you can keep with `Seq2SeqTrainingArguments`, otherwise replace it
-with `ORTSeq2SeqTrainingArguments`:
+class in Transformers. Besides the optimizers implemented in Transformers, it allows you to use the optimizers implemented in ONNX Runtime.
+Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
+
 
 ```diff
 -from transformers import Seq2SeqTrainingArguments

@@ -158,18 +158,22 @@ class ORTTrainer(Trainer):
     Args:
         model ([`~transformers.PreTrainedModel`] or `torch.nn.Module`, *optional*):
             The model to train, evaluate or use for predictions. If not provided, a `model_init` must be passed.
+
             <Tip>
+
             [`ORTTrainer`] is optimized to work with the [`~transformers.PreTrainedModel`] provided by the transformers library.
             You can still use your own models defined as `torch.nn.Module` for training with ONNX Runtime backend
             and inference with PyTorch backend as long as they work the same way as the 🤗 Transformers models.
+
             </Tip>
+
         args ([`ORTTrainingArguments`], *optional*):
             The arguments to tweak for training. Will default to a basic instance of [`ORTTrainingArguments`] with the
             `output_dir` set to a directory named *tmp_trainer* in the current directory if not provided.
-        data_collator (`transformers.DataCollator`, *optional*):
+        data_collator ([`~transformers.DataCollator`], *optional*):
             The function to use to form a batch from a list of elements of `train_dataset` or `eval_dataset`. Will
-            default to `transformers.default_data_collator` if no `tokenizer` is provided, an instance of
-            `transformers.DataCollatorWithPadding` otherwise.
+            default to [`~transformers.default_data_collator`] if no `tokenizer` is provided, an instance of
+            [`~transformers.DataCollatorWithPadding`] otherwise.
         train_dataset (`torch.utils.data.Dataset` or `torch.utils.data.IterableDataset`, *optional*):
             The dataset to use for training. If it is a [`~datasets.Dataset`], columns not accepted by the
             `model.forward()` method are automatically removed.
@@ -186,7 +190,7 @@ class ORTTrainer(Trainer):
             maximum length when batching inputs, and it will be saved along the model to make it easier to rerun an
             interrupted training or reuse the fine-tuned model.
         model_init (`Callable[[], PreTrainedModel]`, *optional*):
-            A function that instantiates the model to be used. If provided, each call to [`~ORTTrainer.train`] will start
+            A function that instantiates the model to be used. If provided, each call to [`ORTTrainer.train`] will start
             from a new instance of the model as given by this function.
             The function may have zero argument, or a single one containing the optuna/Ray Tune/SigOpt trial object, to
             be able to choose different architectures according to hyper parameters (such as layer count, sizes of
@@ -197,7 +201,7 @@ class ORTTrainer(Trainer):
         callbacks (List of [`TrainerCallback`], *optional*):
             A list of callbacks to customize the training loop. Will add those to the list of default callbacks
             detailed in [here](callback).
-            If you want to remove one of the default callbacks used, use the [`Trainer.remove_callback`] method.
+            If you want to remove one of the default callbacks used, use the [`ORTTrainer.remove_callback`] method.
         optimizers (`Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]`, *optional*): A tuple
             containing the optimizer and the scheduler to use. Will default to an instance of [`AdamW`] on your model
             and a scheduler given by [`get_linear_schedule_with_warmup`] controlled by `args`.
@@ -207,7 +211,7 @@ class ORTTrainer(Trainer):
             by this function will be reflected in the predictions received by `compute_metrics`.
             Note that the labels (second parameter) will be `None` if the dataset does not have them.
     Important attributes:
-        - **model** -- Always points to the core model. If using a transformers model, it will be a [`PreTrainedModel`]
+        - **model** -- Always points to the core model. If using a transformers model, it will be a [`~transformers.PreTrainedModel`]
           subclass.
         - **model_wrapped** -- Always points to the most external model in case one or more other modules wrap the
           original model. This is the model that should be used for the forward pass. For example, under `DeepSpeed`,
@@ -272,9 +276,9 @@ class ORTTrainer(Trainer):
 
         Args:
             resume_from_checkpoint (`str` or `bool`, *optional*):
-                If a `str`, local path to a saved checkpoint as saved by a previous instance of [`Trainer`]. If a
+                If a `str`, local path to a saved checkpoint as saved by a previous instance of [`ORTTrainer`]. If a
                 `bool` and equals `True`, load the last checkpoint in *args.output_dir* as saved by a previous instance
-                of [`Trainer`]. If present, training will resume from the model/optimizer/scheduler states loaded here.
+                of [`ORTTrainer`]. If present, training will resume from the model/optimizer/scheduler states loaded here.
             trial (`optuna.Trial` or `Dict[str, Any]`, *optional*):
                 The trial run or the hyperparameter dictionary for hyperparameter search.
             ignore_keys_for_eval (`List[str]`, *optional*)
@@ -1625,7 +1629,7 @@ class ORTTrainer(Trainer):
         Returns the optimizer class and optimizer parameters implemented in ONNX Runtime based on `ORTTrainingArguments`.
 
         Args:
-            args (`optimum.onnxruntime.ORTTrainingArguments`):
+            args (`ORTTrainingArguments`):
                 The training arguments for the training session.
         """
         optimizer_kwargs = {"lr": args.learning_rate}
