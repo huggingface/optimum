@@ -156,20 +156,20 @@ class ORTTrainer(Trainer):
     """
     Trainer is a simple but feature-complete training and eval loop for PyTorch, optimized for 🤗 Transformers.
     Args:
-        model ([`PreTrainedModel`] or `torch.nn.Module`, *optional*):
+        model ([`~transformers.PreTrainedModel`] or `torch.nn.Module`, *optional*):
             The model to train, evaluate or use for predictions. If not provided, a `model_init` must be passed.
             <Tip>
-            [`ORTTrainer`] is optimized to work with the [`PreTrainedModel`] provided by the transformers library.
+            [`ORTTrainer`] is optimized to work with the [`~transformers.PreTrainedModel`] provided by the transformers library.
             You can still use your own models defined as `torch.nn.Module` for training with ONNX Runtime backend
             and inference with PyTorch backend as long as they work the same way as the 🤗 Transformers models.
             </Tip>
-        args ([`TrainingArguments`], *optional*):
+        args ([`ORTTrainingArguments`], *optional*):
             The arguments to tweak for training. Will default to a basic instance of [`ORTTrainingArguments`] with the
             `output_dir` set to a directory named *tmp_trainer* in the current directory if not provided.
-        data_collator (`DataCollator`, *optional*):
+        data_collator (`transformers.DataCollator`, *optional*):
             The function to use to form a batch from a list of elements of `train_dataset` or `eval_dataset`. Will
-            default to [`default_data_collator`] if no `tokenizer` is provided, an instance of
-            [`DataCollatorWithPadding`] otherwise.
+            default to `transformers.default_data_collator` if no `tokenizer` is provided, an instance of
+            `transformers.DataCollatorWithPadding` otherwise.
         train_dataset (`torch.utils.data.Dataset` or `torch.utils.data.IterableDataset`, *optional*):
             The dataset to use for training. If it is a [`~datasets.Dataset`], columns not accepted by the
             `model.forward()` method are automatically removed.
