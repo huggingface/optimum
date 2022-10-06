@@ -14,13 +14,13 @@
 from enum import Enum
 
 import torch
-from transformers.onnx import OnnxConfig, OnnxSeq2SeqConfigWithPast
+from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
 
-from ..onnx import OnnxConfigWithLoss, OnnxSeq2SeqConfigWithPastAndLoss
+from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
 
 
 logger = logging.get_logger(__name__)
@@ -69,6 +69,7 @@ class ORTConfigManager:
         "electra": ("num_attention_heads", "hidden_size", "bert"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
+        "mt5": ("num_heads", "d_model", "bart"),
         "marian": ("encoder_attention_heads", "d_model", "bart"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
         "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
@@ -147,6 +148,8 @@ def fix_atenops_to_gather(model_path):
 def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
     if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
         return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
+    elif isinstance(onnx_config, OnnxConfigWithPast):
+        return OnnxConfigWithPastAndLoss(onnx_config)
     else:
         return OnnxConfigWithLoss(onnx_config)
 

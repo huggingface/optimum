@@ -194,6 +194,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         decoder_with_past_path: Union[str, Path] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
+        provider_options: Optional[Dict] = None,
         **kwargs
     ):
         """
@@ -213,6 +214,9 @@ class ORTModelForConditionalGeneration(ORTModel):
                 for possible providers. Defaults to `CPUExecutionProvider`.
             session_options (`onnxruntime.SessionOptions`, *optional*),:
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
+            provider_options (`Dict`, **optional**):
+                Provider option dictionaries corresponding to the provider used. See available options
+                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
         available_providers = onnxruntime.get_available_providers()
         if provider not in available_providers:
@@ -221,10 +225,16 @@ class ORTModelForConditionalGeneration(ORTModel):
             )
 
         encoder_session = onnxruntime.InferenceSession(
-            str(encoder_path), providers=[provider], sess_options=session_options
+            str(encoder_path),
+            providers=[provider],
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
         )
         decoder_session = onnxruntime.InferenceSession(
-            str(decoder_path), providers=[provider], sess_options=session_options
+            str(decoder_path),
+            providers=[provider],
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
         )
 
         decoder_with_past_session = None
@@ -232,7 +242,10 @@ class ORTModelForConditionalGeneration(ORTModel):
         # will be enabled
         if decoder_with_past_path is not None:
             decoder_with_past_session = onnxruntime.InferenceSession(
-                str(decoder_with_past_path), providers=[provider], sess_options=session_options
+                str(decoder_with_past_path),
+                providers=[provider],
+                sess_options=session_options,
+                provider_options=None if provider_options is None else [provider_options],
             )
 
         return encoder_session, decoder_session, decoder_with_past_session

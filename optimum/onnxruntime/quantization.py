@@ -337,6 +337,9 @@ class ORTQuantizer(OptimumQuantizer):
                 "ActivationSymmetric": quantization_config.activations_symmetric,
                 "EnableSubgraph": False,
                 "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
+                "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
+                "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
+                "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
             },
         )
 

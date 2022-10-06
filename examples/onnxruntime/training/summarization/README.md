@@ -14,31 +14,42 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Question answering
+## Summarization
 
-## SQuAD Tasks
+By running the script [`run_summarization.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/summarization/run_summarization.py),
+you will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune and evaluate models from the
+[HuggingFace hub](https://huggingface.co/models) on summarization tasks.
 
-By running the script [`run_qa.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/question-answering/run_qa.py),
-we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) to fine-tune the models from the
-[HuggingFace hub](https://huggingface.co/models) for question answering tasks such as SQuAD.
+### Supported models
 
-Note that if your dataset contains samples with no possible answers (like SQuAD version 2), you need to pass along
-the flag `--version_2_with_negative`.
+Theoretically, all sequence-to-sequence models with [ONNXConfig](https://github.com/huggingface/transformers/blob/main/src/transformers/onnx/features.py) support in Transformers shall work, here are the models that the Optimum team has tested and validated.
+
+* `Bart`
+* `T5`
+
+`run_summarization.py` is a lightweight example of how to download and preprocess a dataset from the 🤗 Datasets library or use your own files (jsonlines or csv), then fine-tune one of the architectures above on it.
+
 
 __The following example applies the acceleration features powered by ONNX Runtime.__
 
 
-### Onnxruntime Training
+### Onnx Runtime Training
 
 The following example fine-tunes a BERT on the SQuAD 1.0 dataset.
 
 ```bash
-python run_qa.py \
-    --model_name_or_path bert-base-uncased \
-    --dataset_name squad \
+python run_summarization.py \
+    --model_name_or_path t5-small \
+    --dataset_name cnn_dailymail \
+    --dataset_config "3.0.0" \
+    --source_prefix "summarize: " \
     --do_train \
     --do_eval \
-    --output_dir /tmp/ort_bert_squad/
+    --per_device_train_batch_size=4 \
+    --per_device_eval_batch_size=4 \
+    --output_dir /tmp/ort_summarization_t5/ \
+    --overwrite_output_dir \
+    --predict_with_generate
 ```
 
 __Note__

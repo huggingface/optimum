@@ -31,6 +31,7 @@ from transformers.trainer_utils import (
 from transformers.training_args import OptimizerNames, default_logdir, logger, trainer_log_levels
 from transformers.utils import (
     ExplicitEnum,
+    add_start_docstrings,
     get_full_repo_name,
     is_torch_available,
     is_torch_bf16_available,
@@ -53,6 +54,11 @@ class ORTOptimizerNames(ExplicitEnum):
 
 @dataclass
 class ORTTrainingArguments(TrainingArguments):
+    """
+    Parameters:
+        optim (`str` or [`training_args.ORTOptimizerNames`] or [`transformers.training_args.OptimizerNames`], *optional*, defaults to `"adamw_hf"`):
+            The optimizer to use, including optimizers in Transformers: adamw_hf, adamw_torch, adamw_apex_fused, or adafactor. And optimizers implemented by ONNX Runtime: adamw_ort_fused.
+    """
 
     optim: Optional[str] = field(
         default="adamw_hf",

@@ -241,6 +241,40 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.encoder.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
 
+    @require_torch_gpu
+    def test_passing_provider_options(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1")
+
+        model = ORTModel.from_pretrained(
+            self.ONNX_MODEL_ID,
+            provider="CUDAExecutionProvider",
+            provider_options={"do_copy_in_default_stream": 0},
+        )
+        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0")
+
+    @require_torch_gpu
+    def test_passing_provider_options_seq2seq(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
+        )
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID,
+            provider="CUDAExecutionProvider",
+            provider_options={"do_copy_in_default_stream": 0},
+        )
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
+        )
+
     def test_seq2seq_model_on_cpu(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         cpu = torch.device("cpu")

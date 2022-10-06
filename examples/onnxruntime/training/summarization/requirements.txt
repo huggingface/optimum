@@ -1,10 +1,12 @@
+accelerate
+evaluate
 datasets >= 1.8.0
 sentencepiece != 0.1.92
 scipy
 scikit-learn
-protobuf == 3.20.2
+protobuf
+rouge-score
+nltk
+py7zr
 torch >= 1.9.0
-transformers>=4.16.0
-onnx>=1.9.0
-onnxruntime-training>=1.9.0
 torch-ort

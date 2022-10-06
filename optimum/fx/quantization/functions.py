@@ -170,7 +170,7 @@ def prepare_fx(
             A dictionary with a similar structure as qconfig_dict except it will contain configurations specific to
             equalization techniques such as input-weight equalization.
         backend_config_dict (`Dict[str, Any]`, *optional*):
-            A dictionary that specifies how operators are quantized in a backend, this includes how the operaetors are
+            A dictionary that specifies how operators are quantized in a backend, this includes how the operators are
             observed, supported fusion patterns, how quantize/dequantize ops are inserted, supported dtypes etc.
             The structure of the dictionary is still WIP and will change in the future, please don't use right now.
         input_names (`List[str]`, *optional*):
@@ -244,7 +244,7 @@ def prepare_qat_fx(
             Customization configuration dictionary for quantization tool, refer to the PyTorch documentation for more
             details.
         backend_config_dict (`Dict[str, Any]`, *optional*):
-            A dictionary that specifies how operators are quantized in a backend, this includes how the operaetors are
+            A dictionary that specifies how operators are quantized in a backend, this includes how the operators are
             observed, supported fusion patterns, how quantize/dequantize ops are inserted, supported dtypes etc.
             The structure of the dictionary is still WIP and will change in the future, please don't use right now.
         input_names (`List[str]`, *optional*):

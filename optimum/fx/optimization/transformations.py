@@ -90,7 +90,7 @@ class Transformation(ABC):
     """
     A torch.fx graph transformation.
 
-    It  must implemement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] method, and be used as a
+    It  must implement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] method, and be used as a
     callable.
     """
 
@@ -181,7 +181,7 @@ class ReversibleTransformation(Transformation):
     """
     A torch.fx graph transformation that is reversible.
 
-    It must implemement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] and
+    It must implement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] and
     [`~optimum.fx.optimization.ReversibleTransformation.reverse`] methods, and be used as a callable.
     """
 

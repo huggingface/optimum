@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-# Copyright The HuggingFace Team and The HuggingFace Inc. team. All rights reserved.
+# Copyright 2021 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import datasets
+import nltk  # Here to have a nice missing dependency error message early on
 import numpy as np
 import transformers
 from datasets import load_dataset
@@ -34,32 +35,42 @@ from transformers import (
     AutoTokenizer,
     DataCollatorForSeq2Seq,
     HfArgumentParser,
-    M2M100Tokenizer,
     MBart50Tokenizer,
     MBart50TokenizerFast,
     MBartTokenizer,
     MBartTokenizerFast,
-    default_data_collator,
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import check_min_version, send_example_telemetry
+from transformers.utils import check_min_version, is_offline_mode, send_example_telemetry
 from transformers.utils.versions import require_version
 
 import evaluate
-from optimum.onnxruntime import ORTSeq2SeqTrainer
-from optimum.onnxruntime.training_args_seq2seq import ORTSeq2SeqTrainingArguments
+from filelock import FileLock
+from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTSeq2SeqTrainingArguments
 
 
-# Will error if the minimal version of Transformers is not installed. Remove at your own risks.
+# Might have error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.22.0")
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/translation/requirements.txt")
+require_version(
+    "datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/training/summarization/requirements.txt"
+)
 
 logger = logging.getLogger(__name__)
 
-# A list of all multilingual tokenizer which require src_lang and tgt_lang attributes.
-MULTILINGUAL_TOKENIZERS = [MBartTokenizer, MBartTokenizerFast, MBart50Tokenizer, MBart50TokenizerFast, M2M100Tokenizer]
+try:
+    nltk.data.find("tokenizers/punkt")
+except (LookupError, OSError):
+    if is_offline_mode():
+        raise LookupError(
+            "Offline mode: run this script without TRANSFORMERS_OFFLINE first to download nltk data files"
+        )
+    with FileLock(".lock") as lock:
+        nltk.download("punkt", quiet=True)
+
+# A list of all multilingual tokenizer which require lang attribute.
+MULTILINGUAL_TOKENIZERS = [MBartTokenizer, MBartTokenizerFast, MBart50Tokenizer, MBart50TokenizerFast]
 
 
 @dataclass
@@ -98,6 +109,15 @@ class ModelArguments:
             )
         },
     )
+    resize_position_embeddings: Optional[bool] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Whether to automatically resize the position embeddings if `max_source_length` exceeds "
+                "the model's position embeddings."
+            )
+        },
+    )
 
 
 @dataclass
@@ -106,8 +126,7 @@ class DataTrainingArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
 
-    source_lang: str = field(default=None, metadata={"help": "Source language id for translation."})
-    target_lang: str = field(default=None, metadata={"help": "Target language id for translation."})
+    lang: Optional[str] = field(default=None, metadata={"help": "Language id for summarization."})
 
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
@@ -115,16 +134,30 @@ class DataTrainingArguments:
     dataset_config_name: Optional[str] = field(
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
-    train_file: Optional[str] = field(default=None, metadata={"help": "The input training data file (a jsonlines)."})
+    text_column: Optional[str] = field(
+        default=None,
+        metadata={"help": "The name of the column in the datasets containing the full texts (for summarization)."},
+    )
+    summary_column: Optional[str] = field(
+        default=None,
+        metadata={"help": "The name of the column in the datasets containing the summaries (for summarization)."},
+    )
+    train_file: Optional[str] = field(
+        default=None, metadata={"help": "The input training data file (a jsonlines or csv file)."}
+    )
     validation_file: Optional[str] = field(
         default=None,
         metadata={
-            "help": "An optional input evaluation data file to evaluate the metrics (sacrebleu) on a jsonlines file."
+            "help": (
+                "An optional input evaluation data file to evaluate the metrics (rouge) on (a jsonlines or csv file)."
+            )
         },
     )
     test_file: Optional[str] = field(
         default=None,
-        metadata={"help": "An optional input test data file to evaluate the metrics (sacrebleu) on a jsonlines file."},
+        metadata={
+            "help": "An optional input test data file to evaluate the metrics (rouge) on (a jsonlines or csv file)."
+        },
     )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
@@ -193,8 +226,10 @@ class DataTrainingArguments:
     max_predict_samples: Optional[int] = field(
         default=None,
         metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of prediction examples to this "
-            "value if set."
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of prediction examples to this "
+                "value if set."
+            )
         },
     )
     num_beams: Optional[int] = field(
@@ -213,15 +248,16 @@ class DataTrainingArguments:
         },
     )
     source_prefix: Optional[str] = field(
-        default=None, metadata={"help": "A prefix to add before every source text (useful for T5 models)."}
+        default="", metadata={"help": "A prefix to add before every source text (useful for T5 models)."}
     )
+
     forced_bos_token: Optional[str] = field(
         default=None,
         metadata={
             "help": (
-                "The token to force as the first generated token after the :obj:`decoder_start_token_id`.Useful for"
-                " multilingual models like :doc:`mBART <../model_doc/mbart>` where the first generated token needs to"
-                " be the target language token.(Usually it is the target language token)"
+                "The token to force as the first generated token after the decoder_start_token_id."
+                "Useful for multilingual models like mBART where the first generated token"
+                "needs to be the target language token (Usually it is the target language token)"
             )
         },
     )
@@ -229,19 +265,13 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        elif self.source_lang is None or self.target_lang is None:
-            raise ValueError("Need to specify the source language and the target language.")
-
-        # accepting both json and jsonl file extensions, as
-        # many jsonlines files actually have a .json extension
-        valid_extensions = ["json", "jsonl"]
-
-        if self.train_file is not None:
-            extension = self.train_file.split(".")[-1]
-            assert extension in valid_extensions, "`train_file` should be a jsonlines file."
-        if self.validation_file is not None:
-            extension = self.validation_file.split(".")[-1]
-            assert extension in valid_extensions, "`validation_file` should be a jsonlines file."
+        else:
+            if self.train_file is not None:
+                extension = self.train_file.split(".")[-1]
+                assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+            if self.validation_file is not None:
+                extension = self.validation_file.split(".")[-1]
+                assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         if self.val_max_target_length is None:
             self.val_max_target_length = self.max_target_length
 
@@ -256,6 +286,22 @@ class InferenceArguments:
         default=False,
         metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
     )
+
+
+summarization_name_mapping = {
+    "amazon_reviews_multi": ("review_body", "review_title"),
+    "big_patent": ("description", "abstract"),
+    "cnn_dailymail": ("article", "highlights"),
+    "orange_sum": ("text", "summary"),
+    "pn_summary": ("article", "summary"),
+    "psc": ("extract_text", "summary_text"),
+    "samsum": ("dialogue", "summary"),
+    "thaisum": ("body", "summary"),
+    "xglue": ("news_body", "news_title"),
+    "xsum": ("document", "summary"),
+    "wiki_summary": ("article", "highlights"),
+    "multi_news": ("document", "summary"),
+}
 
 
 def main():
@@ -275,7 +321,7 @@ def main():
 
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
-    send_example_telemetry("run_translation", model_args, data_args)
+    send_example_telemetry("run_summarization", model_args, data_args)
 
     # Setup logging
     logging.basicConfig(
@@ -283,7 +329,6 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-
     log_level = training_args.get_process_log_level()
     logger.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
@@ -306,8 +351,8 @@ def main():
         "t5-11b",
     ]:
         logger.warning(
-            "You're running a t5 model but didn't provide a source prefix, which is expected, e.g. with "
-            "`--source_prefix 'translate English to German: ' `"
+            "You're running a t5 model but didn't provide a source prefix, which is the expected, e.g. with "
+            "`--source_prefix 'summarize: ' `"
         )
 
     # Detecting last checkpoint.
@@ -328,12 +373,12 @@ def main():
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
-    # Get the datasets: you can either provide your own JSON training and evaluation files (see below)
+    # Get the datasets: you can either provide your own CSV/JSON training and evaluation files (see below)
     # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
     # (the dataset will be downloaded automatically from the datasets Hub).
     #
-    # For translation, only JSON files are supported, with one field named "translation" containing two keys for the
-    # source and target languages (unless you adapt what follows).
+    # For CSV/JSON files this script will use the first column for the full texts and the second column for the
+    # summaries (unless you specify column names for this with the `text_column` and `summary_column` arguments).
     #
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
@@ -394,15 +439,34 @@ def main():
 
     model.resize_token_embeddings(len(tokenizer))
 
-    # Set decoder_start_token_id
     if model.config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
         if isinstance(tokenizer, MBartTokenizer):
-            model.config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.target_lang]
+            model.config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
         else:
-            model.config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.target_lang)
+            model.config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
 
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
+
+    if (
+        hasattr(model.config, "max_position_embeddings")
+        and model.config.max_position_embeddings < data_args.max_source_length
+    ):
+        if model_args.resize_position_embeddings is None:
+            logger.warning(
+                "Increasing the model's number of position embedding vectors from"
+                f" {model.config.max_position_embeddings} to {data_args.max_source_length}."
+            )
+            model.resize_position_embeddings(data_args.max_source_length)
+        elif model_args.resize_position_embeddings:
+            model.resize_position_embeddings(data_args.max_source_length)
+        else:
+            raise ValueError(
+                f"`--max_source_length` is set to {data_args.max_source_length}, but the model only has"
+                f" {model.config.max_position_embeddings} position encodings. Consider either reducing"
+                f" `--max_source_length` to {model.config.max_position_embeddings} or to automatically resize the"
+                " model's position encodings by passing `--resize_position_embeddings`."
+            )
 
     prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
 
@@ -418,16 +482,13 @@ def main():
         logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
 
-    # For translation we set the codes of our source and target languages (only useful for mBART, the others will
-    # ignore those attributes).
     if isinstance(tokenizer, tuple(MULTILINGUAL_TOKENIZERS)):
-        assert data_args.target_lang is not None and data_args.source_lang is not None, (
-            f"{tokenizer.__class__.__name__} is a multilingual tokenizer which requires --source_lang and "
-            "--target_lang arguments."
-        )
+        assert (
+            data_args.lang is not None
+        ), f"{tokenizer.__class__.__name__} is a multilingual tokenizer which requires --lang argument"
 
-        tokenizer.src_lang = data_args.source_lang
-        tokenizer.tgt_lang = data_args.target_lang
+        tokenizer.src_lang = data_args.lang
+        tokenizer.tgt_lang = data_args.lang
 
         # For multilingual translation models like mBART-50 and M2M100 we need to force the target language token
         # as the first generated token. We ask the user to explicitly provide this as --forced_bos_token argument.
@@ -436,9 +497,24 @@ def main():
         )
         model.config.forced_bos_token_id = forced_bos_token_id
 
-    # Get the language codes for input/target.
-    source_lang = data_args.source_lang.split("_")[0]
-    target_lang = data_args.target_lang.split("_")[0]
+    # Get the column names for input/target.
+    dataset_columns = summarization_name_mapping.get(data_args.dataset_name, None)
+    if data_args.text_column is None:
+        text_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+    else:
+        text_column = data_args.text_column
+        if text_column not in column_names:
+            raise ValueError(
+                f"--text_column' value '{data_args.text_column}' needs to be one of: {', '.join(column_names)}"
+            )
+    if data_args.summary_column is None:
+        summary_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
+    else:
+        summary_column = data_args.summary_column
+        if summary_column not in column_names:
+            raise ValueError(
+                f"--summary_column' value '{data_args.summary_column}' needs to be one of: {', '.join(column_names)}"
+            )
 
     # Temporarily set max_target_length for training.
     max_target_length = data_args.max_target_length
@@ -451,8 +527,14 @@ def main():
         )
 
     def preprocess_function(examples):
-        inputs = [ex[source_lang] for ex in examples["translation"]]
-        targets = [ex[target_lang] for ex in examples["translation"]]
+        # remove pairs where at least one record is None
+
+        inputs, targets = [], []
+        for i in range(len(examples[text_column])):
+            if examples[text_column][i] and examples[summary_column][i]:
+                inputs.append(examples[text_column][i])
+                targets.append(examples[summary_column][i])
+
         inputs = [prefix + inp for inp in inputs]
         model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
 
@@ -524,22 +606,23 @@ def main():
 
     # Data collator
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    if data_args.pad_to_max_length:
-        data_collator = default_data_collator
-    else:
-        data_collator = DataCollatorForSeq2Seq(
-            tokenizer,
-            model=model,
-            label_pad_token_id=label_pad_token_id,
-            pad_to_multiple_of=8 if training_args.fp16 else None,
-        )
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer,
+        model=model,
+        label_pad_token_id=label_pad_token_id,
+        pad_to_multiple_of=8 if training_args.fp16 else None,
+    )
 
     # Metric
-    metric = evaluate.load("sacrebleu")
+    metric = evaluate.load("rouge")
 
     def postprocess_text(preds, labels):
         preds = [pred.strip() for pred in preds]
-        labels = [[label.strip()] for label in labels]
+        labels = [label.strip() for label in labels]
+
+        # rougeLSum expects newline after each sentence
+        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
 
         return preds, labels
 
@@ -556,12 +639,10 @@ def main():
         # Some simple post-processing
         decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
 
-        result = metric.compute(predictions=decoded_preds, references=decoded_labels)
-        result = {"bleu": result["score"]}
-
+        result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+        result = {k: round(v * 100, 4) for k, v in result.items()}
         prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
         result["gen_len"] = np.mean(prediction_lens)
-        result = {k: round(v, 4) for k, v in result.items()}
         return result
 
     # Initialize our Trainer
@@ -606,7 +687,6 @@ def main():
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
-
         metrics = trainer.evaluate(
             max_length=max_length,
             num_beams=num_beams,
@@ -645,10 +725,10 @@ def main():
                 )
                 predictions = [pred.strip() for pred in predictions]
                 output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
-                with open(output_prediction_file, "w", encoding="utf-8") as writer:
+                with open(output_prediction_file, "w") as writer:
                     writer.write("\n".join(predictions))
 
-    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "translation"}
+    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "summarization"}
     if data_args.dataset_name is not None:
         kwargs["dataset_tags"] = data_args.dataset_name
         if data_args.dataset_config_name is not None:
@@ -657,9 +737,8 @@ def main():
         else:
             kwargs["dataset"] = data_args.dataset_name
 
-    languages = [l for l in [data_args.source_lang, data_args.target_lang] if l is not None]
-    if len(languages) > 0:
-        kwargs["language"] = languages
+    if data_args.lang is not None:
+        kwargs["language"] = data_args.lang
 
     if training_args.push_to_hub:
         trainer.push_to_hub(**kwargs)
