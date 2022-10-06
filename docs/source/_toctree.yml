@@ -5,6 +5,8 @@
     title: Installation
   - local: quicktour
     title: Quick tour
+  - local: notebooks
+    title: Notebooks
   - sections:
     - local: concept_guides/quantization
       title: Weight quantization
