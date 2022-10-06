@@ -1,19 +1,4 @@
-# Accelerated inference
-
-🤗 Optimum provides inference optimizations towards various frameworks and
-platforms.
-
-Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with Intel [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) (INC).
-
-|              Features              | ONNX Runtime  | Intel Neural Compressor |
-|:----------------------------------:|:-------------:|:-----------------------:|
-| Post-training Dynamic Quantization |       ✅       |            ✅           |
-| Post-training Static Quantization  |       ✅       |            ✅           |
-| Quantization Aware Training (QAT)  | Stay tuned! ⭐ |            ✅           |
-|              Pruning               |      N/A       |            ✅           |
-
-
-## Quick tour
+# Inference pipelines
 
 The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification, question answering and image classification.
 

@@ -3,29 +3,43 @@
     title: 🤗 Optimum
   - local: installation
     title: Installation
-  - local: training
-    title: Accelerated training
-  - local: inference
-    title: Accelerated inference
-  title: Get started
+  - local: quicktour
+    title: Quick tour
+  - sections:
+    - local: concept_guides/quantization
+      title: Weight quantization
+    title: Conceptual guides
+  - sections:
+    - local: package_reference/modeling_base
+      title: Optimized models
+    - local: package_reference/benchmark
+      title: Benchmark
+    title: Reference
+  title: Overview
 - sections:
   - local: onnxruntime/overview
     title: Overview
-  - local: onnxruntime/quicktour
+  - local: onnxruntime/quickstart
     title: Quick tour
   - sections:
-    - local: onnxruntime/tutorials
+    - local: onnxruntime/tutorials/overview
       title: Overview
-    - local: onnxruntime/inference
-      title: Inference
     title: Tutorials
   - sections:
-    - local: onnxruntime/how_to
-      title: Overview
+    - local: onnxruntime/usage_guides/pipelines
+      title: Inference pipelines
+    - local: onnxruntime/usage_guides/models
+      title: Models for inference
+    - local: onnxruntime/usage_guides/optimization
+      title: How to apply graph optimization
+    - local: onnxruntime/usage_guides/quantization
+      title: How to apply dynamic and static quantization
+    - local: onnxruntime/usage_guides/trainer
+      title: How to accelerate training
     title: How-to guides
   - sections:
-    - local: onnxruntime/onnx
-      title: What is ONNX?
+    - local: onnxruntime/concept_guides/onnx
+      title: ONNX 🤝 ONNX Runtime
     title: Conceptual guides
   - sections:
     - local: onnxruntime/package_reference/modeling_ort
@@ -41,18 +55,22 @@
     title: Reference
   title: ONNX Runtime
 - sections:
-  - local: fx/optimization
-    title: Optimization
+  - local: fx/overview
+    title: Overview
+  - sections:
+    - local: fx/tutorials/overview
+      title: Overview
+    title: Tutorials
+  - sections:
+    - local: fx/usage_guides/optimization
+      title: Optimization
+    title: How-to guides
+  - sections:
+    - local: fx/concept_guides/symbolic_tracer
+      title: Symbolic tracer
+    title: Conceptual guides
+  - sections:
+    - local: fx/package_reference/optimization
+      title: Optimization
+    title: Reference
   title: Torch FX
-- sections:
-  - local: quantization
-    title: Quantization
-  - local: pruning
-    title: Pruning
-  title: Conceptual guides
-- sections:
-  - local: modeling_base
-    title: Optimized models
-  - local: benchmark
-    title: Benchmark
-  title: Main classes
