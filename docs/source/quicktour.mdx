@@ -25,11 +25,12 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `IPU
 + from optimum.graphcore import IPUConfig, IPUTrainer, IPUTrainingArguments
 
   # Download a pretrained model from the Hub
-  model = AutoModelForXxx.from_pretrained("Graphcore/bert-large-uncased")
+  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
 
   # Define the training arguments
 - training_args = TrainingArguments(
 + training_args = IPUTrainingArguments(
+      output_dir="path/to/save/folder/",
 +     ipu_config_name="Graphcore/bert-base-ipu", # Any IPUConfig on the Hub or stored locally
       ...
   )
@@ -60,26 +61,30 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
 - from transformers import Trainer, TrainingArguments
 + from optimum.habana import GaudiTrainer, GaudiTrainingArguments
 
-# Define the training arguments
+  # Download a pretrained model from the Hub
+  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
+
+  # Define the training arguments
 - training_args = TrainingArguments(
 + training_args = GaudiTrainingArguments(
+      output_dir="path/to/save/folder/",
 +     use_habana=True,
 +     use_lazy_mode=True,
 +     gaudi_config_name="Habana/bert-base-uncased",
       ...
-)
+  )
 
-# Initialize the trainer
+  # Initialize the trainer
 - trainer = Trainer(
 + trainer = GaudiTrainer(
       model=model,
       args=training_args,
-      train_dataset=train_dataset
+      train_dataset=train_dataset,
       ...
-)
+  )
 
-# Use Habana Gaudi processor for training!
-trainer.train()
+  # Use Habana Gaudi processor for training!
+  trainer.train()
 ```
 
 ### ONNX Runtime
@@ -90,18 +95,21 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
 - from transformers import Trainer
 + from optimum.onnxruntime import ORTTrainer
 
-# Create a ONNX Runtime Trainer
+  # Download a pretrained model from the Hub
+  model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
+
+  # Create a ONNX Runtime Trainer
 - trainer = Trainer(
 + trainer = ORTTrainer(
       model=model,
       args=training_args,
       train_dataset=train_dataset,
++     feature="sequence-classification", # The model type to export to ONNX
       ...
-+     feature="sequence-classification",
-)
+  )
 
-# Use ONNX Runtime for training!
-trainer.train()
+  # Use ONNX Runtime for training!
+  trainer.train()
 ```
 
 
@@ -161,10 +169,13 @@ Here is an example on how to perform inference with the OpenVINO Runtime:
 + from optimum.intel.openvino import OVModelForSequenceClassification
   from transformers import AutoTokenizer, pipeline
 
+  # Download a tokenizer and model from the Hub and convert to OpenVINO format
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
 + model = OVModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-  tokenizer = AutoTokenizer.from_pretrained(model_id)
+
+  # Run inference!
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
 ```
