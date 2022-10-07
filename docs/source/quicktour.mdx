@@ -24,21 +24,20 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `IPU
 - from transformers import Trainer, TrainingArguments
 + from optimum.graphcore import IPUConfig, IPUTrainer, IPUTrainingArguments
 
-+ ipu_config = IPUConfig.from_pretrained(
-+     "Graphcore/bert-large-ipu",
-+     cache_dir=model_args.cache_dir,
-+     revision=model_args.model_revision,
-+     use_auth_token=True if model_args.use_auth_token else None,
-+ )
+  # Download a pretrained model from the Hub
+  model = AutoModelForXxx.from_pretrained("Graphcore/bert-large-uncased")
 
-# Define the training arguments
+  # Define the training arguments
 - training_args = TrainingArguments(
 + training_args = IPUTrainingArguments(
-+     pod_type="pod16",
++     ipu_config_name="Graphcore/bert-base-ipu", # Any IPUConfig on the Hub or stored locally
       ...
-)
+  )
 
-# Initialize the trainer
+  # Define the configuration to compile and put the model on the IPU
++ ipu_config = IPUConfig.from_pretrained(training_args.ipu_config_name)
+
+  # Initialize the trainer
 - trainer = Trainer(
 + trainer = IPUTrainer(
       model=model,
@@ -46,10 +45,10 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `IPU
       args=training_args,
       train_dataset=train_dataset
       ...
-)
+  )
 
-# Use Graphcore IPU for training!
-train_result = trainer.train()
+  # Use Graphcore IPU for training!
+  trainer.train()
 ```
 
 
@@ -80,12 +79,12 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
 )
 
 # Use Habana Gaudi processor for training!
-train_result = trainer.train()
+trainer.train()
 ```
 
 ### ONNX Runtime
 
-To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
 ```diff
 - from transformers import Trainer
@@ -97,15 +96,12 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
       model=model,
       args=training_args,
       train_dataset=train_dataset,
-      eval_dataset=eval_dataset,
-      compute_metrics=compute_metrics,
-      tokenizer=tokenizer,
-      data_collator=default_data_collator,
+      ...
 +     feature="sequence-classification",
 )
 
 # Use ONNX Runtime for training!
-train_result = trainer.train()
+trainer.train()
 ```
 
 
@@ -113,9 +109,9 @@ train_result = trainer.train()
 
 ### ONNX Runtime
 
-At its core, 🤗 Optimum uses _configuration objects_ to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_.
+To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_.
 
-Before applying quantization or optimization, we first need to export our model to the ONNX format.
+Before applying quantization or optimization, first export our model to the ONNX format:
 
 ```python
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification
