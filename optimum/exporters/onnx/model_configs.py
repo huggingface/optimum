@@ -24,10 +24,10 @@ from ...utils import (
     NormalizedConfig,
     NormalizedSeq2SeqConfig,
 )
-from .config import AutoEncoderOnnxConfig, DecoderOnnxConfig, Seq2SeqOnnxConfig
+from .config import EncoderOnnxConfig, DecoderOnnxConfig, Seq2SeqOnnxConfig
 
 
-class BertOnnxConfig(AutoEncoderOnnxConfig):
+class BertOnnxConfig(EncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
     @property

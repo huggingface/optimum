@@ -37,7 +37,7 @@ from transformers.testing_utils import require_onnx, require_tf, require_torch, 
 
 
 if is_torch_available() or is_tf_available():
-    from optimum.exporters.onnx.features import FeaturesManager
+    from optimum.exporters.features import FeaturesManager
 
 
 PYTORCH_EXPORT_MODELS = {
@@ -231,7 +231,7 @@ def _get_models_to_test(export_models_list):
                     feature: FeaturesManager.get_config(name, feature) for _ in features for feature in _
                 }
             else:
-                feature_config_mapping = FeaturesManager.get_supported_features_for_model_type(name)
+                feature_config_mapping = FeaturesManager.get_supported_features_for_model_type(name, "onnx")
 
             for feature, onnx_config_class_constructor in feature_config_mapping.items():
                 models_to_test.append((f"{name}_{feature}", name, model, feature, onnx_config_class_constructor))

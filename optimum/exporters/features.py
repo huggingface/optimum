@@ -23,8 +23,8 @@ from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 if TYPE_CHECKING:
-    # from .onnx.base import OnnxConfig
     from transformers import PreTrainedModel, TFPreTrainedModel
+    from .base import ExportConfig
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -63,30 +63,35 @@ if not is_torch_available() and not is_tf_available():
         " without one of these libraries installed."
     )
 
+ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
+FeatureNameToExportConfigDict = Dict[str, ExportConfigConstructor]
+
 
 def supported_features_mapping(
-    *supported_features: str, **kwargs: str
-) -> Dict[str, Callable[[PretrainedConfig], OnnxConfig]]:
+    *supported_features: str, **exporters: str
+) -> Dict[str, FeatureNameToExportConfigDict]:
     """
-    Generate the mapping between supported the features and their corresponding OnnxConfig for a given model.
+    Generate the mapping between supported the features and their corresponding `ExportConfig` for a given model, for
+    every backend.
 
     Args:
-        *supported_features: The names of the supported features.
-        onnx_config_cls: The OnnxConfig full name corresponding to the model.
-
+        supported_features (`Tuple[str]`):
+        The names of the supported features.
+        exporters (`Dict[str, str]`):
+            The export backend name -> config class name mapping. For instance, for instance:
+            ```
+            kwargs = {
+                "onnx": "BertOnnxConfig",
+                "tflite": "BertTFLiteConfig",
+                ...
+            }
+            ```
     Returns:
-        The dictionary mapping a feature to an OnnxConfig constructor.
+        `Dict[str, FeatureNameToExportConfigDict]`: The dictionary mapping a feature to an `ExportConfig` constructor.
     """
-    # if onnx_config_cls is None:
-    #     raise ValueError("A OnnxConfig class must be provided")
-
-    # config_cls = optimum.exporters.onnx.model_configs
-    # config_cls = getattr(importlib.import_module(".model_configs", package="optimum.exporters.onnx"), onnx_config_cls)
-    # for attr_name in onnx_config_cls.split("."):
-    #     config_cls = getattr(config_cls, attr_name)
     mapping = {}
-    for backend, config_cls_name in kwargs.items():
-        config_cls = getattr(importlib.import_module(f"{backend}.model_configs"), config_cls_name)
+    for backend, config_cls_name in exporters.items():
+        config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
         mapping[backend] = {}
         for feature in supported_features:
             if "-with-past" in feature:
@@ -526,33 +531,41 @@ class FeaturesManager:
         # ),
     }
 
-    AVAILABLE_FEATURES = sorted(reduce(lambda s1, s2: s1 | s2, (v.keys() for v in _SUPPORTED_MODEL_TYPE.values())))
-
     @staticmethod
     def get_supported_features_for_model_type(
-        model_type: str, model_name: Optional[str] = None
-    ) -> Dict[str, Callable[[PretrainedConfig], OnnxConfig]]:
+        model_type: str, exporter: str, model_name: Optional[str] = None
+    ) -> FeatureNameToExportConfigDict:
         """
-        Tries to retrieve the feature -> OnnxConfig constructor map from the model type.
+        Tries to retrieve the feature -> exporter backend config constructors map from the model type.
 
         Args:
             model_type (`str`):
                 The model type to retrieve the supported features for.
+            exporter (`str`):
+                The name of the exporter.
             model_name (`str`, *optional*):
                 The name attribute of the model object, only used for the exception message.
 
         Returns:
-            The dictionary mapping each feature to a corresponding OnnxConfig constructor.
+            `FeatureNameToExportConfigDict`: The dictionary mapping each feature to a corresponding `ExportConfig`
+            constructor.
         """
         model_type = model_type.lower()
+        model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
         if model_type not in FeaturesManager._SUPPORTED_MODEL_TYPE:
-            model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
                 f"Only {list(FeaturesManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
-        return FeaturesManager._SUPPORTED_MODEL_TYPE[model_type]
+        elif exporter not in FeaturesManager._SUPPORTED_MODEL_TYPE[model_type]:
+            raise KeyError(
+                f"{model_type_and_model_name} is not supported yet with the {exporter} backend. "
+                f"Only {list(FeaturesManager._SUPPORTED_MODEL_TYPE[model_type].keys())} are supported. "
+                f"If you want to support {exporter} please propose a PR or open up an issue."
+            )
+        else:
+            return FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
     def feature_to_task(feature: str) -> str:
@@ -566,7 +579,7 @@ class FeaturesManager:
         """
         if framework not in ["pt", "tf"]:
             raise ValueError(
-                f"Only two frameworks are supported for ONNX export: pt or tf, but {framework} was provided."
+                f"Only two frameworks are supported for export: pt or tf, but {framework} was provided."
             )
         elif framework == "pt" and not is_torch_available():
             raise RuntimeError("Cannot export model to ONNX using PyTorch because no PyTorch package was found.")
@@ -599,6 +612,7 @@ class FeaturesManager:
             )
         return task_to_automodel[task]
 
+    # TODO: refactor this!
     @staticmethod
     def determine_framework(model: str, framework: str = None) -> str:
         """
@@ -675,49 +689,57 @@ class FeaturesManager:
             model = model_class.from_pretrained(model, cache_dir=cache_dir)
         except OSError:
             if framework == "pt":
-                logger.info("Loading TensorFlow model in PyTorch before exporting to ONNX.")
+                logger.info("Loading TensorFlow model in PyTorch before exporting.")
                 model = model_class.from_pretrained(model, from_tf=True, cache_dir=cache_dir)
             else:
-                logger.info("Loading PyTorch model in TensorFlow before exporting to ONNX.")
+                logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 model = model_class.from_pretrained(model, from_pt=True, cache_dir=cache_dir)
         return model
 
     @staticmethod
     def check_supported_model_or_raise(
-        model: Union["PreTrainedModel", "TFPreTrainedModel"], feature: str = "default"
-    ) -> Tuple[str, Callable]:
+        model: Union["PreTrainedModel", "TFPreTrainedModel"], exporter: str, feature: str = "default"
+    ) -> Tuple[str, ExportConfigConstructor]:
         """
         Check whether or not the model has the requested features.
 
         Args:
-            model: The model to export.
-            feature: The name of the feature to check if it is available.
+            model (`Union[PreTrainedModel, TFPreTrainedModel]`):
+                The model to export.
+            exporter (`str`):
+                The exporter to use.
+            feature (`str`):
+                The name of the feature to check if it is available.
 
         Returns:
-            (str) The type of the model (OnnxConfig) The OnnxConfig instance holding the model export properties.
+             `Tuple[str, ExportConfigConstructor]`: The model type as well as the `ExportConfig`
+             constructor for the requested backend.
 
         """
         model_type = model.config.model_type.replace("_", "-")
         model_name = getattr(model, "name", "")
-        model_features = FeaturesManager.get_supported_features_for_model_type(model_type, model_name=model_name)
+        model_features = FeaturesManager.get_supported_features_for_model_type(model_type, exporter, model_name=model_name)
         if feature not in model_features:
             raise ValueError(
-                f"{model.config.model_type} doesn't support feature {feature}. Supported values are: {model_features}"
+                f"{model.config.model_type} doesn't support feature {feature} for the {exporter} backend."
+                f" Supported values are: {model_features}"
             )
 
-        return model.config.model_type, FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][feature]
+        return model.config.model_type, FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][exporter][feature]
 
-    def get_config(model_type: str, feature: str) -> OnnxConfig:
+    def get_config(model_type: str, exporter: str, feature: str) -> ExportConfigConstructor:
         """
         Gets the OnnxConfig for a model_type and feature combination.
 
         Args:
             model_type (`str`):
                 The model type to retrieve the config for.
+            exporter (`str`):
+                The exporter to use.
             feature (`str`):
                 The feature to retrieve the config for.
 
         Returns:
-            `OnnxConfig`: config for the combination
+            `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
-        return FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][feature]
+        return FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][exporter][feature]

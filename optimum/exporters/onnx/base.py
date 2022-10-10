@@ -25,6 +25,7 @@ from transformers.utils import is_tf_available, is_torch_available, is_vision_av
 
 from ...utils import logging
 from ...utils.input_generators import DummyInputGenerator
+from ..base import ExportConfig
 from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 from .utils import ParameterFormat, compute_serialized_parameters_size
 
@@ -69,7 +70,7 @@ class PatchingSpec:
     op_wrapper: Optional[Callable] = None
 
 
-class OnnxConfig(ABC):
+class OnnxConfig(ExportConfig, ABC):
     """
     Base class for ONNX exportable model describing metadata on how to export the model through the ONNX format.
 

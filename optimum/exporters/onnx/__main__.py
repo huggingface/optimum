@@ -18,8 +18,8 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from ...utils import logging
+from ..features import FeaturesManager
 from .convert import export, validate_model_outputs
-from .features import FeaturesManager
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
     )
     parser.add_argument(
         "--feature",
-        choices=list(FeaturesManager.AVAILABLE_FEATURES),
+        # choices=list(FeaturesManager.AVAILABLE_FEATURES),
         default="default",
         help="The type of features to export the model with.",
     )
@@ -62,7 +62,7 @@ def main():
     model = FeaturesManager.get_model_from_feature(
         args.feature, args.model, framework=args.framework, cache_dir=args.cache_dir
     )
-    model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=args.feature)
+    model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, "onnx", feature=args.feature)
     onnx_config = model_onnx_config(model.config)
 
     # Ensure the requested opset is sufficient
