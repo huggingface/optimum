@@ -128,6 +128,7 @@ Before applying quantization or optimization, first export our model to the ONNX
 >>> save_directory = "tmp/onnx/"
 >>> # Load a model from transformers and export it to ONNX
 >>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
 >>> # Save the onnx model and tokenizer
 >>> ort_model.save_pretrained(save_directory)
 >>> tokenizer.save_pretrained(save_directory)
