@@ -17,7 +17,7 @@
 import functools
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union
 
 from transformers.utils import is_tf_available, is_torch_available
 
@@ -131,23 +131,37 @@ class DummyTextInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedConfig,
-        batch_size: Optional[int] = None,
-        sequence_length: Optional[int] = None,
-        num_choices: Optional[int] = None,
+        batch_size: int = 2,
+        sequence_length: int = 16,
+        num_choices: int = 4,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        random_num_choices_range: Optional[Tuple[int, int]] = None,
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
-        self.batch_size = random.randint(2, 4) if batch_size is None else batch_size
-        self.sequence_length = random.randint(128, 384) if sequence_length is None else sequence_length
-        self.num_choices = random.randint(2, 4) if num_choices is None else num_choices
+        if random_batch_size_range:
+            low, high = random_batch_size_range
+            self.batch_size = random.randint(low, high)
+        else:
+            self.batch_size = batch_size
+        if random_sequence_length_range:
+            low, high = random_sequence_length_range
+            self.sequence_length = random.randint(low, high)
+        else:
+            self.sequence_length = sequence_length
+        if random_num_choices_range:
+            low, high = random_num_choices_range
+            self.num_choices = random.randint(low, high)
+        else:
+            self.num_choices = num_choices
 
     def generate(self, input_name: str, framework: Optional[str] = "pt"):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
         shape = [self.batch_size, self.sequence_length]
-        if self.task == "multiple_choice":
-            # TODO: check that.
-            shape = [self.num_choices, self.batch_size, self.sequence_length]
+        if self.task == "multiple-choice":
+            shape = [self.batch_size, self.num_choices, self.sequence_length]
         return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework)
 
 
@@ -165,14 +179,24 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedConfig,
-        batch_size: Optional[int] = None,
-        sequence_length: Optional[int] = None,
+        batch_size: int = 2,
+        sequence_length: int = 16,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
         self.num_layers = normalized_config.num_layers
         self.num_attention_heads = normalized_config.num_attention_heads
         self.hidden_size = normalized_config.hidden_size
-        self.batch_size = random.randint(2, 4) if batch_size is None else batch_size
-        self.sequence_length = random.randint(128, 384) if sequence_length is None else sequence_length
+        if random_batch_size_range:
+            low, high = random_batch_size_range
+            self.batch_size = random.randint(low, high)
+        else:
+            self.batch_size = batch_size
+        if random_sequence_length_range:
+            low, high = random_sequence_length_range
+            self.sequence_length = random.randint(low, high)
+        else:
+            self.sequence_length = sequence_length
 
     def generate(self, input_name: str, framework: Optional[str] = "pt"):
         shape = (
@@ -197,13 +221,23 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedSeq2SeqConfig,
-        batch_size: Optional[int] = None,
+        batch_size: int = 2,
+        sequence_length: int = 16,
         encoder_sequence_length: Optional[int] = None,
-        sequence_length: Optional[int] = None,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
         self.normalized_config = normalized_config
-        self.batch_size = random.randint(2, 4) if batch_size is None else batch_size
-        self.sequence_length = random.randint(128, 384) if sequence_length is None else sequence_length
+        if random_batch_size_range:
+            low, high = random_batch_size_range
+            self.batch_size = random.randint(low, high)
+        else:
+            self.batch_size = batch_size
+        if random_sequence_length_range:
+            low, high = random_sequence_length_range
+            self.sequence_length = random.randint(low, high)
+        else:
+            self.sequence_length = sequence_length
         self.encoder_sequence_length = (
             self.sequence_length if encoder_sequence_length is None else encoder_sequence_length
         )

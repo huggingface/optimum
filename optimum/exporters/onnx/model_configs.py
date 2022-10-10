@@ -49,6 +49,34 @@ class BertOnnxConfig(EncoderOnnxConfig):
         return 1e-4
 
 
+class AlbertOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class ConvBertOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class ElectraOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class RoFormerOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class SqueezeBertOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class MobileBertOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class XLMOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class DistilBertOnnxConfig(BertOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -68,6 +96,21 @@ class RobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
+class CamembertOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
+class FlaubertOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
+class IBertOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
+class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
+    pass
+
 # TODO: validate that
 class DebertaOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
@@ -81,10 +124,6 @@ class DebertaOnnxConfig(BertOnnxConfig):
 
 
 class DebertaV2OnnxConfig(DebertaOnnxConfig):
-    pass
-
-
-class FlaubertOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
@@ -103,6 +142,10 @@ class GPT2OnnxConfig(DecoderOnnxConfig):
         return pad_value_override
 
 
+# TODO: validate that.
+class BloomOnnxConfig(GPT2OnnxConfig):
+    pass
+
 class GPTNeoOnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_attention_heads="num_heads")
@@ -113,6 +156,33 @@ class T5OnnxConfig(Seq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         num_attention_heads="num_heads", decoder_num_layers="num_decoder_layers"
     )
+
+
+class MT5OnnxConfig(T5OnnxConfig):
+    pass
+
+
+class LongT5OnnxConfig(Seq2SeqOnnxConfig):
+	pass
+    # @property
+    # def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    #     common_inputs = {
+    #         "input_ids": {0: "batch", 1: "encoder_sequence"},
+    #         "attention_mask": {0: "batch", 1: "encoder_sequence"},
+    #     }
+    #     if self.use_past:
+    #         common_inputs["attention_mask"][1] = "past_encoder_sequence + sequence"
+    #         common_inputs["decoder_input_ids"] = {0: "batch"}
+    #         common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
+    #     else:
+    #         common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
+    #         common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
+
+    #     if self.use_past:
+    #         self.fill_with_past_key_values_(common_inputs, direction="inputs")
+
+    #     return common_inputs
+
 
 
 # class BartOnnxConfig(Seq2SeqOnnxConfig):
