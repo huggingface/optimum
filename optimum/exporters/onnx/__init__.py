@@ -12,3 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from .config import EncoderOnnxConfig, DecoderOnnxConfig, Seq2SeqOnnxConfig
+from .convert import export, validate_model_outputs

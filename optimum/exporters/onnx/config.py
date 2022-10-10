@@ -26,7 +26,7 @@ from ...utils import (
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
-class AutoEncoderOnnxConfig(OnnxConfig):
+class EncoderOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
 

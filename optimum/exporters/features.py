@@ -1,3 +1,19 @@
+# coding=utf-8
+# Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Model export features manager."""
+
 import importlib
 import os
 from functools import partial, reduce
@@ -6,12 +22,8 @@ from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Type, Union
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
-import optimum
-
-from .base import OnnxConfig
-
-
 if TYPE_CHECKING:
+    # from .onnx.base import OnnxConfig
     from transformers import PreTrainedModel, TFPreTrainedModel
 
 
@@ -47,13 +59,13 @@ if is_tf_available():
     )
 if not is_torch_available() and not is_tf_available():
     logger.warning(
-        "The ONNX export features are only supported for PyTorch or TensorFlow. You will not be able to export models"
+        "The export features are only supported for PyTorch or TensorFlow. You will not be able to export models"
         " without one of these libraries installed."
     )
 
 
 def supported_features_mapping(
-    *supported_features: str, onnx_config_cls: str = None
+    *supported_features: str, **kwargs: str
 ) -> Dict[str, Callable[[PretrainedConfig], OnnxConfig]]:
     """
     Generate the mapping between supported the features and their corresponding OnnxConfig for a given model.
@@ -65,20 +77,23 @@ def supported_features_mapping(
     Returns:
         The dictionary mapping a feature to an OnnxConfig constructor.
     """
-    if onnx_config_cls is None:
-        raise ValueError("A OnnxConfig class must be provided")
+    # if onnx_config_cls is None:
+    #     raise ValueError("A OnnxConfig class must be provided")
 
     # config_cls = optimum.exporters.onnx.model_configs
-    config_cls = getattr(importlib.import_module(".model_configs", package="optimum.exporters.onnx"), onnx_config_cls)
+    # config_cls = getattr(importlib.import_module(".model_configs", package="optimum.exporters.onnx"), onnx_config_cls)
     # for attr_name in onnx_config_cls.split("."):
     #     config_cls = getattr(config_cls, attr_name)
     mapping = {}
-    for feature in supported_features:
-        if "-with-past" in feature:
-            task = feature.replace("-with-past", "")
-            mapping[feature] = partial(config_cls.with_past, task=task)
-        else:
-            mapping[feature] = partial(config_cls, task=feature)
+    for backend, config_cls_name in kwargs.items():
+        config_cls = getattr(importlib.import_module(f"{backend}.model_configs"), config_cls_name)
+        mapping[backend] = {}
+        for feature in supported_features:
+            if "-with-past" in feature:
+                task = feature.replace("-with-past", "")
+                mapping[backend][feature] = partial(config_cls.with_past, task=task)
+            else:
+                mapping[backend][feature] = partial(config_cls, task=feature)
 
     return mapping
 
@@ -149,7 +164,7 @@ class FeaturesManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            onnx_config_cls="BertOnnxConfig",
+            onnx="BertOnnxConfig",
         ),
         # "big-bird": supported_features_mapping(
         #     "default",
@@ -254,7 +269,7 @@ class FeaturesManager:
             "sequence-classification",
             "token-classification",
             "question-answering",
-            onnx_config_cls="DebertaOnnxConfig",
+            onnx="DebertaOnnxConfig",
         ),
         "deberta-v2": supported_features_mapping(
             "default",
@@ -263,7 +278,7 @@ class FeaturesManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            onnx_config_cls="DebertaV2OnnxConfig",
+            onnx="DebertaV2OnnxConfig",
         ),
         # "deit": supported_features_mapping(
         #     "default", "image-classification", "masked-im", onnx_config_cls="models.deit.DeiTOnnxConfig"
@@ -281,7 +296,7 @@ class FeaturesManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            onnx_config_cls="DistilBertOnnxConfig",
+            onnx="DistilBertOnnxConfig",
         ),
         # "electra": supported_features_mapping(
         #     "default",
@@ -301,7 +316,7 @@ class FeaturesManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            onnx_config_cls="FlaubertOnnxConfig",
+            onnx="FlaubertOnnxConfig",
         ),
         "gpt2": supported_features_mapping(
             "default",
@@ -310,7 +325,7 @@ class FeaturesManager:
             "causal-lm-with-past",
             "sequence-classification",
             "token-classification",
-            onnx_config_cls="GPT2OnnxConfig",
+            onnx="GPT2OnnxConfig",
         ),
         # "gptj": supported_features_mapping(
         #     "default",
@@ -327,7 +342,7 @@ class FeaturesManager:
             "causal-lm",
             "causal-lm-with-past",
             "sequence-classification",
-            onnx_config_cls="GPTNeoOnnxConfig",
+            onnx="GPTNeoOnnxConfig",
         ),
         # "groupvit": supported_features_mapping(
         #     "default",
@@ -446,7 +461,7 @@ class FeaturesManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            onnx_config_cls="RobertaOnnxConfig",
+            onnx="RobertaOnnxConfig",
         ),
         # "roformer": supported_features_mapping(
         #     "default",
@@ -479,7 +494,7 @@ class FeaturesManager:
             "default-with-past",
             "seq2seq-lm",
             "seq2seq-lm-with-past",
-            onnx_config_cls="T5OnnxConfig",
+            onnx="T5OnnxConfig",
         ),
         # "vit": supported_features_mapping(
         #     "default", "image-classification", "masked-im", onnx_config_cls="models.vit.ViTOnnxConfig"
@@ -601,7 +616,7 @@ class FeaturesManager:
                 The framework to use for the export. See above for priority if none provided.
 
         Returns:
-            The framework to use for the export.
+            `str`: The framework to use for the export.
 
         """
         if framework is not None:
