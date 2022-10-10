@@ -63,165 +63,171 @@ For the accelerator-specific features, you can install them by appending `#egg=o
 python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
 ```
 
-## Quickstart
+## Quick tour
 
-At its core, 🤗 Optimum uses configuration objects to define parameters for optimization on different accelerators. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_.
+Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
 
-### Exporting Transformers models to ONNX
+### Accelerated training
 
-Before applying quantization or optimization, we first need to export our model to the ONNX format.
+#### Optimum Graphcore
 
-```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import AutoTokenizer
+To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
-model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
-save_directory = "tmp/onnx/"
+```diff
+- from transformers import Trainer, TrainingArguments
++ from optimum.graphcore import IPUConfig, IPUTrainer, IPUTrainingArguments
 
-# Load a model from transformers and export it to ONNX
-ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
-tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+  # Download a pretrained model from the Hub
+  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
 
-# Save the onnx model and tokenizer
-ort_model.save_pretrained(save_directory)
-tokenizer.save_pretrained(save_directory)
+  # Define the training arguments
+- training_args = TrainingArguments(
++ training_args = IPUTrainingArguments(
+      output_dir="path/to/save/folder/",
++     ipu_config_name="Graphcore/bert-base-ipu", # Any IPUConfig on the Hub or stored locally
+      ...
+  )
+
+  # Define the configuration to compile and put the model on the IPU
++ ipu_config = IPUConfig.from_pretrained(training_args.ipu_config_name)
+
+  # Initialize the trainer
+- trainer = Trainer(
++ trainer = IPUTrainer(
+      model=model,
++     ipu_config=ipu_config
+      args=training_args,
+      train_dataset=train_dataset
+      ...
+  )
+
+  # Use Graphcore IPU for training!
+  trainer.train()
 ```
 
-### Quantization
+
+#### Optimum Habana
+
+To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+
+```diff
+- from transformers import Trainer, TrainingArguments
++ from optimum.habana import GaudiTrainer, GaudiTrainingArguments
+
+  # Download a pretrained model from the Hub
+  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
+
+  # Define the training arguments
+- training_args = TrainingArguments(
++ training_args = GaudiTrainingArguments(
+      output_dir="path/to/save/folder/",
++     use_habana=True,
++     use_lazy_mode=True,
++     gaudi_config_name="Habana/bert-base-uncased",
+      ...
+  )
+
+  # Initialize the trainer
+- trainer = Trainer(
++ trainer = GaudiTrainer(
+      model=model,
+      args=training_args,
+      train_dataset=train_dataset,
+      ...
+  )
+
+  # Use Habana Gaudi processor for training!
+  trainer.train()
+```
+
+#### ONNX Runtime
+
+To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+
+```diff
+- from transformers import Trainer
++ from optimum.onnxruntime import ORTTrainer
+
+  # Download a pretrained model from the Hub
+  model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
+
+  # Create a ONNX Runtime Trainer
+- trainer = Trainer(
++ trainer = ORTTrainer(
+      model=model,
+      args=training_args,
+      train_dataset=train_dataset,
++     feature="sequence-classification", # The model type to export to ONNX
+      ...
+  )
+
+  # Use ONNX Runtime for training!
+  trainer.train()
+```
+
+
+### Accelerated inference
+
+#### ONNX Runtime
+
+To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
+
+Before applying quantization or optimization, first export our model to the ONNX format:
+
+```python
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import AutoTokenizer
+>>> model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> save_directory = "tmp/onnx/"
+>>> # Load a model from transformers and export it to ONNX
+>>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+>>> # Save the onnx model and tokenizer
+>>> ort_model.save_pretrained(save_directory)
+>>> tokenizer.save_pretrained(save_directory)
+```
 
 Let's see now how we can apply dynamic quantization with ONNX Runtime:
 
 ```python
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
-from optimum.onnxruntime import ORTQuantizer
+>>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
+>>> from optimum.onnxruntime import ORTQuantizer
 
-# Define the quantization methodology
-qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
-quantizer = ORTQuantizer.from_pretrained(ort_model)
-
-# Apply dynamic quantization on the model
-quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
+>>> # Define the quantization methodology
+>>> qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
+>>> quantizer = ORTQuantizer.from_pretrained(ort_model)
+>>> # Apply dynamic quantization on the model
+>>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
 ```
 
-In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference.
-
-Here's an example of how to load an ONNX Runtime model and generate predictions with it:
+In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import pipeline, AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import pipeline, AutoTokenizer
 
-model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
-tokenizer = AutoTokenizer.from_pretrained(save_directory)
-
-cls_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
-
-results = cls_pipeline("I love burritos!")
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
+>>> tokenizer = AutoTokenizer.from_pretrained(save_directory)
+>>> classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> results = classifier("I love burritos!")
 ```
 
-Similarly, you can apply static quantization by simply setting `is_static` to `True` when instantiating the `QuantizationConfig` object:
+#### Optimum Intel
 
-```python
-qconfig = AutoQuantizationConfig.arm64(is_static=True, per_channel=False)
-```
-
-Static quantization relies on feeding batches of data through the model to estimate the activation quantization parameters ahead of inference time. To support this, 🤗 Optimum allows you to provide a _calibration dataset_. The calibration dataset can be a simple `Dataset` object from the 🤗 Datasets library, or any dataset that's hosted on the Hugging Face Hub. For this example, we'll pick the [`sst2`](https://huggingface.co/datasets/glue/viewer/sst2/test) dataset that the model was originally trained on:
-
-```python
-from functools import partial
-from optimum.onnxruntime.configuration import AutoCalibrationConfig
-
-# Define the processing function to apply to each example after loading the dataset
-def preprocess_fn(ex, tokenizer):
-    return tokenizer(ex["sentence"])
-
-# Create the calibration dataset
-calibration_dataset = quantizer.get_calibration_dataset(
-    "glue",
-    dataset_config_name="sst2",
-    preprocess_function=partial(preprocess_fn, tokenizer=tokenizer),
-    num_samples=50,
-    dataset_split="train",
-)
-# Create the calibration configuration containing the parameters related to calibration.
-calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
-# Perform the calibration step: computes the activations quantization ranges
-ranges = quantizer.fit(
-    dataset=calibration_dataset,
-    calibration_config=calibration_config,
-    operators_to_quantize=qconfig.operators_to_quantize,
-)
-
-# Apply static quantization on the model
-quantizer.quantize(
-    save_dir=save_directory,
-    calibration_tensors_range=ranges,
-    quantization_config=qconfig,
-)
-```
-
-### Graph optimization
-
-Then let's take a look at applying _graph optimizations_ techniques such as operator fusion and constant folding. As before, we load a configuration object, but this time by setting the optimization level instead of the quantization approach:
-
-```python
-from optimum.onnxruntime.configuration import OptimizationConfig
-
-# Here the optimization level is selected to be 1, enabling basic optimizations such as redundant
-# node eliminations and constant folding. Higher optimization level will result in a hardware
-# dependent optimized graph.
-optimization_config = OptimizationConfig(optimization_level=1)
-```
-
-Next, we load an _optimizer_ to apply these optimisations to our model:
-
-```python
-from optimum.onnxruntime import ORTOptimizer
-
-optimizer = ORTOptimizer.from_pretrained(ort_model)
-
-# Optimize the model
-optimizer.optimize(save_dir=save_directory, optimization_config=optimization_config)
-```
-
-And that's it - the model is now optimized and ready for inference!
-
-As you can see, the process is similar in each case:
-
-1. Define the optimization / quantization strategies via an `OptimizationConfig` / `QuantizationConfig` object
-2. Instantiate an `ORTQuantizer` or `ORTOptimizer` class
-3. Apply the `quantize()` or `optimize()` method
-4. Run inference
-
-### Training
-
-Besides supporting ONNX Runtime inference, 🤗 Optimum also supports training with ONNX Runtime backend. The `ORTTrainer` class possesses a similar behavior to the `Trainer` of 🤗 Transformers, but reduces the memory consumption and optimizes the computation graphs during training. As a result, you will experience an acceleration and feed larger batch size to your device.
-
-Replace `Trainer` with `ORTTrainer` to leverage ONNX Runtime on fine-tuning tasks:
+Here is an example on how to perform inference with the OpenVINO Runtime:
 
 ```diff
--from transformers import Trainer
-+from optimum.onnxruntime import ORTTrainer
+- from transformers import AutoModelForSequenceClassification
++ from optimum.intel.openvino import OVModelForSequenceClassification
+  from transformers import AutoTokenizer, pipeline
 
-# Step 1: Create your ONNX Runtime Trainer
--trainer = Trainer(
-+trainer = ORTTrainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=eval_dataset,
-    compute_metrics=compute_metrics,
-    tokenizer=tokenizer,
-    data_collator=default_data_collator,
-+   feature="sequence-classification",
-)
+  # Download a tokenizer and model from the Hub and convert to OpenVINO format
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
+  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+- model = AutoModelForSequenceClassification.from_pretrained(model_id)
++ model = OVModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
 
-# Step 2: Use ONNX Runtime for training!🤗
-train_result = trainer.train()
+  # Run inference!
+  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+  results = classifier("He's a dreadful magician.")
 ```
-
-Check out the [`examples`](https://github.com/huggingface/optimum/tree/main/examples) for more sophisticated usage.
-
-Happy optimizing 🤗!
-
 
