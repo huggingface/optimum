@@ -676,8 +676,8 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             gc.collect()
 
 
-# @slow
-# @require_torc
+@slow
+@require_torch
 class ORTTrainerIntegrationDDPTest(unittest.TestCase):
     def test_trainer_ddp_glue(self):
 
