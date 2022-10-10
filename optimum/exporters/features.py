@@ -22,8 +22,10 @@ from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Type, Union
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
+
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
+
     from .base import ExportConfig
 
 
@@ -67,9 +69,7 @@ ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 FeatureNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 
-def supported_features_mapping(
-    *supported_features: str, **exporters: str
-) -> Dict[str, FeatureNameToExportConfigDict]:
+def supported_features_mapping(*supported_features: str, **exporters: str) -> Dict[str, FeatureNameToExportConfigDict]:
     """
     Generate the mapping between supported the features and their corresponding `ExportConfig` for a given model, for
     every backend.
@@ -578,9 +578,7 @@ class FeaturesManager:
         exception.
         """
         if framework not in ["pt", "tf"]:
-            raise ValueError(
-                f"Only two frameworks are supported for export: pt or tf, but {framework} was provided."
-            )
+            raise ValueError(f"Only two frameworks are supported for export: pt or tf, but {framework} was provided.")
         elif framework == "pt" and not is_torch_available():
             raise RuntimeError("Cannot export model to ONNX using PyTorch because no PyTorch package was found.")
         elif framework == "tf" and not is_tf_available():
@@ -718,7 +716,9 @@ class FeaturesManager:
         """
         model_type = model.config.model_type.replace("_", "-")
         model_name = getattr(model, "name", "")
-        model_features = FeaturesManager.get_supported_features_for_model_type(model_type, exporter, model_name=model_name)
+        model_features = FeaturesManager.get_supported_features_for_model_type(
+            model_type, exporter, model_name=model_name
+        )
         if feature not in model_features:
             raise ValueError(
                 f"{model.config.model_type} doesn't support feature {feature} for the {exporter} backend."

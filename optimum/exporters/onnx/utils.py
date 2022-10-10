@@ -87,7 +87,7 @@ class ParameterFormat(Enum):
 
 def compute_serialized_parameters_size(num_parameters: int, dtype: ParameterFormat) -> int:
     """
-    Compute the size taken by all the parameters in the given the storage format when serializing the model
+    Compute the size taken by all the parameters in the given storage format when serializing the model
 
     Args:
         num_parameters: Number of parameters to be saved

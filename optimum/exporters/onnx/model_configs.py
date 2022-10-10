@@ -24,7 +24,7 @@ from ...utils import (
     NormalizedConfig,
     NormalizedSeq2SeqConfig,
 )
-from .config import EncoderOnnxConfig, DecoderOnnxConfig, Seq2SeqOnnxConfig
+from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig
 
 
 class BertOnnxConfig(EncoderOnnxConfig):
@@ -111,6 +111,7 @@ class IBertOnnxConfig(DistilBertOnnxConfig):
 class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
+
 # TODO: validate that
 class DebertaOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
@@ -146,6 +147,7 @@ class GPT2OnnxConfig(DecoderOnnxConfig):
 class BloomOnnxConfig(GPT2OnnxConfig):
     pass
 
+
 class GPTNeoOnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_attention_heads="num_heads")
@@ -163,7 +165,7 @@ class MT5OnnxConfig(T5OnnxConfig):
 
 
 class LongT5OnnxConfig(Seq2SeqOnnxConfig):
-	pass
+    pass
     # @property
     # def inputs(self) -> Mapping[str, Mapping[int, str]]:
     #     common_inputs = {
@@ -182,7 +184,6 @@ class LongT5OnnxConfig(Seq2SeqOnnxConfig):
     #         self.fill_with_past_key_values_(common_inputs, direction="inputs")
 
     #     return common_inputs
-
 
 
 # class BartOnnxConfig(Seq2SeqOnnxConfig):

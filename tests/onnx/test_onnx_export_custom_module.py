@@ -13,15 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import pytest
 from unittest import TestCase
 
+import pytest
 from transformers import is_torch_available
 from transformers.testing_utils import require_torch
 
+
 if is_torch_available():
     import torch
-
     from transformers.models.deberta import modeling_deberta
 
 

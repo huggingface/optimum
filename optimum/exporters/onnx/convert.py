@@ -40,10 +40,9 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 def ensure_model_and_config_inputs_match(
     model: Union["PreTrainedModel", "TFPreTrainedModel"], model_inputs: Iterable[str]
-) -> Tuple[bool, List[str]]:
+) -> List[str]:
     """
-    Checks that `model_inputs` is a subset of the allowed inputs for `model`, and the input names in the proper order.
-
+    Checks that `model_inputs` is a subset of the allowed inputs for `model`, and returns the inputs in the proper order.
     Args:
         model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
             The model instance.
@@ -51,7 +50,7 @@ def ensure_model_and_config_inputs_match(
             The model input names.
 
     Returns:
-        `Tuple[bool, List[str]]`: A tuple with two elements, the first specifying whether `model_inputs` are correct
+        `List[str]`: A tuple with two elements, the first specifying whether `model_inputs` are correct
         considering the model, and the second being the input names correctly ordered.
     """
     forward = model.forward if is_torch_available() and issubclass(type(model), PreTrainedModel) else model.call
@@ -60,13 +59,16 @@ def ensure_model_and_config_inputs_match(
     model_inputs_set = set(model_inputs)
 
     # We are fine if config_inputs has more keys than model_inputs
-    is_ok = model_inputs_set.issubset(forward_inputs_set)
+    if not model_inputs_set.issubset(forward_inputs_set):
+        raise ValueError(
+            f"Config inputs are not a subset of the model inputs: {model_inputs_set} vs {forward_inputs_set}"
+        )
 
     # Make sure the input order match (VERY IMPORTANT !!!!)
     matching_inputs = forward_inputs_set.intersection(model_inputs_set)
     ordered_inputs = [parameter for parameter in forward_parameters.keys() if parameter in matching_inputs]
 
-    return is_ok, ordered_inputs
+    return ordered_inputs
 
 
 def export_pytorch(
@@ -118,12 +120,9 @@ def export_pytorch(
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
-            model_inputs = dict((k, v.to(device)) for k, v in model_inputs.items())
+            model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
         inputs_match, matched_inputs = ensure_model_and_config_inputs_match(model, model_inputs.keys())
         onnx_outputs = list(config.outputs.keys())
-
-        if not inputs_match:
-            raise ValueError("Model and config inputs doesn't match.")
 
         config.patch_ops()
 
@@ -227,11 +226,8 @@ def export_tensorflow(
 
     # Ensure inputs match
     model_inputs = config.generate_dummy_inputs(framework="tf")
-    inputs_match, matched_inputs = ensure_model_and_config_inputs_match(model, model_inputs.keys())
+    matched_inputs = ensure_model_and_config_inputs_match(model, model_inputs.keys())
     onnx_outputs = list(config.outputs.keys())
-
-    if not inputs_match:
-        raise ValueError("Model and config inputs doesn't match.")
 
     config.patch_ops()
     input_signature = [tf.TensorSpec.from_tensor(tensor, name=key) for key, tensor in model_inputs.items()]
@@ -271,7 +267,7 @@ def export(
     """
     if not (is_torch_available() or is_tf_available()):
         raise ImportError(
-            "Cannot convert because neither PyTorch nor TensorFlow are not installed. "
+            "Cannot convert because neither PyTorch nor TensorFlow are installed. "
             "Please install torch or tensorflow first."
         )
 
@@ -390,8 +386,8 @@ def validate_model_outputs(
 
     if shape_failures:
         msg = "\n\t".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
-        raise ValueError("Outputs shape doesn't match between reference model and ONNX exported model:\n" f"{msg}")
+        raise ValueError("Output shapes do not match between reference model and ONNX exported model:\n" f"{msg}")
 
     if value_failures:
         msg = "\n\t".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
-        raise ValueError("Outputs values doesn't match between reference model and ONNX exported model:\n" f"{msg}")
+        raise ValueError("Output values do not match between reference model and ONNX exported model:\n" f"{msg}")

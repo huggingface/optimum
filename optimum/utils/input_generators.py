@@ -52,8 +52,6 @@ class NormalizedConfig:
         return functools.partial(cls, **kwargs)
 
     def __getattribute__(self, attr_name):
-        # if attr_name == attr_name.upper():
-        #     return super().__getattr__(self, attr_name)
         if attr_name.startswith("__") or not attr_name.upper() in dir(self.__class__):
             return super().__getattribute__(attr_name)
         else:
