@@ -117,18 +117,16 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
 
 ### ONNX Runtime
 
-To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_, _quantizers_, and _pruners_.
+To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
 
 Before applying quantization or optimization, first export our model to the ONNX format:
 
 ```python
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification
 >>> from transformers import AutoTokenizer
-
 >>> model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
 >>> save_directory = "tmp/onnx/"
 >>> # Load a model from transformers and export it to ONNX
->>> ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
 >>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 >>> # Save the onnx model and tokenizer
 >>> ort_model.save_pretrained(save_directory)

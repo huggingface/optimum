@@ -23,7 +23,7 @@ Currently supported tasks are:
 * `translation`
 * `image-classification`
 
-### Optimum pipeline usage
+## Optimum pipeline usage
 
 While each task has an associated pipeline class, it is simpler to use the general [`~pipelines.pipeline`] function which wraps all the task-specific pipelines in one object.
 The [`~pipelines.pipeline`] function automatically loads a default model and tokenizer/feature-extractor capable of inference for your task.
@@ -46,7 +46,7 @@ The [`~pipelines.pipeline`] function automatically loads a default model and tok
 
 _Note: The default models used in the [`~pipelines.pipeline`] function are not optimized or quantized, so there won't be a performance improvement compared to their PyTorch counterparts._
 
-#### Using vanilla Transformers model and converting to ONNX
+### Using vanilla Transformers model and converting to ONNX
 
 The [`~pipelines.pipeline`] function accepts any supported model from the [Model Hub](https://huggingface.co/models).
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task.
@@ -69,7 +69,7 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 >>> pred = onnx_qa(question=question, context=context)
 ```
 
-#### Using Optimum models
+### Using Optimum models
 
 The [`~pipelines.pipeline`] function is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with ONNX Runtime.
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task.
@@ -93,12 +93,12 @@ and `AutoTokenizer'/`AutoFeatureExtractor` class. For example, here's how you ca
 ```
 
 
-#### Optimizing and quantizing in pipelines
+## Optimizing and quantizing in pipelines
 
 The [`~pipelines.pipeline`] function can not only run inference on vanilla ONNX Runtime checkpoints - you can also use checkpoints optimized with `ORTQuantizer` and `ORTOptimizer`.
 Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] and [`~onnxruntime.ORTQuantizer`] to optimize/quantize your model and use it for inference afterwards.
 
-#### Quantizing with `ORTQuantizer`
+### Quantizing with `ORTQuantizer`
 
 ```python
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTQuantizer
@@ -133,7 +133,7 @@ Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] a
 >>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
 ```
 
-#### Optimizing with `ORTOptimizer`
+### Optimizing with `ORTOptimizer`
 
 ```python
 >>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
@@ -168,7 +168,7 @@ Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] a
 >>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
 ```
 
-### Transformers pipeline usage
+## Transformers pipeline usage
 
 The [`~pipelines.pipeline`] function is just a light wrapper around the `transformers.pipeline` function to enable checks for supported tasks and additional features
 , like quantization and optimization. This being said you can use the `transformers.pipeline` and just replace your `AutoModelFor*` with the optimum
