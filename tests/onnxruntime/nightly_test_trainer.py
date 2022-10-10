@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import gc
+import subprocess
+import sys
 import tempfile
 import unittest
 from typing import List, Optional
@@ -672,6 +674,37 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             prediction = trainer.predict(test_dataset)
             # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
+
+
+@slow
+@require_torch
+class ORTTrainerIntegrationDDPTest(unittest.TestCase):
+    def test_trainer_ddp_glue(self):
+
+        subprocess.run(
+            f"cp examples/onnxruntime/training/text-classification/run_glue.py ./",
+            shell=True,
+        )
+
+        subprocess.run(
+            f"{sys.executable} -m torch.distributed.launch"
+            " --nproc_per_node=1"
+            " run_glue.py"
+            " --model_name_or_path distilbert-base-uncased"
+            " --task_name mnli"
+            " --max_seq_length 128"
+            " --learning_rate 3e-6"
+            " --do_train"
+            " --output_dir /tmp/distilbert"
+            " --overwrite_output_dir"
+            " --max_steps 200"
+            " --logging_steps 20"
+            " --per_device_train_batch_size 32"
+            " --fp16 --optim adamw_ort_fused"
+            " --max_train_samples 3000",
+            shell=True,
+            check=True,
+        )
 
 
 class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
