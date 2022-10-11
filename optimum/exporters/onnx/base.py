@@ -19,7 +19,7 @@ import dataclasses
 import itertools
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
 
 from transformers.utils import is_tf_available, is_torch_available, is_vision_available
 
@@ -76,10 +76,15 @@ class OnnxConfig(ExportConfig, ABC):
 
     Class attributes:
 
-    - NORMALIZED_CONFIG_CLASS (`Type`) -- A class derived from [`~optimum.utils.NormalizedConfig`] specifying how to normalize the model config.
-    - DUMMY_INPUT_GENERATOR_CLASSES (`Tuple[Type]`) -- A tuple of classes derived from [`~optimum.utils.DummyInputGenerator`] specifying how to create dummy inputs.
+    - NORMALIZED_CONFIG_CLASS (`Type`) -- A class derived from [`~optimum.utils.NormalizedConfig`] specifying how to
+    normalize the model config.
+    - DUMMY_INPUT_GENERATOR_CLASSES (`Tuple[Type]`) -- A tuple of classes derived from
+    [`~optimum.utils.DummyInputGenerator`] specifying how to create dummy inputs.
+    - ATOL_FOR_VALIDATION (`Union[float, Dict[str, float]]`) -- A float or a dictionary mapping task names to float,
+    where the float values represent the absolute tolerance value to use during model conversion validation.
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
-    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.MIN_TORCH_VERSION`]) -- The minimum torch version supporting the export of the model to ONNX.
+    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.MIN_TORCH_VERSION`]) -- The
+    minimum torch version supporting the export of the model to ONNX.
 
     Args:
         config (`transformers.PretrainedConfig`):
@@ -91,6 +96,7 @@ class OnnxConfig(ExportConfig, ABC):
     NORMALIZED_CONFIG_CLASS = None
     DUMMY_INPUT_GENERATOR_CLASSES = ()
     DEFAULT_ONNX_OPSET = 11
+    ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
     _TASK_TO_COMMON_OUTPUTS = {
         "causal-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
@@ -194,16 +200,7 @@ class OnnxConfig(ExportConfig, ABC):
 
         return None
 
-    @property
-    def atol_for_validation(self) -> float:
-        """
-        What absolute tolerance value to use during model conversion validation.
-
-        Returns:
-            `float`: Absolute tolerance value.
-        """
-        return 1e-5
-
+    # TODO: is this really needed?
     @property
     def is_torch_support_available(self) -> bool:
         """

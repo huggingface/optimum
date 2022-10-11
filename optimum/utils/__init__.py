@@ -28,7 +28,7 @@ def is_pydantic_available():
     return _pydantic_available
 
 
-from .input_generators import (
+from .input_generators import ( # noqa
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqPastKeyValuesGenerator,

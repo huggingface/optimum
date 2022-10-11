@@ -13,6 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig
-from .convert import export, validate_model_outputs
+from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast # noqa
+from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig # noqa
+from .convert import export, validate_model_outputs # noqa

@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""ONNX model export and check functions."""
+"""ONNX model check and export functions."""
 
 from inspect import signature
 from itertools import chain
@@ -38,7 +38,7 @@ if is_tf_available():
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
-def ensure_model_and_config_inputs_match(
+def reorder_inputs(
     model: Union["PreTrainedModel", "TFPreTrainedModel"], model_inputs: Iterable[str]
 ) -> List[str]:
     """
@@ -114,14 +114,13 @@ def export_pytorch(
                 logger.info(f"\t- {override_config_key} -> {override_config_value}")
                 setattr(model.config, override_config_key, override_config_value)
 
-        # Ensure inputs match
-        # TODO: Check when exporting QA we provide "is_pair=True"
+        # Check that inputs match, and order them properly
         model_inputs = config.generate_dummy_inputs(framework="pt")
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
             model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
-        inputs_match, matched_inputs = ensure_model_and_config_inputs_match(model, model_inputs.keys())
+        matched_inputs = reorder_inputs(model, model_inputs.keys())
         onnx_outputs = list(config.outputs.keys())
 
         config.patch_ops()
@@ -226,7 +225,7 @@ def export_tensorflow(
 
     # Ensure inputs match
     model_inputs = config.generate_dummy_inputs(framework="tf")
-    matched_inputs = ensure_model_and_config_inputs_match(model, model_inputs.keys())
+    matched_inputs = reorder_inputs(model, model_inputs.keys())
     onnx_outputs = list(config.outputs.keys())
 
     config.patch_ops()

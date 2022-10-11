@@ -44,10 +44,6 @@ class BertOnnxConfig(EncoderOnnxConfig):
             ]
         )
 
-    @property
-    def atol_for_validation(self):
-        return 1e-4
-
 
 class AlbertOnnxConfig(BertOnnxConfig):
     pass

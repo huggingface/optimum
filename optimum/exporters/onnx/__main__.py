@@ -29,7 +29,6 @@ def main():
     )
     parser.add_argument(
         "--feature",
-        # choices=list(FeaturesManager.AVAILABLE_FEATURES),
         default="default",
         help="The type of features to export the model with.",
     )
@@ -62,8 +61,8 @@ def main():
     model = FeaturesManager.get_model_from_feature(
         args.feature, args.model, framework=args.framework, cache_dir=args.cache_dir
     )
-    model_kind, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, "onnx", feature=args.feature)
-    onnx_config = model_onnx_config(model.config)
+    onnx_config_constructor = FeaturesManager.get_exporter_config_constructor(model, "onnx", feature=args.feature)
+    onnx_config = onnx_config_constructor(model.config)
 
     # Ensure the requested opset is sufficient
     if args.opset is None:
@@ -71,7 +70,7 @@ def main():
 
     if args.opset < onnx_config.DEFAULT_ONNX_OPSET:
         raise ValueError(
-            f"Opset {args.opset} is not sufficient to export {model_kind}. "
+            f"Opset {args.opset} is not sufficient to export {model.config.model_type}. "
             f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
         )
 
