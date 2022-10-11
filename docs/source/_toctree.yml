@@ -9,7 +9,7 @@
     title: Notebooks
   - sections:
     - local: concept_guides/quantization
-      title: Weight quantization
+      title: Quantization
     title: Conceptual guides
   - sections:
     - local: package_reference/modeling_base
