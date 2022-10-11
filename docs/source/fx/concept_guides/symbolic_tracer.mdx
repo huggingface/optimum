@@ -1,0 +1,3 @@
+# Symbolic tracer
+
+In Torch FX, the symbolic tracer feeds dummy values through the code to record the underlying operations.

@@ -1,0 +1,13 @@
+# ONNX 🤝 ONNX Runtime
+
+ONNX is an open standard that defines a common set of operators and a common file format to represent deep learning models in a wide variety of frameworks, including PyTorch and TensorFlow. When a model is exported to the ONNX format, these operators are used to construct a computational graph (often called an _intermediate representation_) that represents the flow of data through the neural network.
+
+<Tip>
+
+You can use [Netron](https://netron.app/) to visualize any ONNX file on the Hugging Face Hub. Simply append append the file's URL to `http://netron.app?url=` as in [this example](https://netron.app/?url=https://huggingface.co/cmarkea/distilcamembert-base-ner/blob/main/model.onnx)
+
+</Tip>
+
+By exposing a graph with standardized operators and data types, ONNX makes it easy to switch between frameworks. For example, a model trained in PyTorch can be exported to ONNX format and then imported in TensorFlow (and vice versa).
+
+Where ONNX really shines is when it is coupled with a dedicated accelerator like ONNX Runtime, or ORT for short. ORT provides tools to optimize the ONNX graph through techniques like operator fusion and constant folding, and defines an interface to execution providers that allow you to run the model on different types of hardware.

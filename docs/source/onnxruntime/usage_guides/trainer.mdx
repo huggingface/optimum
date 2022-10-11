@@ -98,8 +98,6 @@ train_result = trainer.train()
 
 Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
 
-[[autodoc]] onnxruntime.trainer.ORTTrainer
-    - all
 
 ## ORTSeq2SeqTrainer
 
@@ -130,9 +128,6 @@ train_result = trainer.train()
 
 Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
 
-[[autodoc]] onnxruntime.trainer_seq2seq.ORTSeq2SeqTrainer
-    - evaluate
-    - predict
 
 ## ORTTrainingArguments
 
@@ -157,8 +152,6 @@ Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
 )
 ```
 
-[[autodoc]] onnxruntime.training_args.ORTTrainingArguments
-    - all
 
 <Tip warning={false}>
 
@@ -191,9 +184,6 @@ Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
     optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
 )
 ```
-
-[[autodoc]] onnxruntime.training_args_seq2seq.ORTSeq2SeqTrainingArguments
-    - all
 
 <Tip warning={false}>
 

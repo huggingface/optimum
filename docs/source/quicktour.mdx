@@ -1,75 +1,22 @@
-[![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml)
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
 
-# Hugging Face Optimum
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
 
-🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardware.
+http://www.apache.org/licenses/LICENSE-2.0
 
-The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
-As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
 
+# Quick tour
 
-## Integration with Hardware Partners
+This quick tour is intended for developers who are ready to dive into the code and see examples of how to integrate 🤗 Optimum into their model training and inference workflows.
 
-🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
+## Accelerated training
 
-To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
-- [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. More information [here](https://www.graphcore.ai/products/ipu).
-- [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - [HPUs](https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html) are designed to maximize training throughput and efficiency. More information [here](https://habana.ai/training/).
-- [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate end-to-end pipelines on Intel architectures. More information about [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and [OpenVINO](https://docs.openvino.ai/latest/index.html).
-- More to come soon! :star:
-
-## Optimizing models towards inference
-
-Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
-platforms.
-
-Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
-
-| Features                           | ONNX Runtime          | Intel Neural Compressor |
-|:----------------------------------:|:---------------------:|:-----------------------:|
-| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |
-| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |
-| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |
-| Pruning                            |        N/A            |    :heavy_check_mark:   |
-
-
-## Installation
-
-🤗 Optimum can be installed using `pip` as follows:
-
-```bash
-python -m pip install optimum
-```
-
-If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
-
-| Accelerator                                                                                                            | Installation                                      |
-|:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
-| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]`      |
-| [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `python -m pip install optimum[intel]`            |
-| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`        |
-| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`           |
-
-
-If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
-
-```bash
-python -m pip install git+https://github.com/huggingface/optimum.git
-```
-
-For the accelerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
-
-```bash
-python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
-```
-
-## Quick tour
-
-Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
-
-### Accelerated training
-
-#### Optimum Graphcore
+### Optimum Graphcore
 
 To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
@@ -106,7 +53,7 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
 ```
 
 
-#### Optimum Habana
+### Optimum Habana
 
 To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
@@ -140,7 +87,7 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
   trainer.train()
 ```
 
-#### ONNX Runtime
+### ONNX Runtime
 
 To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
@@ -166,9 +113,9 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
 ```
 
 
-### Accelerated inference
+## Accelerated inference
 
-#### ONNX Runtime
+### ONNX Runtime
 
 To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
 
@@ -212,7 +159,7 @@ In this example, we've quantized a model from the Hugging Face Hub, but it could
 >>> results = classifier("I love burritos!")
 ```
 
-#### Optimum Intel
+### Optimum Intel
 
 Here is an example on how to perform inference with the OpenVINO Runtime:
 
@@ -231,4 +178,3 @@ Here is an example on how to perform inference with the OpenVINO Runtime:
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
 ```
-
