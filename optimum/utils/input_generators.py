@@ -32,6 +32,8 @@ if is_tf_available():
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
+# Some models need to have access to the pad_token_id, we use this value for the tests, it was chosen arbitrarily.
+PAD_TOKEN_ID_FOR_TEST = 19
 
 class NormalizedConfig:
     VOCAB_SIZE = "vocab_size"
@@ -64,6 +66,7 @@ class NormalizedConfig:
 
 
 class NormalizedSeq2SeqConfig(NormalizedConfig):
+    ENCODER_NUM_LAYERS = NormalizedConfig.NUM_LAYERS
     DECODER_NUM_LAYERS = NormalizedConfig.NUM_LAYERS
     ENCODER_NUM_ATTENTION_HEADS = NormalizedConfig.NUM_ATTENTION_HEADS
     DECODER_NUM_ATTENTION_HEADS = NormalizedConfig.NUM_ATTENTION_HEADS
@@ -90,19 +93,19 @@ class DummyInputGenerator(ABC):
         return any(input_name.startswith(supported_input_name) for supported_input_name in self.SUPPORTED_INPUT_NAMES)
 
     @abstractmethod
-    def generate(self, input_name: str, framework: Optional[str] = "pt"):
+    def generate(self, input_name: str, framework: str = "pt"):
         raise NotImplementedError
 
     @staticmethod
     @check_framework_is_available
-    def random_int_tensor(shape: List[int], max_value: int, min_value: int = 0, framework: Optional[str] = "pt"):
+    def random_int_tensor(shape: List[int], max_value: int, min_value: int = 0, framework: str = "pt"):
         if framework == "pt":
             return torch.randint(low=min_value, high=max_value, size=shape)
         return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.int32)
 
     @staticmethod
     @check_framework_is_available
-    def random_float_tensor(shape: List[int], max_value: float, min_value: float = 0, framework: Optional[str] = "pt"):
+    def random_float_tensor(shape: List[int], min_value: float = 0, max_value: float = 1, framework: str = "pt"):
         if framework == "pt":
             tensor = torch.empty(shape, dtype=torch.float32).uniform_(min_value, max_value)
             return tensor
@@ -111,11 +114,44 @@ class DummyInputGenerator(ABC):
     @staticmethod
     @check_framework_is_available
     def constant_tensor(
-        shape: List[int], value: Union[int, float] = 1, dtype: Optional[Any] = None, framework: Optional[str] = "pt"
+        shape: List[int], value: Union[int, float] = 1, dtype: Optional[Any] = None, framework: str = "pt"
     ):
         if framework == "pt":
             return torch.full(shape, value, dtype=dtype)
         return tf.constant(value, dtype=dtype, shape=shape)
+
+    @staticmethod
+    def _infer_framework_from_input(input_) -> str:
+        framework = None
+        if is_torch_available() and isinstance(input_, torch.Tensor):
+            framework = "pt"
+        elif is_tf_available() and isinstance(input_, tf.Tensor):
+            framework = "tf"
+        else:
+            raise RuntimeError(f"Could not infer the framework from {input_}")
+        return framework
+
+    @classmethod
+    def concat_inputs(cls, inputs, dim: int):
+        if not inputs:
+            raise ValueError("You did not provide any inputs to concat")
+        framework = cls._infer_framework_from_input(inputs[0])
+        if framework == "pt":
+            return torch.cat(inputs, dim=dim)
+        return tf.concat(inputs, axis=dim)
+
+    @classmethod
+    def pad_input_on_dim(cls, input_, dim: int, desired_length: Optional[int] = None, padding_length: Optional[int] = None, value: Union[int, float] = 1, dtype: Optional[Any] = None):
+        if (desired_length is None and padding_length is None) or (desired_length is not None and padding_length is not None):
+            raise ValueError("You need to provide either `desired_length` or `padding_length`")
+        framework = cls._infer_framework_from_input(input_)
+        shape = input_.shape
+        padding_shape = list(shape)
+        diff = desired_length - shape[dim] if desired_length else padding_length
+        if diff <= 0:
+            return input_
+        padding_shape[dim] = diff
+        return cls.concat_inputs([input_, cls.constant_tensor(padding_shape, value=value, dtype=dtype, framework=framework)], dim=dim)
 
 
 class DummyTextInputGenerator(DummyInputGenerator):
@@ -135,6 +171,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
+        force_pad_token_id_presence: bool = True
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
@@ -154,13 +191,22 @@ class DummyTextInputGenerator(DummyInputGenerator):
         else:
             self.num_choices = num_choices
 
-    def generate(self, input_name: str, framework: Optional[str] = "pt"):
+    def generate(self, input_name: str, framework: str = "pt"):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
         shape = [self.batch_size, self.sequence_length]
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
-        return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework)
+        int_tensor = self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework)
+
+        # This inserts PAD_TOKEN_ID_FOR_TEST at random locations along the sequence length dimension.
+        # This should not have any impact on models not using it, and help with testing for those using it.
+        if "input_ids" in input_name:
+            for idx in range(self.batch_size):
+                random_idx = random.randint(1, self.sequence_length)
+                int_tensor[idx][random_idx] = PAD_TOKEN_ID_FOR_TEST
+
+        return int_tensor
 
 
 class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
@@ -196,7 +242,7 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         else:
             self.sequence_length = sequence_length
 
-    def generate(self, input_name: str, framework: Optional[str] = "pt"):
+    def generate(self, input_name: str, framework: str = "pt"):
         shape = (
             self.batch_size,
             self.num_attention_heads,
@@ -240,7 +286,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             self.sequence_length if encoder_sequence_length is None else encoder_sequence_length
         )
 
-    def generate(self, input_name: str, framework: Optional[str] = "pt"):
+    def generate(self, input_name: str, framework: str = "pt"):
         encoder_shape = (
             self.batch_size,
             self.normalized_config.encoder_num_attention_heads,
