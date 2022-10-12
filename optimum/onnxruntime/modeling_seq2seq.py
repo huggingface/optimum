@@ -16,16 +16,23 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
 import transformers
-from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import (
+    AutoConfig,
+    AutoFeatureExtractor,
+    AutoModelForSeq2SeqLM,
+    AutoModelForSpeechSeq2Seq,
+    AutoTokenizer,
+    PretrainedConfig,
+)
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
-from transformers.onnx import FeaturesManager, export
+from transformers.onnx import FeaturesManager, OnnxConfig, OnnxSeq2SeqConfigWithPast, export
 
 import onnx
 import onnxruntime
@@ -45,6 +52,10 @@ from .utils import (
     get_provider_for_device,
     parse_device,
 )
+
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel
 
 
 logger = logging.getLogger(__name__)
@@ -75,13 +86,19 @@ ONNX_INPUTS_DOCSTRING = r"""
             if the device is CUDA, otherwise defaults to `False`.
 """
 
-ENCODER_INPUTS_DOCSTRING = r"""
+SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
     Arguments:
         input_ids (`torch.LongTensor`):
             Indices of input sequence tokens in the vocabulary of shape `(batch_size, encoder_sequence_length)`.
         attention_mask (`torch.LongTensor`):
             Mask to avoid performing attention on padding token indices, of shape
             `(batch_size, encoder_sequence_length)`. Mask values selected in `[0, 1]`.
+"""
+
+SPEECH_SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
+    Arguments:
+        input_features (`torch.FloatTensor`):
+            Float values mel features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
 """
 
 
@@ -118,7 +135,25 @@ SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
 """
 
+
+SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
+    Arguments:
+        input_features (`torch.FloatTensor`):
+            Float values mel features extracted from the raw speech waveform.
+            `(batch_size, feature_size, encoder_sequence_length)`.
+        decoder_input_ids (`torch.LongTensor`):
+            Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
+        encoder_outputs (`torch.FloatTensor`):
+            The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+            Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
+            The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
+            `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
+"""
+
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
+_PROCESSOR_FOR_DOC = "AutoProcessor"
 
 TRANSLATION_EXAMPLE = r"""
     Example of text generation:
@@ -152,6 +187,41 @@ TRANSLATION_EXAMPLE = r"""
 """
 
 
+AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE = r"""
+    Example of text generation:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from datasets import load_dataset
+
+    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
+    >>> inputs = processor.feature_extractor(ds[0]["audio"]["array"], return_tensors="pt")
+
+    >>> gen_tokens = model.generate(inputs=inputs.input_features)
+    >>> outputs = processor.tokenizer.batch_decode(gen_tokens)
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from datasets import load_dataset
+
+    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> speech_recognition = pipeline("automatic-speech-recognition", model=model, tokenizer=processor.tokenizer, feature_extractor=processor.feature_extractor)
+
+    >>> ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
+    >>> pred = speech_recognition(ds[0]["audio"]["array"])
+    ```
+"""
+
+
 @add_start_docstrings(
     """
     Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
@@ -161,8 +231,6 @@ TRANSLATION_EXAMPLE = r"""
 class ORTModelForConditionalGeneration(ORTModel):
     # Used in from_transformers to export model to onnxORTEncoder
     base_model_prefix = "onnx_model"
-    export_feature = "seq2seq-lm"
-    auto_model_class = AutoModelForSeq2SeqLM
 
     def __init__(
         self,
@@ -186,13 +254,15 @@ class ORTModelForConditionalGeneration(ORTModel):
             )
             self.use_io_binding = False
 
-        self.encoder = ORTEncoder(
+        self.encoder = self._initialize_encoder(
             session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )
         self.decoder = ORTDecoder(
             session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )
+
         self.use_cache = decoder_with_past_session is not None
+
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         self.decoder_with_past = (
@@ -205,6 +275,7 @@ class ORTModelForConditionalGeneration(ORTModel):
             if self.use_cache
             else None
         )
+
         self.encoder_file_name = kwargs.get("last_encoder_model_name", ONNX_ENCODER_NAME)
         self.decoder_file_name = kwargs.get("last_decoder_model_name", ONNX_DECODER_NAME)
         self.decoder_file_with_past_name = kwargs.get("last_decoder_with_past_model_name", ONNX_DECODER_WITH_PAST_NAME)
@@ -466,8 +537,6 @@ class ORTModelForConditionalGeneration(ORTModel):
         config = kwargs.get("config", {})
         use_cache = kwargs.get("use_cache", True)
 
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-
         framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
         model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
         model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
@@ -475,18 +544,26 @@ class ORTModelForConditionalGeneration(ORTModel):
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
         onnx_config = model_onnx_config(model.config)
         onnx_opset = onnx_config.default_onnx_opset
-        onnx_config_encoder = EncoderOnnxConfig(model.config, task="default")
-        onnx_config_decoder = DecoderOnnxConfig(model.config, task=cls.export_feature, use_past=False)
-        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=cls.export_feature, use_past=True)
 
         # Extract the encoder for ONNX export
         encoder = model.get_encoder()
         # Concatenate the decoder with the language model head for ONNX export
         decoder_with_lm_head = _DecoderWithLMhead(model)
 
+        onnx_config_encoder = cls.get_encoder_onnx_config(encoder, onnx_config)
+        onnx_config_decoder = cls.get_decoder_onnx_config(
+            encoder, decoder_with_lm_head, cls.export_feature, use_past=False, onnx_config=onnx_config
+        )
+        onnx_config_decoder_with_past = cls.get_decoder_onnx_config(
+            encoder, decoder_with_lm_head, cls.export_feature, use_past=True, onnx_config=onnx_config
+        )
+
+        preprocessor_encoder = cls.get_encoder_preprocessor(model_id)
+        preprocessor_decoder = cls.get_decoder_preprocessor(model_id)
+
         # Export the encoder
         export(
-            preprocessor=tokenizer,
+            preprocessor=preprocessor_encoder,
             model=encoder,
             config=onnx_config_encoder,
             opset=onnx_opset,
@@ -495,7 +572,7 @@ class ORTModelForConditionalGeneration(ORTModel):
 
         # Export the decoder without the past key values
         export(
-            preprocessor=tokenizer,
+            preprocessor=preprocessor_decoder,
             model=decoder_with_lm_head,
             config=onnx_config_decoder,
             opset=onnx_opset,
@@ -505,7 +582,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         # Export the decoder with the past key values
         if use_cache:
             export(
-                preprocessor=tokenizer,
+                preprocessor=preprocessor_decoder,
                 model=decoder_with_lm_head,
                 config=onnx_config_decoder_with_past,
                 opset=onnx_opset,
@@ -558,13 +635,14 @@ class ORTEncoder:
         config: transformers.PretrainedConfig,
         device: torch.device,
         use_io_binding: bool = True,
+        main_input_name: str = "input_ids",
         **kwargs
     ):
         self.session = session
         self.config = config
         self._device = device
         self.use_io_binding = use_io_binding
-        self.main_input_name = "input_ids"
+        self.main_input_name = main_input_name
         self.normalized_config = ORTConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
@@ -628,7 +706,7 @@ class ORTEncoder:
 
         return io_binding, output_shapes, output_buffers
 
-    @add_start_docstrings_to_model_forward(ENCODER_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(SEQ2SEQ_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
         input_ids: torch.LongTensor,
@@ -663,6 +741,31 @@ class ORTEncoder:
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
+
+
+class ORTEncoderForSpeechSeq2Seq(ORTEncoder):
+    """
+    Encoder model for ONNX Runtime inference for SpeechSeq2Seq models.
+
+    Arguments:
+        session (`onnxruntime.InferenceSession`):
+            The ONNX Runtime inference session associated to the encoder.
+    """
+
+    @add_start_docstrings_to_model_forward(SPEECH_SEQ2SEQ_ENCODER_INPUTS_DOCSTRING)
+    def forward(
+        self,
+        input_features: torch.FloatTensor,
+        **kwargs,
+    ) -> BaseModelOutput:
+
+        onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
+
+        # Run inference
+        outputs = self.session.run(None, onnx_inputs)
+        last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self._device)
+
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
 class ORTDecoder:
@@ -926,8 +1029,11 @@ class ORTDecoder:
         else:
             onnx_inputs = {
                 "input_ids": input_ids.cpu().detach().numpy(),
-                "encoder_attention_mask": encoder_attention_mask.cpu().detach().numpy(),
             }
+
+            # Add the encoder_attention_mask inputs when needed
+            if "encoder_hidden_states" in self.session_input_names:
+                onnx_inputs["encoder_attention_mask"] = encoder_attention_mask.cpu().detach().numpy(),
 
             # Add the encoder_hidden_states inputs when needed
             if "encoder_hidden_states" in self.session_input_names:
@@ -974,9 +1080,36 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
     """
 
+    export_feature = "seq2seq-lm"
+    auto_model_class = AutoModelForSeq2SeqLM
+
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.main_input_name = "input_ids"
+
+        super().__init__(*args, **kwargs)
+
+    def _initialize_encoder(self, encoder_session: onnxruntime.InferenceSession, device: str) -> ORTEncoder:
+        return ORTEncoder(session=encoder_session, device=device, main_input_name=self.main_input_name)
+
+    def get_encoder_onnx_config(
+        encoder_model: "PreTrainedModel", onnx_config: OnnxSeq2SeqConfigWithPast = None
+    ) -> OnnxConfig:
+        return EncoderOnnxConfig(encoder_model.config, task="default")
+
+    def get_decoder_onnx_config(
+        encoder_model: "PreTrainedModel",
+        decoder_model: "PreTrainedModel",
+        export_feature: str,
+        use_past: bool = False,
+        onnx_config: OnnxSeq2SeqConfigWithPast = None,
+    ) -> OnnxSeq2SeqConfigWithPast:
+        return DecoderOnnxConfig(decoder_model.config, export_feature, use_past=use_past)
+
+    def get_encoder_preprocessor(model_id: str) -> AutoTokenizer:
+        return AutoTokenizer.from_pretrained(model_id)
+
+    def get_decoder_preprocessor(model_id: str) -> AutoTokenizer:
+        return AutoTokenizer.from_pretrained(model_id)
 
     @add_start_docstrings_to_model_forward(
         SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
@@ -1049,6 +1182,126 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         }
 
     def get_encoder(self) -> ORTEncoder:
+        return self.encoder
+
+    # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
+    @staticmethod
+    def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
+        reordered_past = ()
+        for layer_past in past:
+            # Cached cross_attention states don't have to be reordered -> they are always the same
+            reordered_past += (
+                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
+            )
+        return reordered_past
+
+
+class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
+    """
+    Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    """
+
+    export_feature = "speech2seq-lm"
+    auto_model_class = AutoModelForSpeechSeq2Seq
+
+    def __init__(self, *args, **kwargs):
+        self.main_input_name = "input_features"
+
+        super().__init__(*args, **kwargs)
+
+    def _initialize_encoder(
+        self, encoder_session: onnxruntime.InferenceSession, device: str
+    ) -> ORTEncoderForSpeechSeq2Seq:
+        return ORTEncoderForSpeechSeq2Seq(session=encoder_session, device=device, main_input_name=self.main_input_name)
+
+    def get_encoder_onnx_config(
+        encoder_model: "PreTrainedModel", onnx_config: OnnxSeq2SeqConfigWithPast = None
+    ) -> OnnxConfig:
+        return onnx_config.get_encoder_config(encoder_model.config)
+
+    def get_decoder_onnx_config(
+        encoder_model: "PreTrainedModel",
+        decoder_model: "PreTrainedModel",
+        export_feature: str,
+        use_past: bool = False,
+        onnx_config: OnnxSeq2SeqConfigWithPast = None,
+    ) -> OnnxSeq2SeqConfigWithPast:
+        return onnx_config.get_decoder_config(
+            encoder_model.config, decoder_model.config, export_feature, use_past=use_past
+        )
+
+    def get_encoder_preprocessor(model_id: str) -> AutoFeatureExtractor:
+        return AutoFeatureExtractor.from_pretrained(model_id)
+
+    def get_decoder_preprocessor(model_id: str) -> AutoTokenizer:
+        return AutoTokenizer.from_pretrained(model_id)
+
+    @add_start_docstrings_to_model_forward(
+        SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, feature_size, sequence_length")
+        + AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE.format(
+            processor_class=_PROCESSOR_FOR_DOC,
+            model_class="ORTModelForSpeechSeq2Seq",
+            checkpoint="optimum/whisper-tiny.en",
+        )
+    )
+    def forward(
+        self,
+        input_features: Optional[torch.FloatTensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
+        **kwargs,
+    ) -> Seq2SeqLMOutput:
+
+        # Encode if needed : first prediction pass
+        if encoder_outputs is None:
+            encoder_outputs = self.encoder(input_features=input_features)
+
+        # Decode
+        if past_key_values is None or self.decoder_with_past is None:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                labels=labels,
+            )
+        else:
+            decoder_outputs = self.decoder_with_past(
+                input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
+                past_key_values=past_key_values,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                labels=labels,
+            )
+
+        return Seq2SeqLMOutput(
+            loss=decoder_outputs.get("loss", None),
+            logits=decoder_outputs.logits,
+            past_key_values=decoder_outputs.past_key_values,
+        )
+
+    def prepare_inputs_for_generation(
+        self,
+        input_ids,
+        past=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        cross_attn_head_mask=None,
+        use_cache=None,
+        encoder_outputs=None,
+        **kwargs
+    ) -> Dict:
+
+        return {
+            "decoder_input_ids": input_ids,
+            "past_key_values": past,
+            "encoder_outputs": encoder_outputs,
+            "head_mask": head_mask,
+            "decoder_head_mask": decoder_head_mask,
+            "cross_attn_head_mask": cross_attn_head_mask,
+            "use_cache": use_cache,
+        }
+
+    def get_encoder(self) -> ORTEncoderForSpeechSeq2Seq:
         return self.encoder
 
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
