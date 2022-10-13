@@ -12,13 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import ctypes as C
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
+import logging
+import traceback
+from typing import Dict
 
 import numpy as np
 import torch
 
 import onnxruntime as ort
+import pkg_resources
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_inference_collection import OrtValue
 from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelper
@@ -109,7 +111,16 @@ class IOBindingHelper:
 
     @staticmethod
     def to_pytorch(ort_value: OrtValue) -> torch.Tensor:
-        pass
+        env = {pkg.key for pkg in pkg_resources.working_set}
+        if "onnxruntime-training" in env:
+            return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
+        else:
+            try:
+                return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
+            except Exception as e:
+                logging.error(traceback.format_exc())
+                logging.info("Unable to access output memory in CUDA, will offload to CPU")
+                return IOBindingHelper.to_pytorch_via_np(ort_value)
 
     @staticmethod
     def to_pytorch_via_np(ort_value: OrtValue) -> torch.Tensor:
