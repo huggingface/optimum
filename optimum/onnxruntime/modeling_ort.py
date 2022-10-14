@@ -49,6 +49,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
+from .io_binding import IOBindingHelper
 from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
 
 
@@ -888,16 +889,23 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-        # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+
+        onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+        io_helper = IOBindingHelper(self.model, self.config, self.device)
+        io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+
+        # run inference with binding
+        io_binding.synchronize_inputs()
+        self.model.run_with_iobinding(io_binding)
+        io_binding.synchronize_outputs()
+
+        # map outputs with names
+        outputs = {}
+        for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+            outputs[name] = IOBindingHelper.to_pytorch(output)
+
         # converts output to namedtuple for pipelines post-processing
-        return CausalLMOutputWithCrossAttentions(logits=logits)
+        return CausalLMOutputWithCrossAttentions(**outputs)
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(

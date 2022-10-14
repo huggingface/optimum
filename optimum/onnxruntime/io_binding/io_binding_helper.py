@@ -115,16 +115,17 @@ class IOBindingHelper:
         if "onnxruntime-training" in env:
             return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
         else:
-            try:
-                return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
-            except Exception as e:
-                logging.error(traceback.format_exc())
-                logging.info("Unable to access output memory in CUDA, will offload to CPU")
-                return IOBindingHelper.to_pytorch_via_np(ort_value)
+            return IOBindingHelper.to_pytorch_via_cupy(ort_value)
+            # try:
+            #     return IOBindingHelper.to_pytorch_via_cupy(ort_value)
+            # except Exception as e:
+            #     logging.error(traceback.format_exc())
+            #     logging.info("Unable to access output memory in CUDA, will offload to CPU")
+            #     return IOBindingHelper.to_pytorch_via_np(ort_value)
 
     @staticmethod
     def to_pytorch_via_np(ort_value: OrtValue) -> torch.Tensor:
-        ort_device = ort_value.device_name()
+        ort_device = ort_value.device_name().lower()
         return torch.tensor(ort_value.numpy()).to(ort_device)
 
     @staticmethod
@@ -138,7 +139,7 @@ class IOBindingHelper:
         # Access CUDA memory via CuPy
         import cupy as cp
 
-        memory = cp.cuda.UnownedMemory(ort_value.data_ptr(), -1, None)
+        memory = cp.cuda.UnownedMemory(ort_value.data_ptr(), 0, None)
         memory_ptr = cp.cuda.MemoryPointer(memory, 0)
         cp_array = cp.ndarray(shape=ort_value.shape(), memptr=memory_ptr, dtype=np_type)
         torch_tensor = torch.from_dlpack(cp_array.toDlpack())
