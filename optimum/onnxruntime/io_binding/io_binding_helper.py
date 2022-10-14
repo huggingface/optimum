@@ -58,17 +58,6 @@ class TypeHelper(ORTTypeHelper):
             raise ValueError(f"{ort_type} not found in map")
         return ort_type_to_torch_type_map[ort_type]
 
-    @staticmethod
-    def get_io_numpy_type_map(ort_session: InferenceSession) -> Dict[str, np.dtype]:
-        """Create a mapping from input/output name to numpy data type"""
-        name_to_numpy_type = {}
-        for input in ort_session.get_inputs():
-            name_to_numpy_type[input.name] = TypeHelper.ort_type_to_numpy_type(input.type)
-
-        for output in ort_session.get_outputs():
-            name_to_numpy_type[output.name] = TypeHelper.ort_type_to_numpy_type(output.type)
-        return name_to_numpy_type
-
 
 class IOBindingHelper:
     def __init__(self, model: ort.InferenceSession, config, device, **kwargs):
