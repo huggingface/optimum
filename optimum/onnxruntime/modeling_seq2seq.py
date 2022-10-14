@@ -573,7 +573,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         # Export the decoder without the past key values
         export(
             preprocessor=preprocessor_decoder,
-            model=decoder_with_lm_head,
+            model=model,
             config=onnx_config_decoder,
             opset=onnx_opset,
             output=save_dir.joinpath(ONNX_DECODER_NAME),
@@ -583,7 +583,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         if use_cache:
             export(
                 preprocessor=preprocessor_decoder,
-                model=decoder_with_lm_head,
+                model=model,
                 config=onnx_config_decoder_with_past,
                 opset=onnx_opset,
                 output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),

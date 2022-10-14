@@ -290,9 +290,9 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         common_inputs = OrderedDict(
             [
+                ("encoder_attention_mask", {0: "batch", 1: "encoder_sequence"}),
                 ("input_ids", {0: "batch", 1: "past_decoder_sequence + sequence"}),
                 ("encoder_hidden_states", {0: "batch", 1: "encoder_sequence"}),
-                ("encoder_attention_mask", {0: "batch", 1: "encoder_sequence"}),
             ]
         )
         if self.use_past:
@@ -316,9 +316,9 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         )
         batch, encoder_seq_length = dummy_input["input_ids"].shape
         encoder_hidden_states_shape = (batch, encoder_seq_length, self._config.hidden_size)
-        common_inputs["input_ids"] = dummy_input.pop("decoder_input_ids")
-        common_inputs["encoder_hidden_states"] = torch.zeros(encoder_hidden_states_shape)
-        common_inputs["encoder_attention_mask"] = dummy_input.pop("attention_mask")
+        common_inputs["attention_mask"] = dummy_input.pop("attention_mask")
+        common_inputs["decoder_input_ids"] = dummy_input.pop("decoder_input_ids")
+        common_inputs["encoder_outputs"] = (torch.zeros(encoder_hidden_states_shape), None, None)
 
         if "past_key_values" in dummy_input:
             common_inputs["past_key_values"] = dummy_input.pop("past_key_values")
@@ -338,6 +338,20 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         decoder_sequence = "past_decoder_sequence" if direction == "inputs" else "past_decoder_sequence + sequence"
         for i in range(num_decoder_layers * num_pkv_per_layer):
             inputs_or_outputs[f"{name}_key_values_{i}"] = {0: "batch", 2: decoder_sequence}
+
+    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
+        reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs
+
+    @property
+    def values_override(self) -> Optional[Mapping[str, Any]]:
+        if hasattr(self._config, "use_cache"):
+            return {"use_cache": True}
+
+        return None
 
 
 class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
