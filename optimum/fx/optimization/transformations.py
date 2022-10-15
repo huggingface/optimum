@@ -17,6 +17,7 @@ import copy
 import functools
 import itertools
 import operator
+import re
 import warnings
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List
@@ -24,6 +25,8 @@ from typing import TYPE_CHECKING, List
 import torch
 from transformers.file_utils import add_end_docstrings
 from transformers.utils.fx import _gen_constructor_wrapper
+
+from ..utils import check_if_pytorch_greater_112
 
 
 if TYPE_CHECKING:
@@ -704,6 +707,77 @@ class DeepCopy(ReversibleTransformation):
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
         return self.transform(graph_module)
+
+
+@check_if_pytorch_greater_112()
+@add_end_docstrings(_ATTRIBUTES_DOCSTRING)
+class BetterTransformers(Transformation):
+    """
+    Transformation that fuses a `...Layer` module into a `BetterTransformer` module.
+
+    ```
+
+    Example:
+    ```python
+    from transformers.utils.fx import symbolic_trace
+    from transformers import AutoModel
+
+    from optimum.fx.optimization import BetterTransformers
+
+    model = AutoModel.from_pretrained("nvidia/groupvit-gcc-yfcc")
+    model.eval()
+
+    traced_model = symbolic_trace(
+        model,
+        input_names=["input_ids", "attention_mask", "pixel_values"],
+        disable_check=True
+    )
+
+    transformation = BetterTransformers()
+    transformed_model = transformation(traced_model)
+    ```
+    """
+
+    preserves_computation = True
+    attention_layer_pattern = re.compile(r"layer")  # This might be modified in the future for each model
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        for node in graph_module.graph.nodes:
+            if node.op == "call_module" and node.args[0].op == "call_module":
+                match = re.search(self.attention_layer_pattern, node.name)
+
+                # Step 1: Check if we match the patter `layer` in the node name
+                # Step 2: Create a new `fused` linear layer that fuses the query, key and value layers
+                # Step 3: Wrap the whole attention block (including the layernorm) in a new module `Fast`
+                # Step 4: Replace the old attention block with the new one and delete the old modules
+                if match:
+                    # Here we match the attention layers - we first need to fuse the qkv layers
+                    pass
+        return graph_module
+
+    def fuse(self, query_linear: torch.nn.Linear, key_linear: torch.nn.Linear, value_linear: torch.nn.Linear):
+        r"""
+        Fuse the query, key and value layers into a single layer.
+        """
+        # Create a dummy layer to store the fused weights
+        fused_linear = torch.nn.Linear(
+            query_linear.in_features, query_linear.out_features * 3, bias=query_linear.bias is not None
+        )
+
+        # Copy the biases from the query, key and value layers
+        query_bias = query_linear.bias if query_linear.bias is not None else torch.zeros_like(query_linear.weight[0])
+        key_bias = key_linear.bias if key_linear.bias is not None else torch.zeros_like(key_linear.weight[0])
+        value_bias = value_linear.bias if value_linear.bias is not None else torch.zeros_like(value_linear.weight[0])
+
+        # Fuse the weights and biases from the query, key and value layers
+        fused_weights = torch.cat([query_linear.weight, key_linear.weight, value_linear.weight], dim=0)
+        fused_bias = torch.cat([query_bias, key_bias, value_bias], dim=0)
+
+        # Assign the fused weights and biases to the dummy layer
+        fused_linear.weight = torch.nn.Parameter(fused_weights)
+        fused_linear.bias = torch.nn.Parameter(fused_bias)
+
+        return fused_linear
 
 
 class LintAndRecompile(ReversibleTransformation):

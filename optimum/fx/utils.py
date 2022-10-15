@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import contextmanager
 from functools import wraps
 
 import transformers
@@ -41,3 +42,20 @@ def check_if_available(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+@contextmanager
+def check_if_pytorch_greater_112():
+    r"""
+    A context manager that does nothing except checking if the PyTorch version is greater than 1.12.0.
+    """
+    import torch
+
+    if version.parse(torch.__version__) < version.parse("1.12.0"):
+        raise ImportError(
+            f"Found an incompatible version of PyTorch. Found version {torch.__version__}, but only 1.12.0 and above are supported."
+        )
+    try:
+        yield
+    finally:
+        pass
