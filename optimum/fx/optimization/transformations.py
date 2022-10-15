@@ -729,7 +729,7 @@ class BetterTransformers(Transformation):
 
     traced_model = symbolic_trace(
         model,
-        input_names=["input_ids", "attention_mask", "pixel_values"],
+        input_names=["input_ids", "attention_mask"],
         disable_check=True
     )
 
