@@ -81,7 +81,7 @@ class IOBindingHelper:
         self.model_input_names = list(self.model_inputs.keys())
         self.model_output_names = list(self.model_outputs.keys())
 
-    def prepare_io_binding(self, **kwargs):
+    def prepare_io_binding(self, **kwargs) -> ort.IOBinding:
         """Returns IOBinding object for an inference session."""
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
