@@ -30,7 +30,7 @@ from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelp
 class TypeHelper(ORTTypeHelper):
     """
     Gets data type information of the ONNX Runtime inference session and provides the mapping from
-    OrtValues data type to the data type of other data structures(numpy, torch tensor...).
+    `OrtValue` data types to the data types of other frameworks (NumPy, PyTorch, etc).
     """
 
     # TODO: Current DLPack doesn't support boolean tensor, use uint8 as workaround, remove after it is supported.
