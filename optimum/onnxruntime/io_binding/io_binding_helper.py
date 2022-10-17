@@ -20,10 +20,10 @@ import numpy as np
 import torch
 
 import onnxruntime as ort
-import pkg_resources
-from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_inference_collection import OrtValue
 from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelper
+
+from ..utils import is_onnxruntime_training_available
 
 
 # Adapted from https://github.com/microsoft/onnxruntime/blob/93e0a151177ad8222c2c95f814342bfa27f0a64d/onnxruntime/python/tools/transformers/io_binding_helper.py#L12
@@ -114,8 +114,8 @@ class IOBindingHelper:
     @staticmethod
     def to_pytorch(ort_value: OrtValue) -> torch.Tensor:
         """Converts tensors held by OrtValues to torch tensor."""
-        env = {pkg.key for pkg in pkg_resources.working_set}
-        if "onnxruntime-training" in env:
+
+        if is_onnxruntime_training_available():
             return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
         else:
             try:
@@ -156,7 +156,7 @@ class IOBindingHelper:
         return torch_tensor
 
     @staticmethod
-    # only `onnxruntime-training` supports dlpack for OrtValue
+    # dlpack support is available for OrtValue only when `onnxruntime-training` is installed
     def to_pytorch_via_dlpack(ort_value: OrtValue) -> torch.Tensor:
         from torch._C import _from_dlpack
 

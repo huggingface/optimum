@@ -19,6 +19,7 @@ from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
+import pkg_resources
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
 
@@ -40,6 +41,17 @@ def _is_gpu_available():
     """
     available_providers = ort.get_available_providers()
     if "CUDAExecutionProvider" in available_providers and torch.cuda.is_available():
+        return True
+    else:
+        return False
+
+
+def is_onnxruntime_training_available():
+    """
+    checks if onnxruntime-training is available.
+    """
+    env = {pkg.key for pkg in pkg_resources.working_set}
+    if "onnxruntime-training" in env:
         return True
     else:
         return False
