@@ -26,7 +26,7 @@ from onnxruntime.capi.onnxruntime_inference_collection import OrtValue
 from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelper
 
 
-# adapted from https://github.com/microsoft/onnxruntime/blob/93e0a151177ad8222c2c95f814342bfa27f0a64d/onnxruntime/python/tools/transformers/io_binding_helper.py#L12
+# Adapted from https://github.com/microsoft/onnxruntime/blob/93e0a151177ad8222c2c95f814342bfa27f0a64d/onnxruntime/python/tools/transformers/io_binding_helper.py#L12
 class TypeHelper(ORTTypeHelper):
     """
     TypeHelper helps get data type information of the ONNX runtime inference session and offers the mapping from
