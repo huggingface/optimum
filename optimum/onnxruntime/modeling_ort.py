@@ -67,7 +67,7 @@ ONNX_MODEL_START_DOCSTRING = r"""
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~onnxruntime.modeling_ort.ORTModel.from_pretrained`] method to load the model weights.
         model (`onnxruntime.InferenceSession`): [onnxruntime.InferenceSession](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession) is the main class used to run a model. Check out the [`~onnxruntime.modeling_ort.ORTModel.load_model`] method for more information.
-        use_io_binding (`bool`, *optional*): Whether use IO Binding during inference to avoid memory copy between the host and devices. Will default to True if the device is CUDA, otherwise default to False.
+        use_io_binding (`bool`, *optional*): Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
 """
 
 ONNX_TEXT_INPUTS_DOCSTRING = r"""
