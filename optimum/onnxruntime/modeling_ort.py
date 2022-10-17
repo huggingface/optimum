@@ -1213,20 +1213,44 @@ class ORTModelForCustomTasks(ORTModel):
         )
     )
     def forward(self, **kwargs):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = self._prepare_onnx_inputs(**kwargs)
-        # run inference
-        onnx_outputs = self.model.run(None, onnx_inputs)
-        outputs = self._prepare_onnx_outputs(onnx_outputs)
-        # converts outputs to namedtuple for pipelines post-processing if applicable
-        return ModelOutput(outputs)
+        if self.device.type == "cuda" and self.use_io_binding:
+            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
-    def _prepare_onnx_inputs(self, **kwargs):
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return ModelOutput(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = self._prepare_onnx_inputs(use_io_binding=False, **kwargs)
+
+            # run inference
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            outputs = self._prepare_onnx_outputs(onnx_outputs)
+
+            # converts output to namedtuple for pipelines post-processing
+            return ModelOutput(outputs)
+
+    def _prepare_onnx_inputs(self, use_io_binding=True, **kwargs):
         model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         onnx_inputs = {}
         # converts pytorch inputs into numpy inputs for onnx
-        for input in model_inputs.keys():
-            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
+        for input_name in model_inputs.keys():
+            input = kwargs.pop(input_name)
+            if use_io_binding:
+                onnx_inputs[input_name] = input
+            else:
+                onnx_inputs[input_name] = input.cpu().detach().numpy()
 
         return onnx_inputs
 
