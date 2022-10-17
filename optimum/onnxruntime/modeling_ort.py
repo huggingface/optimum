@@ -428,8 +428,8 @@ class ORTModelForFeatureExtraction(ORTModel):
     export_feature = "default"
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -448,18 +448,40 @@ class ORTModelForFeatureExtraction(ORTModel):
         token_type_ids: Optional[torch.Tensor] = None,
         **kwargs,
     ):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
-        # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
-        # converts output to namedtuple for pipelines post-processing
-        return BaseModelOutput(last_hidden_state=last_hidden_state)
+        if self.device.type == "cuda" and self.use_io_binding:
+            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return CausalLMOutputWithCrossAttentions(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
 QUESTION_ANSWERING_EXAMPLE = r"""
@@ -513,8 +535,8 @@ class ORTModelForQuestionAnswering(ORTModel):
     export_feature = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -533,19 +555,41 @@ class ORTModelForQuestionAnswering(ORTModel):
         token_type_ids: Optional[torch.Tensor] = None,
         **kwargs,
     ):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
-        # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
-        end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
-        # converts output to namedtuple for pipelines post-processing
-        return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
+        if self.device.type == "cuda" and self.use_io_binding:
+            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return QuestionAnsweringModelOutput(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
+            end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
 
 
 SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
@@ -613,8 +657,8 @@ class ORTModelForSequenceClassification(ORTModel):
     export_feature = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
@@ -634,19 +678,40 @@ class ORTModelForSequenceClassification(ORTModel):
         token_type_ids: Optional[torch.Tensor] = None,
         **kwargs,
     ):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
+        if self.device.type == "cuda" and self.use_io_binding:
+            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
-        # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
-        # converts output to namedtuple for pipelines post-processing
-        return SequenceClassifierOutput(logits=logits)
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return SequenceClassifierOutput(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return SequenceClassifierOutput(logits=logits)
 
 
 TOKEN_CLASSIFICATION_EXAMPLE = r"""
@@ -699,8 +764,8 @@ class ORTModelForTokenClassification(ORTModel):
     export_feature = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -719,18 +784,40 @@ class ORTModelForTokenClassification(ORTModel):
         token_type_ids: Optional[torch.Tensor] = None,
         **kwargs,
     ):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
-        # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
-        # converts output to namedtuple for pipelines post-processing
-        return TokenClassifierOutput(logits=logits)
+        if self.device.type == "cuda" and self.use_io_binding:
+            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return TokenClassifierOutput(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return TokenClassifierOutput(logits=logits)
 
 
 MULTIPLE_CHOICE_EXAMPLE = r"""
@@ -778,8 +865,8 @@ class ORTModelForMultipleChoice(ORTModel):
     export_feature = "multiple-choice"
     auto_model_class = AutoModelForMultipleChoice
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -797,20 +884,40 @@ class ORTModelForMultipleChoice(ORTModel):
         token_type_ids: Optional[torch.Tensor] = None,
         **kwargs,
     ):
-        # Converts pytorch inputs into numpy inputs
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
+        if self.device.type == "cuda" and self.use_io_binding:
+            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
-        if token_type_ids is not None:
-            onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
 
-        # Run inference
-        outputs = self.model.run(None, onnx_inputs)
-        logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
 
-        return MultipleChoiceModelOutput(logits=logits)
+            # converts output to namedtuple for pipelines post-processing
+            return MultipleChoiceModelOutput(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return MultipleChoiceModelOutput(logits=logits)
 
 
 TEXT_GENERATION_EXAMPLE = r"""
@@ -914,9 +1021,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "input_ids": input_ids.cpu().detach().numpy(),
                 "attention_mask": attention_mask.cpu().detach().numpy(),
             }
+
             # run inference
             outputs = self.model.run(None, onnx_inputs)
             logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+
             # converts output to namedtuple for pipelines post-processing
             return CausalLMOutputWithCrossAttentions(logits=logits)
 
@@ -998,8 +1107,8 @@ class ORTModelForImageClassification(ORTModel):
     export_feature = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -1016,16 +1125,35 @@ class ORTModelForImageClassification(ORTModel):
         pixel_values: torch.Tensor,
         **kwargs,
     ):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = {
-            "pixel_values": pixel_values.cpu().detach().numpy(),
-        }
-        # run inference
-        outputs = self.model.run(None, onnx_inputs)
-        # converts output to namedtuple for pipelines post-processing
-        return ImageClassifierOutput(
-            logits=torch.from_numpy(outputs[self.model_outputs["logits"]]),
-        )
+        if self.device.type == "cuda" and self.use_io_binding:
+            onnx_inputs = {"pixel_values": pixel_values}
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return ImageClassifierOutput(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "pixel_values": pixel_values.cpu().detach().numpy(),
+            }
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.model_outputs["logits"]])
+
+            # converts output to namedtuple for pipelines post-processing
+            return ImageClassifierOutput(logits=logits)
 
 
 CUSTOM_TASKS_EXAMPLE = r"""
@@ -1074,8 +1202,8 @@ class ORTModelForCustomTasks(ORTModel):
 
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
 
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(

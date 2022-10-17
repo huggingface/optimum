@@ -163,9 +163,11 @@ class ORTModelForConditionalGeneration(ORTModel):
         decoder_session: onnxruntime.InferenceSession = None,
         decoder_with_past_session: onnxruntime.InferenceSession = None,
         config: transformers.PretrainedConfig = None,
+        use_io_binding: bool = True,
         **kwargs
     ):
         self.config = config
+        self.use_io_binding = use_io_binding
         self.model_save_dir = kwargs.get("model_save_dir", None)
 
         self.providers = encoder_session.get_providers()
