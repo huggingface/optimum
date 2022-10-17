@@ -67,6 +67,7 @@ ONNX_MODEL_START_DOCSTRING = r"""
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~onnxruntime.modeling_ort.ORTModel.from_pretrained`] method to load the model weights.
         model (`onnxruntime.InferenceSession`): [onnxruntime.InferenceSession](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession) is the main class used to run a model. Check out the [`~onnxruntime.modeling_ort.ORTModel.load_model`] method for more information.
+        use_io_binding (`bool`, *optional*): Whether use IO Binding during inference to avoid memory copy between the host and devices. Will default to True if the device is CUDA, otherwise default to False.
 """
 
 ONNX_TEXT_INPUTS_DOCSTRING = r"""
@@ -108,7 +109,7 @@ class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
     auto_model_class = AutoModel
 
-    def __init__(self, model: ort.InferenceSession = None, config=None, **kwargs):
+    def __init__(self, model: ort.InferenceSession = None, config=None, use_io_binding=True, **kwargs):
         self.model = model
         self.config = config
         self.model_save_dir = kwargs.get("model_save_dir", None)
@@ -121,6 +122,11 @@ class ORTModel(OptimizedModel):
                 f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
+
+        if self.device.type == "cuda" and use_io_binding:
+            self.use_io_binding = True
+        else:
+            self.use_io_binding = False
 
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -860,8 +866,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     export_feature = "causal-lm"
     auto_model_class = AutoModelForCausalLM
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
@@ -889,23 +895,34 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        if self.use_io_binding:
+            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
-        onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-        io_helper = IOBindingHelper(self.model, self.config, self.device)
-        io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
 
-        # run inference with binding
-        io_binding.synchronize_inputs()
-        self.model.run_with_iobinding(io_binding)
-        io_binding.synchronize_outputs()
+            # map outputs with names
+            outputs = {}
+            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
 
-        # map outputs with names
-        outputs = {}
-        for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-            outputs[name] = IOBindingHelper.to_pytorch(output)
-
-        # converts output to namedtuple for pipelines post-processing
-        return CausalLMOutputWithCrossAttentions(**outputs)
+            # converts output to namedtuple for pipelines post-processing
+            return CausalLMOutputWithCrossAttentions(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            # converts output to namedtuple for pipelines post-processing
+            return CausalLMOutputWithCrossAttentions(logits=logits)
 
     # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
     def _prepare_attention_mask_for_generation(
