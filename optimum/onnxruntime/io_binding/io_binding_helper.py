@@ -66,7 +66,7 @@ class TypeHelper(ORTTypeHelper):
 # Adapted from https://github.com/microsoft/onnxruntime/blob/1ab11a111ce0717bfbfaca964d04a017cb9b1752/onnxruntime/python/tools/transformers/io_binding_helper.py#L97
 class IOBindingHelper:
     """
-    IOBindingHelper is a class that helps ORTModels to create buffers for inputs and outputs of an ONNX runtime
+    A helper class to enable `ORTModel` instances create buffers for inputs and outputs of an ONNX Runtime
     inference session when using devices like GPU for acceleration. It helps reduce memory copy between the host
     and device.
     """
