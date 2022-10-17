@@ -112,6 +112,7 @@ class ORTModel(OptimizedModel):
     def __init__(self, model: ort.InferenceSession = None, config=None, use_io_binding=True, **kwargs):
         self.model = model
         self.config = config
+        self.use_io_binding = use_io_binding
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
         self.providers = model.get_providers()
@@ -122,11 +123,6 @@ class ORTModel(OptimizedModel):
                 f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
-
-        if self.device.type == "cuda" and use_io_binding:
-            self.use_io_binding = True
-        else:
-            self.use_io_binding = False
 
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -895,7 +891,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
-        if self.use_io_binding:
+        if self.device.type == "cuda" and self.use_io_binding:
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             io_helper = IOBindingHelper(self.model, self.config, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
