@@ -121,10 +121,10 @@ class IOBindingHelper:
             except Exception as e:
                 logging.error(traceback.format_exc())
                 logging.info("Unable to access output memory in CUDA, will offload to CPU")
-                return IOBindingHelper.to_pytorch_via_np(ort_value)
+                return IOBindingHelper.to_pytorch_via_numpy(ort_value)
 
     @staticmethod
-    def to_pytorch_via_np(ort_value: OrtValue) -> torch.Tensor:
+    def to_pytorch_via_numpy(ort_value: OrtValue) -> torch.Tensor:
         ort_device = ort_value.device_name().lower()
         return torch.tensor(ort_value.numpy()).to(ort_device)
 
@@ -134,14 +134,14 @@ class IOBindingHelper:
         assert ort_device == "cuda", f"Convert via CuPy only when device is CUDA, got: {ort_device}"
 
         ort_type = ort_value.data_type()
-        np_type = TypeHelper.ort_type_to_numpy_type(ort_type)
+        numpy_type = TypeHelper.ort_type_to_numpy_type(ort_type)
 
         # Access CUDA memory via CuPy
         import cupy as cp
 
         memory = cp.cuda.UnownedMemory(ort_value.data_ptr(), 0, None)
         memory_ptr = cp.cuda.MemoryPointer(memory, 0)
-        cp_array = cp.ndarray(shape=ort_value.shape(), memptr=memory_ptr, dtype=np_type)
+        cp_array = cp.ndarray(shape=ort_value.shape(), memptr=memory_ptr, dtype=numpy_type)
         torch_tensor = torch.from_dlpack(cp_array.toDlpack())
 
         # If is boolean, the dtype will be uint8 and need to be convert back to bool.
