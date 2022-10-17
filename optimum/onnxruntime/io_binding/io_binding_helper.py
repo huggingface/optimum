@@ -75,7 +75,7 @@ class IOBindingHelper:
         self.model = model
         self.config = config
         self.device = device
-        # create {name:idx} dict for model outputs
+        # Create {name:idx} dict for model inputs and outputs
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
         self.model_input_names = list(self.model_inputs.keys())
