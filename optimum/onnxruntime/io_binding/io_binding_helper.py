@@ -28,6 +28,10 @@ from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelp
 
 # adapted from https://github.com/microsoft/onnxruntime/blob/93e0a151177ad8222c2c95f814342bfa27f0a64d/onnxruntime/python/tools/transformers/io_binding_helper.py#L12
 class TypeHelper(ORTTypeHelper):
+    """
+    TypeHelper helps get data type information of the ONNX runtime inference session and offers the mapping from
+    OrtValues data type to the data type of other data structures(numpy, torch tensor...).
+    """
 
     # TODO: Current DLPack doesn't support boolean tensor, use uint8 as workaround, remove after it is supported.
     @staticmethod
@@ -59,7 +63,14 @@ class TypeHelper(ORTTypeHelper):
         return ort_type_to_torch_type_map[ort_type]
 
 
+# adapted from https://github.com/microsoft/onnxruntime/blob/1ab11a111ce0717bfbfaca964d04a017cb9b1752/onnxruntime/python/tools/transformers/io_binding_helper.py#L97
 class IOBindingHelper:
+    """
+    IOBindingHelper is a class that helps ORTModels to create buffers for inputs and outputs of an ONNX runtime
+    inference session when using devices like GPU for acceleration. It helps reduce memory copy between the host
+    and device.
+    """
+
     def __init__(self, model: ort.InferenceSession, config, device, **kwargs):
         self.model = model
         self.config = config
@@ -100,17 +111,17 @@ class IOBindingHelper:
 
     @staticmethod
     def to_pytorch(ort_value: OrtValue) -> torch.Tensor:
+        """Converts tensors held by OrtValues to torch tensor."""
         env = {pkg.key for pkg in pkg_resources.working_set}
         if "onnxruntime-training" in env:
             return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
         else:
-            return IOBindingHelper.to_pytorch_via_cupy(ort_value)
-            # try:
-            #     return IOBindingHelper.to_pytorch_via_cupy(ort_value)
-            # except Exception as e:
-            #     logging.error(traceback.format_exc())
-            #     logging.info("Unable to access output memory in CUDA, will offload to CPU")
-            #     return IOBindingHelper.to_pytorch_via_np(ort_value)
+            try:
+                return IOBindingHelper.to_pytorch_via_cupy(ort_value)
+            except Exception as e:
+                logging.error(traceback.format_exc())
+                logging.info("Unable to access output memory in CUDA, will offload to CPU")
+                return IOBindingHelper.to_pytorch_via_np(ort_value)
 
     @staticmethod
     def to_pytorch_via_np(ort_value: OrtValue) -> torch.Tensor:
@@ -142,7 +153,7 @@ class IOBindingHelper:
         return torch_tensor
 
     @staticmethod
-    # Only `onnxruntime-training` supports dlpack for OrtValue
+    # only `onnxruntime-training` supports dlpack for OrtValue
     def to_pytorch_via_dlpack(ort_value: OrtValue) -> torch.Tensor:
         from torch._C import _from_dlpack
 
