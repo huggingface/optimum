@@ -63,7 +63,7 @@ class TypeHelper(ORTTypeHelper):
         return ort_type_to_torch_type_map[ort_type]
 
 
-# adapted from https://github.com/microsoft/onnxruntime/blob/1ab11a111ce0717bfbfaca964d04a017cb9b1752/onnxruntime/python/tools/transformers/io_binding_helper.py#L97
+# Adapted from https://github.com/microsoft/onnxruntime/blob/1ab11a111ce0717bfbfaca964d04a017cb9b1752/onnxruntime/python/tools/transformers/io_binding_helper.py#L97
 class IOBindingHelper:
     """
     IOBindingHelper is a class that helps ORTModels to create buffers for inputs and outputs of an ONNX runtime
