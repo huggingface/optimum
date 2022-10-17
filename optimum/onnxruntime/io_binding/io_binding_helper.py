@@ -82,7 +82,7 @@ class IOBindingHelper:
         self.model_output_names = list(self.model_outputs.keys())
 
     def prepare_io_binding(self, **kwargs):
-        """Returnas IO binding object for a session."""
+        """Returns IOBinding object for an inference session."""
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
 
