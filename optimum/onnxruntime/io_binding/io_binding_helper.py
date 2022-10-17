@@ -93,7 +93,9 @@ class IOBindingHelper:
         for input_name in self.model_input_names:
             onnx_input = kwargs.pop(input_name)
 
-            assert onnx_input.is_contiguous()
+            if not onnx_input.is_contiguous():
+                raise RuntimeError(f"Input {input_name} need to be contiguous for IO binding.")
+
             io_binding.bind_input(
                 input_name,
                 onnx_input.device.type,
@@ -131,7 +133,8 @@ class IOBindingHelper:
     @staticmethod
     def to_pytorch_via_cupy(ort_value: OrtValue) -> torch.Tensor:
         ort_device = ort_value.device_name().lower()
-        assert ort_device == "cuda", f"Convert via CuPy only when device is CUDA, got: {ort_device}"
+        if ort_device != "cuda":
+            raise RuntimeError(f"Exchange tensors to PyTorch via CuPy only when device is CUDA, got: {ort_device}")
 
         ort_type = ort_value.data_type()
         numpy_type = TypeHelper.ort_type_to_numpy_type(ort_type)
