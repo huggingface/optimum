@@ -1,42 +1,109 @@
 # Use Nvidia GPU for inference through Optimum-onnxruntime
 
-Although ONNX Runtime defaults to use CPU-only for inference, it is possible to make use of a Nvidia GPU by placing supported operations on GPU, while leaving unsupported one (if remaining) on CPU. In most cases, all operations can be placed on GPU, allowing to leverage the compute power.
+Although ONNX Runtime defaults to use CPU-only for inference, it is possible to place supported operations on an Nvidia GPU, while leaving unsupported ones (if remaining) on CPU. In most cases, all costly operations can be placed on GPU, allowing to leverage its compute power.
 
 ONNX Runtime provides an integration with two execution providers to make use of an Nvidia GPU, namely `CUDAExecutionProvider` and `TensorrtExecutionProvider`.
+
+In case you are using a vanilla model using floating-point arithmetic, both execution providers can be used. TensorRT generally has the best runtime performances, although it comes with its own caveats, notably limitations for inference with inputs having dynamic shape.
+
+When deploying a quantized model to a GPU, CUDAExecutionProvider can not be used, and only models using static quantization can be executed on `Tensorrt`.
 
 ## CUDAExecutionProvider
 
 ### Installation
 
-
+Provided the CUDA and cuDNN [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) are satisfied, the install is then straightforward with `pip install optimum[onnxruntime-gpu]`. Beforehand, to avoid conflicts between `onnxruntime` and `onnxruntime-gpu`, make sure the package `onnxruntime` is not installed by running `pip uninstall onnxruntime`.
 
 ### Checking the installation is successful
 
 Before going further, run the following sample code to check whether the install was successful:
 
 ```python
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer
 
+ort_model = ORTModelForSequenceClassification.from_pretrained(
+    "philschmid/tiny-bert-sst2-distilled",
+    from_transformers=True,
+    provider="CUDAExecutionProvider",
+)
+print("providers:", ort_model.providers)
+
+tokenizer = AutoTokenizer.from_pretrained("philschmid/tiny-bert-sst2-distilled")
+inp = tokenizer("expectations were low, actual enjoyment was high", return_tensors="pt", padding=True)
+
+result = ort_model(**inp)
+print(result)
 ```
 
-In case the printed result is `["CUDAExecutionProvider", "CPUExecutionProvider"]`, congratulations, the installation is successful!
+In case the printed result is `providers: ['CUDAExecutionProvider', 'CPUExecutionProvider']`, congratulations, the installation is successful!
+
+In case the error `ValueError: Asked to use CUDAExecutionProvider as an ONNX Runtime execution provider, but the available execution providers are ['CPUExecutionProvider'].` is raised, something is off in your installation.
 
 ### Use CUDAExecutionProvider with floating-point model
 
-EXAMPLE
+For non-quantized models, the use is straightforward, by simply using the `provider` argument in `ORTModel.from_pretrained()`. For example:
 
-Gather, Unsqueeze, Concat use CPUExecutionProvider, all the rest CUDAExecutionProvider
+```python
+from optimum.onnxruntime import ORTModelForSequenceClassification
+
+ort_model = ORTModelForSequenceClassification.from_pretrained(
+    "distilbert-base-uncased-finetuned-sst-2-english",
+    from_transformers=True,
+    provider="CUDAExecutionProvider",
+)
+```
+
+Additionally, By passing the session option `log_severity_level = 0` (verbose), we can check whether all nodes are indeed placed on the CUDA execution provider or not:
+
+```
+import onnxruntime
+
+session_options = onnxruntime.SessionOptions()
+session_options.log_severity_level = 0
+
+ort_model = ORTModelForSequenceClassification.from_pretrained(
+    "distilbert-base-uncased-finetuned-sst-2-english",
+    from_transformers=True,
+    provider="CUDAExecutionProvider",
+    session_options=session_options
+)
+```
+
+printing:
+
+```
+2022-10-18 14:59:13.728886041 [V:onnxruntime:, session_state.cc:1193 VerifyEachN
+odeIsAssignedToAnEp]  Provider: [CPUExecutionProvider]: [Gather (Gather_76), Uns
+queeze (Unsqueeze_78), Gather (Gather_97), Gather (Gather_100), Concat (Concat_1
+10), Unsqueeze (Unsqueeze_125), ...]
+2022-10-18 14:59:13.728906431 [V:onnxruntime:, session_state.cc:1193 VerifyEachN
+odeIsAssignedToAnEp]  Provider: [CUDAExecutionProvider]: [Shape (Shape_74), Slic
+e (Slice_80), Gather (Gather_81), Gather (Gather_82), Add (Add_83), Shape (Shape
+_95), MatMul (MatMul_101), ...]
+```
+
+Here this result is expected: all the costly MatMul are placed on the CUDA execution provider.
 
 ### Use CUDAExecutionProvider with quantized models
 
+It is not possible to use quantized models with CUDAExecutionProvider.
+
+When using [🤗 Optimum dynamic quantization](quantization#dynamic-quantization-example), nodes as [`MatMulInteger`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#MatMulInteger), [`DynamicQuantizeLinear`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#DynamicQuantizeLinear) may be inserted in the computation graph, that can not be consumed by the CUDA execution provider. This is a limitation from ONNX Runtime.
+
+When using [static quantization](quantization#static-quantization-example), the onnx computation graph will contain matrix multiplications and convolutions in floating-point arithmetic, along with Quantize + Dequantize operations to simulate quantization. In this case, although the costly matrix multiplications and convolutions will be run on the GPU, they will use floating-point arithmetic as the `CUDAExecutionProvider` can not consume the Quantize + Dequantize nodes to replace them by the operations using integer arithmetic.
+
 ### Observed time gains
+
+Coming soon!
 
 ## TensorrtExecutionProvider
 
 ### Installation
 
-The easiest way to make use of TensorRT as the execution library for models optimized through Optimum is to use Docker images [DETAILS TODO].
+The easiest way to use TensorRT as the execution library for models optimized through Optimum is with the available ONNX Runtime `TensorrtExecutionProvider`.
 
-However, in order to use Optimum-onnxruntime with TensorRT in a local environment, it is recommended to follow the NVIDIA documentation:
+In order to use Optimum-onnxruntime with TensorRT in a local environment, it is recommended to follow the NVIDIA documentation to install:
 * CUDA toolkit: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
 * cuDNN: https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html
 * TensorRT: https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html
@@ -54,14 +121,30 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-11.7/lib64:/path/to/Tens
 Before going further, run the following sample code to check whether the install was successful:
 
 ```python
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer
 
+ort_model = ORTModelForSequenceClassification.from_pretrained(
+    "philschmid/tiny-bert-sst2-distilled",
+    from_transformers=True,
+    provider="TensorrtExecutionProvider",
+)
+print("providers:", ort_model.providers)
+
+tokenizer = AutoTokenizer.from_pretrained("philschmid/tiny-bert-sst2-distilled")
+inp = tokenizer("expectations were low, actual enjoyment was high", return_tensors="pt", padding=True)
+
+result = ort_model(**inp)
+print(result)
 ```
 
-In case the printed result is `["TensorrtExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]`, congratulations, the installation is successful!
+In case the printed result has `providers: ['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider']` and no error is raised, congratulations, the installation is successful!
+
+In case the printed result has only `providers: ['CUDAExecutionProvider', 'CPUExecutionProvider']`, or the warning `Failed to create TensorrtExecutionProvider. Please reference https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#requirements to ensure all dependencies are met.` is raised, something is off in your installation.
 
 ### Use TensorRT execution provider with floating-point models
 
-For non-quantized models, the use is straightforward, by simply using the `execution_provider` argument in `ORTModel.from_pretrained()`. For example:
+For non-quantized models, the use is straightforward, by simply using the `provider` argument in `ORTModel.from_pretrained()`. For example:
 
 ```python
 from optimum.onnxruntime import ORTModelForSequenceClassification
@@ -69,11 +152,11 @@ from optimum.onnxruntime import ORTModelForSequenceClassification
 ort_model = ORTModelForSequenceClassification.from_pretrained(
     "distilbert-base-uncased-finetuned-sst-2-english",
     from_transformers=True,
-    execution_provider="TensorrtExecutionProvider",
+    provider="TensorrtExecutionProvider",
 )
 ```
 
-Additionally, By passing the session option `log_severity_level = 0` (verbose), we see in the logs that ONNX Runtime can check whether all nodes are indeed placed on the TensorRT execution provider or not:
+[As previously for `CUDAExecutionProvider`](#use-cudaexecutionprovider-with-floatingpoint-model), by passing the session option `log_severity_level = 0` (verbose), we can check in the logs whether all nodes are indeed placed on the TensorRT execution provider or not:
 
 ```
 2022-09-22 14:12:48.371513741 [V:onnxruntime:, session_state.cc:1188 VerifyEachNodeIsAssignedToAnEp] All nodes have been placed on [TensorrtExecutionProvider]
@@ -81,7 +164,7 @@ Additionally, By passing the session option `log_severity_level = 0` (verbose), 
 
 ### Use quantized models with TensorRT execution provider
 
-TensorRT supports only models that use **static** quantization with **symmetric quantization** for weights and activations. Thus, for models quantized through Optimum to later be consumed by TensorRT, the following configuration needs to be passed when doing calibration for static quantization:
+When it comes to quantized models, TensorRT supports only models that use **static** quantization with **symmetric quantization** for weights and activations. Thus, to be able to consume with TensorRT models quantized through 🤗 Optimum, the following configuration needs to be passed when doing [static quantization](quantization#static-quantization-example):
 
 ```python
 qconfig = QuantizationConfig(
@@ -114,7 +197,7 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 )
 ```
 
-The model can then be used with the common transformers API for inference, such as pipelines:
+The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as pipelines:
 ```python
 from optimum.pipelines import pipeline
 from transformers import AutoTokenizer
@@ -130,7 +213,7 @@ print(result)
 
 As highlighted in the previous section, TensorRT supports only a limited range of quantized model:
 * Static quantization only
-* Weights and activations quantization ranges are **symmetric**
+* Weights and activations quantization ranges are symmetric
 * Weights need to be stored in float32 in the `.onnx` model, thus there is no storage space saving from quantization.
 
 In case `provider="TensorrtExecutionProvider"` is passed and the model has not been quantized strictly following these constraints, various errors may be raised, where error messages can be unclear.
@@ -139,3 +222,4 @@ In case `provider="TensorrtExecutionProvider"` is passed and the model has not b
 
 Nvidia Nsight Systems tool can be used to profile the execution time on GPU. Before profiling or measuring latency/throughput, it is a good practice to do a few **warmup steps**.
 
+Coming soon!
