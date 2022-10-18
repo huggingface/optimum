@@ -44,9 +44,12 @@ class TypeHelper(ORTTypeHelper):
             "tensor(float16)": np.float16,
             "tensor(bool)": np.uint8,
         }
-        if ort_type not in ort_type_to_numpy_type_map:
-            raise ValueError(f"{ort_type} not found in map")
-        return ort_type_to_numpy_type_map[ort_type]
+        if ort_type in ort_type_to_numpy_type_map:
+            return ort_type_to_numpy_type_map[ort_type]
+        else:
+            raise ValueError(
+                f"{ort_type} is not supported. Here is a list of supported data type: {ort_type_to_numpy_type_map.keys()}"
+            )
 
     @staticmethod
     def ort_type_to_torch_type(ort_type: str):
@@ -58,9 +61,12 @@ class TypeHelper(ORTTypeHelper):
             "tensor(float16)": torch.float16,
             "tensor(bool)": torch.bool,
         }
-        if ort_type not in ort_type_to_torch_type_map:
-            raise ValueError(f"{ort_type} not found in map")
-        return ort_type_to_torch_type_map[ort_type]
+        if ort_type in ort_type_to_torch_type_map:
+            return ort_type_to_torch_type_map[ort_type]
+        else:
+            raise ValueError(
+                f"{ort_type} is not supported. Here is a list of supported data type: {ort_type_to_torch_type_map.keys()}"
+            )
 
 
 # Adapted from https://github.com/microsoft/onnxruntime/blob/1ab11a111ce0717bfbfaca964d04a017cb9b1752/onnxruntime/python/tools/transformers/io_binding_helper.py#L97

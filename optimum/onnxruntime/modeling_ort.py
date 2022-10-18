@@ -468,7 +468,7 @@ class ORTModelForFeatureExtraction(ORTModel):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
 
             # converts output to namedtuple for pipelines post-processing
-            return CausalLMOutputWithCrossAttentions(**outputs)
+            return BaseModelOutput(**outputs)
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -1001,7 +1001,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            print("using io binding")
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
@@ -1012,12 +1011,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return CausalLMOutputWithCrossAttentions(**outputs)
+            return CausalLMOutputWithCrossAttentions(logits=IOBindingHelper.to_pytorch(logits))
         else:
             print("not using io binding")
             # converts pytorch inputs into numpy inputs for onnx
