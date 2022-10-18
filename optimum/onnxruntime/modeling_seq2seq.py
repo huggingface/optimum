@@ -527,7 +527,7 @@ class ORTEncoder:
         **kwargs,
     ) -> BaseModelOutput:
 
-        if self.device.type == "cuda" and self.use_io_binding:
+        if self._device.type == "cuda" and self.use_io_binding:
             onnx_inputs = {"input_ids": input_ids}
             if "attention_mask" in self.input_names:
                 onnx_inputs["attention_mask"] = attention_mask
@@ -590,7 +590,7 @@ class ORTDecoder:
         labels: Optional[torch.LongTensor] = None,
     ) -> Seq2SeqLMOutput:
 
-        if self.device.type == "cuda" and self.use_io_binding:
+        if self._device.type == "cuda" and self.use_io_binding:
             onnx_inputs = {
                 "input_ids": input_ids,
                 "encoder_attention_mask": encoder_attention_mask,
@@ -622,15 +622,13 @@ class ORTDecoder:
 
             # map outputs with names and extract past key values
             outputs = {}
-            past_key_values = []
+            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
+            # self-attention layer and 2 to the cross-attention layer)
+            past_key_values = tuple()
             for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
                 if "key_values" in name:
-                    past_key_values.append(outputs[name])
-
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
-            # self-attention layer and 2 to the cross-attention layer)
-            past_key_values = tuple(past_key_values)
+                    past_key_values += (outputs[name],)
 
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
             # cross-attention per decoder layer
