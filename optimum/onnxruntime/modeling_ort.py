@@ -49,7 +49,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from .io_binding import IOBindingHelper
+from .io_binding import IOBindingHelper, TypeHelper
 from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
 
 
@@ -980,6 +980,38 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             inputs["attention_mask"] = kwargs["attention_mask"]
         return inputs
 
+    def prepare_io_binding(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        io_binding = self.model.io_binding()
+
+        # bind input_ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self.device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+        # bind attention mask
+        io_binding.bind_input(
+            "attention_mask",
+            input_ids.device.type,
+            self.device.index,
+            name_to_np_type["attention_mask"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+
+        # bind logits
+        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + TEXT_GENERATION_EXAMPLE.format(
@@ -995,9 +1027,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(input_ids, attention_mask)
 
             # run inference with binding
             io_binding.synchronize_inputs()
