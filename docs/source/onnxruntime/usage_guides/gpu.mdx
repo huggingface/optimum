@@ -6,7 +6,7 @@ ONNX Runtime provides an integration with two execution providers to make use of
 
 In case you are using a vanilla model using floating-point arithmetic, both execution providers can be used. TensorRT generally has the best runtime performances, although it comes with its own caveats, notably limitations for inference with inputs having dynamic shape.
 
-When deploying a quantized model to a GPU, CUDAExecutionProvider can not be used, and only models using static quantization can be executed on `Tensorrt`.
+When deploying a quantized model to a GPU, `CUDAExecutionProvider` can not be used, and only models using static quantization can be executed on `TensorrtExecutionProvider`.
 
 ## CUDAExecutionProvider
 
@@ -40,7 +40,7 @@ In case the printed result is `providers: ['CUDAExecutionProvider', 'CPUExecutio
 
 In case the error `ValueError: Asked to use CUDAExecutionProvider as an ONNX Runtime execution provider, but the available execution providers are ['CPUExecutionProvider'].` is raised, something is off in your installation.
 
-### Use CUDAExecutionProvider with floating-point model
+### Use CUDA execution provider with floating-point models
 
 For non-quantized models, the use is straightforward, by simply using the `provider` argument in `ORTModel.from_pretrained()`. For example:
 
@@ -85,7 +85,7 @@ _95), MatMul (MatMul_101), ...]
 
 Here this result is expected: all the costly MatMul are placed on the CUDA execution provider.
 
-### Use CUDAExecutionProvider with quantized models
+### Use CUDA execution provider with quantized models
 
 It is not possible to use quantized models with CUDAExecutionProvider.
 
@@ -162,7 +162,7 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 2022-09-22 14:12:48.371513741 [V:onnxruntime:, session_state.cc:1188 VerifyEachNodeIsAssignedToAnEp] All nodes have been placed on [TensorrtExecutionProvider]
 ```
 
-### Use quantized models with TensorRT execution provider
+### Use TensorRT execution provider with quantized models
 
 When it comes to quantized models, TensorRT supports only models that use **static** quantization with **symmetric quantization** for weights and activations. Thus, to be able to consume with TensorRT models quantized through 🤗 Optimum, the following configuration needs to be passed when doing [static quantization](quantization#static-quantization-example):
 
