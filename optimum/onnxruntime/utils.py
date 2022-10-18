@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import importlib.util
 from enum import Enum
 
 import torch
@@ -55,6 +56,13 @@ def is_onnxruntime_training_available():
         return True
     else:
         return False
+
+
+def is_cupy_available():
+    """
+    checks if onnxruntime-training is available.
+    """
+    return importlib.util.find_spec("cupy") is not None
 
 
 class ORTConfigManager:

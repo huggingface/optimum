@@ -23,7 +23,11 @@ import onnxruntime as ort
 from onnxruntime.capi.onnxruntime_inference_collection import OrtValue
 from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelper
 
-from ..utils import is_onnxruntime_training_available
+from ..utils import is_cupy_available, is_onnxruntime_training_available
+
+
+if is_cupy_available():
+    import cupy as cp
 
 
 # Adapted from https://github.com/microsoft/onnxruntime/blob/93e0a151177ad8222c2c95f814342bfa27f0a64d/onnxruntime/python/tools/transformers/io_binding_helper.py#L12
@@ -145,8 +149,6 @@ class IOBindingHelper:
         numpy_type = TypeHelper.ort_type_to_numpy_type(ort_type)
 
         # Access CUDA memory via CuPy
-        import cupy as cp
-
         memory = cp.cuda.UnownedMemory(ort_value.data_ptr(), 0, None)
         memory_ptr = cp.cuda.MemoryPointer(memory, 0)
         cp_array = cp.ndarray(shape=ort_value.shape(), memptr=memory_ptr, dtype=numpy_type)
