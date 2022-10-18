@@ -1528,43 +1528,43 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    # @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    # @require_torch_gpu
-    # def test_pipeline_on_gpu(self, model_arch):
-    #     model_id = MODEL_NAMES[model_arch]
-    #     onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
-    #     processor = get_preprocessor(model_id)
-    #     pipe = pipeline(
-    #         "automatic-speech-recognition",
-    #         model=onnx_model,
-    #         tokenizer=processor.tokenizer,
-    #         feature_extractor=processor.feature_extractor,
-    #     )
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        processor = get_preprocessor(model_id)
+        pipe = pipeline(
+            "automatic-speech-recognition",
+            model=onnx_model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+        )
 
-    #     ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-    #     data = ds[0]["audio"]["array"]
-    #     outputs = pipe(data)
+        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
+        data = ds[0]["audio"]["array"]
+        outputs = pipe(data)
 
-    #     # check model device
-    #     self.assertEqual(pipe.model.device.type.lower(), "cuda")
-    #     # compare model output class
-    #     self.assertTrue(isinstance(outputs["text"], str))
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        # compare model output class
+        self.assertTrue(isinstance(outputs["text"], str))
 
-    # def test_compare_with_and_without_past_key_values_model_outputs(self):
-    #     model_id = MODEL_NAMES["whisper"]
-    #     processor = get_preprocessor(model_id)
+    def test_compare_with_and_without_past_key_values_model_outputs(self):
+        model_id = MODEL_NAMES["whisper"]
+        processor = get_preprocessor(model_id)
 
-    #     ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-    #     data = ds[0]["audio"]["array"]
-    #     features = processor.feature_extractor(data, return_tensors="pt")
+        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
+        data = ds[0]["audio"]["array"]
+        features = processor.feature_extractor(data, return_tensors="pt")
 
-    #     model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=True)
-    #     outputs_model_with_pkv = model_with_pkv.generate(**features)
-    #     model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=False)
-    #     outputs_model_without_pkv = model_without_pkv.generate(**features)
+        model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=True)
+        outputs_model_with_pkv = model_with_pkv.generate(**features)
+        model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=False)
+        outputs_model_without_pkv = model_without_pkv.generate(**features)
 
-    #     print(outputs_model_with_pkv, outputs_model_without_pkv)
-    #     self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+        print(outputs_model_with_pkv, outputs_model_without_pkv)
+        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
 
 
 class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
