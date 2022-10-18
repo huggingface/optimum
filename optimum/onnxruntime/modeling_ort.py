@@ -160,7 +160,7 @@ class ORTModel(OptimizedModel):
         path: Union[str, Path],
         provider: Optional[str] = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[List[Dict]] = None,
+        provider_options: Optional[Dict] = None,
         **kwargs
     ):
         """
@@ -175,7 +175,7 @@ class ORTModel(OptimizedModel):
             session_options (`onnxruntime.SessionOptions`, *optional*):
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
             provider_options (`Dict`, **optional**):
-                Provider option dictionaries corresponding to the provider used. See available options
+                Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
         available_providers = ort.get_available_providers()
@@ -188,7 +188,7 @@ class ORTModel(OptimizedModel):
         if provider == "TensorrtExecutionProvider":
             # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
-        
+
         # `providers` list must of be of the same length as `provider_options` list
         return ort.InferenceSession(
             path,
