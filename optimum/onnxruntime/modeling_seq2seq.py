@@ -540,12 +540,10 @@ class ORTEncoder:
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            last_hidden_state = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(**outputs)
+            return BaseModelOutput(last_hidden_state=IOBindingHelper.to_pytorch(last_hidden_state))
         else:
             onnx_inputs = {"input_ids": input_ids.cpu().detach().numpy()}
 

@@ -463,12 +463,10 @@ class ORTModelForFeatureExtraction(ORTModel):
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            last_hidden_state = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(**outputs)
+            return BaseModelOutput(last_hidden_state=IOBindingHelper.to_pytorch(last_hidden_state))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -570,12 +568,14 @@ class ORTModelForQuestionAnswering(ORTModel):
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            start_logits = io_binding._iobinding.get_outputs()[0]
+            end_logits = io_binding._iobinding.get_outputs()[1]
 
             # converts output to namedtuple for pipelines post-processing
-            return QuestionAnsweringModelOutput(**outputs)
+            return QuestionAnsweringModelOutput(
+                start_logits=IOBindingHelper.to_pytorch(start_logits),
+                end_logits=IOBindingHelper.to_pytorch(end_logits),
+            )
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -693,12 +693,10 @@ class ORTModelForSequenceClassification(ORTModel):
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(**outputs)
+            return SequenceClassifierOutput(logits=IOBindingHelper.to_pytorch(logits))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -799,12 +797,10 @@ class ORTModelForTokenClassification(ORTModel):
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return TokenClassifierOutput(**outputs)
+            return TokenClassifierOutput(logits=IOBindingHelper.to_pytorch(logits))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -899,12 +895,10 @@ class ORTModelForMultipleChoice(ORTModel):
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return MultipleChoiceModelOutput(**outputs)
+            return MultipleChoiceModelOutput(logits=IOBindingHelper.to_pytorch(logits))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -1016,7 +1010,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # converts output to namedtuple for pipelines post-processing
             return CausalLMOutputWithCrossAttentions(logits=IOBindingHelper.to_pytorch(logits))
         else:
-            print("not using io binding")
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
                 "input_ids": input_ids.cpu().detach().numpy(),
@@ -1137,12 +1130,10 @@ class ORTModelForImageClassification(ORTModel):
             io_binding.synchronize_outputs()
 
             # map outputs with names
-            outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return ImageClassifierOutput(**outputs)
+            return ImageClassifierOutput(logits=IOBindingHelper.to_pytorch(logits))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
