@@ -71,9 +71,8 @@ class IOBindingHelper:
     and device.
     """
 
-    def __init__(self, model: ort.InferenceSession, config, device, **kwargs):
+    def __init__(self, model: ort.InferenceSession, device, **kwargs):
         self.model = model
-        self.config = config
         self.device = device
         # Create {name:idx} dict for model inputs and outputs
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(model.get_inputs())}

@@ -454,7 +454,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             if token_type_ids is not None:
                 onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
@@ -561,7 +561,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             if token_type_ids is not None:
                 onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
@@ -684,7 +684,7 @@ class ORTModelForSequenceClassification(ORTModel):
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             if token_type_ids is not None:
                 onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
@@ -790,7 +790,7 @@ class ORTModelForTokenClassification(ORTModel):
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             if token_type_ids is not None:
                 onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
@@ -890,7 +890,7 @@ class ORTModelForMultipleChoice(ORTModel):
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             if token_type_ids is not None:
                 onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
@@ -1003,7 +1003,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if self.device.type == "cuda" and self.use_io_binding:
             print("using io binding")
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
@@ -1131,7 +1131,7 @@ class ORTModelForImageClassification(ORTModel):
     ):
         if self.device.type == "cuda" and self.use_io_binding:
             onnx_inputs = {"pixel_values": pixel_values}
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
@@ -1219,7 +1219,7 @@ class ORTModelForCustomTasks(ORTModel):
     def forward(self, **kwargs):
         if self.device.type == "cuda" and self.use_io_binding:
             onnx_inputs = self._prepare_onnx_inputs(**kwargs)
-            io_helper = IOBindingHelper(self.model, self.config, self.device)
+            io_helper = IOBindingHelper(self.model, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
 
             # run inference with binding
