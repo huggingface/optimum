@@ -98,7 +98,7 @@ SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
 SPEECH_SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
     Arguments:
         input_features (`torch.FloatTensor`):
-            Float values mel features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
+            Mel features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
 """
 
 
@@ -139,7 +139,7 @@ SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
 SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
     Arguments:
         input_features (`torch.FloatTensor`):
-            Float values mel features extracted from the raw speech waveform.
+            Mel features extracted from the raw speech waveform.
             `(batch_size, feature_size, encoder_sequence_length)`.
         decoder_input_ids (`torch.LongTensor`):
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
@@ -547,15 +547,15 @@ class ORTModelForConditionalGeneration(ORTModel):
 
         # Extract the encoder for ONNX export
         encoder = model.get_encoder()
-        # Concatenate the decoder with the language model head for ONNX export
-        decoder_with_lm_head = _DecoderWithLMhead(model)
+        # Extract the decoder for ONNX export
+        decoder = model.get_decoder()
 
         onnx_config_encoder = cls.get_encoder_onnx_config(encoder, onnx_config)
         onnx_config_decoder = cls.get_decoder_onnx_config(
-            encoder, decoder_with_lm_head, cls.export_feature, use_past=False, onnx_config=onnx_config
+            encoder, decoder, cls.export_feature, use_past=False, onnx_config=onnx_config
         )
         onnx_config_decoder_with_past = cls.get_decoder_onnx_config(
-            encoder, decoder_with_lm_head, cls.export_feature, use_past=True, onnx_config=onnx_config
+            encoder, decoder, cls.export_feature, use_past=True, onnx_config=onnx_config
         )
 
         preprocessor_encoder = cls.get_encoder_preprocessor(model_id)
