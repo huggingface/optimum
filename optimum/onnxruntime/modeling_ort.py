@@ -67,7 +67,9 @@ ONNX_MODEL_START_DOCSTRING = r"""
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~onnxruntime.modeling_ort.ORTModel.from_pretrained`] method to load the model weights.
         model (`onnxruntime.InferenceSession`): [onnxruntime.InferenceSession](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession) is the main class used to run a model. Check out the [`~onnxruntime.modeling_ort.ORTModel.load_model`] method for more information.
-        use_io_binding (`bool`, *optional*): Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
+        kwargs (additional keyword arguments, *optional*):
+                Can be used to initiate the model (e.g., `use_io_binding=False`):
+                    - use_io_binding (`bool`, *optional*): Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
 """
 
 ONNX_TEXT_INPUTS_DOCSTRING = r"""
@@ -109,10 +111,10 @@ class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
     auto_model_class = AutoModel
 
-    def __init__(self, model: ort.InferenceSession = None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model: ort.InferenceSession = None, config=None, **kwargs):
         self.model = model
         self.config = config
-        self.use_io_binding = use_io_binding
+        self.use_io_binding = kwargs.get("use_io_binding", True)
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
         self.providers = model.get_providers()
@@ -428,8 +430,8 @@ class ORTModelForFeatureExtraction(ORTModel):
     export_feature = "default"
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -535,8 +537,8 @@ class ORTModelForQuestionAnswering(ORTModel):
     export_feature = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -657,8 +659,8 @@ class ORTModelForSequenceClassification(ORTModel):
     export_feature = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
@@ -764,8 +766,8 @@ class ORTModelForTokenClassification(ORTModel):
     export_feature = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -865,8 +867,8 @@ class ORTModelForMultipleChoice(ORTModel):
     export_feature = "multiple-choice"
     auto_model_class = AutoModelForMultipleChoice
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
     @add_start_docstrings_to_model_forward(
@@ -969,8 +971,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     export_feature = "causal-lm"
     auto_model_class = AutoModelForCausalLM
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
@@ -999,6 +1001,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
+            print("using io binding")
             onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
             io_helper = IOBindingHelper(self.model, self.config, self.device)
             io_binding = io_helper.prepare_io_binding(**onnx_inputs)
@@ -1016,6 +1019,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # converts output to namedtuple for pipelines post-processing
             return CausalLMOutputWithCrossAttentions(**outputs)
         else:
+            print("not using io binding")
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
                 "input_ids": input_ids.cpu().detach().numpy(),
@@ -1107,8 +1111,8 @@ class ORTModelForImageClassification(ORTModel):
     export_feature = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
@@ -1202,8 +1206,8 @@ class ORTModelForCustomTasks(ORTModel):
 
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
+    def __init__(self, model=None, config=None, **kwargs):
+        super().__init__(model, config, **kwargs)
 
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(

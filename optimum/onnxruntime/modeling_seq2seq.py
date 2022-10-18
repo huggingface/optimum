@@ -66,6 +66,10 @@ ONNX_INPUTS_DOCSTRING = r"""
         decoder_with_past_file_name(`str`, *optional*):
             The decoder with past key values model file name overwriting the default file name, allowing to save
             the decoder model with a different name.
+        kwargs (additional keyword arguments, *optional*):
+            Can be used to initiate the model (e.g., `use_io_binding=False`):
+                - use_io_binding (`bool`, *optional*): Whether use IOBinding during inference to avoid memory copy between the host
+                and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
 """
 
 ENCODER_INPUTS_DOCSTRING = r"""
@@ -163,11 +167,10 @@ class ORTModelForConditionalGeneration(ORTModel):
         decoder_session: onnxruntime.InferenceSession = None,
         decoder_with_past_session: onnxruntime.InferenceSession = None,
         config: transformers.PretrainedConfig = None,
-        use_io_binding: bool = True,
         **kwargs
     ):
         self.config = config
-        self.use_io_binding = use_io_binding
+        self.use_io_binding = kwargs.get("use_io_binding", True)
         self.model_save_dir = kwargs.get("model_save_dir", None)
 
         self.providers = encoder_session.get_providers()

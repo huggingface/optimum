@@ -116,16 +116,13 @@ class IOBindingHelper:
         """Converts tensors held by OrtValues to torch tensor."""
 
         if is_onnxruntime_training_available():
-            print("Applied with dlppack")
             return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
         else:
             try:
-                print("Applied with cupy")
                 return IOBindingHelper.to_pytorch_via_cupy(ort_value)
             except Exception as e:
                 logging.error(traceback.format_exc())
                 logging.info("Unable to access output memory in CUDA, will offload to CPU")
-                print("Applied with numpy")
                 return IOBindingHelper.to_pytorch_via_numpy(ort_value)
 
     @staticmethod
