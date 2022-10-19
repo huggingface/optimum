@@ -67,9 +67,11 @@ class BetterTransformer(object):
                     model._modules[name] = maybe_fast_module(module)
             return model
 
-        model_fast = deepcopy(model)
-
-        model_fast = replace_to_fast(model_fast).eval()
+        if keep_original_model:
+            model_fast = deepcopy(model)
+            model_fast = replace_to_fast(model_fast).eval()
+        else:
+            model_fast = replace_to_fast(model).eval()
 
         # Step 5: Post process the potentially converted model by setting the `is_last_layer` attribute to `True`
         # For the last `Fast` layer.
