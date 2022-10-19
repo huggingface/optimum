@@ -435,6 +435,50 @@ class ORTModelForFeatureExtraction(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_io_binding(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        io_binding = self.model.io_binding()
+
+        # bind input ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self.device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+        # bind attention mask
+        io_binding.bind_input(
+            "attention_mask",
+            attention_mask.device.type,
+            self.device.index,
+            name_to_np_type["attention_mask"],
+            list(attention_mask.size()),
+            attention_mask.data_ptr(),
+        )
+
+        if token_type_ids is not None:
+            # bind token type ids
+            io_binding.bind_input(
+                "token_type_ids",
+                token_type_ids.device.type,
+                self.device.index,
+                name_to_np_type["token_type_ids"],
+                list(token_type_ids.size()),
+                token_type_ids.data_ptr(),
+            )
+
+        # bind logits
+        io_binding.bind_output("last_hidden_state", self.device.type, device_id=self.device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + FEATURE_EXTRACTION_EXAMPLE.format(
@@ -451,11 +495,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -540,6 +580,51 @@ class ORTModelForQuestionAnswering(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_io_binding(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        io_binding = self.model.io_binding()
+
+        # bind input ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self.device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+        # bind attention mask
+        io_binding.bind_input(
+            "attention_mask",
+            attention_mask.device.type,
+            self.device.index,
+            name_to_np_type["attention_mask"],
+            list(attention_mask.size()),
+            attention_mask.data_ptr(),
+        )
+
+        if token_type_ids is not None:
+            # bind token type ids
+            io_binding.bind_input(
+                "token_type_ids",
+                token_type_ids.device.type,
+                self.device.index,
+                name_to_np_type["token_type_ids"],
+                list(token_type_ids.size()),
+                token_type_ids.data_ptr(),
+            )
+
+        # bind logits
+        io_binding.bind_output("start_logits", self.device.type, device_id=self.device.index)
+        io_binding.bind_output("end_logits", self.device.type, device_id=self.device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + QUESTION_ANSWERING_EXAMPLE.format(
@@ -556,11 +641,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -665,6 +746,50 @@ class ORTModelForSequenceClassification(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
 
+    def prepare_io_binding(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        io_binding = self.model.io_binding()
+
+        # bind input ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self.device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+        # bind attention mask
+        io_binding.bind_input(
+            "attention_mask",
+            attention_mask.device.type,
+            self.device.index,
+            name_to_np_type["attention_mask"],
+            list(attention_mask.size()),
+            attention_mask.data_ptr(),
+        )
+
+        if token_type_ids is not None:
+            # bind token type ids
+            io_binding.bind_input(
+                "token_type_ids",
+                token_type_ids.device.type,
+                self.device.index,
+                name_to_np_type["token_type_ids"],
+                list(token_type_ids.size()),
+                token_type_ids.data_ptr(),
+            )
+
+        # bind logits
+        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + SEQUENCE_CLASSIFICATION_EXAMPLE.format(
@@ -681,11 +806,7 @@ class ORTModelForSequenceClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -769,6 +890,50 @@ class ORTModelForTokenClassification(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_io_binding(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        io_binding = self.model.io_binding()
+
+        # bind input ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self.device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+        # bind attention mask
+        io_binding.bind_input(
+            "attention_mask",
+            attention_mask.device.type,
+            self.device.index,
+            name_to_np_type["attention_mask"],
+            list(attention_mask.size()),
+            attention_mask.data_ptr(),
+        )
+
+        if token_type_ids is not None:
+            # bind token type ids
+            io_binding.bind_input(
+                "token_type_ids",
+                token_type_ids.device.type,
+                self.device.index,
+                name_to_np_type["token_type_ids"],
+                list(token_type_ids.size()),
+                token_type_ids.data_ptr(),
+            )
+
+        # bind logits
+        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + TOKEN_CLASSIFICATION_EXAMPLE.format(
@@ -785,11 +950,7 @@ class ORTModelForTokenClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -867,6 +1028,50 @@ class ORTModelForMultipleChoice(ORTModel):
         super().__init__(model, config, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_io_binding(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        io_binding = self.model.io_binding()
+
+        # bind input ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self.device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+        # bind attention mask
+        io_binding.bind_input(
+            "attention_mask",
+            attention_mask.device.type,
+            self.device.index,
+            name_to_np_type["attention_mask"],
+            list(attention_mask.size()),
+            attention_mask.data_ptr(),
+        )
+
+        if token_type_ids is not None:
+            # bind token type ids
+            io_binding.bind_input(
+                "token_type_ids",
+                token_type_ids.device.type,
+                self.device.index,
+                name_to_np_type["token_type_ids"],
+                list(token_type_ids.size()),
+                token_type_ids.data_ptr(),
+            )
+
+        # bind logits
+        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + MULTIPLE_CHOICE_EXAMPLE.format(
@@ -883,11 +1088,7 @@ class ORTModelForMultipleChoice(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -1000,11 +1201,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # bind attention mask
         io_binding.bind_input(
             "attention_mask",
-            input_ids.device.type,
+            attention_mask.device.type,
             self.device.index,
             name_to_np_type["attention_mask"],
-            list(input_ids.size()),
-            input_ids.data_ptr(),
+            list(attention_mask.size()),
+            attention_mask.data_ptr(),
         )
 
         # bind logits
@@ -1136,6 +1337,28 @@ class ORTModelForImageClassification(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_io_binding(
+        self,
+        pixel_values: torch.Tensor,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        io_binding = self.model.io_binding()
+
+        # bind pixel values
+        io_binding.bind_input(
+            "pixel_values",
+            pixel_values.device.type,
+            self.device.index,
+            name_to_np_type["pixel_values"],
+            list(pixel_values.size()),
+            pixel_values.data_ptr(),
+        )
+
+        # bind logits
+        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
         + IMAGE_CLASSIFICATION_EXAMPLE.format(
@@ -1150,9 +1373,7 @@ class ORTModelForImageClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"pixel_values": pixel_values}
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(pixel_values)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -1222,10 +1443,45 @@ class ORTModelForCustomTasks(ORTModel):
     Onnx Model for any custom tasks.
     """
 
+    export_feature = "default"
     auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_input_names = list(self.model_inputs.keys())
+        self.model_output_names = list(self.model_outputs.keys())
+
+    def prepare_io_binding(self, **kwargs) -> ort.IOBinding:
+        """Returns IOBinding object for an inference session."""
+
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+
+        # Bind inputs and outputs to onnxruntime session
+        io_binding = self.model.io_binding()
+
+        # Bind inputs
+        for input_name in self.model_input_names:
+            onnx_input = kwargs.pop(input_name)
+
+            if not onnx_input.is_contiguous():
+                raise RuntimeError(f"Input {input_name} need to be contiguous for IO binding.")
+
+            io_binding.bind_input(
+                input_name,
+                onnx_input.device.type,
+                self.device.index,
+                name_to_np_type[input_name],
+                list(onnx_input.size()),
+                onnx_input.data_ptr(),
+            )
+
+        # Bind outputs
+        for name in self.model_output_names:
+            io_binding.bind_output(name, self.device.type, device_id=self.device.index)
+
+        return io_binding
 
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(
@@ -1236,9 +1492,7 @@ class ORTModelForCustomTasks(ORTModel):
     )
     def forward(self, **kwargs):
         if self.device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
-            io_helper = IOBindingHelper(self.model, self.device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(**kwargs)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -1247,14 +1501,14 @@ class ORTModelForCustomTasks(ORTModel):
 
             # map outputs with names
             outputs = {}
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
 
             # converts output to namedtuple for pipelines post-processing
             return ModelOutput(**outputs)
         else:
             # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = self._prepare_onnx_inputs(use_io_binding=False, **kwargs)
+            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
 
             # run inference
             onnx_outputs = self.model.run(None, onnx_inputs)
@@ -1263,16 +1517,13 @@ class ORTModelForCustomTasks(ORTModel):
             # converts output to namedtuple for pipelines post-processing
             return ModelOutput(outputs)
 
-    def _prepare_onnx_inputs(self, use_io_binding=True, **kwargs):
+    def _prepare_onnx_inputs(self, **kwargs):
         model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         onnx_inputs = {}
         # converts pytorch inputs into numpy inputs for onnx
         for input_name in model_inputs.keys():
             input = kwargs.pop(input_name)
-            if use_io_binding:
-                onnx_inputs[input_name] = input
-            else:
-                onnx_inputs[input_name] = input.cpu().detach().numpy()
+            onnx_inputs[input_name] = input.cpu().detach().numpy()
 
         return onnx_inputs
 
