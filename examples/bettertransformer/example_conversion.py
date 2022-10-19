@@ -5,7 +5,7 @@ from optimum.bettertransformer import BetterTransformer
 
 
 model_hf = AutoModelForSequenceClassification.from_pretrained("bert-base-cased")
-model = BetterTransformer.transform(model_hf)
+model = BetterTransformer.transform(model_hf, keep_original_model=True)
 
 inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1]])
 attention_mask = torch.Tensor([[1, 1, 1, 0, 0, 0]])
