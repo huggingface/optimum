@@ -1029,6 +1029,16 @@ class ORTModelForMultipleChoice(ORTModel):
         super().__init__(model, config, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_logits_buffer(self, batch_size, num_choices):
+        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        logits_shape = (batch_size, num_choices)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+
+        return logits_shape, logits_buffer
+
     def prepare_io_binding(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -1044,7 +1054,7 @@ class ORTModelForMultipleChoice(ORTModel):
             input_ids.device.type,
             self.device.index,
             name_to_np_type["input_ids"],
-            list(input_ids.size()),
+            tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
         # bind attention mask
@@ -1053,7 +1063,7 @@ class ORTModelForMultipleChoice(ORTModel):
             attention_mask.device.type,
             self.device.index,
             name_to_np_type["attention_mask"],
-            list(attention_mask.size()),
+            tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
 
@@ -1064,14 +1074,26 @@ class ORTModelForMultipleChoice(ORTModel):
                 token_type_ids.device.type,
                 self.device.index,
                 name_to_np_type["token_type_ids"],
-                list(token_type_ids.size()),
+                tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
 
         # bind logits
-        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+        logits_shape, logits_buffer = self.prepare_logits_buffer(
+            batch_size=input_ids.size(0), num_choices=input_ids.size(1)
+        )
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1089,18 +1111,17 @@ class ORTModelForMultipleChoice(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_ids, attention_mask, token_type_ids
+            )
 
             # run inference with binding
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
-            return MultipleChoiceModelOutput(logits=IOBindingHelper.to_pytorch(logits))
+            return MultipleChoiceModelOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -1357,6 +1378,16 @@ class ORTModelForImageClassification(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_logits_buffer(self, batch_size):
+        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        logits_shape = (batch_size, self.config.num_labels)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+
+        return logits_shape, logits_buffer
+
     def prepare_io_binding(
         self,
         pixel_values: torch.Tensor,
@@ -1370,14 +1401,24 @@ class ORTModelForImageClassification(ORTModel):
             pixel_values.device.type,
             self.device.index,
             name_to_np_type["pixel_values"],
-            list(pixel_values.size()),
+            tuple(pixel_values.shape),
             pixel_values.data_ptr(),
         )
 
         # bind logits
-        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+        logits_shape, logits_buffer = self.prepare_logits_buffer(batch_size=pixel_values.size(0))
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
@@ -1393,18 +1434,15 @@ class ORTModelForImageClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(pixel_values)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(pixel_values)
 
             # run inference with binding
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
-            return ImageClassifierOutput(logits=IOBindingHelper.to_pytorch(logits))
+            return ImageClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -1474,7 +1512,10 @@ class ORTModelForCustomTasks(ORTModel):
         self.model_output_names = list(self.model_outputs.keys())
 
     def prepare_io_binding(self, **kwargs) -> ort.IOBinding:
-        """Returns IOBinding object for an inference session."""
+        """
+        Returns IOBinding object for an inference session. This method is created for general purpose, if the inputs and outputs
+        are determined, you can prepare data buffers directly to avoid tensor transfers across frameworks.
+        """
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
 
