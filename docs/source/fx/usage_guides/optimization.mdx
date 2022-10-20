@@ -85,34 +85,3 @@ As applying multiple transformations in chain is needed more often that not, [`~
 >>> from optimum.fx.optimization import compose
 >>> composition = compose(MulToMulTimesTwo(), ChangeMulToAdd())
 ```
-
-## The Optimization API
-
-### Main classes and functions
-
-[[autodoc]] fx.optimization.Transformation
-    - all
-    - __call__
-
-[[autodoc]] fx.optimization.ReversibleTransformation
-    - all
-    - __call__
-
-[[autodoc]] fx.optimization.compose
-
-### Transformations
-
-[[autodoc]] fx.optimization.MergeLinears
-    - all
-
-[[autodoc]] fx.optimization.FuseBiasInLinear
-    - all
-
-[[autodoc]] fx.optimization.ChangeTrueDivToMulByInverse
-    - all
-
-[[autodoc]] fx.optimization.FuseBatchNorm2dInConv2d
-    - all
-
-[[autodoc]] fx.optimization.FuseBatchNorm1dInLinear
-    - all
