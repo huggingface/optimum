@@ -253,7 +253,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         )
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0")
 
-    @unittest.skipIf(get_gpu_count() <= 0, "this test requires multi-gpu")
+    @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
     def test_model_on_gpu_id(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         model.to(torch.device("cuda:1"))
@@ -330,7 +330,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
-    @unittest.skipIf(get_gpu_count() <= 0, "this test requires multi-gpu")
+    @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
     def test_seq2seq_model_on_gpu_id(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         model.to(torch.device("cuda:1"))
