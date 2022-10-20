@@ -474,23 +474,28 @@ class ORTModelForConditionalGeneration(ORTModel):
         kwargs["config"] = model.config.__dict__
         return cls._from_pretrained(save_dir, **kwargs)
 
-    def to(self, device):
+    def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
-        """
-        # convert string device input (ie. "cuda") to torch.device
-        if type(device) == str:
-            device = torch.device(device)
 
-        self.device = device
+        Arguments:
+            device (`torch.device` or `str` or `int`):
+                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
+                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
+
+        Returns:
+            `ORTModel`: the model placed on the requested device.
+        """
+        device, provider_options = self._parse_device(device)
+
         provider = get_provider_for_device(device)
         self.encoder._device = device
-        self.encoder.session.set_providers([provider])
+        self.encoder.session.set_providers([provider], provider_options=[provider_options])
         self.decoder._device = device
-        self.decoder.session.set_providers([provider])
+        self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
             self.decoder_with_past._device = device
-            self.decoder_with_past.session.set_providers([provider])
+            self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         return self
 
 

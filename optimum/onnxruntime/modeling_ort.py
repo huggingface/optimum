@@ -138,17 +138,8 @@ class ORTModel(OptimizedModel):
     def device(self, value: torch.device):
         self._device = value
 
-    def to(self, device: Union[torch.device, str, int]):
-        """
-        Changes the ONNX Runtime provider according to the device.
-
-        Arguments:
-            device (`torch.device` or `str` or `int`): Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
-            the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
-
-        Returns:
-            `ORTModel`: the model placed on the requested device.
-        """
+    def _parse_device(self, device: Union[torch.device, str, int]):
+        """Get the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
         provider_options = {}
         if isinstance(device, torch.device):
             self.device = device
@@ -156,6 +147,8 @@ class ORTModel(OptimizedModel):
                 provider_options["device_id"] = device.index
         elif isinstance(device, str):
             self.device = torch.device(device)
+            if device.startswith("cuda") and device[-1].isdigit():
+                provider_options["device_id"] = int(device[-1])
         elif isinstance(device, int) and device < 0:
             self.device = torch.device("cpu")
         elif isinstance(device, int) and device >= 0:
@@ -166,6 +159,23 @@ class ORTModel(OptimizedModel):
                 f"Asked to set the model on the device {device}, but a torch.device, string or int was expected."
             )
 
+        return device, provider_options
+
+    def to(self, device: Union[torch.device, str, int]):
+        """
+        Changes the ONNX Runtime provider according to the device.
+
+        Arguments:
+            device (`torch.device` or `str` or `int`):
+                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
+                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
+
+        Returns:
+            `ORTModel`: the model placed on the requested device.
+        """
+        device, provider_options = self._parse_device(device)
+
+        self.device = device
         provider = get_provider_for_device(self.device)
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
