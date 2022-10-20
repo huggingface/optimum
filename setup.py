@@ -45,6 +45,7 @@ EXTRAS_REQUIRE = {
     ],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
+    "nncf": "optimum-intel[nncf]",
     "neural-compressor": "optimum-intel[neural-compressor]",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
