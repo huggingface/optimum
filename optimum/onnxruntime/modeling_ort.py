@@ -149,8 +149,6 @@ class ORTModel(OptimizedModel):
         Returns:
             `ORTModel`: the model placed on the requested device.
         """
-        print("IN THIS to!!!!!!")
-
         provider_options = {}
         if isinstance(device, torch.device):
             self.device = device
@@ -169,8 +167,6 @@ class ORTModel(OptimizedModel):
             )
 
         provider = get_provider_for_device(self.device)
-        print("provider here:", provider)
-        print("provider_options here:", provider_options)
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
 
@@ -254,6 +250,9 @@ class ORTModel(OptimizedModel):
             possible providers. Defaults to `CPUExecutionProvider`.
         session_options (`onnxruntime.SessionOptions`, *optional*),:
             ONNX Runtime session options to use for loading the model. Defaults to `None`.
+        provider_options (`Dict`, **optional**):
+            Provider option dictionaries corresponding to the provider used. See available options
+            for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
 
         Returns:
             `ORTModel`: The loaded ORTModel model.
