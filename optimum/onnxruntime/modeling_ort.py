@@ -138,18 +138,42 @@ class ORTModel(OptimizedModel):
     def device(self, value: torch.device):
         self._device = value
 
-    def to(self, device: torch.device):
+    def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
-        """
-        # convert string device input (ie. "cuda") to torch.device
-        if type(device) == str:
-            device = torch.device(device)
 
-        self.device = device
+        Arguments:
+            device (`torch.device` or `str` or `int`): Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
+            the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
+
+        Returns:
+            `ORTModel`: the model placed on the requested device.
+        """
+        print("IN THIS to!!!!!!")
+
+        provider_options = {}
+        if isinstance(device, torch.device):
+            self.device = device
+            if device.type == "cuda" and device.index:
+                provider_options["device_id"] = device.index
+        elif isinstance(device, str):
+            self.device = torch.device(device)
+        elif isinstance(device, int) and device < 0:
+            self.device = torch.device("cpu")
+        elif isinstance(device, int) and device >= 0:
+            self.device = torch.device(f"cuda:{device}")
+            provider_options["device_id"] = device
+        else:
+            raise ValueError(
+                f"Asked to set the model on the device {device}, but a torch.device, string or int was expected."
+            )
+
         provider = get_provider_for_device(self.device)
-        self.model.set_providers([provider])
+        print("provider here:", provider)
+        print("provider_options here:", provider_options)
+        self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
+
         return self
 
     def forward(self, *args, **kwargs):
