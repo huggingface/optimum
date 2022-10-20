@@ -40,6 +40,7 @@ from .utils import (
     _is_gpu_available,
     get_device_for_provider,
     get_provider_for_device,
+    parse_device,
 )
 
 
@@ -486,7 +487,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         Returns:
             `ORTModel`: the model placed on the requested device.
         """
-        device, provider_options = self._parse_device(device)
+        device, provider_options = parse_device(device)
 
         provider = get_provider_for_device(device)
         self.encoder._device = device

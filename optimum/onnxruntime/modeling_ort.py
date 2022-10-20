@@ -49,7 +49,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
+from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device, parse_device
 
 
 logger = logging.getLogger(__name__)
@@ -138,29 +138,6 @@ class ORTModel(OptimizedModel):
     def device(self, value: torch.device):
         self._device = value
 
-    def _parse_device(self, device: Union[torch.device, str, int]):
-        """Get the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
-        provider_options = {}
-        if isinstance(device, torch.device):
-            if device.type == "cuda" and device.index:
-                provider_options["device_id"] = device.index
-            device = device
-        elif isinstance(device, str):
-            if device.startswith("cuda") and device[-1].isdigit():
-                provider_options["device_id"] = int(device[-1])
-            device = torch.device(device)
-        elif isinstance(device, int) and device < 0:
-            device = torch.device("cpu")
-        elif isinstance(device, int) and device >= 0:
-            provider_options["device_id"] = device
-            device = torch.device(f"cuda:{device}")
-        else:
-            raise ValueError(
-                f"Asked to set the model on the device {device}, but a torch.device, string or int was expected."
-            )
-
-        return device, provider_options
-
     def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
@@ -173,7 +150,7 @@ class ORTModel(OptimizedModel):
         Returns:
             `ORTModel`: the model placed on the requested device.
         """
-        device, provider_options = self._parse_device(device)
+        device, provider_options = parse_device(device)
 
         self.device = device
         provider = get_provider_for_device(self.device)
