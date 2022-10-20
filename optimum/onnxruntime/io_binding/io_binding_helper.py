@@ -89,39 +89,6 @@ class IOBindingHelper:
         self.model_input_names = list(self.model_inputs.keys())
         self.model_output_names = list(self.model_outputs.keys())
 
-    def prepare_io_binding(self, **kwargs) -> ort.IOBinding:
-        """
-        Returns IOBinding object for an inference session. This method is created for general purpose, if the inputs and outputs
-        are determined, you can prepare data buffers directly.
-        """
-
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
-
-        # Bind inputs and outputs to onnxruntime session
-        io_binding = self.model.io_binding()
-
-        # Bind inputs
-        for input_name in self.model_input_names:
-            onnx_input = kwargs.pop(input_name)
-
-            if not onnx_input.is_contiguous():
-                raise RuntimeError(f"Input {input_name} need to be contiguous for IO binding.")
-
-            io_binding.bind_input(
-                input_name,
-                onnx_input.device.type,
-                self.device.index,
-                name_to_np_type[input_name],
-                list(onnx_input.size()),
-                onnx_input.data_ptr(),
-            )
-
-        # Bind outputs
-        for name in self.model_output_names:
-            io_binding.bind_output(name, self.device.type, device_id=self.device.index)
-
-        return io_binding
-
     @staticmethod
     def to_pytorch(ort_value: OrtValue) -> torch.Tensor:
         """
