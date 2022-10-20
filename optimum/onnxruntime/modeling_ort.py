@@ -142,18 +142,18 @@ class ORTModel(OptimizedModel):
         """Get the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
         provider_options = {}
         if isinstance(device, torch.device):
-            self.device = device
             if device.type == "cuda" and device.index:
                 provider_options["device_id"] = device.index
+            device = device
         elif isinstance(device, str):
-            self.device = torch.device(device)
             if device.startswith("cuda") and device[-1].isdigit():
                 provider_options["device_id"] = int(device[-1])
+            device = torch.device(device)
         elif isinstance(device, int) and device < 0:
-            self.device = torch.device("cpu")
+            device = torch.device("cpu")
         elif isinstance(device, int) and device >= 0:
-            self.device = torch.device(f"cuda:{device}")
             provider_options["device_id"] = device
+            device = torch.device(f"cuda:{device}")
         else:
             raise ValueError(
                 f"Asked to set the model on the device {device}, but a torch.device, string or int was expected."

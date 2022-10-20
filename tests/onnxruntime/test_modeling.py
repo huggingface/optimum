@@ -34,7 +34,7 @@ from transformers import (
     set_seed,
 )
 from transformers.onnx.utils import get_preprocessor
-from transformers.testing_utils import require_torch_gpu
+from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
 import onnxruntime
 import requests
@@ -253,19 +253,19 @@ class ORTModelIntegrationTest(unittest.TestCase):
         )
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0")
 
-    @unittest.skip("should be run on a multi-gpu machine")
+    @unittest.skipIf(get_gpu_count() <= 0, "this test requires multi-gpu")
     def test_model_on_gpu_id(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         model.to(torch.device("cuda:1"))
-        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
+        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         model.to(1)
-        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
+        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         model.to("cuda:1")
-        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
+        self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
     @require_torch_gpu
     def test_passing_provider_options_seq2seq(self):
@@ -330,30 +330,30 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
-    @unittest.skip("should be run on a multi-gpu machine")
+    @unittest.skipIf(get_gpu_count() <= 0, "this test requires multi-gpu")
     def test_seq2seq_model_on_gpu_id(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         model.to(torch.device("cuda:1"))
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
+        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
+        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1
+            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
         )
 
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         model.to(1)
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
+        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
+        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1
+            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
         )
 
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         model.to("cuda:1")
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1)
+        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
+        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], 1
+            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
         )
 
     # test string device input for to()
