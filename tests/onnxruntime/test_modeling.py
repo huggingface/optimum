@@ -471,7 +471,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
-    def test_io_binding_on_gpu(self, model_arch):
+    def test_pipeline_on_gpu(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
