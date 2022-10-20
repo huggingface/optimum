@@ -18,6 +18,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import torch
 from transformers import (
     AutoConfig,
@@ -1181,6 +1182,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             inputs["attention_mask"] = kwargs["attention_mask"]
         return inputs
 
+    def prepare_logits_buffer(self, batch_size, sequence_length):
+        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length, config.vocab_size)."""
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        logits_shape = (batch_size, sequence_length, self.config.vocab_size)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+
+        return logits_shape, logits_buffer
+
     def prepare_io_binding(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -1195,7 +1206,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             input_ids.device.type,
             self.device.index,
             name_to_np_type["input_ids"],
-            list(input_ids.size()),
+            tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
         # bind attention mask
@@ -1204,14 +1215,26 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             attention_mask.device.type,
             self.device.index,
             name_to_np_type["attention_mask"],
-            list(attention_mask.size()),
+            tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
 
         # bind logits
-        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+        logits_shape, logits_buffer = self.prepare_logits_buffer(
+            batch_size=input_ids.size(0), sequence_length=input_ids.size(1)
+        )
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1228,18 +1251,15 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask)
 
             # run inference with binding
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
-            return CausalLMOutputWithCrossAttentions(logits=IOBindingHelper.to_pytorch(logits))
+            return CausalLMOutputWithCrossAttentions(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
