@@ -32,7 +32,7 @@ from huggingface_hub import HfApi, hf_hub_download
 
 from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
 from ..onnx.modeling_seq2seq import _DecoderWithLMhead
-from .io_binding import IOBindingHelper
+from .io_binding import IOBindingHelper, TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
@@ -519,6 +519,39 @@ class ORTEncoder:
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
 
+    def prepare_io_binding(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session)
+        io_binding = self.session.io_binding()
+
+        # bind input ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self._device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+        if "attention_mask" in self.input_names:
+            # bind attention mask
+            io_binding.bind_input(
+                "attention_mask",
+                attention_mask.device.type,
+                self._device.index,
+                name_to_np_type["attention_mask"],
+                list(attention_mask.size()),
+                attention_mask.data_ptr(),
+            )
+
+        # bind logits
+        io_binding.bind_output("last_hidden_state", self._device.type, device_id=self._device.index)
+
+        return io_binding
+
     @add_start_docstrings_to_model_forward(ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
@@ -528,11 +561,7 @@ class ORTEncoder:
     ) -> BaseModelOutput:
 
         if self._device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {"input_ids": input_ids}
-            if "attention_mask" in self.input_names:
-                onnx_inputs["attention_mask"] = attention_mask
-            io_helper = IOBindingHelper(self.session, self._device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(input_ids, attention_mask)
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -574,9 +603,90 @@ class ORTDecoder:
         self.session = session
         self._device = device
         self.use_io_binding = kwargs.get("use_io_binding", True)
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
+        self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}
+        self.session_outputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.session_input_names = list(self.session_inputs.keys())
+        self.session_output_names = list(self.session_outputs.keys())
+        self.key_value_input_names = [key for key in self.session_input_names if "key_values" in key]
+
+    def prepare_io_binding(
+        self,
+        input_ids: torch.LongTensor,
+        encoder_hidden_states: torch.FloatTensor,
+        encoder_attention_mask: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
+    ):
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session)
+        io_binding = self.session.io_binding()
+
+        # bind input ids
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self._device.index,
+            name_to_np_type["input_ids"],
+            list(input_ids.size()),
+            input_ids.data_ptr(),
+        )
+
+        # bind encoder attention mask
+        io_binding.bind_input(
+            "encoder_attention_mask",
+            encoder_attention_mask.device.type,
+            self._device.index,
+            name_to_np_type["encoder_attention_mask"],
+            list(encoder_attention_mask.size()),
+            encoder_attention_mask.data_ptr(),
+        )
+
+        # bind encoder hidden states
+        if "encoder_hidden_states" in self.session_input_names:
+            io_binding.bind_input(
+                "encoder_hidden_states",
+                encoder_hidden_states.device.type,
+                self._device.index,
+                name_to_np_type["encoder_hidden_states"],
+                list(encoder_hidden_states.size()),
+                encoder_hidden_states.data_ptr(),
+            )
+
+        # bind past key values
+        if past_key_values is not None:
+            for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
+                io_binding.bind_input(
+                    input_name,
+                    past_key_value.device.type,
+                    self._device.index,
+                    name_to_np_type[input_name],
+                    list(past_key_value.size()),
+                    past_key_value.data_ptr(),
+                )
+
+        # bind labels
+        if "labels" in self.session_input_names:
+            io_binding.bind_input(
+                "labels",
+                labels.device.type,
+                self._device.index,
+                name_to_np_type["labels"],
+                list(labels.size()),
+                labels.data_ptr(),
+            )
+
+        # bind outputs
+        for name in self.session_output_names:
+            # bind logits
+            io_binding.bind_output("logits", self._device.type, device_id=self._device.index)
+            # bind past key values
+            for name in self.session_output_names:
+                if "key_values" in name:
+                    io_binding.bind_output(name, self._device.type, device_id=self._device.index)
+            # bind loss
+            if "loss" in self.session_output_names:
+                io_binding.bind_output("loss", self._device.type, device_id=self._device.index)
+
+        return io_binding
 
     @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
     def forward(
@@ -587,31 +697,14 @@ class ORTDecoder:
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
     ) -> Seq2SeqLMOutput:
+        # Flatten the past_key_values
+        if past_key_values is not None:
+            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
         if self._device.type == "cuda" and self.use_io_binding:
-            onnx_inputs = {
-                "input_ids": input_ids,
-                "encoder_attention_mask": encoder_attention_mask,
-            }
-
-            # Add the encoder_hidden_states inputs when needed
-            if "encoder_hidden_states" in self.input_names:
-                onnx_inputs["encoder_hidden_states"] = encoder_hidden_states
-
-            if past_key_values is not None:
-                # Flatten the past_key_values
-                past_key_values = [
-                    past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
-                ]
-                # Add the past_key_values to the decoder inputs
-                for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                    onnx_inputs[input_name] = past_key_value
-
-            if "labels" in self.input_names:
-                # TODO: Any preprocessing like  `self._shift_right(labels)`?
-                onnx_inputs["labels"] = labels
-            io_helper = IOBindingHelper(self.session, self._device)
-            io_binding = io_helper.prepare_io_binding(**onnx_inputs)
+            io_binding = self.prepare_io_binding(
+                input_ids, encoder_hidden_states, encoder_attention_mask, past_key_values, labels
+            )
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -623,7 +716,7 @@ class ORTDecoder:
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
             past_key_values = tuple()
-            for name, output in zip(io_helper.model_output_names, io_binding._iobinding.get_outputs()):
+            for name, output in zip(self.session_output_names, io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
                 if "key_values" in name:
                     past_key_values += (outputs[name],)
@@ -636,11 +729,8 @@ class ORTDecoder:
             logits = outputs["logits"]
 
             loss = None
-            if "loss" in self.output_names:
+            if "loss" in self.session_output_names:
                 loss = outputs["loss"]
-
-            # converts output to namedtuple for pipelines post-processing
-            return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
         else:
             onnx_inputs = {
                 "input_ids": input_ids.cpu().detach().numpy(),
@@ -648,19 +738,15 @@ class ORTDecoder:
             }
 
             # Add the encoder_hidden_states inputs when needed
-            if "encoder_hidden_states" in self.input_names:
+            if "encoder_hidden_states" in self.session_input_names:
                 onnx_inputs["encoder_hidden_states"] = encoder_hidden_states.cpu().detach().numpy()
 
             if past_key_values is not None:
-                # Flatten the past_key_values
-                past_key_values = [
-                    past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
-                ]
                 # Add the past_key_values to the decoder inputs
                 for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                     onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
-            if "labels" in self.input_names:
+            if "labels" in self.session_input_names:
                 # TODO: Any preprocessing like  `self._shift_right(labels)`?
                 onnx_inputs["labels"] = labels.cpu().detach().numpy()
 
@@ -669,8 +755,8 @@ class ORTDecoder:
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
             past_key_values = tuple(
-                torch.from_numpy(outputs[self.output_names[key]]).to(self._device)
-                for key in self.output_names
+                torch.from_numpy(outputs[self.session_outputs[key]]).to(self._device)
+                for key in self.session_output_names
                 if "key_values" in key
             )
 
@@ -678,12 +764,14 @@ class ORTDecoder:
             # cross-attention per decoder layer
             num_pkv = 4
             past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self._device)
+            logits = torch.from_numpy(outputs[self.session_outputs["logits"]]).to(self._device)
 
             loss = None
-            if "loss" in self.output_names:
-                loss = torch.from_numpy(outputs[self.output_names["loss"]]).to(self._device)
-            return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
+            if "loss" in self.session_output_names:
+                loss = torch.from_numpy(outputs[self.session_outputs["loss"]]).to(self._device)
+
+        # converts output to namedtuple for pipelines post-processing
+        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)

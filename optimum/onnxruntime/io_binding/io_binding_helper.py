@@ -76,9 +76,8 @@ class TypeHelper(ORTTypeHelper):
 # Adapted from https://github.com/microsoft/onnxruntime/blob/1ab11a111ce0717bfbfaca964d04a017cb9b1752/onnxruntime/python/tools/transformers/io_binding_helper.py#L97
 class IOBindingHelper:
     """
-    A helper class to enable `ORTModel` instances create buffers for inputs and outputs of an ONNX Runtime
-    inference session when using devices like GPU for acceleration. It helps reduce memory copy between the host
-    and device.
+    A helper class to enable `ORTModel` instances to prepare IO binding for an inference session and transfer tensors from ONNX Runtime
+    to other frameworks on device. It helps reduce memory copy between the host and device.
     """
 
     def __init__(self, model: ort.InferenceSession, device, **kwargs):
@@ -91,7 +90,10 @@ class IOBindingHelper:
         self.model_output_names = list(self.model_outputs.keys())
 
     def prepare_io_binding(self, **kwargs) -> ort.IOBinding:
-        """Returns IOBinding object for an inference session."""
+        """
+        Returns IOBinding object for an inference session. This method is created for general purpose, if the inputs and outputs
+        are determined, you can prepare data buffers directly.
+        """
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
 
@@ -122,7 +124,9 @@ class IOBindingHelper:
 
     @staticmethod
     def to_pytorch(ort_value: OrtValue) -> torch.Tensor:
-        """Converts tensors held by OrtValues to torch tensor."""
+        """
+        Converts tensors held by OrtValues in ONNX runtime memory buffer to torch tensor.
+        """
 
         if is_onnxruntime_training_available():
             return IOBindingHelper.to_pytorch_via_dlpack(ort_value)
