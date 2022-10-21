@@ -18,6 +18,7 @@ import shutil
 from pathlib import Path
 from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, Union
 
+import numpy as np
 import torch
 import transformers
 from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer, PretrainedConfig
@@ -32,12 +33,13 @@ from huggingface_hub import HfApi, hf_hub_download
 
 from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
 from ..onnx.modeling_seq2seq import _DecoderWithLMhead
-from .io_binding import IOBindingHelper, TypeHelper
+from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
+    ORTConfigManager,
     _is_gpu_available,
     get_device_for_provider,
     get_provider_for_device,
@@ -178,13 +180,22 @@ class ORTModelForConditionalGeneration(ORTModel):
         self.providers = encoder_session.get_providers()
         self._device = get_device_for_provider(encoder_session.get_providers()[0])
 
-        self.encoder = ORTEncoder(session=encoder_session, device=self._device, use_io_binding=self.use_io_binding)
-        self.decoder = ORTDecoder(session=decoder_session, device=self._device, use_io_binding=self.use_io_binding)
+        self.encoder = ORTEncoder(
+            session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
+        )
+        self.decoder = ORTDecoder(
+            session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
+        )
         self.use_cache = decoder_with_past_session is not None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         self.decoder_with_past = (
-            ORTDecoder(session=decoder_with_past_session, device=self._device, use_io_binding=self.use_io_binding)
+            ORTDecoder(
+                session=decoder_with_past_session,
+                config=self.config,
+                device=self._device,
+                use_io_binding=self.use_io_binding,
+            )
             if self.use_cache
             else None
         )
@@ -517,13 +528,31 @@ class ORTEncoder:
             The ONNX Runtime inference session associated to the encoder.
     """
 
-    def __init__(self, session: onnxruntime.InferenceSession, device: torch.device, **kwargs):
+    def __init__(
+        self,
+        session: onnxruntime.InferenceSession,
+        config: transformers.PretrainedConfig,
+        device: torch.device,
+        **kwargs
+    ):
         self.session = session
+        self.config = config
         self._device = device
         self.use_io_binding = kwargs.get("use_io_binding", True)
         self.main_input_name = "input_ids"
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+
+    def prepare_output_buffer(self, batch_size, sequence_length):
+        """Prepare the buffer of output(`last_hidden_state`) with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
+        ort_type = TypeHelper.get_output_type(self.session, "last_hidden_state")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
+        output_shape = (batch_size, sequence_length, hidden_size)
+        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device)
+
+        return output_shape, output_buffer
 
     def prepare_io_binding(
         self,
@@ -539,7 +568,7 @@ class ORTEncoder:
             input_ids.device.type,
             self._device.index,
             name_to_np_type["input_ids"],
-            list(input_ids.size()),
+            tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
         if "attention_mask" in self.input_names:
@@ -549,14 +578,27 @@ class ORTEncoder:
                 attention_mask.device.type,
                 self._device.index,
                 name_to_np_type["attention_mask"],
-                list(attention_mask.size()),
+                tuple(attention_mask.shape),
                 attention_mask.data_ptr(),
             )
 
         # bind logits
-        io_binding.bind_output("last_hidden_state", self._device.type, device_id=self._device.index)
+        output_shape, output_buffer = self.prepare_output_buffer(
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
+        )
+        io_binding.bind_output(
+            "last_hidden_state",
+            output_buffer.device.type,
+            self._device.index,
+            name_to_np_type["last_hidden_state"],
+            output_shape,
+            output_buffer.data_ptr(),
+        )
+        output_shapes = {"last_hidden_state": output_shape}
+        output_buffers = {"last_hidden_state": output_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(ENCODER_INPUTS_DOCSTRING)
     def forward(
@@ -567,18 +609,17 @@ class ORTEncoder:
     ) -> BaseModelOutput:
 
         if self._device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask)
 
             # run inference with binding
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            last_hidden_state = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(last_hidden_state=IOBindingHelper.to_pytorch(last_hidden_state))
+            return BaseModelOutput(
+                last_hidden_state=output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
+            )
         else:
             onnx_inputs = {"input_ids": input_ids.cpu().detach().numpy()}
 
@@ -605,8 +646,15 @@ class ORTDecoder:
             The ONNX Runtime inference session associated to the decoder.
     """
 
-    def __init__(self, session: onnxruntime.InferenceSession, device: torch.device, **kwargs):
+    def __init__(
+        self,
+        session: onnxruntime.InferenceSession,
+        config: transformers.PretrainedConfig,
+        device: torch.device,
+        **kwargs
+    ):
         self.session = session
+        self.config = config
         self._device = device
         self.use_io_binding = kwargs.get("use_io_binding", True)
         self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}
@@ -614,6 +662,28 @@ class ORTDecoder:
         self.session_input_names = list(self.session_inputs.keys())
         self.session_output_names = list(self.session_outputs.keys())
         self.key_value_input_names = [key for key in self.session_input_names if "key_values" in key]
+
+    def prepare_output_buffer(self, output_name, batch_size=None, sequence_length=None, encoder_sequence_length=None):
+        """
+        Prepare the buffer of outputs(`logits`/`key_values`/`loss`) with 1D tensors.
+        """
+        ort_type = TypeHelper.get_output_type(self.session, output_name)
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+        if output_name == "loss":
+            output_shape = (1,)
+            output_buffer = torch.empty(1, dtype=torch_type, device=self._device)
+        elif output_name == "logits":
+            output_shape = (batch_size, sequence_length, self.config.vocab_size)
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device)
+        elif "key_values" in output_name:
+            num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(self.config.model_type))
+            hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
+            embed_size_per_head = hidden_size // num_heads
+            sequence_length = max(sequence_length, encoder_sequence_length)
+            output_shape = (batch_size, num_heads, sequence_length, embed_size_per_head)
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device)
+
+        return output_shape, output_buffer
 
     def prepare_io_binding(
         self,
@@ -681,18 +751,59 @@ class ORTDecoder:
             )
 
         # bind outputs
-        for name in self.session_output_names:
-            # bind logits
-            io_binding.bind_output("logits", self._device.type, device_id=self._device.index)
-            # bind past key values
-            for name in self.session_output_names:
-                if "key_values" in name:
-                    io_binding.bind_output(name, self._device.type, device_id=self._device.index)
-            # bind loss
-            if "loss" in self.session_output_names:
-                io_binding.bind_output("loss", self._device.type, device_id=self._device.index)
+        # bind logits
+        logits_shape, logits_buffer = self.prepare_output_buffer(
+            output_name="logits",
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
+        )
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self._device.index,
+            name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
+        # bind loss
+        if "loss" in self.session_output_names:
+            loss_shape, loss_buffer = self.prepare_output_buffer(output_name="loss")
+            io_binding.bind_output(
+                "loss",
+                loss_buffer.device.type,
+                self._device.index,
+                name_to_np_type["loss"],
+                loss_shape,
+                loss_buffer.data_ptr(),
+            )
+            output_shapes["loss"] = loss_shape
+            output_buffers["loss"] = loss_buffer
 
-        return io_binding
+        # bind past key values
+        for name in self.session_output_names:
+            if "key_values" in name:
+                pkv_shape, pkv_buffer = self.prepare_output_buffer(
+                    output_name=name,
+                    batch_size=input_ids.size(0),
+                    sequence_length=input_ids.size(1),
+                    encoder_sequence_length=encoder_hidden_states.size(1),
+                )
+                io_binding.bind_output(
+                    name,
+                    pkv_buffer.device.type,
+                    self._device.index,
+                    name_to_np_type[name],
+                    pkv_shape,
+                    pkv_buffer.data_ptr(),
+                )
+                # set -1 for sequence_length as it could be larger than the real sequence_length for creating buffer
+                pkv_shape = pkv_shape[:2] + (-1,) + pkv_shape[3:]
+                output_shapes[name] = pkv_shape
+                output_buffers[name] = pkv_buffer
+
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
     def forward(
@@ -708,7 +819,7 @@ class ORTDecoder:
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
         if self._device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids, encoder_hidden_states, encoder_attention_mask, past_key_values, labels
             )
 
@@ -717,26 +828,23 @@ class ORTDecoder:
             self.session.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names and extract past key values
-            outputs = {}
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
             past_key_values = tuple()
-            for name, output in zip(self.session_output_names, io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            for name in self.session_output_names:
                 if "key_values" in name:
-                    past_key_values += (outputs[name],)
+                    past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
             # cross-attention per decoder layer
             num_pkv = 4
             past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
 
-            logits = outputs["logits"]
+            logits = output_buffers["logits"].view(output_shapes["logits"])
 
             loss = None
             if "loss" in self.session_output_names:
-                loss = outputs["loss"]
+                loss = output_buffers["loss"].view(output_shapes["loss"])
         else:
             onnx_inputs = {
                 "input_ids": input_ids.cpu().detach().numpy(),

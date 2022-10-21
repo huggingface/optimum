@@ -496,7 +496,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             )
 
         # bind logits
-        output_shape, output_buffer = self.prepare_logits_buffer(
+        output_shape, output_buffer = self.prepare_output_buffer(
             batch_size=input_ids.size(0),
             sequence_length=input_ids.size(1),
             hidden_size=self.config.hidden_size,
@@ -505,7 +505,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             "last_hidden_state",
             output_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            name_to_np_type["last_hidden_state"],
             output_shape,
             output_buffer.data_ptr(),
         )
