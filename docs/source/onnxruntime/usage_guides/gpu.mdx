@@ -1,6 +1,17 @@
 # Accelerated inference on NVIDIA GPUs
 
-Although ONNX Runtime defaults to use CPU-only for inference, it is possible to place supported operations on an Nvidia GPU, while leaving unsupported ones (if remaining) on CPU. In most cases, all costly operations can be placed on GPU, allowing to leverage its compute power.
+By default, ONNX Runtime runs inference on CPU devices. However, it is possible to place supported operations on an NVIDIA GPU, while leaving any unsupported ones on CPU. In most cases, this allows costly operations to be placed on GPU and significantly accelerate inference.
+
+This guide will show you how to run inference on two execution providers that ONNX Runtime supports for NVIDIA GPUs:
+
+* `CUDAExecutionProvider`: Generic acceleration on NVIDIA CUDA-enabled GPUs. 
+* `TensorrtExecutionProvider`: Uses NVIDIA’s [TensorRT](https://developer.nvidia.com/tensorrt) inference engine and generally provides the best runtime performance.
+
+<Tip warning={true}>
+
+Due to a limitation of ONNX Runtime, it is not possible to run quantized models on `CUDAExecutionProvider` and only models with static quantization can be run on `TensorrtExecutionProvider`. 
+
+</Tip>
 
 ONNX Runtime provides an integration with two execution providers to make use of an Nvidia GPU, namely `CUDAExecutionProvider` and `TensorrtExecutionProvider`.
 
