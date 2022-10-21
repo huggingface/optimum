@@ -87,7 +87,7 @@ Here this result is expected: all the costly MatMul are placed on the CUDA execu
 
 ### Use CUDA execution provider with quantized models
 
-It is not possible to use quantized models with CUDAExecutionProvider.
+Due to current limitations in ONNX Runtime, it is not possible to use quantized models with `CUDAExecutionProvider`. The reasons are as follows:
 
 When using [🤗 Optimum dynamic quantization](quantization#dynamic-quantization-example), nodes as [`MatMulInteger`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#MatMulInteger), [`DynamicQuantizeLinear`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#DynamicQuantizeLinear) may be inserted in the computation graph, that can not be consumed by the CUDA execution provider. This is a limitation from ONNX Runtime.
 
