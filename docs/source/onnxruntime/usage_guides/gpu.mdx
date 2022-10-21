@@ -214,7 +214,7 @@ print(result)
 As highlighted in the previous section, TensorRT supports only a limited range of quantized models:
 * Static quantization only
 * Weights and activations quantization ranges are symmetric
-* Weights need to be stored in float32 in the `.onnx` model, thus there is no storage space saving from quantization.
+* Weights need to be stored in float32 in the ONNX model, thus there is no storage space saving from quantization.
 
 In case `provider="TensorrtExecutionProvider"` is passed and the model has not been quantized strictly following these constraints, various errors may be raised, where error messages can be unclear.
 
