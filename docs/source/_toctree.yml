@@ -39,7 +39,7 @@
     - local: onnxruntime/usage_guides/trainer
       title: How to accelerate training
     - local: onnxruntime/usage_guides/gpu
-      title: How to use Nvidia GPU for inference
+      title: Accelerated inference on NVIDIA GPUs
     title: How-to guides
   - sections:
     - local: onnxruntime/concept_guides/onnx
