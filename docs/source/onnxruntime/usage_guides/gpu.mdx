@@ -43,7 +43,7 @@ print("providers:", ort_model.providers)
 tokenizer = AutoTokenizer.from_pretrained("philschmid/tiny-bert-sst2-distilled")
 inputs = tokenizer("expectations were low, actual enjoyment was high", return_tensors="pt", padding=True)
 
-result = ort_model(**inp)
+outputs = ort_model(**inputs)
 print(result)
 ```
 
