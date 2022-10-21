@@ -121,7 +121,7 @@ In order to use 🤗 Optimum with TensorRT in a local environment, we recommend 
 
 For TensorRT, we recommend the Tar File Installation method. Alternatively, TensorRT may be installable through the `nvidia-tensorrt` pip wheel available following [these instructions](https://github.com/microsoft/onnxruntime/issues/9986).
 
-The following environment variables need to be set for ONNX Runtime to detect TensorRT installation:
+Once the required packages are installed, the following environment variables need to be set for ONNX Runtime to detect TensorRT installation:
 ```
 export CUDA_PATH=/usr/local/cuda
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-11.7/lib64:/path/to/TensorRT-8.x.x/lib
