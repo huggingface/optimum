@@ -1539,6 +1539,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
             model=onnx_model,
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
+            device=0,
         )
 
         ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")

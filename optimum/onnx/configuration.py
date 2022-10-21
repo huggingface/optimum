@@ -354,6 +354,59 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return None
 
 
+class SpeechSeq2SeqEncoderOnnxConfig(OnnxConfig):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict(
+            [
+                ("input_features", {0: "batch", 1: "feature_size", 2: "encoder_sequence"}),
+            ]
+        )
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict({"last_hidden_state": {0: "batch", 1: "encoder_sequence"}})
+
+    @property
+    def atol_for_validation(self) -> float:
+        return 1e-4
+
+
+class SpeechSeq2SeqDecoderOnnxConfig(DecoderOnnxConfig):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = OrderedDict(
+            [
+                ("input_ids", {0: "batch", 1: "past_decoder_sequence + sequence"}),
+                ("encoder_hidden_states", {0: "batch", 1: "encoder_sequence"}),
+            ]
+        )
+        if self.use_past:
+            self.fill_with_past_key_values_(common_inputs, direction="inputs")
+
+        return common_inputs
+
+    def generate_dummy_inputs(
+        self,
+        tokenizer: "PreTrainedTokenizerBase",
+        batch_size: int = -1,
+        seq_length: int = -1,
+        is_pair: bool = False,
+        framework: Optional["TensorType"] = None,
+    ) -> Mapping[str, Any]:
+        common_inputs = super().generate_dummy_inputs(
+            tokenizer, batch_size=batch_size, seq_length=seq_length, is_pair=is_pair, framework=framework
+        )
+        common_inputs.pop("attention_mask")
+
+        return common_inputs
+
+    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+        return reference_model_inputs
+
+
 class OnnxSeq2SeqConfigWithPastAndLoss(DecoderOnnxConfig):
     def __init__(self, config: DecoderOnnxConfig):
         self.__dict__ = copy.deepcopy(config.__dict__)

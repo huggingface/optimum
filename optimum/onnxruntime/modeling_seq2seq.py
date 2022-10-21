@@ -16,7 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import Dict, Mapping, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -38,7 +38,12 @@ import onnx
 import onnxruntime
 from huggingface_hub import HfApi, hf_hub_download
 
-from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
+from ..onnx.configuration import (
+    DecoderOnnxConfig,
+    EncoderOnnxConfig,
+    SpeechSeq2SeqDecoderOnnxConfig,
+    SpeechSeq2SeqEncoderOnnxConfig,
+)
 from ..onnx.modeling_seq2seq import _DecoderWithLMhead
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
@@ -52,10 +57,6 @@ from .utils import (
     get_provider_for_device,
     parse_device,
 )
-
-
-if TYPE_CHECKING:
-    from transformers import PreTrainedModel
 
 
 logger = logging.getLogger(__name__)
@@ -545,19 +546,19 @@ class ORTModelForConditionalGeneration(ORTModel):
         onnx_config = model_onnx_config(model.config)
         onnx_opset = onnx_config.default_onnx_opset
 
-        # Extract the encoder for ONNX export
+        # Extract the encoder and decoder for ONNX export
         encoder = model.get_encoder()
-        # Extract the decoder for ONNX export
         decoder = model.get_decoder()
 
-        onnx_config_encoder = cls.get_encoder_onnx_config(encoder, onnx_config)
-        onnx_config_decoder = cls.get_decoder_onnx_config(
-            encoder, decoder, cls.export_feature, use_past=False, onnx_config=onnx_config
-        )
-        onnx_config_decoder_with_past = cls.get_decoder_onnx_config(
-            encoder, decoder, cls.export_feature, use_past=True, onnx_config=onnx_config
-        )
+        # Get the encoder and decoder ONNX configs
+        onnx_config_encoder = cls.get_encoder_onnx_config(encoder.config)
+        onnx_config_decoder = cls.get_decoder_onnx_config(decoder.config, cls.export_feature, use_past=False)
+        if use_cache:
+            onnx_config_decoder_with_past = cls.get_decoder_onnx_config(
+                decoder.config, cls.export_feature, use_past=True
+            )
 
+        # Get the encoder and decoder model preprocessors
         preprocessor_encoder = cls.get_encoder_preprocessor(model_id)
         preprocessor_decoder = cls.get_decoder_preprocessor(model_id)
 
@@ -1082,28 +1083,21 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
     export_feature = "seq2seq-lm"
     auto_model_class = AutoModelForSeq2SeqLM
+    main_input_name = "input_ids"
 
     def __init__(self, *args, **kwargs):
-        self.main_input_name = "input_ids"
-
         super().__init__(*args, **kwargs)
 
     def _initialize_encoder(self, encoder_session: onnxruntime.InferenceSession, device: str) -> ORTEncoder:
         return ORTEncoder(session=encoder_session, device=device, main_input_name=self.main_input_name)
 
-    def get_encoder_onnx_config(
-        encoder_model: "PreTrainedModel", onnx_config: OnnxSeq2SeqConfigWithPast = None
-    ) -> OnnxConfig:
-        return EncoderOnnxConfig(encoder_model.config, task="default")
+    def get_encoder_onnx_config(encoder_config: PretrainedConfig) -> OnnxConfig:
+        return EncoderOnnxConfig(encoder_config, task="default")
 
     def get_decoder_onnx_config(
-        encoder_model: "PreTrainedModel",
-        decoder_model: "PreTrainedModel",
-        export_feature: str,
-        use_past: bool = False,
-        onnx_config: OnnxSeq2SeqConfigWithPast = None,
+        decoder_config: PretrainedConfig, export_feature: str, use_past: bool = False
     ) -> OnnxSeq2SeqConfigWithPast:
-        return DecoderOnnxConfig(decoder_model.config, export_feature, use_past=use_past)
+        return DecoderOnnxConfig(decoder_config, export_feature, use_past=use_past)
 
     def get_encoder_preprocessor(model_id: str) -> AutoTokenizer:
         return AutoTokenizer.from_pretrained(model_id)
@@ -1203,10 +1197,9 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
     export_feature = "speech2seq-lm"
     auto_model_class = AutoModelForSpeechSeq2Seq
+    main_input_name = "input_features"
 
     def __init__(self, *args, **kwargs):
-        self.main_input_name = "input_features"
-
         super().__init__(*args, **kwargs)
 
     def _initialize_encoder(
@@ -1214,21 +1207,13 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     ) -> ORTEncoderForSpeechSeq2Seq:
         return ORTEncoderForSpeechSeq2Seq(session=encoder_session, device=device, main_input_name=self.main_input_name)
 
-    def get_encoder_onnx_config(
-        encoder_model: "PreTrainedModel", onnx_config: OnnxSeq2SeqConfigWithPast = None
-    ) -> OnnxConfig:
-        return onnx_config.get_encoder_config(encoder_model.config)
+    def get_encoder_onnx_config(encoder_config: PretrainedConfig) -> OnnxConfig:
+        return SpeechSeq2SeqEncoderOnnxConfig(encoder_config, task="default")
 
     def get_decoder_onnx_config(
-        encoder_model: "PreTrainedModel",
-        decoder_model: "PreTrainedModel",
-        export_feature: str,
-        use_past: bool = False,
-        onnx_config: OnnxSeq2SeqConfigWithPast = None,
+        decoder_config: PretrainedConfig, export_feature: str, use_past: bool = False
     ) -> OnnxSeq2SeqConfigWithPast:
-        return onnx_config.get_decoder_config(
-            encoder_model.config, decoder_model.config, export_feature, use_past=use_past
-        )
+        return SpeechSeq2SeqDecoderOnnxConfig(decoder_config, export_feature, use_past=use_past)
 
     def get_encoder_preprocessor(model_id: str) -> AutoFeatureExtractor:
         return AutoFeatureExtractor.from_pretrained(model_id)
