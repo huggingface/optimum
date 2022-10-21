@@ -65,7 +65,7 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 )
 ```
 
-Additionally, By passing the session option `log_severity_level = 0` (verbose), we can check whether all nodes are indeed placed on the CUDA execution provider or not:
+Additionally, you can pass the session option `log_severity_level = 0` (verbose), to check whether all nodes are indeed placed on the CUDA execution provider or not:
 
 ```
 import onnxruntime
