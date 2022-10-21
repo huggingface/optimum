@@ -49,7 +49,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
+from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device, parse_device
 
 
 logger = logging.getLogger(__name__)
@@ -138,18 +138,25 @@ class ORTModel(OptimizedModel):
     def device(self, value: torch.device):
         self._device = value
 
-    def to(self, device: torch.device):
+    def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
+
+        Arguments:
+            device (`torch.device` or `str` or `int`):
+                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
+                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
+
+        Returns:
+            `ORTModel`: the model placed on the requested device.
         """
-        # convert string device input (ie. "cuda") to torch.device
-        if type(device) == str:
-            device = torch.device(device)
+        device, provider_options = parse_device(device)
 
         self.device = device
         provider = get_provider_for_device(self.device)
-        self.model.set_providers([provider])
+        self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
+
         return self
 
     def forward(self, *args, **kwargs):
@@ -230,6 +237,9 @@ class ORTModel(OptimizedModel):
             possible providers. Defaults to `CPUExecutionProvider`.
         session_options (`onnxruntime.SessionOptions`, *optional*),:
             ONNX Runtime session options to use for loading the model. Defaults to `None`.
+        provider_options (`Dict`, **optional**):
+            Provider option dictionaries corresponding to the provider used. See available options
+            for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
 
         Returns:
             `ORTModel`: The loaded ORTModel model.
