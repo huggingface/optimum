@@ -6,7 +6,7 @@ ONNX Runtime provides an integration with two execution providers to make use of
 
 In case you are using a vanilla model using floating-point arithmetic, both execution providers can be used. TensorRT generally has the best runtime performances, although it comes with its own caveats, notably limitations for inference with inputs having dynamic shape.
 
-When deploying a quantized model to a GPU, `CUDAExecutionProvider` can not be used, and only models using static quantization can be executed on `TensorrtExecutionProvider`.
+When deploying a quantized model to a GPU, `CUDAExecutionProvider` cannot be used, and only models using static quantization can be executed on `TensorrtExecutionProvider`.
 
 ## CUDAExecutionProvider
 
