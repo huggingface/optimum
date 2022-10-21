@@ -436,6 +436,16 @@ class ORTModelForFeatureExtraction(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_output_buffer(self, batch_size, sequence_length, hidden_size):
+        """Prepare the buffer of output(`last_hidden_state`) with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        output_shape = (batch_size, sequence_length, hidden_size)
+        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device)
+
+        return output_shape, output_buffer
+
     def prepare_io_binding(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -451,7 +461,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             input_ids.device.type,
             self.device.index,
             name_to_np_type["input_ids"],
-            list(input_ids.size()),
+            tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
         # bind attention mask
@@ -460,7 +470,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             attention_mask.device.type,
             self.device.index,
             name_to_np_type["attention_mask"],
-            list(attention_mask.size()),
+            tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
 
@@ -471,14 +481,28 @@ class ORTModelForFeatureExtraction(ORTModel):
                 token_type_ids.device.type,
                 self.device.index,
                 name_to_np_type["token_type_ids"],
-                list(token_type_ids.size()),
+                tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
 
         # bind logits
-        io_binding.bind_output("last_hidden_state", self.device.type, device_id=self.device.index)
+        output_shape, output_buffer = self.prepare_logits_buffer(
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
+            hidden_size=self.config.hidden_size,
+        )
+        io_binding.bind_output(
+            "last_hidden_state",
+            output_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            output_shape,
+            output_buffer.data_ptr(),
+        )
+        output_shapes = {"last_hidden_state": output_shape}
+        output_buffers = {"last_hidden_state": output_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -496,18 +520,19 @@ class ORTModelForFeatureExtraction(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_ids, attention_mask, token_type_ids
+            )
 
             # run inference with binding
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            last_hidden_state = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(last_hidden_state=IOBindingHelper.to_pytorch(last_hidden_state))
+            return BaseModelOutput(
+                last_hidden_state=output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
+            )
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -581,6 +606,16 @@ class ORTModelForQuestionAnswering(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_logits_buffer(self, batch_size, sequence_length):
+        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        logits_shape = (batch_size, sequence_length)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+
+        return logits_shape, logits_buffer
+
     def prepare_io_binding(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -596,7 +631,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             input_ids.device.type,
             self.device.index,
             name_to_np_type["input_ids"],
-            list(input_ids.size()),
+            tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
         # bind attention mask
@@ -605,7 +640,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             attention_mask.device.type,
             self.device.index,
             name_to_np_type["attention_mask"],
-            list(attention_mask.size()),
+            tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
 
@@ -616,15 +651,37 @@ class ORTModelForQuestionAnswering(ORTModel):
                 token_type_ids.device.type,
                 self.device.index,
                 name_to_np_type["token_type_ids"],
-                list(token_type_ids.size()),
+                tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
 
         # bind logits
-        io_binding.bind_output("start_logits", self.device.type, device_id=self.device.index)
-        io_binding.bind_output("end_logits", self.device.type, device_id=self.device.index)
+        start_logits_shape, start_logits_buffer = self.prepare_logits_buffer(
+            batch_size=input_ids.size(0), sequence_length=input_ids.size(1)
+        )
+        end_logits_shape, end_logits_buffer = self.prepare_logits_buffer(
+            batch_size=input_ids.size(0), sequence_length=input_ids.size(1)
+        )
+        io_binding.bind_output(
+            "start_logits",
+            start_logits_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            start_logits_shape,
+            start_logits_buffer.data_ptr(),
+        )
+        io_binding.bind_output(
+            "end_logits",
+            end_logits_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            end_logits_shape,
+            end_logits_buffer.data_ptr(),
+        )
+        output_shapes = {"start_logits": start_logits_shape, "end_logits": end_logits_shape}
+        output_buffers = {"start_logits": start_logits_buffer, "end_logits": end_logits_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -642,7 +699,9 @@ class ORTModelForQuestionAnswering(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_ids, attention_mask, token_type_ids
+            )
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -655,8 +714,8 @@ class ORTModelForQuestionAnswering(ORTModel):
 
             # converts output to namedtuple for pipelines post-processing
             return QuestionAnsweringModelOutput(
-                start_logits=IOBindingHelper.to_pytorch(start_logits),
-                end_logits=IOBindingHelper.to_pytorch(end_logits),
+                start_logits=output_buffers["start_logits"].view(output_shapes["start_logits"]),
+                end_logits=output_buffers["end_logits"].view(output_shapes["end_logits"]),
             )
         else:
             # converts pytorch inputs into numpy inputs for onnx
@@ -747,6 +806,16 @@ class ORTModelForSequenceClassification(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
 
+    def prepare_logits_buffer(self, batch_size, num_labels):
+        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        logits_shape = (batch_size, num_labels)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+
+        return logits_shape, logits_buffer
+
     def prepare_io_binding(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -762,7 +831,7 @@ class ORTModelForSequenceClassification(ORTModel):
             input_ids.device.type,
             self.device.index,
             name_to_np_type["input_ids"],
-            list(input_ids.size()),
+            tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
         # bind attention mask
@@ -771,7 +840,7 @@ class ORTModelForSequenceClassification(ORTModel):
             attention_mask.device.type,
             self.device.index,
             name_to_np_type["attention_mask"],
-            list(attention_mask.size()),
+            tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
 
@@ -782,14 +851,27 @@ class ORTModelForSequenceClassification(ORTModel):
                 token_type_ids.device.type,
                 self.device.index,
                 name_to_np_type["token_type_ids"],
-                list(token_type_ids.size()),
+                tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
 
         # bind logits
-        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+        logits_shape, logits_buffer = self.prepare_logits_buffer(
+            batch_size=input_ids.size(0),
+            num_labels=self.config.num_labels,
+        )
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -807,7 +889,9 @@ class ORTModelForSequenceClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_ids, attention_mask, token_type_ids
+            )
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -818,7 +902,7 @@ class ORTModelForSequenceClassification(ORTModel):
             logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(logits=IOBindingHelper.to_pytorch(logits))
+            return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
@@ -891,6 +975,16 @@ class ORTModelForTokenClassification(ORTModel):
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
 
+    def prepare_logits_buffer(self, batch_size, sequence_length, num_labels):
+        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length, config.num_labels)."""
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        logits_shape = (batch_size, sequence_length, num_labels)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+
+        return logits_shape, logits_buffer
+
     def prepare_io_binding(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -906,7 +1000,7 @@ class ORTModelForTokenClassification(ORTModel):
             input_ids.device.type,
             self.device.index,
             name_to_np_type["input_ids"],
-            list(input_ids.size()),
+            tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
         # bind attention mask
@@ -915,7 +1009,7 @@ class ORTModelForTokenClassification(ORTModel):
             attention_mask.device.type,
             self.device.index,
             name_to_np_type["attention_mask"],
-            list(attention_mask.size()),
+            tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
 
@@ -926,14 +1020,28 @@ class ORTModelForTokenClassification(ORTModel):
                 token_type_ids.device.type,
                 self.device.index,
                 name_to_np_type["token_type_ids"],
-                list(token_type_ids.size()),
+                tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
 
         # bind logits
-        io_binding.bind_output("logits", self.device.type, device_id=self.device.index)
+        logits_shape, logits_buffer = self.prepare_logits_buffer(
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
+            num_labels=self.config.num_labels,
+        )
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self.device.index,
+            name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
 
-        return io_binding
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -951,7 +1059,9 @@ class ORTModelForTokenClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask, token_type_ids)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_ids, attention_mask, token_type_ids
+            )
 
             # run inference with binding
             io_binding.synchronize_inputs()
@@ -962,7 +1072,7 @@ class ORTModelForTokenClassification(ORTModel):
             logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
-            return TokenClassifierOutput(logits=IOBindingHelper.to_pytorch(logits))
+            return TokenClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
