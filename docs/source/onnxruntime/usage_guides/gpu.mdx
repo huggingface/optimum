@@ -68,9 +68,23 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 )
 ```
 
+The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines):
+
+```python
+from optimum.pipelines import pipeline
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+pipe = pipeline(task="text-classification", model=ort_model, tokenizer=tokenizer)
+result = pipe("Both the music and visual were astounding, not to mention the actors performance.")
+print(result)
+# printing: [{'label': 'POSITIVE', 'score': 0.9997727274894714}]
+```
+
 Additionally, you can pass the session option `log_severity_level = 0` (verbose), to check whether all nodes are indeed placed on the CUDA execution provider or not:
 
-```
+```python
 import onnxruntime
 
 session_options = onnxruntime.SessionOptions()
@@ -182,6 +196,8 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 2022-09-22 14:12:48.371513741 [V:onnxruntime:, session_state.cc:1188 VerifyEachNodeIsAssignedToAnEp] All nodes have been placed on [TensorrtExecutionProvider]
 ```
 
+The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines).
+
 ### Use TensorRT execution provider with quantized models
 
 When it comes to quantized models, TensorRT only supports models that use **static** quantization with **symmetric quantization** for weights and activations. Thus, to be able to consume with TensorRT models quantized through 🤗 Optimum, the following configuration needs to be passed when doing [static quantization](quantization#static-quantization-example):
@@ -217,18 +233,7 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 )
 ```
 
-The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as pipelines:
-
-```python
-from optimum.pipelines import pipeline
-from transformers import AutoTokenizer
-
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-pipe = pipeline(task="text-classification", model=ort_model, tokenizer=tokenizer)
-result = pipe("Both the music and visual were astounding, not to mention the actors performance.")
-print(result)
-```
+The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines).
 
 ### TensorRT limitations for quantized models
 
