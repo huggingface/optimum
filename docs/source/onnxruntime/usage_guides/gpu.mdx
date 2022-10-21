@@ -53,7 +53,7 @@ In case the error `ValueError: Asked to use CUDAExecutionProvider as an ONNX Run
 
 ### Use CUDA execution provider with floating-point models
 
-For non-quantized models, the use is straightforward, by simply using the `provider` argument in `ORTModel.from_pretrained()`. For example:
+For non-quantized models, the use is straightforward. Simply specify the `provider` argument in the `ORTModel.from_pretrained()` method. Here's an example:
 
 ```python
 from optimum.onnxruntime import ORTModelForSequenceClassification
