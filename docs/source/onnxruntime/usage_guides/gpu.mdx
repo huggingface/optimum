@@ -181,7 +181,7 @@ The parameter `qdq_dedicated_pair=True` is required by TensorRT, that expects a 
 
 The parameter `qdq_add_pair_to_weight=True` is also required by TensorRT, that consumes a graph where the weights are stored in float32 with a QDQ pair. Normally, weights would be stored in fixed point 8-bits format and only a `DequantizeLinear` would be applied on the weights. As such, the storage savings from quantization can not be leveraged when we expect to later use the quantized `.onnx` model with TensorRT.
 
-In the code sample below, after performing static quantization, the resulting model is loaded into the `ORTModel` class using TensorRT as the execution provider. ONNX Runtime graph optimization need to be disabled for the model to be consumed and optimized by TensorRT, and the fact that int8 operations are used needs to be specified to TensorRT.
+In the code sample below, after performing static quantization, the resulting model is loaded into the `ORTModel` class using TensorRT as the execution provider. ONNX Runtime graph optimization need to be disabled for the model to be consumed and optimized by TensorRT, and the fact that INT8 operations are used needs to be specified to TensorRT.
 
 ```python
 session_options = onnxruntime.SessionOptions()
