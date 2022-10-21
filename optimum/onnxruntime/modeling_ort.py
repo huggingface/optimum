@@ -50,7 +50,7 @@ import onnxruntime as ort
 from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from .io_binding import IOBindingHelper, TypeHelper
+from .io_binding import TypeHelper
 from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device
 
 
