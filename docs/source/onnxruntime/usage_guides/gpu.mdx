@@ -89,7 +89,7 @@ Here this result is expected: all the costly MatMul are placed on the CUDA execu
 
 Due to current limitations in ONNX Runtime, it is not possible to use quantized models with `CUDAExecutionProvider`. The reasons are as follows:
 
-When using [🤗 Optimum dynamic quantization](quantization#dynamic-quantization-example), nodes as [`MatMulInteger`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#MatMulInteger), [`DynamicQuantizeLinear`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#DynamicQuantizeLinear) may be inserted in the computation graph, that can not be consumed by the CUDA execution provider. This is a limitation from ONNX Runtime.
+When using [🤗 Optimum dynamic quantization](quantization#dynamic-quantization-example), nodes as [`MatMulInteger`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#MatMulInteger), [`DynamicQuantizeLinear`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#DynamicQuantizeLinear) may be inserted in the computation graph, that cannot be consumed by the CUDA execution provider. This is a limitation from ONNX Runtime.
 
 When using [static quantization](quantization#static-quantization-example), the onnx computation graph will contain matrix multiplications and convolutions in floating-point arithmetic, along with Quantize + Dequantize operations to simulate quantization. In this case, although the costly matrix multiplications and convolutions will be run on the GPU, they will use floating-point arithmetic as the `CUDAExecutionProvider` can not consume the Quantize + Dequantize nodes to replace them by the operations using integer arithmetic.
 
