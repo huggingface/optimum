@@ -13,6 +13,7 @@
 #  limitations under the License.
 import importlib.util
 from enum import Enum
+from typing import Dict, Tuple, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -186,6 +187,21 @@ def get_provider_for_device(device: torch.device) -> str:
     Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
     """
     return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"
+
+
+def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, Dict]:
+    """Get the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
+
+    if device == -1:
+        device = torch.device("cpu")
+    else:
+        device = torch._C._nn._parse_to(device)[0]
+
+    provider_options = {}
+    if device.type == "cuda" and device.index:
+        provider_options["device_id"] = device.index
+
+    return device, provider_options
 
 
 class ORTQuantizableOperator(Enum):
