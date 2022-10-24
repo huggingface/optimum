@@ -229,10 +229,10 @@ class FeaturesManager:
             "question-answering",
             onnx="CamembertOnnxConfig",
         ),
-        # "clip": supported_features_mapping(
-        #     "default",
-        #     onnx_config_cls="models.clip.CLIPOnnxConfig",
-        # ),
+        "clip": supported_features_mapping(
+            "default",
+            onnx="CLIPOnnxConfig",
+        ),
         # "codegen": supported_features_mapping(
         #     "default",
         #     "causal-lm",
@@ -458,7 +458,7 @@ class FeaturesManager:
             "image-classification",
             onnx="ResNetOnnxConfig",
         ),
-        "roberta": supported_features_mapping(
+       "roberta": supported_features_mapping(
             "default",
             "masked-lm",
             "causal-lm",

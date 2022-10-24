@@ -25,9 +25,10 @@ from ...utils import (
     NormalizedTextConfig,
     NormalizedVisionConfig,
     NormalizedSeq2SeqConfig,
+    NormalizedTextAndVisionConfig,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, VisionOnnxConfig
+from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, VisionOnnxConfig, TextAndVisionOnnxConfig
 
 
 class BertOnnxConfig(EncoderOnnxConfig):
@@ -415,3 +416,30 @@ class YolosOnnxConfig(ViTOnnxConfig):
 
 class SegformerOnnxConfig(YolosOnnxConfig):
     pass
+
+
+class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
+    TEXT_CONFIG = "text_config"
+    VISION_CONFIG = "vision_config"
+
+
+class CLIPOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
+    DEFAULT_ONNX_OPSET = 14
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "input_ids": {0: "batch", 1: "sequence"},
+            "pixel_values": {0: "batch", 1: "num_channels", 2: "height", 3: "width"},
+            "attention_mask": {0: "batch", 1: "sequence"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "logits_per_image": {0: "batch"},
+            "logits_per_text": {0: "batch"},
+            "text_embeds": {0: "batch"},
+            "image_embeds": {0: "batch"},
+        }

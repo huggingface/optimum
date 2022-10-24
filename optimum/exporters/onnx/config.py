@@ -95,3 +95,7 @@ class Seq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class VisionOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+
+
+class TextAndVisionOnnxConfig(OnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator)

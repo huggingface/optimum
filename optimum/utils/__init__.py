@@ -38,4 +38,5 @@ from .input_generators import ( # noqa
     NormalizedTextConfig,
     NormalizedSeq2SeqConfig,
     NormalizedVisionConfig,
+    NormalizedTextAndVisionConfig,
 )
