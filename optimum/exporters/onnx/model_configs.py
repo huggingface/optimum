@@ -144,6 +144,10 @@ class GPT2OnnxConfig(DecoderOnnxConfig):
         return pad_value_override
 
 
+class GPTJOnnxConfig(GPT2OnnxConfig):
+    pass
+
+
 # TODO: validate that.
 class BloomOnnxConfig(GPT2OnnxConfig):
     pass

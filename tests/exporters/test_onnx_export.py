@@ -71,6 +71,7 @@ PYTORCH_EXPORT_MODELS = {
     ("segformer", "nvidia/segformer-b0-finetuned-ade-512-512"),
     ("bloom", "bigscience/bloom-560m"),
     ("gpt2", "gpt2"),
+    ("gptj", "anton-l/gpt-j-tiny-random"),
     ("gpt-neo", "EleutherAI/gpt-neo-125M"),
     ("bart", "facebook/bart-base"),
     ("mbart", "sshleifer/tiny-mbart"),
