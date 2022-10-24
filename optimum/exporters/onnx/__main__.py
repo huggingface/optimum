@@ -17,9 +17,15 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
+from transformers import AutoTokenizer
+
 from ...utils import logging
 from ..features import FeaturesManager
 from .convert import export, validate_model_outputs
+from .base import OnnxConfigWithPast
+
+logger = logging.get_logger()  # pylint: disable=invalid-name
+logger.setLevel(logging.INFO)
 
 
 def main():
@@ -47,6 +53,15 @@ def main():
             " or what is available in the environment."
         ),
     )
+    parser.add_argument(
+        "--pad_token_id",
+        type=int,
+        default=None,
+        help=(
+            "This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess"
+            " it."
+        )
+    )
     parser.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
     parser.add_argument("output", type=Path, help="Path indicating where to store generated ONNX model.")
 
@@ -61,8 +76,20 @@ def main():
     model = FeaturesManager.get_model_from_feature(
         args.feature, args.model, framework=args.framework, cache_dir=args.cache_dir
     )
+
     onnx_config_constructor = FeaturesManager.get_exporter_config_constructor(model, "onnx", feature=args.feature)
     onnx_config = onnx_config_constructor(model.config)
+
+    needs_pad_token_id = isinstance(onnx_config, OnnxConfigWithPast) and getattr(model.config, "pad_token_id", None) is None and args.feature in ["sequence_classification"]
+    if needs_pad_token_id:
+        if args.pad_token_id is not None:
+            model.config.pad_token_id = args.pad_token_id
+        else:
+            try:
+                tok = AutoTokenizer.from_pretrained(args.model)
+                model.config.pad_token_id = tok.pad_token_id
+            except Exception:
+                raise ValueError("Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument")
 
     # Ensure the requested opset is sufficient
     if args.opset is None:
@@ -82,13 +109,13 @@ def main():
     )
 
     if args.atol is None:
-        args.atol = onnx_config.atol_for_validation
+        args.atol = onnx_config.ATOL_FOR_VALIDATION
+        if isinstance(args.atol, dict):
+            args.atol = args.atol[args.feature.replace("-with-past", "")]
 
     validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
     logger.info(f"All good, model saved at: {args.output.as_posix()}")
 
 
 if __name__ == "__main__":
-    logger = logging.get_logger()  # pylint: disable=invalid-name
-    logger.setLevel(logging.INFO)
     main()

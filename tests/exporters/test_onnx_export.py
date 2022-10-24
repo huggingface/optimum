@@ -16,6 +16,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 from unittest.mock import patch
+from parameterized import parameterized
 
 from transformers import AutoConfig, is_tf_available, is_torch_available
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
@@ -23,7 +24,6 @@ from transformers.testing_utils import require_onnx, require_tf, require_torch, 
 from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithPast, export, validate_model_outputs
 from optimum.exporters.onnx.base import EXTERNAL_DATA_FORMAT_SIZE_LIMIT
 from optimum.exporters.onnx.utils import ParameterFormat, compute_serialized_parameters_size
-from parameterized import parameterized
 
 
 if is_torch_available() or is_tf_available():
@@ -33,7 +33,7 @@ if is_torch_available() or is_tf_available():
 PYTORCH_EXPORT_MODELS = {
     ("albert", "hf-internal-testing/tiny-albert"),
     ("bert", "bert-base-cased"),
-    # ("big-bird", "google/bigbird-roberta-base"),
+    ("big-bird", "google/bigbird-roberta-base"),
     ("ibert", "kssteven/ibert-roberta-base"),
     ("camembert", "camembert-base"),
     # ("clip", "openai/clip-vit-base-patch32"),
@@ -69,18 +69,18 @@ PYTORCH_EXPORT_MODELS = {
     # ("longformer", "allenai/longformer-base-4096"),
     # ("yolos", "hustvl/yolos-tiny"),
     # ("segformer", "nvidia/segformer-b0-finetuned-ade-512-512"),
-    # ("bloom", "bigscience/bloom-560m"),
+    ("bloom", "bigscience/bloom-560m"),
     ("gpt2", "gpt2"),
     ("gpt-neo", "EleutherAI/gpt-neo-125M"),
-    # ("bart", "facebook/bart-base"),
-    # ("mbart", "sshleifer/tiny-mbart"),
+    ("bart", "facebook/bart-base"),
+    ("mbart", "sshleifer/tiny-mbart"),
     ("t5", "t5-small"),
-    # ("marian", "Helsinki-NLP/opus-mt-en-de"),
-    ("mt5", "google/mt5-base"),
-    # ("m2m-100", "facebook/m2m100_418M"),
-    # ("blenderbot-small", "facebook/blenderbot_small-90M"),
-    # ("blenderbot", "facebook/blenderbot-400M-distill"),
-    # ("bigbird-pegasus", "google/bigbird-pegasus-large-arxiv"),
+    ("marian", "Helsinki-NLP/opus-mt-en-de"),
+    ("mt5", "google/mt5-small"),
+    ("m2m-100", "facebook/m2m100_418M"),
+    ("blenderbot-small", "facebook/blenderbot_small-90M"),
+    ("blenderbot", "facebook/blenderbot-400M-distill"),
+    ("bigbird-pegasus", "google/bigbird-pegasus-large-arxiv"),
     ("longt5", "google/long-t5-local-base"),
     # Disable for now as it causes fatal error `Floating point exception (core dumped)` and the subsequential tests are
     # not run.
@@ -253,6 +253,10 @@ class OnnxExportTestCase(TestCase):
 
         onnx_config = onnx_config_class_constructor(model.config)
 
+        # We need to set this to some value to be able to test the outputs values for batch size > 1.
+        if isinstance(onnx_config, OnnxConfigWithPast) and getattr(model.config, "pad_token_id", None) is None and feature == "sequence-classification":
+            model.config.pad_token_id = 0
+
         # if is_torch_available():
         #     from transformers.utils import torch_version
 
@@ -267,12 +271,15 @@ class OnnxExportTestCase(TestCase):
                 onnx_inputs, onnx_outputs = export(
                     model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
                 )
+                atol = onnx_config.ATOL_FOR_VALIDATION
+                if isinstance(atol, dict):
+                    atol = atol[feature.replace("-with-past", "")]
                 validate_model_outputs(
                     onnx_config,
                     model,
                     Path(output.name),
                     onnx_outputs,
-                    onnx_config.atol_for_validation,
+                    atol,
                 )
             except (RuntimeError, ValueError) as e:
                 self.fail(f"{name}, {feature} -> {e}")

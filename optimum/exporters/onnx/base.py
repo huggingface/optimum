@@ -354,16 +354,13 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and self.use_past
             and "attention_mask" in dummy_inputs
         ):
-            shape = dummy_inputs["past_key_values"][0][0].shape
-            mask_dtype = dummy_inputs["attention_mask"].dtype
-            padding = DummyInputGenerator.constant_tensor(
-                [shape[0], shape[1]], 1, dtype=mask_dtype, framework=framework
+            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+            dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
+                dummy_inputs["attention_mask"],
+                padding_length=past_length,
+                dim=1,
+                dtype=dummy_inputs["attention_mask"].dtype,
             )
-            values = [dummy_inputs["attention_mask"], padding]
-            if framework == "pt":
-                dummy_inputs["attention_mask"] = torch.cat(values, dim=1)
-            else:
-                dummy_inputs["attention_mask"] = tf.concat(values, axis=1)
 
         return dummy_inputs
 

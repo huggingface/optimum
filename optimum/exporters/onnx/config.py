@@ -61,23 +61,23 @@ class Seq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self.use_past:
             common_inputs["attention_mask"][1] = "past_encoder_sequence + sequence"
             common_inputs["decoder_input_ids"] = {0: "batch"}
-            common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
+            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
         else:
             common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
-            common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
+            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
 
         if self.use_past:
             self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
 
-    def _create_dummy_input_generator_classes(self):
+    def create_dummy_input_generator_classes(self):
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
             self.task,
             self._normalized_config,
             batch_size=dummy_text_input_generator.batch_size,
-            sequence_length=1 if self.use_past else None,
+            sequence_length=1 if self.use_past else 16,
         )
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
             self.task,

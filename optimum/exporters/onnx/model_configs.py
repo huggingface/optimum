@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific onnx configurations."""
-from collections import OrderedDict
-from typing import Any, Mapping, Optional
+import random
+from typing import Any, Mapping, Optional, Tuple
 
 from ...utils import (
     DummyDecoderTextInputGenerator,
@@ -24,6 +24,7 @@ from ...utils import (
     NormalizedConfig,
     NormalizedSeq2SeqConfig,
 )
+from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig
 
 
@@ -80,12 +81,10 @@ class DistilBertOnnxConfig(BertOnnxConfig):
             dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
         else:
             dynamic_axis = {0: "batch", 1: "sequence"}
-        return OrderedDict(
-            [
-                ("input_ids", dynamic_axis),
-                ("attention_mask", dynamic_axis),
-            ]
-        )
+        return {
+            "input_ids": dynamic_axis,
+            "attention_mask": dynamic_axis
+        }
 
 
 class RobertaOnnxConfig(DistilBertOnnxConfig):
@@ -105,6 +104,10 @@ class IBertOnnxConfig(DistilBertOnnxConfig):
 
 
 class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
+class BigBirdOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
@@ -160,94 +163,197 @@ class MT5OnnxConfig(T5OnnxConfig):
     pass
 
 
-class LongT5OnnxConfig(Seq2SeqOnnxConfig):
+class LongT5OnnxConfig(T5OnnxConfig):
     pass
-    # @property
-    # def inputs(self) -> Mapping[str, Mapping[int, str]]:
-    #     common_inputs = {
-    #         "input_ids": {0: "batch", 1: "encoder_sequence"},
-    #         "attention_mask": {0: "batch", 1: "encoder_sequence"},
-    #     }
-    #     if self.use_past:
-    #         common_inputs["attention_mask"][1] = "past_encoder_sequence + sequence"
-    #         common_inputs["decoder_input_ids"] = {0: "batch"}
-    #         common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
-    #     else:
-    #         common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
-    #         common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
-
-    #     if self.use_past:
-    #         self.fill_with_past_key_values_(common_inputs, direction="inputs")
-
-    #     return common_inputs
 
 
-# class BartOnnxConfig(Seq2SeqOnnxConfig):
-#     DUMMY_INPUT_GENERATOR_CLASSES = (
-#         DummyTextInputGenerator,
-#         DummyDecoderTextInputGenerator,
-#         {
-#             "default": DummySeq2SeqPastKeyValuesGenerator,
-#             "causal-lm": DummyPastKeyValuesGenerator,
-#         }
-#     )
-#     def _create_dummy_input_generator_classes(self):
-#         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
-#         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
-#             self.task,
-#             self._normalized_config,
-#             batch_size=dummy_text_input_generator.batch_size,
-#             sequence_length=1 if self.use_past else None,
-#         )
-#         task = "default" if self.task != "causal-lm" else "causal-lm"
-#         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
-#             self.task,
-#             self._normalized_config,
-#             batch_size=dummy_text_input_generator.batch_size,
-#             encoder_sequence_length=dummy_text_input_generator.sequence_length,
-#         )
-#         self.dummy_inputs_generators = [dummy_text_input_generator, dummy_decoder_text_input_generator, dummy_seq2seq_past_key_values_generator]
-#
-#     @property
-#     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-#         if self.task in ["default", "seq2seq-lm"]:
-#             common_inputs = OrderedDict(
-#                 [
-#                     ("input_ids", {0: "batch", 1: "encoder_sequence"}),
-#                     ("attention_mask", {0: "batch", 1: "encoder_sequence"}),
-#                 ]
-#             )
-#
-#             if self.use_past:
-#                 common_inputs["decoder_input_ids"] = {0: "batch"}
-#                 common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
-#             else:
-#                 common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
-#                 common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
-#
-#             if self.use_past:
-#                 self.add_past_key_values(common_inputs, direction="inputs")
-#         elif self.task == "causal-lm":
-#             # TODO: figure this case out.
-#             common_inputs = OrderedDict(
-#                 [
-#                     ("input_ids", {0: "batch", 1: "encoder_sequence"}),
-#                     ("attention_mask", {0: "batch", 1: "encoder_sequence"}),
-#                 ]
-#             )
-#             if self.use_past:
-#                 num_encoder_layers, _ = self.num_layers
-#                 for i in range(num_encoder_layers):
-#                     common_inputs[f"past_key_values.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
-#                     common_inputs[f"past_key_values.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
-#         else:
-#             common_inputs = OrderedDict(
-#                 [
-#                     ("input_ids", {0: "batch", 1: "encoder_sequence"}),
-#                     ("attention_mask", {0: "batch", 1: "encoder_sequence"}),
-#                     ("decoder_input_ids", {0: "batch", 1: "decoder_sequence"}),
-#                     ("decoder_attention_mask", {0: "batch", 1: "decoder_sequence"}),
-#                 ]
-#             )
-#
-#         return common_inputs
+class BartNormalizedConfig(NormalizedSeq2SeqConfig):
+    EOS_TOKEN_ID = "eos_token_id"
+
+
+class BartDummyTextInputGenerator(DummyTextInputGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = 2,
+        sequence_length: int = 16,
+        num_choices: int = 4,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        random_num_choices_range: Optional[Tuple[int, int]] = None,
+        force_eos_token_id_presence: bool = True,
+    ):
+        super().__init__(
+            task,
+            normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            num_choices=num_choices,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            random_num_choices_range=random_num_choices_range,
+        )
+        self.force_eos_token_id_presence = force_eos_token_id_presence
+        self.eos_token_id = normalized_config.eos_token_id
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        int_tensor = super().generate(input_name, framework=framework)
+        # This inserts EOS_TOKEN_ID at random locations along the sequence length dimension.
+        if self.force_eos_token_id_presence and "input_ids" in input_name and self.task == "sequence-classification":
+            for idx in range(self.batch_size):
+                random_idx = random.randint(1, self.sequence_length - 1)
+                int_tensor[idx][random_idx] = self.eos_token_id
+
+        return int_tensor
+
+
+class BartOnnxConfig(Seq2SeqOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = BartNormalizedConfig.with_args(
+        encoder_num_layers="encoder_layers",
+        decoder_num_layers="decoder_layers",
+        encoder_num_attention_heads="encoder_attention_heads",
+        decoder_num_attention_heads="decoder_attention_heads",
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        BartDummyTextInputGenerator,
+        DummyDecoderTextInputGenerator,
+        {
+            "default": DummySeq2SeqPastKeyValuesGenerator,
+            "causal-lm": DummyPastKeyValuesGenerator,
+        }
+    )
+
+    def create_dummy_input_generator_classes(self):
+        dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
+        dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
+            self.task,
+            self._normalized_config,
+            batch_size=dummy_text_input_generator.batch_size,
+            sequence_length=1 if self.use_past else 16,
+        )
+        task = "default" if self.task != "causal-lm" else "causal-lm"
+        kwargs = {}
+        if self.task != "causal-lm":
+            kwargs["encoder_sequence_length"] = dummy_text_input_generator.sequence_length
+
+        dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
+            self.task,
+            self._normalized_config,
+            batch_size=dummy_text_input_generator.batch_size,
+            **kwargs
+        )
+        self.dummy_inputs_generators = [dummy_text_input_generator, dummy_decoder_text_input_generator, dummy_seq2seq_past_key_values_generator]
+
+    @property
+    def inputs_for_default_and_seq2seq_lm(self):
+        common_inputs = {
+            "input_ids": {0: "batch", 1: "encoder_sequence"},
+            "attention_mask": {0: "batch", 1: "encoder_sequence"},
+        }
+        if self.use_past:
+            common_inputs["decoder_input_ids"] = {0: "batch"}
+            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
+        else:
+            common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
+            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
+
+        if self.use_past:
+            self.add_past_key_values(common_inputs, direction="inputs")
+        return common_inputs
+
+    @property
+    def inputs_for_causal_lm(self):
+        common_inputs = {
+            "input_ids": {0: "batch", 1: "encoder_sequence"},
+            "attention_mask": {0: "batch", 1: "encoder_sequence"},
+        }
+        if self.use_past:
+            for i in range(self._normalized_config.encoder_num_layers):
+                common_inputs[f"past_key_values.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
+                common_inputs[f"past_key_values.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
+        return common_inputs
+
+    @property
+    def inputs_for_other_tasks(self):
+        return {
+            "input_ids": {0: "batch", 1: "encoder_sequence"},
+            "attention_mask": {0: "batch", 1: "encoder_sequence"},
+            "decoder_input_ids": {0: "batch", 1: "decoder_sequence"},
+            "decoder_attention_mask": {0: "batch", 1: "decoder_sequence"},
+        }
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        inputs_properties = {
+            "default": self.inputs_for_default_and_seq2seq_lm,
+            "seq2seq-lm": self.inputs_for_default_and_seq2seq_lm,
+            "causal-lm": self.inputs_for_causal_lm,
+            "other": self.inputs_for_other_tasks,
+        }
+        return inputs_properties.get(self.task, inputs_properties["other"])
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        if self.task in ["default", "seq2seq-lm"]:
+            common_outputs = super().outputs
+        else:
+            common_outputs = super(OnnxConfigWithPast, self).outputs
+            if self.use_past:
+                for i in range(self._normalized_config.encoder_num_layers):
+                    common_outputs[f"present.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
+                    common_outputs[f"present.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
+        return common_outputs
+
+    def generate_dummy_inputs(self, framework: str = "pt"):
+        # This will handle the attention mask padding when Bart is used for causal-lm.
+        if self.task == "causal-lm":
+            self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
+
+        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+
+        # if self.use_past and self.task in ["default", "seq2seq-lm"]:
+        #     attention_mask_length = dummy_inputs["decoder_attention_mask"].shape[1]
+        #     decoder_past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+        #     dummy_inputs["decoder_attention_mask"] = self.dummy_inputs_generators[0].pad_input_on_dim(
+        #         dummy_inputs["decoder_attention_mask"],
+        #         desired_length=decoder_past_length,
+        #         dim=1,
+        #         dtype=dummy_inputs["decoder_attention_mask"].dtype,
+        #     )
+
+        # Setting it back to the default version.
+        self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
+        return dummy_inputs
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        if self.task in ["default", "seq2seq-lm"]:
+            flattened_output = super().flatten_past_key_values(flattened_output, name, idx, t)
+        else:
+            flattened_output = super(OnnxSeq2SeqConfigWithPast, self).flatten_past_key_values(
+                flattened_output, name, idx, t
+            )
+
+
+class MBartOnnxConfig(BartOnnxConfig):
+    pass
+
+
+class M2M100OnnxConfig(BartOnnxConfig):
+    pass
+
+
+class BlenderbotOnnxConfig(BartOnnxConfig):
+    pass
+
+
+class BlenderbotSmallOnnxConfig(BartOnnxConfig):
+    pass
+
+
+class BigBirdPegasusOnnxConfig(BartOnnxConfig):
+    pass
+
+
+class MarianOnnxConfig(BartOnnxConfig):
+    pass

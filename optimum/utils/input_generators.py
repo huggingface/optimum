@@ -32,14 +32,13 @@ if is_tf_available():
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
-# Some models need to have access to the pad_token_id, we use this value for the tests, it was chosen arbitrarily.
-PAD_TOKEN_ID_FOR_TEST = 19
 
 class NormalizedConfig:
     VOCAB_SIZE = "vocab_size"
     HIDDEN_SIZE = "hidden_size"
     NUM_LAYERS = "num_hidden_layers"
     NUM_ATTENTION_HEADS = "num_attention_heads"
+    EOS_TOKEN_ID = "eos_token_id"
 
     def __init__(self, config: "PretrainedConfig", **kwargs):
         self.config = config
@@ -171,7 +170,6 @@ class DummyTextInputGenerator(DummyInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
-        force_pad_token_id_presence: bool = True
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
@@ -197,16 +195,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         shape = [self.batch_size, self.sequence_length]
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
-        int_tensor = self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework)
-
-        # This inserts PAD_TOKEN_ID_FOR_TEST at random locations along the sequence length dimension.
-        # This should not have any impact on models not using it, and help with testing for those using it.
-        if "input_ids" in input_name:
-            for idx in range(self.batch_size):
-                random_idx = random.randint(1, self.sequence_length)
-                int_tensor[idx][random_idx] = PAD_TOKEN_ID_FOR_TEST
-
-        return int_tensor
+        return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework)
 
 
 class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
