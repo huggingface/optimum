@@ -82,11 +82,11 @@ def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, op
 
 def main():
     args = parser.parse_args()
-    optimum_path = Path("test_optimum_doc")
+    optimum_path = Path("optimum-doc-build")
 
     # Copy and rename all files from subpackages' docs to Optimum doc
     for subpackage in args.subpackages:
-        subpackage_path = Path(f"test_{subpackage}_doc")
+        subpackage_path = Path(f"{subpackage}-doc-build")
 
         # Copy all HTML files from subpackage into optimum
         rename_copy_subpackage_html_paths(
