@@ -128,7 +128,6 @@ class ORTOptimizer:
         model_type = ORTConfigManager.get_model_ort_type(model_type)
         optimization_config.model_type = model_type
         optimization_options = self.parse_fusion_options(optimization_config)
-        print("OPTIONS", optimization_options.__dict__)
         LOGGER.info("Optimizing model...")
 
         for model_path in self.onnx_model_path:
@@ -256,7 +255,7 @@ class ORTOptimizer:
 
         for field in fields(optimization_config):
             # Field names finishing with "_fusion" are not understood by ORT.
-            # The "_fusion" suffix has to be removed.
+            # Thus the "_fusion" suffix has to be removed.
             if field.name.endswith("_fusion"):
                 ort_field_name = field.name.split("_fusion")[0]
                 setattr(tmp_optimization_config, ort_field_name, getattr(optimization_config, field.name))
