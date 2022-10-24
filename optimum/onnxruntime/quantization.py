@@ -323,7 +323,7 @@ class ORTQuantizer(OptimumQuantizer):
             per_channel=quantization_config.per_channel,
             mode=quantization_config.mode,
             weight_qType=quantization_config.weights_dtype,
-            input_qType=quantization_config.activations_dtype,
+            activation_qType=quantization_config.activations_dtype,
             tensors_range=calibration_tensors_range,
             reduce_range=quantization_config.reduce_range,
             nodes_to_quantize=quantization_config.nodes_to_quantize,

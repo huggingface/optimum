@@ -660,6 +660,7 @@ class OptimizationConfig:
     use_mask_index: bool = False
     no_attention_mask: bool = False
     disable_embed_layer_norm: bool = True
+    disable_shape_inference: bool = False
 
 
 class ORTConfig(BaseConfig):
