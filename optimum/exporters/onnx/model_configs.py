@@ -14,6 +14,7 @@
 # limitations under the License.
 """Model specific onnx configurations."""
 import random
+from packaging import version
 from typing import Any, Mapping, Optional, Tuple
 
 from ...utils import (
@@ -21,15 +22,16 @@ from ...utils import (
     DummyPastKeyValuesGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
-    NormalizedConfig,
+    NormalizedTextConfig,
+    NormalizedVisionConfig,
     NormalizedSeq2SeqConfig,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig
+from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, VisionOnnxConfig
 
 
 class BertOnnxConfig(EncoderOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -129,7 +131,7 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
 
 class GPT2OnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
@@ -149,7 +151,7 @@ class BloomOnnxConfig(GPT2OnnxConfig):
 
 class GPTNeoOnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_attention_heads="num_heads")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
 class T5OnnxConfig(Seq2SeqOnnxConfig):
@@ -175,7 +177,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
     def __init__(
         self,
         task: str,
-        normalized_config: NormalizedConfig,
+        normalized_config: BartNormalizedConfig,
         batch_size: int = 2,
         sequence_length: int = 16,
         num_choices: int = 4,
@@ -356,4 +358,56 @@ class BigBirdPegasusOnnxConfig(BartOnnxConfig):
 
 
 class MarianOnnxConfig(BartOnnxConfig):
+    pass
+
+
+class ViTOnnxConfig(VisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    MIN_TORCH_VERSION = version.parse("1.11")
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "pixel_values": {0: "batch", 1: "num_channels", 2: "height", 3: "width"}
+        }
+
+
+class LevitOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class DeiTOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class BeitOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class ConvNextOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class MobileViTOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class ResNetOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class DetrOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        # TODO: is pixel mask needed?
+        return {**super().inputs, "pixel_mask": {0: "batch"}}
+
+
+class YolosOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+
+
+class SegformerOnnxConfig(YolosOnnxConfig):
     pass

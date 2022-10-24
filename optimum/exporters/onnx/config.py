@@ -22,6 +22,7 @@ from ...utils import (
     DummyPastKeyValuesGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
+    DummyVisionInputGenerator,
 )
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
@@ -90,3 +91,7 @@ class Seq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
             dummy_decoder_text_input_generator,
             dummy_seq2seq_past_key_values_generator,
         ]
+
+
+class VisionOnnxConfig(OnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)

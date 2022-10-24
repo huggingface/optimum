@@ -34,23 +34,17 @@ if TYPE_CHECKING:
 
 
 class NormalizedConfig:
-    VOCAB_SIZE = "vocab_size"
-    HIDDEN_SIZE = "hidden_size"
-    NUM_LAYERS = "num_hidden_layers"
-    NUM_ATTENTION_HEADS = "num_attention_heads"
-    EOS_TOKEN_ID = "eos_token_id"
-
-    def __init__(self, config: "PretrainedConfig", **kwargs):
+    def __init__(self, config: "PretrainedConfig", allow_new: bool = False, **kwargs):
         self.config = config
         for key, value in kwargs.items():
-            if hasattr(self, key.upper()):
+            if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
             else:
                 raise AttributeError(f"{self.__class__} has not attribute {key}.")
 
     @classmethod
-    def with_args(cls, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
-        return functools.partial(cls, **kwargs)
+    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
+        return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattribute__(self, attr_name):
         if attr_name.startswith("__") or not attr_name.upper() in dir(self.__class__):
@@ -63,12 +57,28 @@ class NormalizedConfig:
                 )
             return attr
 
+    def has_attribute(self, attr_name):
+        return getattr(self.config, super().__getattribute__(attr_name.upper()), None) is not None
 
-class NormalizedSeq2SeqConfig(NormalizedConfig):
-    ENCODER_NUM_LAYERS = NormalizedConfig.NUM_LAYERS
-    DECODER_NUM_LAYERS = NormalizedConfig.NUM_LAYERS
-    ENCODER_NUM_ATTENTION_HEADS = NormalizedConfig.NUM_ATTENTION_HEADS
-    DECODER_NUM_ATTENTION_HEADS = NormalizedConfig.NUM_ATTENTION_HEADS
+
+class NormalizedTextConfig(NormalizedConfig):
+    VOCAB_SIZE = "vocab_size"
+    HIDDEN_SIZE = "hidden_size"
+    NUM_LAYERS = "num_hidden_layers"
+    NUM_ATTENTION_HEADS = "num_attention_heads"
+    EOS_TOKEN_ID = "eos_token_id"
+
+
+class NormalizedSeq2SeqConfig(NormalizedTextConfig):
+    ENCODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
+    DECODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
+    ENCODER_NUM_ATTENTION_HEADS = NormalizedTextConfig.NUM_ATTENTION_HEADS
+    DECODER_NUM_ATTENTION_HEADS = NormalizedTextConfig.NUM_ATTENTION_HEADS
+
+
+class NormalizedVisionConfig(NormalizedConfig):
+    IMAGE_SIZE = "image_size"
+    NUM_CHANNELS = "num_channels"
 
 
 def check_framework_is_available(func):
@@ -163,7 +173,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
     def __init__(
         self,
         task: str,
-        normalized_config: NormalizedConfig,
+        normalized_config: NormalizedTextConfig,
         batch_size: int = 2,
         sequence_length: int = 16,
         num_choices: int = 4,
@@ -211,7 +221,7 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
     def __init__(
         self,
         task: str,
-        normalized_config: NormalizedConfig,
+        normalized_config: NormalizedTextConfig,
         batch_size: int = 2,
         sequence_length: int = 16,
         random_batch_size_range: Optional[Tuple[int, int]] = None,
@@ -297,3 +307,42 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             )
             for _ in range(self.normalized_config.decoder_num_layers)
         ]
+
+
+class DummyVisionInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "pixel_values",
+        "pixel_mask",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedVisionConfig,
+        batch_size: int = 2,
+        num_channels: int = 3,
+        width: int = 224,
+        height: int = 224,
+    ):
+        self.task = task
+        # Some vision models can take any input sizes, in this case we use the values provided as parameters.
+        if normalized_config.has_attribute("image_size"):
+            self.image_size = normalized_config.image_size
+        else:
+            self.image_size = (width, height)
+        if normalized_config.has_attribute("num_channels"):
+            self.num_channels = normalized_config.num_channels
+        else:
+            self.num_channels = num_channels
+
+        if not isinstance(self.image_size, (tuple, list)):
+            self.image_size = (self.image_size, self.image_size)
+        self.batch_size = batch_size
+        self.height, self.width = self.image_size
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        if input_name == "pixel_mask":
+            shape = [self.batch_size, self.height, self.width]
+            return self.random_int_tensor(shape, max_value=1, framework=framework)
+        shape = [self.batch_size, self.num_channels, self.height, self.width]
+        return self.random_float_tensor(shape, framework=framework)

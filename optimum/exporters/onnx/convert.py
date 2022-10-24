@@ -280,7 +280,7 @@ def export(
 
         if not config.is_torch_support_available:
             logger.warning(
-                f"Unsupported PyTorch version for this model. Minimum required is {config.torch_onnx_minimum_version},"
+                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
                 f" got: {torch.__version__}"
             )
         return export_pytorch(model, config, opset, output, device=device)

@@ -158,9 +158,9 @@ class FeaturesManager:
             onnx="BartOnnxConfig",
         ),
         # BEiT cannot be used with the masked image modeling autoclass, so this feature is excluded here
-        # "beit": supported_features_mapping(
-        #     "default", "image-classification", onnx_config_cls="models.beit.BeitOnnxConfig"
-        # ),
+        "beit": supported_features_mapping(
+            "default", "image-classification", onnx="BeitOnnxConfig"
+        ),
         "bert": supported_features_mapping(
             "default",
             "masked-lm",
@@ -247,11 +247,11 @@ class FeaturesManager:
             "question-answering",
             onnx="ConvBertOnnxConfig",
         ),
-        # "convnext": supported_features_mapping(
-        #     "default",
-        #     "image-classification",
-        #     onnx_config_cls="models.convnext.ConvNextOnnxConfig",
-        # ),
+        "convnext": supported_features_mapping(
+            "default",
+            "image-classification",
+            onnx="ConvNextOnnxConfig",
+        ),
         # "data2vec-text": supported_features_mapping(
         #     "default",
         #     "masked-lm",
@@ -285,15 +285,15 @@ class FeaturesManager:
             "question-answering",
             onnx="DebertaV2OnnxConfig",
         ),
-        # "deit": supported_features_mapping(
-        #     "default", "image-classification", "masked-im", onnx_config_cls="models.deit.DeiTOnnxConfig"
-        # ),
-        # "detr": supported_features_mapping(
-        #     "default",
-        #     "object-detection",
-        #     "image-segmentation",
-        #     onnx_config_cls="models.detr.DetrOnnxConfig",
-        # ),
+        "deit": supported_features_mapping(
+            "default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"
+        ),
+        "detr": supported_features_mapping(
+            "default",
+            "object-detection",
+            "image-segmentation",
+            onnx="DetrOnnxConfig",
+        ),
         "distilbert": supported_features_mapping(
             "default",
             "masked-lm",
@@ -376,9 +376,9 @@ class FeaturesManager:
         #     "token-classification",
         #     onnx_config_cls="models.layoutlmv3.LayoutLMv3OnnxConfig",
         # ),
-        # "levit": supported_features_mapping(
-        #     "default", "image-classification", onnx_config_cls="models.levit.LevitOnnxConfig"
-        # ),
+        "levit": supported_features_mapping(
+            "default", "image-classification", onnx="LevitOnnxConfig"
+        ),
         "longt5": supported_features_mapping(
             "default",
             "default-with-past",
@@ -424,11 +424,11 @@ class FeaturesManager:
             "question-answering",
             onnx="MobileBertOnnxConfig",
         ),
-        # "mobilevit": supported_features_mapping(
-        #     "default",
-        #     "image-classification",
-        #     onnx_config_cls="models.mobilevit.MobileViTOnnxConfig",
-        # ),
+        "mobilevit": supported_features_mapping(
+            "default",
+            "image-classification",
+            onnx="MobileViTOnnxConfig",
+        ),
         "mt5": supported_features_mapping(
             "default",
             "default-with-past",
@@ -453,11 +453,11 @@ class FeaturesManager:
         #     "sequence-classification",
         #     onnx_config_cls="models.perceiver.PerceiverOnnxConfig",
         # ),
-        # "resnet": supported_features_mapping(
-        #     "default",
-        #     "image-classification",
-        #     onnx_config_cls="models.resnet.ResNetOnnxConfig",
-        # ),
+        "resnet": supported_features_mapping(
+            "default",
+            "image-classification",
+            onnx="ResNetOnnxConfig",
+        ),
         "roberta": supported_features_mapping(
             "default",
             "masked-lm",
@@ -479,12 +479,12 @@ class FeaturesManager:
             "token-classification",
             onnx="RoFormerOnnxConfig",
         ),
-        # "segformer": supported_features_mapping(
-        #     "default",
-        #     "image-classification",
-        #     "semantic-segmentation",
-        #     onnx_config_cls="models.segformer.SegformerOnnxConfig",
-        # ),
+        "segformer": supported_features_mapping(
+            "default",
+            "image-classification",
+            "semantic-segmentation",
+            onnx="SegformerOnnxConfig",
+        ),
         "squeezebert": supported_features_mapping(
             "default",
             "masked-lm",
@@ -501,9 +501,9 @@ class FeaturesManager:
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
-        # "vit": supported_features_mapping(
-        #     "default", "image-classification", "masked-im", onnx_config_cls="models.vit.ViTOnnxConfig"
-        # ),
+        "vit": supported_features_mapping(
+            "default", "image-classification", "masked-im", onnx="ViTOnnxConfig"
+        ),
         "xlm": supported_features_mapping(
             "default",
             "masked-lm",
@@ -524,11 +524,11 @@ class FeaturesManager:
             "question-answering",
             onnx="XLMRobertaOnnxConfig",
         ),
-        # "yolos": supported_features_mapping(
-        #     "default",
-        #     "object-detection",
-        #     onnx_config_cls="models.yolos.YolosOnnxConfig",
-        # ),
+        "yolos": supported_features_mapping(
+            "default",
+            "object-detection",
+            onnx="YolosOnnxConfig",
+        ),
     }
 
     @staticmethod
