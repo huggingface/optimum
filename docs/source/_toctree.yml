@@ -38,6 +38,8 @@
       title: How to apply dynamic and static quantization
     - local: onnxruntime/usage_guides/trainer
       title: How to accelerate training
+    - local: onnxruntime/usage_guides/gpu
+      title: Accelerated inference on NVIDIA GPUs
     title: How-to guides
   - sections:
     - local: onnxruntime/concept_guides/onnx
