@@ -20,8 +20,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset, load_dataset
+from packaging.version import Version, parse
 
 import onnx
+from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
@@ -317,31 +319,62 @@ class ORTQuantizer(OptimumQuantizer):
 
         onnx_model = onnx.load(self.onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
-        quantizer = quantizer_factory(
-            model=onnx_model,
-            static=quantization_config.is_static,
-            per_channel=quantization_config.per_channel,
-            mode=quantization_config.mode,
-            weight_qType=quantization_config.weights_dtype,
-            input_qType=quantization_config.activations_dtype,
-            tensors_range=calibration_tensors_range,
-            reduce_range=quantization_config.reduce_range,
-            nodes_to_quantize=quantization_config.nodes_to_quantize,
-            nodes_to_exclude=quantization_config.nodes_to_exclude,
-            op_types_to_quantize=[
-                operator.value if isinstance(operator, ORTQuantizableOperator) else operator
-                for operator in quantization_config.operators_to_quantize
-            ],
-            extra_options={
-                "WeightSymmetric": quantization_config.weights_symmetric,
-                "ActivationSymmetric": quantization_config.activations_symmetric,
-                "EnableSubgraph": False,
-                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
-                "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
-                "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
-                "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
-            },
-        )
+
+        if parse(ort_version) >= Version("1.13.0"):
+            # The argument `input_qType` has been changed into `activation_qType` from ORT 1.13
+            quantizer = quantizer_factory(
+                model=onnx_model,
+                static=quantization_config.is_static,
+                per_channel=quantization_config.per_channel,
+                mode=quantization_config.mode,
+                weight_qType=quantization_config.weights_dtype,
+                activation_qType=quantization_config.activations_dtype,
+                tensors_range=calibration_tensors_range,
+                reduce_range=quantization_config.reduce_range,
+                nodes_to_quantize=quantization_config.nodes_to_quantize,
+                nodes_to_exclude=quantization_config.nodes_to_exclude,
+                op_types_to_quantize=[
+                    operator.value if isinstance(operator, ORTQuantizableOperator) else operator
+                    for operator in quantization_config.operators_to_quantize
+                ],
+                extra_options={
+                    "WeightSymmetric": quantization_config.weights_symmetric,
+                    "ActivationSymmetric": quantization_config.activations_symmetric,
+                    "EnableSubgraph": False,
+                    "ForceSymmetric": quantization_config.activations_symmetric
+                    and quantization_config.weights_symmetric,
+                    "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
+                    "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
+                    "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
+                },
+            )
+        else:
+            quantizer = quantizer_factory(
+                model=onnx_model,
+                static=quantization_config.is_static,
+                per_channel=quantization_config.per_channel,
+                mode=quantization_config.mode,
+                weight_qType=quantization_config.weights_dtype,
+                input_qType=quantization_config.activations_dtype,
+                tensors_range=calibration_tensors_range,
+                reduce_range=quantization_config.reduce_range,
+                nodes_to_quantize=quantization_config.nodes_to_quantize,
+                nodes_to_exclude=quantization_config.nodes_to_exclude,
+                op_types_to_quantize=[
+                    operator.value if isinstance(operator, ORTQuantizableOperator) else operator
+                    for operator in quantization_config.operators_to_quantize
+                ],
+                extra_options={
+                    "WeightSymmetric": quantization_config.weights_symmetric,
+                    "ActivationSymmetric": quantization_config.activations_symmetric,
+                    "EnableSubgraph": False,
+                    "ForceSymmetric": quantization_config.activations_symmetric
+                    and quantization_config.weights_symmetric,
+                    "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
+                    "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
+                    "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
+                },
+            )
 
         LOGGER.info("Quantizing model...")
         quantizer.quantize_model()
