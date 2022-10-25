@@ -175,41 +175,42 @@ To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration obje
 Before applying quantization or optimization, first export our model to the ONNX format:
 
 ```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification
->>> from transformers import AutoTokenizer
->>> model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
->>> save_directory = "tmp/onnx/"
->>> # Load a model from transformers and export it to ONNX
->>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
->>> ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
->>> # Save the onnx model and tokenizer
->>> ort_model.save_pretrained(save_directory)
->>> tokenizer.save_pretrained(save_directory)
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer
+
+model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
+save_directory = "tmp/onnx/"
+# Load a model from transformers and export it to ONNX
+tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
+# Save the onnx model and tokenizer
+ort_model.save_pretrained(save_directory)
+tokenizer.save_pretrained(save_directory)
 ```
 
 Let's see now how we can apply dynamic quantization with ONNX Runtime:
 
 ```python
->>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
->>> from optimum.onnxruntime import ORTQuantizer
+from optimum.onnxruntime.configuration import AutoQuantizationConfig
+from optimum.onnxruntime import ORTQuantizer
 
->>> # Define the quantization methodology
->>> qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
->>> quantizer = ORTQuantizer.from_pretrained(ort_model)
->>> # Apply dynamic quantization on the model
->>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
+# Define the quantization methodology
+qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
+quantizer = ORTQuantizer.from_pretrained(ort_model)
+# Apply dynamic quantization on the model
+quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
 ```
 
 In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
 
 ```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification
->>> from transformers import pipeline, AutoTokenizer
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import pipeline, AutoTokenizer
 
->>> model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
->>> tokenizer = AutoTokenizer.from_pretrained(save_directory)
->>> classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
->>> results = classifier("I love burritos!")
+model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
+tokenizer = AutoTokenizer.from_pretrained(save_directory)
+classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+results = classifier("I love burritos!")
 ```
 
 #### Optimum Intel
