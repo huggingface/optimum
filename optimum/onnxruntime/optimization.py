@@ -112,7 +112,7 @@ class ORTOptimizer:
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         model_type = self.config.model_type
-        ORTConfigManager.check_supported_model_or_raise(model_type)
+        ORTConfigManager.check_optimization_supported_model_or_raise(model_type)
 
         # Save the model configuration
         self.config.save_pretrained(save_dir)
