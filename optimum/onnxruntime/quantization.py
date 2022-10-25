@@ -320,7 +320,7 @@ class ORTQuantizer(OptimumQuantizer):
         onnx_model = onnx.load(self.onnx_model_path)
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
 
-        if parse(ort_version) > Version("1.13.0"):
+        if parse(ort_version) >= Version("1.13.0"):
             # The argument `input_qType` has been changed into `activation_qType` from ORT 1.13
             quantizer = quantizer_factory(
                 model=onnx_model,
