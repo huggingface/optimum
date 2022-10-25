@@ -91,11 +91,8 @@ class ORTConfigManager:
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
         "marian": ("encoder_attention_heads", "d_model", "bart"),
-        "mbart": ("encoder_attention_heads", "d_model", "bart"),
-        "m2m_100": ("encoder_attention_heads", "d_model", "bart"),
         "mt5": ("num_heads", "d_model", "bart"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
-        "t5": ("num_heads", "d_model", "bart"),
         "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
     }
 
@@ -134,6 +131,14 @@ class ORTConfigManager:
     @classmethod
     def check_supported_model_or_raise(cls, model_type: str) -> bool:
         if model_type not in cls._conf:
+            raise KeyError(
+                f"{model_type} model type is not supported yet. Only {list(cls._conf.keys())} are supported. "
+                f"If you want to support {model_type} please propose a PR or open up an issue."
+            )
+
+    @classmethod
+    def check_optimization_supported_model_or_raise(cls, model_type: str) -> bool:
+        if cls._conf[model_type][2] not in ("bert", "gpt2", "bart"):
             raise KeyError(
                 f"{model_type} model type is not supported yet. Only {list(cls._conf.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."

@@ -68,9 +68,7 @@ ONNX_MODEL_START_DOCSTRING = r"""
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~onnxruntime.modeling_ort.ORTModel.from_pretrained`] method to load the model weights.
         model (`onnxruntime.InferenceSession`): [onnxruntime.InferenceSession](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession) is the main class used to run a model. Check out the [`~onnxruntime.modeling_ort.ORTModel.load_model`] method for more information.
-        kwargs (additional keyword arguments, *optional*):
-                Can be used to initiate the model (e.g., `use_io_binding=False`):
-                    - use_io_binding (`bool`, *optional*): Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
+        use_io_binding (`bool`, *optional*): Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
 """
 
 ONNX_TEXT_INPUTS_DOCSTRING = r"""
@@ -112,10 +110,10 @@ class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
     auto_model_class = AutoModel
 
-    def __init__(self, model: ort.InferenceSession = None, config=None, **kwargs):
+    def __init__(self, model: ort.InferenceSession = None, config=None, use_io_binding: bool = True, **kwargs):
         self.model = model
         self.config = config
-        self.use_io_binding = kwargs.get("use_io_binding", True)
+        self.use_io_binding = use_io_binding
         self.model_save_dir = kwargs.get("model_save_dir", None)
         self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
         self.providers = model.get_providers()
@@ -441,10 +439,11 @@ class ORTModelForFeatureExtraction(ORTModel):
     export_feature = "default"
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_output_buffer(self, batch_size, sequence_length, hidden_size):
         """Prepare the buffer of output(`last_hidden_state`) with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
@@ -462,7 +461,6 @@ class ORTModelForFeatureExtraction(ORTModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
         io_binding = self.model.io_binding()
 
         # bind input ids
@@ -470,7 +468,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             "input_ids",
             input_ids.device.type,
             self.device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
@@ -479,7 +477,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             "attention_mask",
             attention_mask.device.type,
             self.device.index,
-            name_to_np_type["attention_mask"],
+            self.name_to_np_type["attention_mask"],
             tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
@@ -490,7 +488,7 @@ class ORTModelForFeatureExtraction(ORTModel):
                 "token_type_ids",
                 token_type_ids.device.type,
                 self.device.index,
-                name_to_np_type["token_type_ids"],
+                self.name_to_np_type["token_type_ids"],
                 tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
@@ -505,7 +503,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             "last_hidden_state",
             output_buffer.device.type,
             self.device.index,
-            name_to_np_type["last_hidden_state"],
+            self.name_to_np_type["last_hidden_state"],
             output_shape,
             output_buffer.data_ptr(),
         )
@@ -611,10 +609,11 @@ class ORTModelForQuestionAnswering(ORTModel):
     export_feature = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, sequence_length):
         """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
@@ -632,7 +631,6 @@ class ORTModelForQuestionAnswering(ORTModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
         io_binding = self.model.io_binding()
 
         # bind input ids
@@ -640,7 +638,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             "input_ids",
             input_ids.device.type,
             self.device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
@@ -649,7 +647,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             "attention_mask",
             attention_mask.device.type,
             self.device.index,
-            name_to_np_type["attention_mask"],
+            self.name_to_np_type["attention_mask"],
             tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
@@ -660,7 +658,7 @@ class ORTModelForQuestionAnswering(ORTModel):
                 "token_type_ids",
                 token_type_ids.device.type,
                 self.device.index,
-                name_to_np_type["token_type_ids"],
+                self.name_to_np_type["token_type_ids"],
                 tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
@@ -676,7 +674,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             "start_logits",
             start_logits_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             start_logits_shape,
             start_logits_buffer.data_ptr(),
         )
@@ -684,7 +682,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             "end_logits",
             end_logits_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             end_logits_shape,
             end_logits_buffer.data_ptr(),
         )
@@ -810,11 +808,12 @@ class ORTModelForSequenceClassification(ORTModel):
     export_feature = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, num_labels):
         """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
@@ -832,7 +831,6 @@ class ORTModelForSequenceClassification(ORTModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
         io_binding = self.model.io_binding()
 
         # bind input ids
@@ -840,7 +838,7 @@ class ORTModelForSequenceClassification(ORTModel):
             "input_ids",
             input_ids.device.type,
             self.device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
@@ -849,7 +847,7 @@ class ORTModelForSequenceClassification(ORTModel):
             "attention_mask",
             attention_mask.device.type,
             self.device.index,
-            name_to_np_type["attention_mask"],
+            self.name_to_np_type["attention_mask"],
             tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
@@ -860,7 +858,7 @@ class ORTModelForSequenceClassification(ORTModel):
                 "token_type_ids",
                 token_type_ids.device.type,
                 self.device.index,
-                name_to_np_type["token_type_ids"],
+                self.name_to_np_type["token_type_ids"],
                 tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
@@ -874,7 +872,7 @@ class ORTModelForSequenceClassification(ORTModel):
             "logits",
             logits_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             logits_shape,
             logits_buffer.data_ptr(),
         )
@@ -980,10 +978,11 @@ class ORTModelForTokenClassification(ORTModel):
     export_feature = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, sequence_length, num_labels):
         """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length, config.num_labels)."""
@@ -1001,7 +1000,6 @@ class ORTModelForTokenClassification(ORTModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
         io_binding = self.model.io_binding()
 
         # bind input ids
@@ -1009,7 +1007,7 @@ class ORTModelForTokenClassification(ORTModel):
             "input_ids",
             input_ids.device.type,
             self.device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
@@ -1018,7 +1016,7 @@ class ORTModelForTokenClassification(ORTModel):
             "attention_mask",
             attention_mask.device.type,
             self.device.index,
-            name_to_np_type["attention_mask"],
+            self.name_to_np_type["attention_mask"],
             tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
@@ -1029,7 +1027,7 @@ class ORTModelForTokenClassification(ORTModel):
                 "token_type_ids",
                 token_type_ids.device.type,
                 self.device.index,
-                name_to_np_type["token_type_ids"],
+                self.name_to_np_type["token_type_ids"],
                 tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
@@ -1044,7 +1042,7 @@ class ORTModelForTokenClassification(ORTModel):
             "logits",
             logits_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             logits_shape,
             logits_buffer.data_ptr(),
         )
@@ -1145,9 +1143,10 @@ class ORTModelForMultipleChoice(ORTModel):
     export_feature = "multiple-choice"
     auto_model_class = AutoModelForMultipleChoice
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, num_choices):
         """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
@@ -1165,7 +1164,6 @@ class ORTModelForMultipleChoice(ORTModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
         io_binding = self.model.io_binding()
 
         # bind input ids
@@ -1173,7 +1171,7 @@ class ORTModelForMultipleChoice(ORTModel):
             "input_ids",
             input_ids.device.type,
             self.device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
@@ -1182,7 +1180,7 @@ class ORTModelForMultipleChoice(ORTModel):
             "attention_mask",
             attention_mask.device.type,
             self.device.index,
-            name_to_np_type["attention_mask"],
+            self.name_to_np_type["attention_mask"],
             tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
@@ -1193,7 +1191,7 @@ class ORTModelForMultipleChoice(ORTModel):
                 "token_type_ids",
                 token_type_ids.device.type,
                 self.device.index,
-                name_to_np_type["token_type_ids"],
+                self.name_to_np_type["token_type_ids"],
                 tuple(token_type_ids.shape),
                 token_type_ids.data_ptr(),
             )
@@ -1206,7 +1204,7 @@ class ORTModelForMultipleChoice(ORTModel):
             "logits",
             logits_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             logits_shape,
             logits_buffer.data_ptr(),
         )
@@ -1308,11 +1306,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     export_feature = "causal-lm"
     auto_model_class = AutoModelForCausalLM
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.main_input_name = "input_ids"
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_inputs_for_generation(self, input_ids: torch.LongTensor, **kwargs) -> Dict[str, Any]:
         """
@@ -1338,7 +1337,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         input_ids: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
         io_binding = self.model.io_binding()
 
         # bind input_ids
@@ -1346,7 +1344,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "input_ids",
             input_ids.device.type,
             self.device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
@@ -1355,7 +1353,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "attention_mask",
             attention_mask.device.type,
             self.device.index,
-            name_to_np_type["attention_mask"],
+            self.name_to_np_type["attention_mask"],
             tuple(attention_mask.shape),
             attention_mask.data_ptr(),
         )
@@ -1368,7 +1366,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "logits",
             logits_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             logits_shape,
             logits_buffer.data_ptr(),
         )
@@ -1493,10 +1491,11 @@ class ORTModelForImageClassification(ORTModel):
     export_feature = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size):
         """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
@@ -1512,7 +1511,6 @@ class ORTModelForImageClassification(ORTModel):
         self,
         pixel_values: torch.Tensor,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
         io_binding = self.model.io_binding()
 
         # bind pixel values
@@ -1520,7 +1518,7 @@ class ORTModelForImageClassification(ORTModel):
             "pixel_values",
             pixel_values.device.type,
             self.device.index,
-            name_to_np_type["pixel_values"],
+            self.name_to_np_type["pixel_values"],
             tuple(pixel_values.shape),
             pixel_values.data_ptr(),
         )
@@ -1531,7 +1529,7 @@ class ORTModelForImageClassification(ORTModel):
             "logits",
             logits_buffer.device.type,
             self.device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             logits_shape,
             logits_buffer.data_ptr(),
         )
@@ -1626,6 +1624,12 @@ class ORTModelForCustomTasks(ORTModel):
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
+        if kwargs.pop("use_io_binding", False):
+            logger.warning(
+                "ORTModelForCustomTasks doesn't support IO Binding yet, and the inference will be done without IO binding which could cause"
+                " significant overhead on data copying. If you want us to enable IO binding for custom use case, please open an issue in "
+                "Optimum: https://github.com/huggingface/optimum."
+            )
 
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(

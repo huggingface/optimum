@@ -70,10 +70,9 @@ ONNX_INPUTS_DOCSTRING = r"""
         decoder_with_past_file_name(`str`, *optional*):
             The decoder with past key values model file name overwriting the default file name, allowing to save
             the decoder model with a different name.
-        kwargs (additional keyword arguments, *optional*):
-            Can be used to initiate the model (e.g., `use_io_binding=False`):
-                - use_io_binding (`bool`, *optional*): Whether use IOBinding during inference to avoid memory copy between the host
-                and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
+        use_io_binding (`bool`, *optional*):
+            Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
+            if the device is CUDA, otherwise defaults to `False`.
 """
 
 ENCODER_INPUTS_DOCSTRING = r"""
@@ -171,10 +170,11 @@ class ORTModelForConditionalGeneration(ORTModel):
         decoder_session: onnxruntime.InferenceSession = None,
         decoder_with_past_session: onnxruntime.InferenceSession = None,
         config: transformers.PretrainedConfig = None,
+        use_io_binding: bool = True,
         **kwargs
     ):
         self.config = config
-        self.use_io_binding = kwargs.get("use_io_binding", True)
+        self.use_io_binding = use_io_binding
         self.model_save_dir = kwargs.get("model_save_dir", None)
 
         self.providers = encoder_session.get_providers()
@@ -533,15 +533,17 @@ class ORTEncoder:
         session: onnxruntime.InferenceSession,
         config: transformers.PretrainedConfig,
         device: torch.device,
+        use_io_binding: bool = True,
         **kwargs
     ):
         self.session = session
         self.config = config
         self._device = device
-        self.use_io_binding = kwargs.get("use_io_binding", True)
+        self.use_io_binding = use_io_binding
         self.main_input_name = "input_ids"
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
 
     def prepare_output_buffer(self, batch_size, sequence_length):
         """Prepare the buffer of output(`last_hidden_state`) with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
@@ -559,7 +561,6 @@ class ORTEncoder:
         input_ids: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session)
         io_binding = self.session.io_binding()
 
         # bind input ids
@@ -567,7 +568,7 @@ class ORTEncoder:
             "input_ids",
             input_ids.device.type,
             self._device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             tuple(input_ids.shape),
             input_ids.data_ptr(),
         )
@@ -577,7 +578,7 @@ class ORTEncoder:
                 "attention_mask",
                 attention_mask.device.type,
                 self._device.index,
-                name_to_np_type["attention_mask"],
+                self.name_to_np_type["attention_mask"],
                 tuple(attention_mask.shape),
                 attention_mask.data_ptr(),
             )
@@ -591,7 +592,7 @@ class ORTEncoder:
             "last_hidden_state",
             output_buffer.device.type,
             self._device.index,
-            name_to_np_type["last_hidden_state"],
+            self.name_to_np_type["last_hidden_state"],
             output_shape,
             output_buffer.data_ptr(),
         )
@@ -651,17 +652,19 @@ class ORTDecoder:
         session: onnxruntime.InferenceSession,
         config: transformers.PretrainedConfig,
         device: torch.device,
+        use_io_binding: bool = True,
         **kwargs
     ):
         self.session = session
         self.config = config
         self._device = device
-        self.use_io_binding = kwargs.get("use_io_binding", True)
+        self.use_io_binding = use_io_binding
         self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}
         self.session_outputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         self.session_input_names = list(self.session_inputs.keys())
         self.session_output_names = list(self.session_outputs.keys())
         self.key_value_input_names = [key for key in self.session_input_names if "key_values" in key]
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
 
     def prepare_output_buffer(self, output_name, batch_size=None, sequence_length=None, encoder_sequence_length=None):
         """
@@ -693,7 +696,6 @@ class ORTDecoder:
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
     ):
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session)
         io_binding = self.session.io_binding()
 
         # bind input ids
@@ -701,7 +703,7 @@ class ORTDecoder:
             "input_ids",
             input_ids.device.type,
             self._device.index,
-            name_to_np_type["input_ids"],
+            self.name_to_np_type["input_ids"],
             list(input_ids.size()),
             input_ids.data_ptr(),
         )
@@ -711,7 +713,7 @@ class ORTDecoder:
             "encoder_attention_mask",
             encoder_attention_mask.device.type,
             self._device.index,
-            name_to_np_type["encoder_attention_mask"],
+            self.name_to_np_type["encoder_attention_mask"],
             list(encoder_attention_mask.size()),
             encoder_attention_mask.data_ptr(),
         )
@@ -722,7 +724,7 @@ class ORTDecoder:
                 "encoder_hidden_states",
                 encoder_hidden_states.device.type,
                 self._device.index,
-                name_to_np_type["encoder_hidden_states"],
+                self.name_to_np_type["encoder_hidden_states"],
                 list(encoder_hidden_states.size()),
                 encoder_hidden_states.data_ptr(),
             )
@@ -734,7 +736,7 @@ class ORTDecoder:
                     input_name,
                     past_key_value.device.type,
                     self._device.index,
-                    name_to_np_type[input_name],
+                    self.name_to_np_type[input_name],
                     list(past_key_value.size()),
                     past_key_value.data_ptr(),
                 )
@@ -745,7 +747,7 @@ class ORTDecoder:
                 "labels",
                 labels.device.type,
                 self._device.index,
-                name_to_np_type["labels"],
+                self.name_to_np_type["labels"],
                 list(labels.size()),
                 labels.data_ptr(),
             )
@@ -761,7 +763,7 @@ class ORTDecoder:
             "logits",
             logits_buffer.device.type,
             self._device.index,
-            name_to_np_type["logits"],
+            self.name_to_np_type["logits"],
             logits_shape,
             logits_buffer.data_ptr(),
         )
@@ -774,7 +776,7 @@ class ORTDecoder:
                 "loss",
                 loss_buffer.device.type,
                 self._device.index,
-                name_to_np_type["loss"],
+                self.name_to_np_type["loss"],
                 loss_shape,
                 loss_buffer.data_ptr(),
             )
@@ -794,7 +796,7 @@ class ORTDecoder:
                     name,
                     pkv_buffer.device.type,
                     self._device.index,
-                    name_to_np_type[name],
+                    self.name_to_np_type[name],
                     pkv_shape,
                     pkv_buffer.data_ptr(),
                 )
