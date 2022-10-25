@@ -664,9 +664,18 @@ class ORTDecoder:
         self.session_input_names = list(self.session_inputs.keys())
         self.session_output_names = list(self.session_outputs.keys())
         self.key_value_input_names = [key for key in self.session_input_names if "key_values" in key]
+        self.key_value_output_names = [key for key in self.session_output_names if "key_values" in key]
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
 
-    def prepare_output_buffer(self, output_name, batch_size=None, sequence_length=None, encoder_sequence_length=None):
+    def prepare_output_buffer(
+        self,
+        output_name,
+        batch_size=None,
+        sequence_length=None,
+        encoder_sequence_length=None,
+        past_sequence_length=None,
+        is_self_attn=False,
+    ):
         """
         Prepare the buffer of outputs(`logits`/`key_values`/`loss`) with 1D tensors.
         """
@@ -682,8 +691,13 @@ class ORTDecoder:
             num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(self.config.model_type))
             hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
             embed_size_per_head = hidden_size // num_heads
-            sequence_length = max(sequence_length, encoder_sequence_length)
-            output_shape = (batch_size, num_heads, sequence_length, embed_size_per_head)
+            if is_self_attn:
+                if past_sequence_length is not None:
+                    sequence_length += past_sequence_length
+                output_shape = (batch_size, num_heads, sequence_length, embed_size_per_head)
+            else:
+                output_shape = (batch_size, num_heads, encoder_sequence_length, embed_size_per_head)
+
             output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device)
 
         return output_shape, output_buffer
@@ -784,26 +798,55 @@ class ORTDecoder:
             output_buffers["loss"] = loss_buffer
 
         # bind past key values
-        for name in self.session_output_names:
-            if "key_values" in name:
-                pkv_shape, pkv_buffer = self.prepare_output_buffer(
-                    output_name=name,
+        num_pkv = 4  # number of self-attention and cross-attention per decoder layer
+        for pkv_names_per_layer in [
+            self.key_value_output_names[i : i + num_pkv] for i in range(0, len(self.key_value_output_names), num_pkv)
+        ]:
+            # bind a self attention and a cross-attention each time(2)
+            for i in range(2):
+                # bind self-attention past key values(2)
+                self_name = pkv_names_per_layer[i]
+                self_pkv_shape, self_pkv_buffer = self.prepare_output_buffer(
+                    output_name=self_name,
                     batch_size=input_ids.size(0),
                     sequence_length=input_ids.size(1),
+                    past_sequence_length=past_key_values[0].size(2)
+                    if past_key_values
+                    else None,  # sequence length of self-attention key for layer.0
+                    is_self_attn=True,
+                )
+                io_binding.bind_output(
+                    self_name,
+                    self_pkv_buffer.device.type,
+                    self._device.index,
+                    self.name_to_np_type[self_name],
+                    self_pkv_shape,
+                    self_pkv_buffer.data_ptr(),
+                )
+                # set -1 for sequence_length as it could be larger than the real sequence_length for creating buffer
+                self_pkv_shape = self_pkv_shape[:2] + (-1,) + self_pkv_shape[3:]
+                output_shapes[self_name] = self_pkv_shape
+                output_buffers[self_name] = self_pkv_buffer
+
+                # bind cross-attention past key values(2)
+                cross_name = pkv_names_per_layer[i + 2]
+                cross_pkv_shape, cross_pkv_buffer = self.prepare_output_buffer(
+                    output_name=cross_name,
+                    batch_size=input_ids.size(0),
                     encoder_sequence_length=encoder_hidden_states.size(1),
                 )
                 io_binding.bind_output(
-                    name,
-                    pkv_buffer.device.type,
+                    cross_name,
+                    cross_pkv_buffer.device.type,
                     self._device.index,
-                    self.name_to_np_type[name],
-                    pkv_shape,
-                    pkv_buffer.data_ptr(),
+                    self.name_to_np_type[cross_name],
+                    cross_pkv_shape,
+                    cross_pkv_buffer.data_ptr(),
                 )
                 # set -1 for sequence_length as it could be larger than the real sequence_length for creating buffer
-                pkv_shape = pkv_shape[:2] + (-1,) + pkv_shape[3:]
-                output_shapes[name] = pkv_shape
-                output_buffers[name] = pkv_buffer
+                cross_pkv_shape = cross_pkv_shape[:2] + (-1,) + cross_pkv_shape[3:]
+                output_shapes[cross_name] = cross_pkv_shape
+                output_buffers[cross_name] = cross_pkv_buffer
 
         return io_binding, output_shapes, output_buffers
 
