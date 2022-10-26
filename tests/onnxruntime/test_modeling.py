@@ -948,17 +948,27 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
-    def test_compare_to_io_binding(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
+    def test_compare_to_io_binding(self, model_id):
         set_seed(SEED)
         onnx_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
         set_seed(SEED)
         io_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
-        io_outputs = io_model(**tokens)
+        num_choices = 4
+        first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
+        start = "The color of the sky is"
+        second_sentence = [start + "blue", start + "green", start + "red", start + "yellow"]
+        inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
+
+        # Unflatten the tokenized inputs values expanding it to the shape [batch_size, num_choices, seq_length]
+        for k, v in inputs.items():
+            inputs[k] = [v[i : i + num_choices] for i in range(0, len(v), num_choices)]
+
+        inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
+
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
 
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
@@ -1091,6 +1101,25 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_compare_generation_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        set_seed(SEED)
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+
+        tokenizer = get_preprocessor(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        onnx_outputs = onnx_model.generate(**tokens)
+        io_outputs = io_model.generate(**tokens)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs, io_outputs, atol=1e-4))
+
+        gc.collect()
+
 
 class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
@@ -1176,8 +1205,8 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     @require_torch_gpu
-    def test_compare_to_io_binding(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
+    def test_compare_to_io_binding(self, *args, **kwargs):
+        model_arch, model_id = args
         set_seed(SEED)
         onnx_model = ORTModelForImageClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
@@ -1355,14 +1384,36 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
-        io_outputs = io_model(**tokens)
+        decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
+        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+
+        onnx_outputs = onnx_model(**tokens, **decoder_inputs)
+        io_outputs = io_model(**tokens, **decoder_inputs)
 
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_compare_generation_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        set_seed(SEED)
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+
+        tokenizer = get_preprocessor(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        onnx_outputs = onnx_model.generate(**tokens)
+        io_outputs = io_model.generate(**tokens)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs, io_outputs, atol=1e-4))
 
         gc.collect()
 
