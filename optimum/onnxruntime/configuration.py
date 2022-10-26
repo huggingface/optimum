@@ -643,7 +643,10 @@ class OptimizationConfig:
             Whether to not use attention masks. Only works for bert model type.
         disable_embed_layer_norm (`bool`, defaults to `True`):
             Whether to disable EmbedLayerNormalization fusion.
-            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
+            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization.
+        disable_shape_inference (`bool`, defaults to `False`):
+            Whether to disable symbolic shape inference.
+            The default value is set to `False` but symbolic shape inference might cause issues sometimes.
     """
 
     optimization_level: int = 1
@@ -660,6 +663,7 @@ class OptimizationConfig:
     use_mask_index: bool = False
     no_attention_mask: bool = False
     disable_embed_layer_norm: bool = True
+    disable_shape_inference: bool = False
 
 
 class ORTConfig(BaseConfig):
