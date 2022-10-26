@@ -45,9 +45,9 @@ class BertOnnxConfig(EncoderOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         if self.task == "multiple-choice":
-            dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
+            dynamic_axis = {0: "batch_size", 1: "num_choices", 2: "sequence_length"}
         else:
-            dynamic_axis = {0: "batch", 1: "sequence"}
+            dynamic_axis = {0: "batch_size", 1: "sequence_length"}
         return {
             "input_ids": dynamic_axis,
             "attention_mask": dynamic_axis,
@@ -87,9 +87,9 @@ class DistilBertOnnxConfig(BertOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         if self.task == "multiple-choice":
-            dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
+            dynamic_axis = {0: "batch_size", 1: "num_choices", 2: "sequence_length"}
         else:
-            dynamic_axis = {0: "batch", 1: "sequence"}
+            dynamic_axis = {0: "batch_size", 1: "sequence_length"}
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
 
 
@@ -263,14 +263,14 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
     @property
     def inputs_for_default_and_seq2seq_lm(self):
         common_inputs = {
-            "input_ids": {0: "batch", 1: "encoder_sequence"},
-            "attention_mask": {0: "batch", 1: "encoder_sequence"},
+            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
         if self.use_past:
-            common_inputs["decoder_input_ids"] = {0: "batch"}
+            common_inputs["decoder_input_ids"] = {0: "batch_size"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
         else:
-            common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
 
         if self.use_past:
@@ -280,22 +280,22 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
     @property
     def inputs_for_causal_lm(self):
         common_inputs = {
-            "input_ids": {0: "batch", 1: "encoder_sequence"},
-            "attention_mask": {0: "batch", 1: "encoder_sequence"},
+            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
         if self.use_past:
             for i in range(self._normalized_config.encoder_num_layers):
-                common_inputs[f"past_key_values.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
-                common_inputs[f"past_key_values.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
+                common_inputs[f"past_key_values.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
+                common_inputs[f"past_key_values.{i}.value"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
         return common_inputs
 
     @property
     def inputs_for_other_tasks(self):
         return {
-            "input_ids": {0: "batch", 1: "encoder_sequence"},
-            "attention_mask": {0: "batch", 1: "encoder_sequence"},
-            "decoder_input_ids": {0: "batch", 1: "decoder_sequence"},
-            "decoder_attention_mask": {0: "batch", 1: "decoder_sequence"},
+            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            "decoder_input_ids": {0: "batch_size", 1: "decoder_sequence_length"},
+            "decoder_attention_mask": {0: "batch_size", 1: "decoder_sequence_length"},
         }
 
     @property
@@ -316,8 +316,8 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
             common_outputs = super(OnnxConfigWithPast, self).outputs
             if self.use_past:
                 for i in range(self._normalized_config.encoder_num_layers):
-                    common_outputs[f"present.{i}.key"] = {0: "batch", 2: "past_sequence + sequence"}
-                    common_outputs[f"present.{i}.value"] = {0: "batch", 2: "past_sequence + sequence"}
+                    common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
+                    common_outputs[f"present.{i}.value"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
         return common_outputs
 
     def generate_dummy_inputs(self, framework: str = "pt"):
@@ -380,7 +380,7 @@ class ViTOnnxConfig(VisionOnnxConfig):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return {"pixel_values": {0: "batch", 1: "num_channels", 2: "height", 3: "width"}}
+        return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
 
 
 class LevitOnnxConfig(ViTOnnxConfig):
@@ -413,7 +413,7 @@ class DetrOnnxConfig(ViTOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         # TODO: is pixel mask needed?
-        return {**super().inputs, "pixel_mask": {0: "batch"}}
+        return {**super().inputs, "pixel_mask": {0: "batch_size"}}
 
 
 class YolosOnnxConfig(ViTOnnxConfig):
@@ -436,18 +436,18 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
-            "input_ids": {0: "batch", 1: "sequence"},
-            "pixel_values": {0: "batch", 1: "num_channels", 2: "height", 3: "width"},
-            "attention_mask": {0: "batch", 1: "sequence"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
-            "logits_per_image": {0: "batch"},
-            "logits_per_text": {0: "batch"},
-            "text_embeds": {0: "batch"},
-            "image_embeds": {0: "batch"},
+            "logits_per_image": {0: "batch_size"},
+            "logits_per_text": {0: "batch_size"},
+            "text_embeds": {0: "batch_size"},
+            "image_embeds": {0: "batch_size"},
         }
 
 
@@ -468,10 +468,10 @@ class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
-            "input_ids": {0: "batch", 1: "sequence"},
-            "bbox": {0: "batch", 1: "sequence"},
-            "attention_mask": {0: "batch", 1: "sequence"},
-            "token_type_ids": {0: "batch", 1: "sequence"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "bbox": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            "token_type_ids": {0: "batch_size", 1: "sequence_length"},
         }
 
 
@@ -486,13 +486,13 @@ class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         if self.task in ["sequence-classification", "question-answering"]:
-            pixel_values_dynamic_axes = {0: "batch", 1: "num_channels", 2: "height", 3: "width"}
+            pixel_values_dynamic_axes = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
         else:
-            pixel_values_dynamic_axes = {0: "batch", 1: "num_channels"}
+            pixel_values_dynamic_axes = {0: "batch_size", 1: "num_channels"}
         return {
-            "input_ids": {0: "batch", 1: "sequence"},
-            "attention_mask": {0: "batch", 1: "sequence"},
-            "bbox": {0: "batch", 1: "sequence"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            "bbox": {0: "batch_size", 1: "sequence_length"},
             "pixel_values": pixel_values_dynamic_axes,
         }
 
@@ -545,7 +545,7 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         # TODO: validate that.
-        dynamic_axis = {0: "batch", 1: "sequence"}
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
         return {
             self.inputs_name: dynamic_axis,
             # TODO: should we add the attention_mask?

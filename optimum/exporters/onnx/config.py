@@ -37,12 +37,12 @@ class DecoderOnnxConfig(OnnxConfigWithPast):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict({"input_ids": {0: "batch", 1: "sequence"}})
+        common_inputs = OrderedDict({"input_ids": {0: "batch_size", 1: "sequence_length"}})
         if self.use_past:
             self.add_past_key_values(common_inputs, direction="inputs")
-            common_inputs["attention_mask"] = {0: "batch", 1: "past_sequence + sequence"}
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
         else:
-            common_inputs["attention_mask"] = {0: "batch", 1: "sequence"}
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
 
@@ -57,15 +57,15 @@ class Seq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         common_inputs = {
-            "input_ids": {0: "batch", 1: "encoder_sequence"},
-            "attention_mask": {0: "batch", 1: "encoder_sequence"},
+            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
         if self.use_past:
-            common_inputs["attention_mask"][1] = "past_encoder_sequence + sequence"
-            common_inputs["decoder_input_ids"] = {0: "batch"}
+            common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
+            common_inputs["decoder_input_ids"] = {0: "batch_size"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
         else:
-            common_inputs["decoder_input_ids"] = {0: "batch", 1: "decoder_sequence"}
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
 
         if self.use_past:
