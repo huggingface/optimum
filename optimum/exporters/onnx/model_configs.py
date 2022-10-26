@@ -14,8 +14,9 @@
 # limitations under the License.
 """Model specific onnx configurations."""
 import random
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
+
 from packaging import version
-from typing import TYPE_CHECKING, Any, Mapping, List, Optional, Tuple
 
 from ...utils import (
     DummyDecoderTextInputGenerator,
@@ -23,16 +24,18 @@ from ...utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
-    NormalizedTextConfig,
-    NormalizedVisionConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
+    NormalizedTextConfig,
+    NormalizedVisionConfig,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, VisionOnnxConfig, TextAndVisionOnnxConfig
+from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, TextAndVisionOnnxConfig, VisionOnnxConfig
+
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
+
     from .base import PatchingSpec
 
 
@@ -87,10 +90,7 @@ class DistilBertOnnxConfig(BertOnnxConfig):
             dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
         else:
             dynamic_axis = {0: "batch", 1: "sequence"}
-        return {
-            "input_ids": dynamic_axis,
-            "attention_mask": dynamic_axis
-        }
+        return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
 
 
 class RobertaOnnxConfig(DistilBertOnnxConfig):
@@ -235,7 +235,7 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
         {
             "default": DummySeq2SeqPastKeyValuesGenerator,
             "causal-lm": DummyPastKeyValuesGenerator,
-        }
+        },
     )
 
     def create_dummy_input_generator_classes(self):
@@ -252,12 +252,13 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
             kwargs["encoder_sequence_length"] = dummy_text_input_generator.sequence_length
 
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
-            self.task,
-            self._normalized_config,
-            batch_size=dummy_text_input_generator.batch_size,
-            **kwargs
+            self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
         )
-        self.dummy_inputs_generators = [dummy_text_input_generator, dummy_decoder_text_input_generator, dummy_seq2seq_past_key_values_generator]
+        self.dummy_inputs_generators = [
+            dummy_text_input_generator,
+            dummy_decoder_text_input_generator,
+            dummy_seq2seq_past_key_values_generator,
+        ]
 
     @property
     def inputs_for_default_and_seq2seq_lm(self):
@@ -379,9 +380,7 @@ class ViTOnnxConfig(VisionOnnxConfig):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return {
-            "pixel_values": {0: "batch", 1: "num_channels", 2: "height", 3: "width"}
-        }
+        return {"pixel_values": {0: "batch", 1: "num_channels", 2: "height", 3: "width"}}
 
 
 class LevitOnnxConfig(ViTOnnxConfig):
@@ -523,7 +522,9 @@ class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
 
 class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    DUMMY_INPUT_GENERATOR_CLASSES = (PerceiverDummyInputGenerator,) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        PerceiverDummyInputGenerator,
+    ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
     def __init__(
         self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List["PatchingSpec"]] = None
@@ -547,6 +548,9 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         dynamic_axis = {0: "batch", 1: "sequence"}
         return {
             self.inputs_name: dynamic_axis,
+            # TODO: should we add the attention_mask?
+            # This breaks things for image-classification, suspected bug is the DummyInputGenerators not having the
+            # same num_channels / sequence_length.
             # "attention_mask": dynamic_axis,
         }
 

@@ -38,9 +38,7 @@ if is_tf_available():
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
-def reorder_inputs(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], model_inputs: Iterable[str]
-) -> List[str]:
+def reorder_inputs(model: Union["PreTrainedModel", "TFPreTrainedModel"], model_inputs: Iterable[str]) -> List[str]:
     """
     Checks that `model_inputs` is a subset of the allowed inputs for `model`, and returns the inputs in the proper order.
     Args:

@@ -18,12 +18,12 @@ from collections import OrderedDict
 from typing import Mapping
 
 from ...utils import (
+    DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
-    DummyBboxInputGenerator,
 )
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 

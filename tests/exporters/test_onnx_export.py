@@ -16,7 +16,6 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 from unittest.mock import patch
-from parameterized import parameterized
 
 from transformers import AutoConfig, is_tf_available, is_torch_available
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
@@ -24,6 +23,7 @@ from transformers.testing_utils import require_onnx, require_tf, require_torch, 
 from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithPast, export, validate_model_outputs
 from optimum.exporters.onnx.base import EXTERNAL_DATA_FORMAT_SIZE_LIMIT
 from optimum.exporters.onnx.utils import ParameterFormat, compute_serialized_parameters_size
+from parameterized import parameterized
 
 
 if is_torch_available() or is_tf_available():
@@ -260,7 +260,11 @@ class OnnxExportTestCase(TestCase):
         onnx_config = onnx_config_class_constructor(model.config)
 
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
-        if isinstance(onnx_config, OnnxConfigWithPast) and getattr(model.config, "pad_token_id", None) is None and feature == "sequence-classification":
+        if (
+            isinstance(onnx_config, OnnxConfigWithPast)
+            and getattr(model.config, "pad_token_id", None) is None
+            and feature == "sequence-classification"
+        ):
             model.config.pad_token_id = 0
 
         # if is_torch_available():

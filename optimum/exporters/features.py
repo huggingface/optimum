@@ -158,9 +158,7 @@ class FeaturesManager:
             onnx="BartOnnxConfig",
         ),
         # BEiT cannot be used with the masked image modeling autoclass, so this feature is excluded here
-        "beit": supported_features_mapping(
-            "default", "image-classification", onnx="BeitOnnxConfig"
-        ),
+        "beit": supported_features_mapping("default", "image-classification", onnx="BeitOnnxConfig"),
         "bert": supported_features_mapping(
             "default",
             "masked-lm",
@@ -287,9 +285,7 @@ class FeaturesManager:
             "question-answering",
             onnx="DebertaV2OnnxConfig",
         ),
-        "deit": supported_features_mapping(
-            "default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"
-        ),
+        "deit": supported_features_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
         "detr": supported_features_mapping(
             "default",
             "object-detection",
@@ -385,9 +381,7 @@ class FeaturesManager:
             "token-classification",
             onnx="LayoutLMv3OnnxConfig",
         ),
-        "levit": supported_features_mapping(
-            "default", "image-classification", onnx="LevitOnnxConfig"
-        ),
+        "levit": supported_features_mapping("default", "image-classification", onnx="LevitOnnxConfig"),
         "longt5": supported_features_mapping(
             "default",
             "default-with-past",
@@ -510,9 +504,7 @@ class FeaturesManager:
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
-        "vit": supported_features_mapping(
-            "default", "image-classification", "masked-im", onnx="ViTOnnxConfig"
-        ),
+        "vit": supported_features_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "xlm": supported_features_mapping(
             "default",
             "masked-lm",

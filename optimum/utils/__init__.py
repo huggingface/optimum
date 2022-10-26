@@ -28,16 +28,16 @@ def is_pydantic_available():
     return _pydantic_available
 
 
-from .input_generators import ( # noqa
+from .input_generators import (  # noqa
+    DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
-    DummyBboxInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
-    NormalizedTextConfig,
     NormalizedSeq2SeqConfig,
-    NormalizedVisionConfig,
     NormalizedTextAndVisionConfig,
+    NormalizedTextConfig,
+    NormalizedVisionConfig,
 )

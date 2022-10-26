@@ -72,9 +72,7 @@ class NormalizedConfig:
             config = getattr(config, attr)
         attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
         if attr is None:
-            raise AttributeError(
-                f'Could not find the attribute named "{leaf_attr_name}" in the normalized config.'
-            )
+            raise AttributeError(f'Could not find the attribute named "{leaf_attr_name}" in the normalized config.')
         return attr
 
     def has_attribute(self, attr_name):
@@ -125,7 +123,6 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
     #          return f"{self.VISION_CONFIG}.{formatted_attr_name}"
     #      else:
     #          return formatted_attr_name
-
 
 
 def check_framework_is_available(func):
@@ -197,8 +194,18 @@ class DummyInputGenerator(ABC):
         return tf.concat(inputs, axis=dim)
 
     @classmethod
-    def pad_input_on_dim(cls, input_, dim: int, desired_length: Optional[int] = None, padding_length: Optional[int] = None, value: Union[int, float] = 1, dtype: Optional[Any] = None):
-        if (desired_length is None and padding_length is None) or (desired_length is not None and padding_length is not None):
+    def pad_input_on_dim(
+        cls,
+        input_,
+        dim: int,
+        desired_length: Optional[int] = None,
+        padding_length: Optional[int] = None,
+        value: Union[int, float] = 1,
+        dtype: Optional[Any] = None,
+    ):
+        if (desired_length is None and padding_length is None) or (
+            desired_length is not None and padding_length is not None
+        ):
             raise ValueError("You need to provide either `desired_length` or `padding_length`")
         framework = cls._infer_framework_from_input(input_)
         shape = input_.shape
@@ -207,7 +214,9 @@ class DummyInputGenerator(ABC):
         if diff <= 0:
             return input_
         padding_shape[dim] = diff
-        return cls.concat_inputs([input_, cls.constant_tensor(padding_shape, value=value, dtype=dtype, framework=framework)], dim=dim)
+        return cls.concat_inputs(
+            [input_, cls.constant_tensor(padding_shape, value=value, dtype=dtype, framework=framework)], dim=dim
+        )
 
 
 class DummyTextInputGenerator(DummyInputGenerator):
@@ -386,8 +395,8 @@ class DummyBboxInputGenerator(DummyInputGenerator):
         return self.random_int_tensor(
             [self.batch_size, self.sequence_length, 4],
             # TODO: find out why this fails with the commented code.
-            1, # self.max_2d_position_embeddings - 1,
-            framework=framework
+            1,  # self.max_2d_position_embeddings - 1,
+            framework=framework,
         )
 
 
