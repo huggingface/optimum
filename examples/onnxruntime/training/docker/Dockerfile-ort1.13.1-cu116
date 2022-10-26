@@ -1,5 +1,5 @@
 # Use nvidia/cuda image
-FROM nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.6.2-cudnn8-devel-ubuntu20.04
 CMD nvidia-smi
 
 # Ignore interactive questions during `docker build`
@@ -29,9 +29,9 @@ RUN pip install -U pip
 RUN pip install pygit2 pgzip
 
 # Install onnxruntime-training dependencies
-RUN pip install onnx==1.11.0 ninja
-RUN pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip install --pre --no-deps --no-index onnxruntime-training -f https://download.onnxruntime.ai/onnxruntime_nightly_cu113.html && TORCH_CUDA_ARCH_LIST='7.0;8.0+PTX'
+RUN pip install onnx==1.12.0 ninja
+RUN pip install torch==1.12.1+cu116 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install onnxruntime-training==1.13.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
 RUN pip install torch-ort
 RUN pip install --upgrade protobuf==3.20.1
 # RUN python -m torch_ort.configure
