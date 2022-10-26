@@ -154,7 +154,7 @@ class OnnxConfig(ExportConfig, ABC):
         """
         Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
 
-        Each dummy input generator being independent, this method takes care of instantiating the first generator, and
+        Each dummy input generator is independent, so this method instantiates the first generator, and
         forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
         size. Override this method for custom behavior.
         """
@@ -172,7 +172,7 @@ class OnnxConfig(ExportConfig, ABC):
         Mapping containing the axis definition of the input tensors to provide to the model.
 
         Returns:
-            For each input: its name associated to the axes symbolic name and the axis position within the tensor.
+            The name associated with the axes symbolic name and the axis position within the tensor of each input.
         """
         raise NotImplementedError()
 
@@ -256,7 +256,7 @@ class OnnxConfig(ExportConfig, ABC):
                     break
             if not input_was_inserted:
                 raise RuntimeError(
-                    f'Could not generate dummy input for "{input_name}", try adding the proper dummy input generator to the model onnx config.'
+                    f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to the model ONNX config.'
                 )
         return dummy_inputs
 
@@ -305,7 +305,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     @classmethod
     def with_past(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfigWithPast":
         """
-        Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to True
+        Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to `True`.
 
         Args:
             config (`transformers.PretrainedConfig`):
@@ -346,7 +346,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                     break
             if not input_was_inserted:
                 raise RuntimeError(
-                    f'Could not generate dummy input for "{input_name}", try adding the proper dummy input generator to the model onnx config.'
+                    f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to the model ONNX config.'
                 )
 
         if (

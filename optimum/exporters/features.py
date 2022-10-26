@@ -71,20 +71,20 @@ FeatureNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 def supported_features_mapping(*supported_features: str, **exporters: str) -> Dict[str, FeatureNameToExportConfigDict]:
     """
-    Generates the mapping between supported the features and their corresponding `ExportConfig` for a given model, for
+    Generates the mapping between supported features and their corresponding `ExportConfig` for a given model, for
     every backend.
 
     Args:
         supported_features (`Tuple[str]`):
         The names of the supported features.
         exporters (`Dict[str, str]`):
-            The export backend name -> config class name mapping. For instance, for instance:
-            ```
-            kwargs = {
-                "onnx": "BertOnnxConfig",
-                "tflite": "BertTFLiteConfig",
-                ...
-            }
+            The export backend name -> config class name mapping. For instance:
+            ```python
+            >>> kwargs = {
+            >>>     "onnx": "BertOnnxConfig",
+            >>>     "tflite": "BertTFLiteConfig",
+            >>>     ...
+            >>> }
             ```
     Returns:
         `Dict[str, FeatureNameToExportConfigDict]`: The dictionary mapping a feature to an `ExportConfig` constructor.
@@ -537,7 +537,7 @@ class FeaturesManager:
         model_type: str, exporter: str, model_name: Optional[str] = None
     ) -> FeatureNameToExportConfigDict:
         """
-        Tries to retrieve the feature -> exporter backend config constructors map from the model type.
+        Retrieves the feature -> exporter backend config constructors map from the model type.
 
         Args:
             model_type (`str`):
@@ -624,7 +624,7 @@ class FeaturesManager:
         Args:
             model (`str`):
                 The name of the model to export.
-            framework (`str`, *optional*, defaults to `None`):
+            framework (`str`, *optional*):
                 The framework to use for the export. See above for priority if none provided.
 
         Returns:
@@ -665,16 +665,18 @@ class FeaturesManager:
         feature: str, model: str, framework: str = None, cache_dir: str = None
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
-        Attempts to retrieve a model from a model's name and the feature to be enabled.
+        Retrieves a model from its name and the feature to be enabled.
 
         Args:
             feature (`str`):
                 The feature required.
             model (`str`):
                 The name of the model to export.
-            framework (`str`, *optional*, defaults to `None`):
+            framework (`str`, *optional*):
                 The framework to use for the export. See `FeaturesManager.determine_framework` for the priority should
                 none be provided.
+            cache_dir (`str`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
 
         Returns:
             The instance of the model.
@@ -705,7 +707,7 @@ class FeaturesManager:
                 The model to export.
             exporter (`str`):
                 The exporter to use.
-            feature (`str`):
+            feature (`str`, *optional*, detaults to `"default"`):
                 The name of the feature to check if it is available.
 
         Returns:
@@ -728,7 +730,7 @@ class FeaturesManager:
 
     def get_config(model_type: str, exporter: str, feature: str) -> ExportConfigConstructor:
         """
-        Gets the OnnxConfig for a model_type and feature combination.
+        Gets the `ExportConfigConstructor` for a model type and feature combination.
 
         Args:
             model_type (`str`):
