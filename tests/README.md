@@ -2,7 +2,7 @@
 
 ## VSCODE
 
-If you are using vscode you might have hare time discovering the test for the "testing" menu to run tests individually or debug them. You can copy the snippet below into `.vscode/settings.json`. 
+If you are using vscode you might have hard time discovering the test for the "testing" menu to run tests individually or debug them. You can copy the snippet below into `.vscode/settings.json`. 
 
 ```json
 {
