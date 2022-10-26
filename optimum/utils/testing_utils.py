@@ -5,6 +5,10 @@ import sys
 import unittest
 
 
+def is_accelerate_available():
+    return importlib.util.find_spec("accelerate") is not None
+
+
 def require_hf_token(test_case):
     """
     Decorator marking a test that requires huggingface hub token.

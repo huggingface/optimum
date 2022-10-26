@@ -17,7 +17,7 @@ from . import bert
 FAST_LAYERS_MAPPING_DICT = {
     "BertLayer": bert.BertLayerFast,
     "ElectraLayer": bert.BertLayerFast,
-    "Data2VecText": bert.BertLayerFast,
+    "Data2VecTextLayer": bert.BertLayerFast,
     "CamembertLayer": bert.BertLayerFast,
     "MarkupLMLayer": bert.BertLayerFast,
     "RealmLayer": bert.BertLayerFast,
@@ -35,3 +35,13 @@ def is_module_fast(module_name):
         return False
     else:
         return FAST_LAYERS_MAPPING_DICT[module_name]
+
+
+def convert_to_hf_classes(mapping_dict):
+    import transformers
+
+    hf_names_dict = {}
+    for fast_layer_key in mapping_dict.keys():
+        hf_class = getattr(transformers, fast_layer_key[:-5] + "PreTrainedModel")
+        hf_names_dict[fast_layer_key] = hf_class
+    return hf_names_dict
