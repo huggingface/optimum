@@ -38,7 +38,7 @@ PYTORCH_EXPORT_MODELS = {
     ("camembert", "camembert-base"),
     ("clip", "openai/clip-vit-base-patch32"),
     ("convbert", "YituTech/conv-bert-base"),
-    # ("codegen", "Salesforce/codegen-350M-multi"),
+    ("codegen", "Salesforce/codegen-350M-multi"),
     # ("deberta", "microsoft/deberta-base"),
     # ("deberta-v2", "microsoft/deberta-v2-xlarge"),
     ("convnext", "facebook/convnext-tiny-224"),
@@ -53,18 +53,19 @@ PYTORCH_EXPORT_MODELS = {
     ("mobilevit", "apple/mobilevit-small"),
     ("xlm", "xlm-clm-ende-1024"),
     ("xlm-roberta", "xlm-roberta-base"),
-    # ("layoutlm", "microsoft/layoutlm-base-uncased"),
-    # ("layoutlmv3", "microsoft/layoutlmv3-base"),
-    # ("groupvit", "nvidia/groupvit-gcc-yfcc"),
+    ("layoutlm", "microsoft/layoutlm-base-uncased"),
+    # ("layoutlmv2", "microsoft/layoutlmv2-base-uncased"),
+    ("layoutlmv3", "microsoft/layoutlmv3-base"),
+    ("groupvit", "nvidia/groupvit-gcc-yfcc"),
     ("levit", "facebook/levit-128S"),
-    # ("owlvit", "google/owlvit-base-patch32"),
+    ("owlvit", "google/owlvit-base-patch32"),
     ("vit", "google/vit-base-patch16-224"),
     ("deit", "facebook/deit-small-patch16-224"),
     ("beit", "microsoft/beit-base-patch16-224"),
-    # ("data2vec-text", "facebook/data2vec-text-base"),
-    # ("data2vec-vision", "facebook/data2vec-vision-base"),
-    # ("perceiver", "deepmind/language-perceiver", ("masked-lm", "sequence-classification")),
-    # ("perceiver", "deepmind/vision-perceiver-conv", ("image-classification",)),
+    ("data2vec-text", "facebook/data2vec-text-base"),
+    ("data2vec-vision", "facebook/data2vec-vision-base"),
+    ("perceiver", "deepmind/language-perceiver", ("masked-lm", "sequence-classification")),
+    ("perceiver", "deepmind/vision-perceiver-conv", ("image-classification",)),
     # TODO: longformer
     # ("longformer", "allenai/longformer-base-4096"),
     ("yolos", "hustvl/yolos-tiny"),
@@ -222,8 +223,12 @@ def _get_models_to_test(export_models_list):
         for name, model, *features in export_models_list:
             if features:
                 feature_config_mapping = {
-                    feature: FeaturesManager.get_config(name, feature) for _ in features for feature in _
+                    feature: FeaturesManager.get_config(name, "onnx", feature) for _ in features for feature in _
                 }
+                # feature_config_mapping = {
+                #     feature: FeaturesManager.get_config(name, "onnx", feature) for feature in features
+                # }
+
             else:
                 feature_config_mapping = FeaturesManager.get_supported_features_for_model_type(name, "onnx")
 

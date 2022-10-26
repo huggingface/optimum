@@ -244,9 +244,9 @@ class OnnxConfig(ExportConfig, ABC):
                 The framework for which to create the dummy inputs.
 
         Returns:
-            An `collections.OrderedDict` mapping the input names to dummy tensor in the proper framework format.
+            `Dict`: A dictionary mapping the input names to dummy tensors in the proper framework format.
         """
-        dummy_inputs = OrderedDict()
+        dummy_inputs = {}
         for input_name in self.inputs:
             input_was_inserted = False
             for dummy_input_gen in self.dummy_inputs_generators:
@@ -333,7 +333,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
     def generate_dummy_inputs(self, framework: str = "pt"):
-        dummy_inputs = OrderedDict()
+        dummy_inputs = {}
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
         if self.use_past:
             input_names.append("past_key_values")

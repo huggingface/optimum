@@ -15,13 +15,14 @@
 """Model specific onnx configurations."""
 import random
 from packaging import version
-from typing import Any, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Mapping, List, Optional, Tuple
 
 from ...utils import (
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
+    DummyVisionInputGenerator,
     NormalizedTextConfig,
     NormalizedVisionConfig,
     NormalizedSeq2SeqConfig,
@@ -29,6 +30,10 @@ from ...utils import (
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, VisionOnnxConfig, TextAndVisionOnnxConfig
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
+    from .base import PatchingSpec
 
 
 class BertOnnxConfig(EncoderOnnxConfig):
@@ -40,13 +45,11 @@ class BertOnnxConfig(EncoderOnnxConfig):
             dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
         else:
             dynamic_axis = {0: "batch", 1: "sequence"}
-        return OrderedDict(
-            [
-                ("input_ids", dynamic_axis),
-                ("attention_mask", dynamic_axis),
-                ("token_type_ids", dynamic_axis),
-            ]
-        )
+        return {
+            "input_ids": dynamic_axis,
+            "attention_mask": dynamic_axis,
+            "token_type_ids": dynamic_axis,
+        }
 
 
 class AlbertOnnxConfig(BertOnnxConfig):
@@ -151,6 +154,10 @@ class GPTJOnnxConfig(GPT2OnnxConfig):
 
 # TODO: validate that.
 class BloomOnnxConfig(GPT2OnnxConfig):
+    pass
+
+
+class CodeGenOnnxConfig(GPT2OnnxConfig):
     pass
 
 
@@ -443,3 +450,110 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "text_embeds": {0: "batch"},
             "image_embeds": {0: "batch"},
         }
+
+
+class GroupViTOnnxConfig(CLIPOnnxConfig):
+    pass
+
+
+class OwlViTOnnxConfig(CLIPOnnxConfig):
+    pass
+
+
+class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        allow_new=True,
+        MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "input_ids": {0: "batch", 1: "sequence"},
+            "bbox": {0: "batch", 1: "sequence"},
+            "attention_mask": {0: "batch", 1: "sequence"},
+            "token_type_ids": {0: "batch", 1: "sequence"},
+        }
+
+
+class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
+    MIN_TORCH_VERSION = version.parse("1.12")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        allow_new=True,
+        MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+    )
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        if self.task in ["sequence-classification", "question-answering"]:
+            pixel_values_dynamic_axes = {0: "batch", 1: "num_channels", 2: "height", 3: "width"}
+        else:
+            pixel_values_dynamic_axes = {0: "batch", 1: "num_channels"}
+        return {
+            "input_ids": {0: "batch", 1: "sequence"},
+            "attention_mask": {0: "batch", 1: "sequence"},
+            "bbox": {0: "batch", 1: "sequence"},
+            "pixel_values": pixel_values_dynamic_axes,
+        }
+
+
+class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
+class Data2VecVisionOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+# TODO: add support when audio models are supported.
+class Data2VecAudioOnnxConfig(ViTOnnxConfig):
+    @property
+    def inputs(self):
+        raise NotImplementedError
+
+
+class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        input_ = super().generate(input_name, framework)
+        # if input_name == "pixel_values":
+        #     input_ = input_[None, :]
+        return input_
+
+
+class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (PerceiverDummyInputGenerator,) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+
+    def __init__(
+        self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List["PatchingSpec"]] = None
+    ):
+        super().__init__(config, task=task, patching_specs=patching_specs)
+        self.is_generating_dummy_inputs = False
+
+    @property
+    def inputs_name(self):
+        if self.is_generating_dummy_inputs:
+            if self.task in ["masked-lm", "sequence-classification"]:
+                return "input_ids"
+            else:
+                return "pixel_values"
+        else:
+            return "inputs"
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        # TODO: validate that.
+        dynamic_axis = {0: "batch", 1: "sequence"}
+        return {
+            self.inputs_name: dynamic_axis,
+            # "attention_mask": dynamic_axis,
+        }
+
+    def generate_dummy_inputs(self, framework: str = "pt"):
+        self.is_generating_dummy_inputs = True
+        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        specialized_inputs_name = self.inputs_name
+        self.is_generating_dummy_inputs = True
+        dummy_inputs[self.inputs_name] = dummy_inputs.pop(specialized_inputs_name)
+        return dummy_inputs

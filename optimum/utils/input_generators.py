@@ -65,9 +65,8 @@ class NormalizedConfig:
     def __getattr__(self, attr_name):
         attr_name = attr_name.split(".")
         leaf_attr_name = attr_name[-1]
-        if leaf_attr_name.upper() not in dir(self.__class__):
-            return super().__getattr__(attr_name)
-
+        # if leaf_attr_name.upper() not in dir(self):
+        #     return super().__getattr__(attr_name)
         config = self.config
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
@@ -355,6 +354,41 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             )
             for _ in range(self.normalized_config.decoder_num_layers)
         ]
+
+
+# TODO: should it just be merged to DummyTextInputGenerator?
+class DummyBboxInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("bbox",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = 2,
+        sequence_length: int = 16,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+    ):
+        self.task = task
+        # self.max_2d_position_embeddings = normalized_config.max_2d_position_embeddings
+        if random_batch_size_range:
+            low, high = random_batch_size_range
+            self.batch_size = random.randint(low, high)
+        else:
+            self.batch_size = batch_size
+        if random_sequence_length_range:
+            low, high = random_sequence_length_range
+            self.sequence_length = random.randint(low, high)
+        else:
+            self.sequence_length = sequence_length
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        return self.random_int_tensor(
+            [self.batch_size, self.sequence_length, 4],
+            # TODO: find out why this fails with the commented code.
+            1, # self.max_2d_position_embeddings - 1,
+            framework=framework
+        )
 
 
 class DummyVisionInputGenerator(DummyInputGenerator):

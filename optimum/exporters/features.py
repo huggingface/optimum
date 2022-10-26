@@ -233,11 +233,13 @@ class FeaturesManager:
             "default",
             onnx="CLIPOnnxConfig",
         ),
-        # "codegen": supported_features_mapping(
-        #     "default",
-        #     "causal-lm",
-        #     onnx_config_cls="models.codegen.CodeGenOnnxConfig",
-        # ),
+        "codegen": supported_features_mapping(
+            "default",
+            # "default-with-past",
+            "causal-lm",
+            # "causal-lm-with-past",
+            onnx="CodeGenOnnxConfig",
+        ),
         "convbert": supported_features_mapping(
             "default",
             "masked-lm",
@@ -252,22 +254,22 @@ class FeaturesManager:
             "image-classification",
             onnx="ConvNextOnnxConfig",
         ),
-        # "data2vec-text": supported_features_mapping(
-        #     "default",
-        #     "masked-lm",
-        #     "sequence-classification",
-        #     "multiple-choice",
-        #     "token-classification",
-        #     "question-answering",
-        #     onnx_config_cls="models.data2vec.Data2VecTextOnnxConfig",
-        # ),
-        # "data2vec-vision": supported_features_mapping(
-        #     "default",
-        #     "image-classification",
-        #     # ONNX doesn't support `adaptive_avg_pool2d` yet
-        #     # "semantic-segmentation",
-        #     onnx_config_cls="models.data2vec.Data2VecVisionOnnxConfig",
-        # ),
+        "data2vec-text": supported_features_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="Data2VecTextOnnxConfig",
+        ),
+        "data2vec-vision": supported_features_mapping(
+            "default",
+            "image-classification",
+            # ONNX doesn't support `adaptive_avg_pool2d` yet
+            # "semantic-segmentation",
+            onnx="Data2VecVisionOnnxConfig",
+        ),
         "deberta": supported_features_mapping(
             "default",
             "masked-lm",
@@ -349,10 +351,10 @@ class FeaturesManager:
             "sequence-classification",
             onnx="GPTNeoOnnxConfig",
         ),
-        # "groupvit": supported_features_mapping(
-        #     "default",
-        #     onnx_config_cls="models.groupvit.GroupViTOnnxConfig",
-        # ),
+        "groupvit": supported_features_mapping(
+            "default",
+            onnx="GroupViTOnnxConfig",
+        ),
         "ibert": supported_features_mapping(
             "default",
             "masked-lm",
@@ -362,20 +364,27 @@ class FeaturesManager:
             "question-answering",
             onnx="IBertOnnxConfig",
         ),
-        # "layoutlm": supported_features_mapping(
-        #     "default",
-        #     "masked-lm",
-        #     "sequence-classification",
-        #     "token-classification",
-        #     onnx_config_cls="models.layoutlm.LayoutLMOnnxConfig",
-        # ),
-        # "layoutlmv3": supported_features_mapping(
+        "layoutlm": supported_features_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "token-classification",
+            onnx="LayoutLMOnnxConfig",
+        ),
+        # "layoutlmv2": supported_features_mapping(
         #     "default",
         #     "question-answering",
         #     "sequence-classification",
         #     "token-classification",
-        #     onnx_config_cls="models.layoutlmv3.LayoutLMv3OnnxConfig",
+        #     onnx="LayoutLMv2OnnxConfig",
         # ),
+        "layoutlmv3": supported_features_mapping(
+            "default",
+            "question-answering",
+            "sequence-classification",
+            "token-classification",
+            onnx="LayoutLMv3OnnxConfig",
+        ),
         "levit": supported_features_mapping(
             "default", "image-classification", onnx="LevitOnnxConfig"
         ),
@@ -443,22 +452,22 @@ class FeaturesManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        # "owlvit": supported_features_mapping(
-        #     "default",
-        #     onnx_config_cls="models.owlvit.OwlViTOnnxConfig",
-        # ),
-        # "perceiver": supported_features_mapping(
-        #     "image-classification",
-        #     "masked-lm",
-        #     "sequence-classification",
-        #     onnx_config_cls="models.perceiver.PerceiverOnnxConfig",
-        # ),
+        "owlvit": supported_features_mapping(
+            "default",
+            onnx="OwlViTOnnxConfig",
+        ),
+        "perceiver": supported_features_mapping(
+            "masked-lm",
+            "image-classification",
+            "sequence-classification",
+            onnx="PerceiverOnnxConfig",
+        ),
         "resnet": supported_features_mapping(
             "default",
             "image-classification",
             onnx="ResNetOnnxConfig",
         ),
-       "roberta": supported_features_mapping(
+        "roberta": supported_features_mapping(
             "default",
             "masked-lm",
             "causal-lm",

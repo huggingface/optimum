@@ -33,6 +33,7 @@ from .input_generators import ( # noqa
     DummyPastKeyValuesGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
+    DummyBboxInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
     NormalizedTextConfig,
