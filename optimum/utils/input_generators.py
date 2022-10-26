@@ -46,27 +46,9 @@ class NormalizedConfig:
     def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
-    # def __getattribute__(self, attr_name):
-    #     attr_name = attr_name.split(".")
-    #     leaf_attr_name = attr_name[-1]
-    #     if leaf_attr_name.startswith("__") or leaf_attr_name.upper() not in dir(self.__class__):
-    #         return super().__getattribute__(leaf_attr_name)
-    #     else:
-    #         config = self.config
-    #         for attr in attr_name[:-1]:
-    #             config = getattr(config, attr)
-    #         attr = getattr(config, super().__getattribute__(attr_name[-1]), None)
-    #         if attr is None:
-    #             raise AttributeError(
-    #                 f'Could not find the attribute named "{attr_name[-1]}" in the normalized config.'
-    #             )
-    #         return attr
-
     def __getattr__(self, attr_name):
         attr_name = attr_name.split(".")
         leaf_attr_name = attr_name[-1]
-        # if leaf_attr_name.upper() not in dir(self):
-        #     return super().__getattr__(attr_name)
         config = self.config
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
@@ -113,16 +95,6 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         elif self.VISION_CONFIG is not None and attr_name.upper() in dir(NormalizedVisionConfig):
             attr_name = f"{self.VISION_CONFIG}.{attr_name}"
         return super().__getattr__(attr_name)
-
-    #  def format_attr_name(self, attr_name):
-    #      formatted_attr_name = super().format_attr_name(attr_name)
-    #      # formatted_attr_name = attr_name.upper()
-    #      if self.TEXT_CONFIG is not None and formatted_attr_name in dir(NormalizedTextConfig):
-    #          return f"{self.TEXT_CONFIG}.{formatted_attr_name}"
-    #      elif self.VISION_CONFIG is not None and formatted_attr_name in dir(NormalizedVisionConfig):
-    #          return f"{self.VISION_CONFIG}.{formatted_attr_name}"
-    #      else:
-    #          return formatted_attr_name
 
 
 def check_framework_is_available(func):
