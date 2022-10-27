@@ -28,7 +28,7 @@ from parameterized import parameterized
 
 
 if is_torch_available() or is_tf_available():
-    from optimum.exporters.features import FeaturesManager
+    from optimum.exporters.tasks import TasksManager
 
 
 PYTORCH_EXPORT_MODELS = {
@@ -149,7 +149,7 @@ class OnnxConfigTestCase(TestCase):
     """
     Covers the test for models default.
 
-    Default means no specific features is being enabled on the model.
+    Default means no specific tasks is being enabled on the model.
     """
 
     @patch.multiple(OnnxConfig, __abstractmethods__=set())
@@ -177,7 +177,7 @@ class OnnxConfigTestCase(TestCase):
 
 class OnnxConfigWithPastTestCase(TestCase):
     """
-    Cover the tests for model which have use_cache feature (i.e. "with_past" for ONNX)
+    Cover the tests for model which have use_cache task (i.e. "with_past" for ONNX)
     """
 
     SUPPORTED_WITH_PAST_CONFIGS = ()
@@ -227,16 +227,14 @@ class OnnxConfigWithPastTestCase(TestCase):
 def _get_models_to_test(export_models_list):
     models_to_test = []
     if is_torch_available() or is_tf_available():
-        for name, model, *features in export_models_list:
-            if features:
-                feature_config_mapping = {
-                    feature: FeaturesManager.get_config(name, "onnx", feature) for _ in features for feature in _
-                }
+        for name, model, *tasks in export_models_list:
+            if tasks:
+                task_config_mapping = {task: TasksManager.get_config(name, "onnx", task) for _ in tasks for task in _}
             else:
-                feature_config_mapping = FeaturesManager.get_supported_features_for_model_type(name, "onnx")
+                task_config_mapping = TasksManager.get_supported_tasks_for_model_type(name, "onnx")
 
-            for feature, onnx_config_class_constructor in feature_config_mapping.items():
-                models_to_test.append((f"{name}_{feature}", name, model, feature, onnx_config_class_constructor))
+            for task, onnx_config_class_constructor in task_config_mapping.items():
+                models_to_test.append((f"{name}_{task}", name, model, task, onnx_config_class_constructor))
         return sorted(models_to_test)
     else:
         # Returning some dummy test that should not be ever called because of the @require_torch / @require_tf
@@ -250,8 +248,8 @@ class OnnxExportTestCase(TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
-    def _onnx_export(self, test_name, name, model_name, feature, onnx_config_class_constructor, device="cpu"):
-        model_class = FeaturesManager.get_model_class_for_feature(feature)
+    def _onnx_export(self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu"):
+        model_class = TasksManager.get_model_class_for_task(task)
         config = AutoConfig.from_pretrained(model_name)
         model = model_class.from_config(config)
 
@@ -266,7 +264,7 @@ class OnnxExportTestCase(TestCase):
         if (
             isinstance(onnx_config, OnnxConfigWithPast)
             and getattr(model.config, "pad_token_id", None) is None
-            and feature == "sequence-classification"
+            and task == "sequence-classification"
         ):
             model.config.pad_token_id = 0
 
@@ -286,7 +284,7 @@ class OnnxExportTestCase(TestCase):
                 )
                 atol = onnx_config.ATOL_FOR_VALIDATION
                 if isinstance(atol, dict):
-                    atol = atol[feature.replace("-with-past", "")]
+                    atol = atol[task.replace("-with-past", "")]
                 validate_model_outputs(
                     onnx_config,
                     model,
@@ -295,25 +293,25 @@ class OnnxExportTestCase(TestCase):
                     atol,
                 )
             except (RuntimeError, ValueError) as e:
-                self.fail(f"{name}, {feature} -> {e}")
+                self.fail(f"{name}, {task} -> {e}")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
     @slow
     @require_torch
     @require_vision
-    def test_pytorch_export(self, test_name, name, model_name, feature, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, feature, onnx_config_class_constructor)
+    def test_pytorch_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
     @slow
     @require_torch
     @require_vision
-    def test_pytorch_export_on_cuda(self, test_name, name, model_name, feature, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, feature, onnx_config_class_constructor, device="cuda")
+    def test_pytorch_export_on_cuda(self, test_name, name, model_name, task, onnx_config_class_constructor):
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, device="cuda")
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow
     @require_tf
     @require_vision
-    def test_tensorflow_export(self, test_name, name, model_name, feature, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, feature, onnx_config_class_constructor)
+    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)

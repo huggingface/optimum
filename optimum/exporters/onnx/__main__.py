@@ -20,7 +20,7 @@ from pathlib import Path
 from transformers import AutoTokenizer
 
 from ...utils import logging
-from ..features import FeaturesManager
+from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
 from .convert import export, validate_model_outputs
 
@@ -35,9 +35,9 @@ def main():
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
     )
     parser.add_argument(
-        "--feature",
+        "--task",
         default="default",
-        help="The type of features to export the model with.",
+        help="The type of tasks to export the model with.",
     )
     parser.add_argument("--opset", type=int, default=None, help="ONNX opset version to export the model with.")
     parser.add_argument(
@@ -74,17 +74,15 @@ def main():
         args.output.parent.mkdir(parents=True)
 
     # Allocate the model
-    model = FeaturesManager.get_model_from_feature(
-        args.feature, args.model, framework=args.framework, cache_dir=args.cache_dir
-    )
+    model = TasksManager.get_model_from_task(args.task, args.model, framework=args.framework, cache_dir=args.cache_dir)
 
-    onnx_config_constructor = FeaturesManager.get_exporter_config_constructor(model, "onnx", feature=args.feature)
+    onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task=args.task)
     onnx_config = onnx_config_constructor(model.config)
 
     needs_pad_token_id = (
         isinstance(onnx_config, OnnxConfigWithPast)
         and getattr(model.config, "pad_token_id", None) is None
-        and args.feature in ["sequence_classification"]
+        and args.task in ["sequence_classification"]
     )
     if needs_pad_token_id:
         if args.pad_token_id is not None:
@@ -118,7 +116,7 @@ def main():
     if args.atol is None:
         args.atol = onnx_config.ATOL_FOR_VALIDATION
         if isinstance(args.atol, dict):
-            args.atol = args.atol[args.feature.replace("-with-past", "")]
+            args.atol = args.atol[args.task.replace("-with-past", "")]
 
     validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
     logger.info(f"All good, model saved at: {args.output.as_posix()}")

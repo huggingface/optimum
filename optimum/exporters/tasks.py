@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Model export features manager."""
+"""Model export tasks manager."""
 
 import importlib
 import os
@@ -61,22 +61,22 @@ if is_tf_available():
     )
 if not is_torch_available() and not is_tf_available():
     logger.warning(
-        "The export features are only supported for PyTorch or TensorFlow. You will not be able to export models"
+        "The export tasks are only supported for PyTorch or TensorFlow. You will not be able to export models"
         " without one of these libraries installed."
     )
 
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
-FeatureNameToExportConfigDict = Dict[str, ExportConfigConstructor]
+TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 
-def supported_features_mapping(*supported_features: str, **exporters: str) -> Dict[str, FeatureNameToExportConfigDict]:
+def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str, TaskNameToExportConfigDict]:
     """
-    Generates the mapping between supported features and their corresponding `ExportConfig` for a given model, for
+    Generates the mapping between supported tasks and their corresponding `ExportConfig` for a given model, for
     every backend.
 
     Args:
-        supported_features (`Tuple[str]`):
-        The names of the supported features.
+        supported_tasks (`Tuple[str]`):
+            The names of the supported tasks.
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
@@ -87,23 +87,23 @@ def supported_features_mapping(*supported_features: str, **exporters: str) -> Di
             >>> }
             ```
     Returns:
-        `Dict[str, FeatureNameToExportConfigDict]`: The dictionary mapping a feature to an `ExportConfig` constructor.
+        `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExportConfig` constructor.
     """
     mapping = {}
     for backend, config_cls_name in exporters.items():
         config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
         mapping[backend] = {}
-        for feature in supported_features:
-            if "-with-past" in feature:
-                task = feature.replace("-with-past", "")
-                mapping[backend][feature] = partial(config_cls.with_past, task=task)
+        for task in supported_tasks:
+            if "-with-past" in task:
+                task = task.replace("-with-past", "")
+                mapping[backend][task] = partial(config_cls.with_past, task=task)
             else:
-                mapping[backend][feature] = partial(config_cls, task=feature)
+                mapping[backend][task] = partial(config_cls, task=task)
 
     return mapping
 
 
-class FeaturesManager:
+class TasksManager:
     _TASKS_TO_AUTOMODELS = {}
     _TASKS_TO_TF_AUTOMODELS = {}
     if is_torch_available():
@@ -135,9 +135,9 @@ class FeaturesManager:
             "semantic-segmentation": TFAutoModelForSemanticSegmentation,
         }
 
-    # Set of model topologies we support associated to the features supported by each topology and the factory
+    # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
-        "albert": supported_features_mapping(
+        "albert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -146,7 +146,7 @@ class FeaturesManager:
             "question-answering",
             onnx="AlbertOnnxConfig",
         ),
-        "bart": supported_features_mapping(
+        "bart": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -157,9 +157,9 @@ class FeaturesManager:
             "question-answering",
             onnx="BartOnnxConfig",
         ),
-        # BEiT cannot be used with the masked image modeling autoclass, so this feature is excluded here
-        "beit": supported_features_mapping("default", "image-classification", onnx="BeitOnnxConfig"),
-        "bert": supported_features_mapping(
+        # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
+        "beit": supported_tasks_mapping("default", "image-classification", onnx="BeitOnnxConfig"),
+        "bert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -169,7 +169,7 @@ class FeaturesManager:
             "question-answering",
             onnx="BertOnnxConfig",
         ),
-        "big-bird": supported_features_mapping(
+        "big-bird": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -179,7 +179,7 @@ class FeaturesManager:
             "question-answering",
             onnx="BigBirdOnnxConfig",
         ),
-        "bigbird-pegasus": supported_features_mapping(
+        "bigbird-pegasus": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -190,7 +190,7 @@ class FeaturesManager:
             "question-answering",
             onnx="BigBirdPegasusOnnxConfig",
         ),
-        "blenderbot": supported_features_mapping(
+        "blenderbot": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -199,7 +199,7 @@ class FeaturesManager:
             "seq2seq-lm-with-past",
             onnx="BlenderbotOnnxConfig",
         ),
-        "blenderbot-small": supported_features_mapping(
+        "blenderbot-small": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -208,7 +208,7 @@ class FeaturesManager:
             "seq2seq-lm-with-past",
             onnx="BlenderbotSmallOnnxConfig",
         ),
-        "bloom": supported_features_mapping(
+        "bloom": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -217,7 +217,7 @@ class FeaturesManager:
             "token-classification",
             onnx="BloomOnnxConfig",
         ),
-        "camembert": supported_features_mapping(
+        "camembert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -227,18 +227,18 @@ class FeaturesManager:
             "question-answering",
             onnx="CamembertOnnxConfig",
         ),
-        "clip": supported_features_mapping(
+        "clip": supported_tasks_mapping(
             "default",
             onnx="CLIPOnnxConfig",
         ),
-        "codegen": supported_features_mapping(
+        "codegen": supported_tasks_mapping(
             "default",
             # "default-with-past",
             "causal-lm",
             # "causal-lm-with-past",
             onnx="CodeGenOnnxConfig",
         ),
-        "convbert": supported_features_mapping(
+        "convbert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -247,12 +247,12 @@ class FeaturesManager:
             "question-answering",
             onnx="ConvBertOnnxConfig",
         ),
-        "convnext": supported_features_mapping(
+        "convnext": supported_tasks_mapping(
             "default",
             "image-classification",
             onnx="ConvNextOnnxConfig",
         ),
-        "data2vec-text": supported_features_mapping(
+        "data2vec-text": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -261,14 +261,14 @@ class FeaturesManager:
             "question-answering",
             onnx="Data2VecTextOnnxConfig",
         ),
-        "data2vec-vision": supported_features_mapping(
+        "data2vec-vision": supported_tasks_mapping(
             "default",
             "image-classification",
             # ONNX doesn't support `adaptive_avg_pool2d` yet
             # "semantic-segmentation",
             onnx="Data2VecVisionOnnxConfig",
         ),
-        "deberta": supported_features_mapping(
+        "deberta": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -276,7 +276,7 @@ class FeaturesManager:
             "question-answering",
             onnx="DebertaOnnxConfig",
         ),
-        "deberta-v2": supported_features_mapping(
+        "deberta-v2": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -285,14 +285,14 @@ class FeaturesManager:
             "question-answering",
             onnx="DebertaV2OnnxConfig",
         ),
-        "deit": supported_features_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
-        "detr": supported_features_mapping(
+        "deit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
+        "detr": supported_tasks_mapping(
             "default",
             "object-detection",
             "image-segmentation",
             onnx="DetrOnnxConfig",
         ),
-        "distilbert": supported_features_mapping(
+        "distilbert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -301,7 +301,7 @@ class FeaturesManager:
             "question-answering",
             onnx="DistilBertOnnxConfig",
         ),
-        "electra": supported_features_mapping(
+        "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -311,7 +311,7 @@ class FeaturesManager:
             "question-answering",
             onnx="ElectraOnnxConfig",
         ),
-        "flaubert": supported_features_mapping(
+        "flaubert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -321,7 +321,7 @@ class FeaturesManager:
             "question-answering",
             onnx="FlaubertOnnxConfig",
         ),
-        "gpt2": supported_features_mapping(
+        "gpt2": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -330,7 +330,7 @@ class FeaturesManager:
             "token-classification",
             onnx="GPT2OnnxConfig",
         ),
-        "gptj": supported_features_mapping(
+        "gptj": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -339,7 +339,7 @@ class FeaturesManager:
             "sequence-classification",
             onnx="GPTJOnnxConfig",
         ),
-        "gpt-neo": supported_features_mapping(
+        "gpt-neo": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -347,11 +347,11 @@ class FeaturesManager:
             "sequence-classification",
             onnx="GPTNeoOnnxConfig",
         ),
-        "groupvit": supported_features_mapping(
+        "groupvit": supported_tasks_mapping(
             "default",
             onnx="GroupViTOnnxConfig",
         ),
-        "ibert": supported_features_mapping(
+        "ibert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -360,36 +360,36 @@ class FeaturesManager:
             "question-answering",
             onnx="IBertOnnxConfig",
         ),
-        "layoutlm": supported_features_mapping(
+        "layoutlm": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
             "token-classification",
             onnx="LayoutLMOnnxConfig",
         ),
-        # "layoutlmv2": supported_features_mapping(
+        # "layoutlmv2": supported_tasks_mapping(
         #     "default",
         #     "question-answering",
         #     "sequence-classification",
         #     "token-classification",
         #     onnx="LayoutLMv2OnnxConfig",
         # ),
-        "layoutlmv3": supported_features_mapping(
+        "layoutlmv3": supported_tasks_mapping(
             "default",
             "question-answering",
             "sequence-classification",
             "token-classification",
             onnx="LayoutLMv3OnnxConfig",
         ),
-        "levit": supported_features_mapping("default", "image-classification", onnx="LevitOnnxConfig"),
-        "longt5": supported_features_mapping(
+        "levit": supported_tasks_mapping("default", "image-classification", onnx="LevitOnnxConfig"),
+        "longt5": supported_tasks_mapping(
             "default",
             "default-with-past",
             "seq2seq-lm",
             "seq2seq-lm-with-past",
             onnx="LongT5OnnxConfig",
         ),
-        # "longformer": supported_features_mapping(
+        # "longformer": supported_tasks_mapping(
         #     "default",
         #     "masked-lm",
         #     "multiple-choice",
@@ -398,7 +398,7 @@ class FeaturesManager:
         #     "token-classification",
         #     onnx_config_cls="models.longformer.LongformerOnnxConfig",
         # ),
-        "marian": supported_features_mapping(
+        "marian": supported_tasks_mapping(
             "default",
             "default-with-past",
             "seq2seq-lm",
@@ -407,7 +407,7 @@ class FeaturesManager:
             "causal-lm-with-past",
             onnx="MarianOnnxConfig",
         ),
-        "mbart": supported_features_mapping(
+        "mbart": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",
@@ -418,7 +418,7 @@ class FeaturesManager:
             "question-answering",
             onnx="MBartOnnxConfig",
         ),
-        "mobilebert": supported_features_mapping(
+        "mobilebert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -427,41 +427,41 @@ class FeaturesManager:
             "question-answering",
             onnx="MobileBertOnnxConfig",
         ),
-        "mobilevit": supported_features_mapping(
+        "mobilevit": supported_tasks_mapping(
             "default",
             "image-classification",
             onnx="MobileViTOnnxConfig",
         ),
-        "mt5": supported_features_mapping(
+        "mt5": supported_tasks_mapping(
             "default",
             "default-with-past",
             "seq2seq-lm",
             "seq2seq-lm-with-past",
             onnx="MT5OnnxConfig",
         ),
-        "m2m-100": supported_features_mapping(
+        "m2m-100": supported_tasks_mapping(
             "default",
             "default-with-past",
             "seq2seq-lm",
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        "owlvit": supported_features_mapping(
+        "owlvit": supported_tasks_mapping(
             "default",
             onnx="OwlViTOnnxConfig",
         ),
-        "perceiver": supported_features_mapping(
+        "perceiver": supported_tasks_mapping(
             "masked-lm",
             "image-classification",
             "sequence-classification",
             onnx="PerceiverOnnxConfig",
         ),
-        "resnet": supported_features_mapping(
+        "resnet": supported_tasks_mapping(
             "default",
             "image-classification",
             onnx="ResNetOnnxConfig",
         ),
-        "roberta": supported_features_mapping(
+        "roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -471,7 +471,7 @@ class FeaturesManager:
             "question-answering",
             onnx="RobertaOnnxConfig",
         ),
-        "roformer": supported_features_mapping(
+        "roformer": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -482,13 +482,13 @@ class FeaturesManager:
             "token-classification",
             onnx="RoFormerOnnxConfig",
         ),
-        "segformer": supported_features_mapping(
+        "segformer": supported_tasks_mapping(
             "default",
             "image-classification",
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),
-        "squeezebert": supported_features_mapping(
+        "squeezebert": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
@@ -497,15 +497,15 @@ class FeaturesManager:
             "question-answering",
             onnx="SqueezeBertOnnxConfig",
         ),
-        "t5": supported_features_mapping(
+        "t5": supported_tasks_mapping(
             "default",
             "default-with-past",
             "seq2seq-lm",
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
-        "vit": supported_features_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
-        "xlm": supported_features_mapping(
+        "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
+        "xlm": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -515,7 +515,7 @@ class FeaturesManager:
             "question-answering",
             onnx="XLMOnnxConfig",
         ),
-        "xlm-roberta": supported_features_mapping(
+        "xlm-roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
             "causal-lm",
@@ -525,7 +525,7 @@ class FeaturesManager:
             "question-answering",
             onnx="XLMRobertaOnnxConfig",
         ),
-        "yolos": supported_features_mapping(
+        "yolos": supported_tasks_mapping(
             "default",
             "object-detection",
             onnx="YolosOnnxConfig",
@@ -533,44 +533,44 @@ class FeaturesManager:
     }
 
     @staticmethod
-    def get_supported_features_for_model_type(
+    def get_supported_tasks_for_model_type(
         model_type: str, exporter: str, model_name: Optional[str] = None
-    ) -> FeatureNameToExportConfigDict:
+    ) -> TaskNameToExportConfigDict:
         """
-        Retrieves the feature -> exporter backend config constructors map from the model type.
+        Retrieves the task -> exporter backend config constructors map from the model type.
 
         Args:
             model_type (`str`):
-                The model type to retrieve the supported features for.
+                The model type to retrieve the supported tasks for.
             exporter (`str`):
                 The name of the exporter.
             model_name (`str`, *optional*):
                 The name attribute of the model object, only used for the exception message.
 
         Returns:
-            `FeatureNameToExportConfigDict`: The dictionary mapping each feature to a corresponding `ExportConfig`
+            `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExportConfig`
             constructor.
         """
         model_type = model_type.lower()
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
-        if model_type not in FeaturesManager._SUPPORTED_MODEL_TYPE:
+        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {list(FeaturesManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
+                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
-        elif exporter not in FeaturesManager._SUPPORTED_MODEL_TYPE[model_type]:
+        elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet with the {exporter} backend. "
-                f"Only {list(FeaturesManager._SUPPORTED_MODEL_TYPE[model_type].keys())} are supported. "
+                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE[model_type].keys())} are supported. "
                 f"If you want to support {exporter} please propose a PR or open up an issue."
             )
         else:
-            return FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+            return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
-    def feature_to_task(feature: str) -> str:
-        return feature.replace("-with-past", "")
+    def task_to_task(task: str) -> str:
+        return task.replace("-with-past", "")
 
     @staticmethod
     def _validate_framework_choice(framework: str):
@@ -586,28 +586,28 @@ class FeaturesManager:
             raise RuntimeError("Cannot export model using TensorFlow because no TensorFlow package was found.")
 
     @staticmethod
-    def get_model_class_for_feature(feature: str, framework: str = "pt") -> Type:
+    def get_model_class_for_task(task: str, framework: str = "pt") -> Type:
         """
-        Attempts to retrieve an AutoModel class from a feature name.
+        Attempts to retrieve an AutoModel class from a task name.
 
         Args:
-            feature (`str`):
-                The feature required.
+            task (`str`):
+                The task required.
             framework (`str`, *optional*, defaults to `"pt"`):
                 The framework to use for the export.
 
         Returns:
-            The AutoModel class corresponding to the feature.
+            The AutoModel class corresponding to the task.
         """
-        task = FeaturesManager.feature_to_task(feature)
-        FeaturesManager._validate_framework_choice(framework)
+        task = TasksManager.task_to_task(task)
+        TasksManager._validate_framework_choice(framework)
         if framework == "pt":
-            task_to_automodel = FeaturesManager._TASKS_TO_AUTOMODELS
+            task_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
         else:
-            task_to_automodel = FeaturesManager._TASKS_TO_TF_AUTOMODELS
+            task_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
         if task not in task_to_automodel:
             raise KeyError(
-                f"Unknown task: {feature}. Possible values are {list(FeaturesManager._TASKS_TO_AUTOMODELS.values())}"
+                f"Unknown task: {task}. Possible values are {list(TasksManager._TASKS_TO_AUTOMODELS.values())}"
             )
         return task_to_automodel[task]
 
@@ -661,19 +661,19 @@ class FeaturesManager:
         return framework
 
     @staticmethod
-    def get_model_from_feature(
-        feature: str, model: str, framework: str = None, cache_dir: str = None
+    def get_model_from_task(
+        task: str, model: str, framework: str = None, cache_dir: str = None
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
-        Retrieves a model from its name and the feature to be enabled.
+        Retrieves a model from its name and the task to be enabled.
 
         Args:
-            feature (`str`):
-                The feature required.
+            task (`str`):
+                The task required.
             model (`str`):
                 The name of the model to export.
             framework (`str`, *optional*):
-                The framework to use for the export. See `FeaturesManager.determine_framework` for the priority should
+                The framework to use for the export. See `TasksManager.determine_framework` for the priority should
                 none be provided.
             cache_dir (`str`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
@@ -682,8 +682,8 @@ class FeaturesManager:
             The instance of the model.
 
         """
-        framework = FeaturesManager.determine_framework(model, framework)
-        model_class = FeaturesManager.get_model_class_for_feature(feature, framework)
+        framework = TasksManager.determine_framework(model, framework)
+        model_class = TasksManager.get_model_class_for_task(task, framework)
         try:
             model = model_class.from_pretrained(model, cache_dir=cache_dir)
         except OSError:
@@ -697,18 +697,18 @@ class FeaturesManager:
 
     @staticmethod
     def get_exporter_config_constructor(
-        model: Union["PreTrainedModel", "TFPreTrainedModel"], exporter: str, feature: str = "default"
+        model: Union["PreTrainedModel", "TFPreTrainedModel"], exporter: str, task: str = "default"
     ) -> ExportConfigConstructor:
         """
-        Retrieves the proper exporter config constructor for the given model, feature and exporter backend.
+        Retrieves the proper exporter config constructor for the given model, task and exporter backend.
 
         Args:
             model (`Union[PreTrainedModel, TFPreTrainedModel]`):
                 The model to export.
             exporter (`str`):
                 The exporter to use.
-            feature (`str`, *optional*, detaults to `"default"`):
-                The name of the feature to check if it is available.
+            task (`str`, *optional*, detaults to `"default"`):
+                The name of the task to check if it is available.
 
         Returns:
              `Tuple[str, ExportConfigConstructor]`: The model type as well as the `ExportConfig`
@@ -717,30 +717,28 @@ class FeaturesManager:
         """
         model_type = model.config.model_type.replace("_", "-")
         model_name = getattr(model, "name", "")
-        model_features = FeaturesManager.get_supported_features_for_model_type(
-            model_type, exporter, model_name=model_name
-        )
-        if feature not in model_features:
+        model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
+        if task not in model_tasks:
             raise ValueError(
-                f"{model.config.model_type} doesn't support feature {feature} for the {exporter} backend."
-                f" Supported values are: {model_features}"
+                f"{model.config.model_type} doesn't support task {task} for the {exporter} backend."
+                f" Supported values are: {model_tasks}"
             )
 
-        return FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][exporter][feature]
+        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
 
-    def get_config(model_type: str, exporter: str, feature: str) -> ExportConfigConstructor:
+    def get_config(model_type: str, exporter: str, task: str) -> ExportConfigConstructor:
         """
-        Gets the `ExportConfigConstructor` for a model type and feature combination.
+        Gets the `ExportConfigConstructor` for a model type and task combination.
 
         Args:
             model_type (`str`):
                 The model type to retrieve the config for.
             exporter (`str`):
                 The exporter to use.
-            feature (`str`):
-                The feature to retrieve the config for.
+            task (`str`):
+                The task to retrieve the config for.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
-        return FeaturesManager._SUPPORTED_MODEL_TYPE[model_type][exporter][feature]
+        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
