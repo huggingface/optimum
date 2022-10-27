@@ -20,7 +20,7 @@ from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, 
 
 import torch
 import transformers
-from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer, PretrainedConfig
+from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
@@ -342,8 +342,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         """
         use_cache = kwargs.pop("use_cache", True)
         local_files_only = kwargs.pop("local_files_only", False)
-        config_dict = kwargs.pop("config", {})
-        config = PretrainedConfig.from_dict(config_dict)
+        config = kwargs.pop("config", {})
         encoder_file_name = encoder_file_name or ONNX_ENCODER_NAME
         decoder_file_name = decoder_file_name or ONNX_DECODER_NAME
         decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
@@ -477,7 +476,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
             )
 
-        kwargs["config"] = model.config.__dict__
+        kwargs["config"] = model.config
         return cls._from_pretrained(save_dir, **kwargs)
 
     def to(self, device: Union[torch.device, str, int]):
