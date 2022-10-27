@@ -180,6 +180,12 @@ class ORTModelForConditionalGeneration(ORTModel):
         self.providers = encoder_session.get_providers()
         self._device = get_device_for_provider(encoder_session.get_providers()[0])
 
+        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
+            logger.warning(
+                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` will be set to False."
+            )
+            self.use_io_binding = False
+
         self.encoder = ORTEncoder(
             session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )

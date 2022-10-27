@@ -125,6 +125,12 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
+        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
+            logger.warning(
+                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` will be set to False."
+            )
+            self.use_io_binding = False
+
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.base_model_prefix, AutoConfig)
