@@ -12,12 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 from unittest.mock import patch
 
+import pytest
 from transformers import AutoConfig, is_tf_available, is_torch_available
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
 
@@ -32,14 +32,15 @@ if is_torch_available() or is_tf_available():
 
 
 PYTORCH_EXPORT_MODELS = {
-    ("albert", "hf-internal-testing/tiny-albert"),
+    ("albert", "albert-base-v2"),
     ("bert", "bert-base-cased"),
     ("big-bird", "google/bigbird-roberta-base"),
     ("ibert", "kssteven/ibert-roberta-base"),
     ("camembert", "camembert-base"),
     ("clip", "openai/clip-vit-base-patch32"),
     ("convbert", "YituTech/conv-bert-base"),
-    ("codegen", "Salesforce/codegen-350M-multi"),
+    # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
+    ("codegen", "hf-internal-testing/tiny-random-codegen"),
     # ("deberta", "microsoft/deberta-base"),
     # ("deberta-v2", "microsoft/deberta-v2-xlarge"),
     ("convnext", "facebook/convnext-tiny-224"),
@@ -80,11 +81,14 @@ PYTORCH_EXPORT_MODELS = {
     ("t5", "t5-small"),
     ("marian", "Helsinki-NLP/opus-mt-en-de"),
     ("mt5", "google/mt5-small"),
-    ("m2m-100", "facebook/m2m100_418M"),
+    # Not using facebook/m2m100_418M because it takes too much time for testing.
+    ("m2m-100", "hf-internal-testing/tiny-random-m2m_100"),
     ("blenderbot-small", "facebook/blenderbot_small-90M"),
     ("blenderbot", "facebook/blenderbot-400M-distill"),
-    ("bigbird-pegasus", "google/bigbird-pegasus-large-arxiv"),
-    ("longt5", "google/long-t5-local-base"),
+    # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
+    ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
+    # Not using google/long-t5-local-base because it takes too much time for testing.
+    ("longt5", "hf-internal-testing/tiny-random-longt5"),
     # Disable for now as it causes fatal error `Floating point exception (core dumped)` and the subsequential tests are
     # not run.
     # ("longt5", "google/long-t5-tglobal-base"),
@@ -265,12 +269,12 @@ class OnnxExportTestCase(TestCase):
             model.config.pad_token_id = 0
 
         if is_torch_available():
-            from transformers.utils import torch_version
+            from optimum.exporters.onnx.utils import TORCH_VERSION
 
-            if torch_version < onnx_config.torch_onnx_minimum_version:
+            if not onnx_config.is_torch_support_available:
                 pytest.skip(
                     "Skipping due to incompatible PyTorch version. Minimum required is"
-                    f" {onnx_config.torch_onnx_minimum_version}, got: {torch_version}"
+                    f" {onnx_config.MIN_TORCH_VERSION}, got: {TORCH_VERSION}"
                 )
 
         with NamedTemporaryFile("w") as output:

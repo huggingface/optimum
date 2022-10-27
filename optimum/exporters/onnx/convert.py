@@ -38,35 +38,27 @@ if is_tf_available():
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
-def reorder_inputs(model: Union["PreTrainedModel", "TFPreTrainedModel"], model_inputs: Iterable[str]) -> List[str]:
+def check_dummy_inputs_are_allowed(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], dummy_input_names: Iterable[str]
+):
     """
-    Checks that `model_inputs` is a subset of the allowed inputs for `model`, and returns the inputs in the proper order.
+    Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
     Args:
         model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
             The model instance.
         model_inputs (`Iterable[str]`):
             The model input names.
-
-    Returns:
-        `List[str]`: A tuple with two elements, the first specifying whether `model_inputs` are correct
-        considering the model, and the second being the input names correctly ordered.
     """
     forward = model.forward if is_torch_available() and issubclass(type(model), PreTrainedModel) else model.call
     forward_parameters = signature(forward).parameters
     forward_inputs_set = set(forward_parameters.keys())
-    model_inputs_set = set(model_inputs)
+    dummy_input_names = set(dummy_input_names)
 
     # We are fine if config_inputs has more keys than model_inputs
-    if not model_inputs_set.issubset(forward_inputs_set):
+    if not dummy_input_names.issubset(forward_inputs_set):
         raise ValueError(
-            f"Config inputs are not a subset of the model inputs: {model_inputs_set} vs {forward_inputs_set}"
+            f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
         )
-
-    # Make sure the input order match (VERY IMPORTANT !!!!)
-    matching_inputs = forward_inputs_set.intersection(model_inputs_set)
-    ordered_inputs = [parameter for parameter in forward_parameters.keys() if parameter in matching_inputs]
-
-    return ordered_inputs
 
 
 def export_pytorch(
@@ -113,13 +105,14 @@ def export_pytorch(
                 setattr(model.config, override_config_key, override_config_value)
 
         # Check that inputs match, and order them properly
-        model_inputs = config.generate_dummy_inputs(framework="pt")
+        dummy_inputs = config.generate_dummy_inputs(framework="pt")
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
-            model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
-        matched_inputs = reorder_inputs(model, model_inputs.keys())
-        input_names = list(config.inputs.keys())
+            dummy_inputs = {k: v.to(device) for k, v in dummy_inputs.items()}
+        check_dummy_inputs_are_allowed(model, dummy_inputs)
+        inputs = config.ordered_inputs(model)
+        input_names = list(inputs.keys())
         output_names = list(config.outputs.keys())
 
         config.patch_ops()
@@ -133,18 +126,18 @@ def export_pytorch(
             # tuple.
             onnx_export(
                 model,
-                (model_inputs,),
+                (dummy_inputs,),
                 f=output.as_posix(),
                 input_names=input_names,
                 output_names=output_names,
-                dynamic_axes={name: axes for name, axes in chain(config.inputs.items(), config.outputs.items())},
+                dynamic_axes={name: axes for name, axes in chain(inputs.items(), config.outputs.items())},
                 do_constant_folding=True,
                 opset_version=opset,
             )
 
         config.restore_ops()
 
-    return matched_inputs, output_names
+    return input_names, output_names
 
 
 def export_tensorflow(
@@ -197,17 +190,20 @@ def export_tensorflow(
             setattr(model.config, override_config_key, override_config_value)
 
     # Ensure inputs match
-    model_inputs = config.generate_dummy_inputs(framework="tf")
-    matched_inputs = reorder_inputs(model, model_inputs.keys())
-    onnx_outputs = list(config.outputs.keys())
+    dummy_inputs = config.generate_dummy_inputs(framework="tf")
+    check_dummy_inputs_are_allowed(model, dummy_inputs)
+
+    inputs = config.ordered_inputs(model)
+    input_names = list(inputs.keys())
+    output_names = list(config.outputs.keys())
 
     config.patch_ops()
-    input_signature = [tf.TensorSpec.from_tensor(tensor, name=key) for key, tensor in model_inputs.items()]
+    input_signature = [tf.TensorSpec.from_tensor(tensor, name=key) for key, tensor in dummy_inputs.items()]
     onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature, opset=opset)
     onnx.save(onnx_model, output.as_posix())
     config.restore_ops()
 
-    return matched_inputs, onnx_outputs
+    return input_names, output_names
 
 
 def export(

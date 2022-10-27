@@ -16,7 +16,9 @@
 
 import copy
 import dataclasses
+import inspect
 import itertools
+import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
@@ -31,7 +33,7 @@ from .utils import ParameterFormat, compute_serialized_parameters_size
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig
+    from transformers import PretrainedConfig, PreTrainedModel
 
 if is_torch_available():
     import torch
@@ -200,7 +202,6 @@ class OnnxConfig(ExportConfig, ABC):
 
         return None
 
-    # TODO: is this really needed?
     @property
     def is_torch_support_available(self) -> bool:
         """
@@ -209,30 +210,36 @@ class OnnxConfig(ExportConfig, ABC):
         Returns:
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
-
         if is_torch_available():
             from .utils import TORCH_VERSION
 
             return TORCH_VERSION >= self.MIN_TORCH_VERSION
         return False
 
-    @staticmethod
-    def use_external_data_format(num_parameters: int) -> bool:
+    def ordered_inputs(self, model: "PreTrainedModel") -> Mapping[str, Mapping[int, str]]:
         """
-        Flag indicating if the model requires using external data format.
+        Re-orders the inputs using the model forward pass signature.
 
         Args:
-            num_parameters (`int`):
-                The number of parameters in the model.
+            model ([`transformers.PreTrainedModel`]):
+                The model for which we will use the OnnxConfig.
 
         Returns:
-            `bool`: True if model.num_parameters() * size_of(float32) >= 2Gb, False otherwise
+            `Mapping[str, Mappingp[int, str]]`: The properly ordered inputs.
         """
-
-        return (
-            compute_serialized_parameters_size(num_parameters, ParameterFormat.Float)
-            >= EXTERNAL_DATA_FORMAT_SIZE_LIMIT
-        )
+        inputs = self.inputs
+        ordered_inputs = {}
+        sig = inspect.signature(model.forward)
+        for param in sig.parameters:
+            param_regex = re.compile(rf"{param}(\.\d*)?")
+            to_insert = []
+            for name, dynamic_axes in inputs.items():
+                if re.match(param_regex, name):
+                    to_insert.append((name, dynamic_axes))
+            to_insert = sorted(to_insert, key=lambda t: t[0])
+            for name, dynamic_axes in to_insert:
+                ordered_inputs[name] = dynamic_axes
+        return ordered_inputs
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
     def generate_dummy_inputs(self, framework: str = "pt"):

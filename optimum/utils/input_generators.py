@@ -59,7 +59,7 @@ class NormalizedConfig:
 
     def has_attribute(self, attr_name):
         try:
-            self.__getattribute__(attr_name)
+            self.__getattr__(attr_name)
         except AttributeError:
             return False
         return True
