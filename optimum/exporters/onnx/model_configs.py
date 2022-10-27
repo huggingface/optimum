@@ -117,7 +117,6 @@ class BigBirdOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
-# TODO: validate that
 class DebertaOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
@@ -282,7 +281,7 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
             "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
         if self.use_past:
-            for i in range(self._normalized_config.encoder_num_layers):
+            for i in range(self._normalized_config.decoder_num_layers):
                 common_inputs[f"past_key_values.{i}.key"] = {
                     0: "batch_size",
                     2: "past_sequence_length + sequence_length",

@@ -41,8 +41,9 @@ PYTORCH_EXPORT_MODELS = {
     ("convbert", "YituTech/conv-bert-base"),
     # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
     ("codegen", "hf-internal-testing/tiny-random-codegen"),
-    # ("deberta", "microsoft/deberta-base"),
-    # ("deberta-v2", "microsoft/deberta-v2-xlarge"),
+    ("deberta", "microsoft/deberta-base"),
+    # Not using microsoft/deberta-v2-xlarge because it takes too much time for testing.
+    ("deberta-v2", "hf-internal-testing/tiny-random-deberta-v2"),
     ("convnext", "facebook/convnext-tiny-224"),
     ("detr", "facebook/detr-resnet-50"),
     ("distilbert", "distilbert-base-cased"),
@@ -72,7 +73,8 @@ PYTORCH_EXPORT_MODELS = {
     # ("longformer", "allenai/longformer-base-4096"),
     ("yolos", "hustvl/yolos-tiny"),
     ("segformer", "nvidia/segformer-b0-finetuned-ade-512-512"),
-    ("bloom", "bigscience/bloom-560m"),
+    # Not using bigscience/bloom-560m because it goes OOM.
+    ("bloom", "hf-internal-testing/tiny-random-bloom"),
     ("gpt2", "gpt2"),
     ("gptj", "anton-l/gpt-j-tiny-random"),
     ("gpt-neo", "EleutherAI/gpt-neo-125M"),

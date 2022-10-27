@@ -236,7 +236,8 @@ class OnnxConfig(ExportConfig, ABC):
             for name, dynamic_axes in inputs.items():
                 if re.match(param_regex, name):
                     to_insert.append((name, dynamic_axes))
-            to_insert = sorted(to_insert, key=lambda t: t[0])
+            # TODO: figure out a smart way of re-ordering potential nested structures.
+            # to_insert = sorted(to_insert, key=lambda t: t[0])
             for name, dynamic_axes in to_insert:
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs

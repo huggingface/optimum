@@ -14,7 +14,6 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of features for building model specific configurations."""
 
-from collections import OrderedDict
 from typing import Mapping
 
 from ...utils import (
@@ -37,7 +36,7 @@ class DecoderOnnxConfig(OnnxConfigWithPast):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict({"input_ids": {0: "batch_size", 1: "sequence_length"}})
+        common_inputs = {"input_ids": {0: "batch_size", 1: "sequence_length"}}
         if self.use_past:
             self.add_past_key_values(common_inputs, direction="inputs")
             common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
