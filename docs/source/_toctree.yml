@@ -59,22 +59,22 @@
     title: Reference
   title: ONNX Runtime
 - sections:
-  - local: fx/overview
+  - local: torch_fx/overview
     title: Overview
   - sections:
-    - local: fx/tutorials/overview
+    - local: torch_fx/tutorials/overview
       title: Overview
     title: Tutorials
   - sections:
-    - local: fx/usage_guides/optimization
+    - local: torch_fx/usage_guides/optimization
       title: Optimization
     title: How-to guides
   - sections:
-    - local: fx/concept_guides/symbolic_tracer
+    - local: torch_fx/concept_guides/symbolic_tracer
       title: Symbolic tracer
     title: Conceptual guides
   - sections:
-    - local: fx/package_reference/optimization
+    - local: torch_fx/package_reference/optimization
       title: Optimization
     title: Reference
   title: Torch FX
