@@ -126,7 +126,7 @@ class OnnxConfig(ExportConfig, ABC):
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
-        "sequence_length-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
     }
 
@@ -423,7 +423,11 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
         name = "past_key_values" if direction == "inputs" else "present"
         encoder_sequence = "past_encoder_sequence_length"
-        decoder_sequence = "past_decoder_sequence_length" if direction == "inputs" else "past_decoder_sequence_length + sequence_length"
+        decoder_sequence = (
+            "past_decoder_sequence_length"
+            if direction == "inputs"
+            else "past_decoder_sequence_length + sequence_length"
+        )
         for i in range(self._normalized_config.decoder_num_layers):
             inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence}
             inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence}

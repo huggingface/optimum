@@ -181,15 +181,11 @@ class LongT5OnnxConfig(T5OnnxConfig):
     pass
 
 
-class BartNormalizedConfig(NormalizedSeq2SeqConfig):
-    EOS_TOKEN_ID = "eos_token_id"
-
-
 class BartDummyTextInputGenerator(DummyTextInputGenerator):
     def __init__(
         self,
         task: str,
-        normalized_config: BartNormalizedConfig,
+        normalized_config: NormalizedSeq2SeqConfig,
         batch_size: int = 2,
         sequence_length: int = 16,
         num_choices: int = 4,
@@ -223,11 +219,13 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
 
 
 class BartOnnxConfig(Seq2SeqOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = BartNormalizedConfig.with_args(
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
+        num_layers="decoder_layers",  # Used for the causal-lm task past key values input generation.
         encoder_num_attention_heads="encoder_attention_heads",
         decoder_num_attention_heads="decoder_attention_heads",
+        eos_token_id="eos_token_id",
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BartDummyTextInputGenerator,
@@ -285,8 +283,15 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
         }
         if self.use_past:
             for i in range(self._normalized_config.encoder_num_layers):
-                common_inputs[f"past_key_values.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
-                common_inputs[f"past_key_values.{i}.value"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
+                common_inputs[f"past_key_values.{i}.key"] = {
+                    0: "batch_size",
+                    2: "past_sequence_length + sequence_length",
+                }
+                common_inputs[f"past_key_values.{i}.value"] = {
+                    0: "batch_size",
+                    2: "past_sequence_length + sequence_length",
+                }
+
         return common_inputs
 
     @property
@@ -317,7 +322,10 @@ class BartOnnxConfig(Seq2SeqOnnxConfig):
             if self.use_past:
                 for i in range(self._normalized_config.encoder_num_layers):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
-                    common_outputs[f"present.{i}.value"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
+                    common_outputs[f"present.{i}.value"] = {
+                        0: "batch_size",
+                        2: "past_sequence_length + sequence_length",
+                    }
         return common_outputs
 
     def generate_dummy_inputs(self, framework: str = "pt"):

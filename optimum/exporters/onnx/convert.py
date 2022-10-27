@@ -119,7 +119,8 @@ def export_pytorch(
             model.to(device)
             model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
         matched_inputs = reorder_inputs(model, model_inputs.keys())
-        onnx_outputs = list(config.outputs.keys())
+        input_names = list(config.inputs.keys())
+        output_names = list(config.outputs.keys())
 
         config.patch_ops()
 
@@ -133,8 +134,8 @@ def export_pytorch(
                     model,
                     (model_inputs,),
                     f=output.as_posix(),
-                    input_names=matched_inputs,
-                    output_names=onnx_outputs,
+                    input_names=input_names,
+                    output_names=output_names,
                     dynamic_axes={name: axes for name, axes in chain(config.inputs.items(), config.outputs.items())},
                     do_constant_folding=True,
                     use_external_data_format=config.use_external_data_format(model.num_parameters()),
@@ -160,8 +161,8 @@ def export_pytorch(
                 model,
                 (model_inputs,),
                 f=output.as_posix(),
-                input_names=matched_inputs,
-                output_names=onnx_outputs,
+                input_names=input_names,
+                output_names=output_names,
                 dynamic_axes={name: axes for name, axes in chain(config.inputs.items(), config.outputs.items())},
                 do_constant_folding=True,
                 opset_version=opset,
@@ -169,7 +170,7 @@ def export_pytorch(
 
         config.restore_ops()
 
-    return matched_inputs, onnx_outputs
+    return matched_inputs, output_names
 
 
 def export_tensorflow(

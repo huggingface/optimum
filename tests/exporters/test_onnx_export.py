@@ -225,10 +225,6 @@ def _get_models_to_test(export_models_list):
                 feature_config_mapping = {
                     feature: FeaturesManager.get_config(name, "onnx", feature) for _ in features for feature in _
                 }
-                # feature_config_mapping = {
-                #     feature: FeaturesManager.get_config(name, "onnx", feature) for feature in features
-                # }
-
             else:
                 feature_config_mapping = FeaturesManager.get_supported_features_for_model_type(name, "onnx")
 
