@@ -697,36 +697,8 @@ class TasksManager:
 
     @staticmethod
     def get_exporter_config_constructor(
-        model: Union["PreTrainedModel", "TFPreTrainedModel"], exporter: str, task: str = "default"
+        model_type: str, exporter: str, task: str = "default", model_name: Optional[str] = None
     ) -> ExportConfigConstructor:
-        """
-        Retrieves the proper exporter config constructor for the given model, task and exporter backend.
-
-        Args:
-            model (`Union[PreTrainedModel, TFPreTrainedModel]`):
-                The model to export.
-            exporter (`str`):
-                The exporter to use.
-            task (`str`, *optional*, detaults to `"default"`):
-                The name of the task to check if it is available.
-
-        Returns:
-             `Tuple[str, ExportConfigConstructor]`: The model type as well as the `ExportConfig`
-             constructor for the requested backend.
-
-        """
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", "")
-        model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
-        if task not in model_tasks:
-            raise ValueError(
-                f"{model.config.model_type} doesn't support task {task} for the {exporter} backend."
-                f" Supported values are: {model_tasks}"
-            )
-
-        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
-
-    def get_config(model_type: str, exporter: str, task: str) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model type and task combination.
 
@@ -735,10 +707,16 @@ class TasksManager:
                 The model type to retrieve the config for.
             exporter (`str`):
                 The exporter to use.
-            task (`str`):
+            task (`str`, *optional*, defaults to `"default"`):
                 The task to retrieve the config for.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
+        model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
+        if task not in model_tasks:
+            raise ValueError(
+                f"{model_type} doesn't support task {task} for the {exporter} backend."
+                f" Supported values are: {model_tasks}"
+            )
         return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]

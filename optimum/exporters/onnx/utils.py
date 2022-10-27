@@ -21,7 +21,7 @@ import packaging
 from transformers.utils import is_torch_available
 
 
-MIN_TORCH_VERSION = packaging.version.parse("1.8.0")
+MIN_TORCH_VERSION = packaging.version.parse("1.11.0")
 TORCH_VERSION = None
 if is_torch_available():
     import torch
@@ -69,31 +69,3 @@ def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
             f"but we require the version to be >= {minimum_version} to enable all the conversions options.\n"
             "Please update ONNX Runtime by running `pip install --upgrade onnxruntime`"
         )
-
-
-class ParameterFormat(Enum):
-    Float = c_float
-
-    @property
-    def size(self) -> int:
-        """
-        Number of byte required for this data type
-
-        Returns:
-            Integer > 0
-        """
-        return sizeof(self.value)
-
-
-def compute_serialized_parameters_size(num_parameters: int, dtype: ParameterFormat) -> int:
-    """
-    Compute the size taken by all the parameters in the given storage format when serializing the model
-
-    Args:
-        num_parameters: Number of parameters to be saved
-        dtype: The data format each parameter will be saved
-
-    Returns:
-        Size (in byte) taken to save all the parameters
-    """
-    return num_parameters * dtype.size

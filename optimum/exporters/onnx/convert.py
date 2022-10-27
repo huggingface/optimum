@@ -316,13 +316,11 @@ def validate_model_outputs(
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
     ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
     if not onnx_outputs_set.issubset(ref_outputs_set):
-        logger.info(
-            f"\t-[x] ONNX model output names {onnx_outputs_set} do not match reference model {ref_outputs_set}"
-        )
-
         raise ValueError(
-            "Outputs doesn't match between reference model and ONNX exported model: "
-            f"{onnx_outputs_set.difference(ref_outputs_set)}"
+            "ONNX model output names do not match reference model output names.\n"
+            f"Reference model output names: {ref_outputs_set}\n"
+            f"ONNX model output names: {onnx_outputs_set}"
+            f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
         )
     else:
         logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_outputs_set})")
@@ -339,7 +337,7 @@ def validate_model_outputs(
 
         # Shape
         if not ort_value.shape == ref_value.shape:
-            logger.info(f"\t\t-[x] shape {ort_value.shape} doesn't match {ref_value.shape}")
+            logger.error(f"\t\t-[x] shape {ort_value.shape} doesn't match {ref_value.shape}")
             shape_failures.append((name, ref_value.shape, ort_value.shape))
         else:
             logger.info(f"\t\t-[✓] {ort_value.shape} matches {ref_value.shape}")
@@ -347,7 +345,7 @@ def validate_model_outputs(
         # Values
         if not np.allclose(ref_value, ort_value, atol=atol):
             max_diff = np.amax(np.abs(ref_value - ort_value))
-            logger.info(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
+            logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
             value_failures.append((name, max_diff))
         else:
             logger.info(f"\t\t-[✓] all values close (atol: {atol})")

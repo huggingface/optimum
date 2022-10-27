@@ -41,7 +41,7 @@ def main():
     )
     parser.add_argument("--opset", type=int, default=None, help="ONNX opset version to export the model with.")
     parser.add_argument(
-        "--atol", type=float, default=None, help="Absolute difference tolerence when validating the model."
+        "--atol", type=float, default=None, help="Absolute difference tolerance when validating the model."
     )
     parser.add_argument(
         "--framework",
@@ -75,8 +75,12 @@ def main():
 
     # Allocate the model
     model = TasksManager.get_model_from_task(args.task, args.model, framework=args.framework, cache_dir=args.cache_dir)
+    model_type = model.config.model_type.replace("_", "-")
+    model_name = getattr(model, "name", None)
 
-    onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task=args.task)
+    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+        model_type, "onnx", task=args.task, model_name=model_name
+    )
     onnx_config = onnx_config_constructor(model.config)
 
     needs_pad_token_id = (

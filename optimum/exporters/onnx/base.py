@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Onnx configuration base classes."""
+"""ONNX configuration base classes."""
 
 import copy
 import dataclasses
@@ -23,26 +23,16 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
 
-from transformers.utils import is_tf_available, is_torch_available, is_vision_available
+from transformers.utils import is_torch_available
 
 from ...utils import logging
 from ...utils.input_generators import DummyInputGenerator
 from ..base import ExportConfig
 from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
-from .utils import ParameterFormat, compute_serialized_parameters_size
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
-
-if is_torch_available():
-    import torch
-
-if is_tf_available():
-    import tensorflow as tf
-
-if is_vision_available():
-    from PIL import Image
 
 logger = logging.get_logger(__name__)
 

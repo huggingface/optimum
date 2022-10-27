@@ -22,8 +22,6 @@ from transformers import AutoConfig, is_tf_available, is_torch_available
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
 
 from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithPast, export, validate_model_outputs
-from optimum.exporters.onnx.base import EXTERNAL_DATA_FORMAT_SIZE_LIMIT
-from optimum.exporters.onnx.utils import ParameterFormat, compute_serialized_parameters_size
 from parameterized import parameterized
 
 
@@ -112,22 +110,6 @@ class OnnxUtilsTestCase(TestCase):
     Covers all the utilities involved to export ONNX models.
     """
 
-    # @require_torch
-    # @patch("optimum.exporters.onnx.convert.is_torch_onnx_dict_inputs_support_available", return_value=False)
-    # def test_ensure_pytorch_version_ge_1_8_0(self, mock_is_torch_onnx_dict_inputs_support_available):
-    #     """
-    #     Ensures we raise an Exception if the pytorch version is unsupported (< 1.8.0).
-    #     """
-    #     self.assertRaises(AssertionError, export, None, None, None, None, None)
-    #     mock_is_torch_onnx_dict_inputs_support_available.assert_called()
-
-    def test_compute_parameters_serialized_size(self):
-        """
-        This test ensures we compute a "correct" approximation of the underlying storage requirement (size) for all the
-        parameters for the specified parameter's dtype.
-        """
-        self.assertEqual(compute_serialized_parameters_size(2, ParameterFormat.Float), 2 * ParameterFormat.Float.size)
-
     def test_flatten_output_collection_property(self):
         """
         This test ensures we correctly flatten nested collection such as the one we use when returning past_keys.
@@ -152,27 +134,7 @@ class OnnxConfigTestCase(TestCase):
     Default means no specific tasks is being enabled on the model.
     """
 
-    @patch.multiple(OnnxConfig, __abstractmethods__=set())
-    def test_use_external_data_format(self):
-        """
-        External data format is required only if the serialized size of the parameters if bigger than 2Gb.
-        """
-        TWO_GB_LIMIT = EXTERNAL_DATA_FORMAT_SIZE_LIMIT
-
-        # No parameters
-        self.assertFalse(OnnxConfig.use_external_data_format(0))
-
-        # Some parameters
-        self.assertFalse(OnnxConfig.use_external_data_format(1))
-
-        # Almost 2Gb parameters
-        self.assertFalse(OnnxConfig.use_external_data_format((TWO_GB_LIMIT - 1) // ParameterFormat.Float.size))
-
-        # Exactly 2Gb parameters
-        self.assertTrue(OnnxConfig.use_external_data_format(TWO_GB_LIMIT))
-
-        # More than 2Gb parameters
-        self.assertTrue(OnnxConfig.use_external_data_format((TWO_GB_LIMIT + 1) // ParameterFormat.Float.size))
+    # TODO: insert relevant tests here.
 
 
 class OnnxConfigWithPastTestCase(TestCase):
@@ -229,7 +191,11 @@ def _get_models_to_test(export_models_list):
     if is_torch_available() or is_tf_available():
         for name, model, *tasks in export_models_list:
             if tasks:
-                task_config_mapping = {task: TasksManager.get_config(name, "onnx", task) for _ in tasks for task in _}
+                task_config_mapping = {
+                    task: TasksManager.get_exporter_config_constructor(name, "onnx", task=task)
+                    for _ in tasks
+                    for task in _
+                }
             else:
                 task_config_mapping = TasksManager.get_supported_tasks_for_model_type(name, "onnx")
 
