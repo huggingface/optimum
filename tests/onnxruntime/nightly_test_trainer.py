@@ -23,7 +23,7 @@ from unittest.mock import Mock, patch
 
 import nltk
 import numpy as np
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
@@ -55,6 +55,8 @@ from transformers.trainer_utils import (
 )
 from transformers.training_args import OptimizerNames
 from transformers.utils import is_apex_available, is_bitsandbytes_available
+
+from evaluate import load
 
 
 if is_torch_available():
@@ -192,7 +194,7 @@ def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, paddin
 
     # Prepare dataset
     dataset = load_dataset(*data_metric_config["dataset"])
-    metric = load_metric(*data_metric_config["metric"])
+    metric = load(*data_metric_config["metric"])
 
     max_seq_length = min(max_seq_length, tokenizer.model_max_length)
 
@@ -234,7 +236,7 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
 
     # Load dataset and metric
     dataset = load_dataset(*data_metric_config["dataset"])
-    metric = load_metric(*data_metric_config["metric"])
+    metric = load(*data_metric_config["metric"])
     label_all_tokens = True
     task = "ner"
     label_list = dataset["train"].features[f"{task}_tags"].feature.names
@@ -326,7 +328,7 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
 
     # Load dataset and metric
     dataset = load_dataset(*data_metric_config["dataset"])
-    metric = load_metric(*data_metric_config["metric"])
+    metric = load(*data_metric_config["metric"])
 
     if model_name in ["t5-small", "t5-base", "t5-large", "t5-3b", "t5-11b"]:
         prefix = "summarize: "
