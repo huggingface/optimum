@@ -455,7 +455,7 @@ def main():
         # Exclude the nodes constituting GELU
         quantization_preprocessor.register_pass(ExcludeGeLUNodes())
         # Exclude the residual connection Add nodes
-        # quantization_preprocessor.register_pass(ExcludeNodeAfter("Add", "Add"))
+        quantization_preprocessor.register_pass(ExcludeNodeAfter("Add", "Add"))
         # Exclude the Add nodes following the Gather operator
         quantization_preprocessor.register_pass(ExcludeNodeAfter("Gather", "Add"))
         # Exclude the Add nodes followed by the Softmax operator
