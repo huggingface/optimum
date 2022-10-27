@@ -79,6 +79,17 @@ def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, op
 
         shutil.copyfile(html_path, new_path_in_optimum)
 
+        # Temporary hack to have a working URL to the former subpackage_index.html
+        if html_path.name == "index.html":
+            former_index_path = Path(
+                f"{optimum_path}/optimum/{version}/{language_folder}/{subpackage}_{html_path.name}"
+            )
+            with new_path_in_optimum.open("r") as html_file:
+                html_string = html_file.read()
+            with former_index_path.open("w") as html_file:
+                # Copy the content of index.html and update the relative links
+                html_file.write(html_string.replace('href="./', f'href="./{subpackage}/'))
+
 
 def main():
     args = parser.parse_args()
