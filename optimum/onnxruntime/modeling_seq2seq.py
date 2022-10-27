@@ -617,7 +617,7 @@ class ORTEncoder:
         if self._device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask)
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
@@ -873,7 +873,7 @@ class ORTDecoder:
                 input_ids, encoder_hidden_states, encoder_attention_mask, past_key_values, labels
             )
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()

@@ -537,7 +537,7 @@ class ORTModelForFeatureExtraction(ORTModel):
                 input_ids, attention_mask, token_type_ids
             )
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
@@ -716,7 +716,7 @@ class ORTModelForQuestionAnswering(ORTModel):
                 input_ids, attention_mask, token_type_ids
             )
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
@@ -906,7 +906,7 @@ class ORTModelForSequenceClassification(ORTModel):
                 input_ids, attention_mask, token_type_ids
             )
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
@@ -1076,7 +1076,7 @@ class ORTModelForTokenClassification(ORTModel):
                 input_ids, attention_mask, token_type_ids
             )
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
@@ -1238,7 +1238,7 @@ class ORTModelForMultipleChoice(ORTModel):
                 input_ids, attention_mask, token_type_ids
             )
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
@@ -1397,7 +1397,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask)
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
@@ -1559,7 +1559,7 @@ class ORTModelForImageClassification(ORTModel):
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(pixel_values)
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
