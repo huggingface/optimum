@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
@@ -263,14 +264,14 @@ class OnnxExportTestCase(TestCase):
         ):
             model.config.pad_token_id = 0
 
-        # if is_torch_available():
-        #     from transformers.utils import torch_version
+        if is_torch_available():
+            from transformers.utils import torch_version
 
-        #     if torch_version < onnx_config.torch_onnx_minimum_version:
-        #         pytest.skip(
-        #             "Skipping due to incompatible PyTorch version. Minimum required is"
-        #             f" {onnx_config.torch_onnx_minimum_version}, got: {torch_version}"
-        #         )
+            if torch_version < onnx_config.torch_onnx_minimum_version:
+                pytest.skip(
+                    "Skipping due to incompatible PyTorch version. Minimum required is"
+                    f" {onnx_config.torch_onnx_minimum_version}, got: {torch_version}"
+                )
 
         with NamedTemporaryFile("w") as output:
             try:
