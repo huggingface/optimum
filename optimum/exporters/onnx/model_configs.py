@@ -186,10 +186,36 @@ class BloomOnnxConfig(DecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
+class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        encoder_shape = (
+            self.batch_size,
+            self.normalized_config.encoder_num_attention_heads,
+            self.encoder_sequence_length,
+            self.normalized_config.key_value_dim,
+        )
+        decoder_shape = (
+            self.batch_size,
+            self.normalized_config.decoder_num_attention_heads,
+            self.sequence_length,
+            self.normalized_config.key_value_dim,
+        )
+        return [
+            (
+                self.random_float_tensor(decoder_shape, framework=framework),
+                self.random_float_tensor(decoder_shape, framework=framework),
+                self.random_float_tensor(encoder_shape, framework=framework),
+                self.random_float_tensor(encoder_shape, framework=framework),
+            )
+            for _ in range(self.normalized_config.decoder_num_layers)
+        ]
+
+
 class T5OnnxConfig(Seq2SeqOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
+    DUMMY_INPUT_GENERATOR_CLASSES = Seq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (T5DummySeq2SeqPastKeyValuesGenerator,)
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
-        num_attention_heads="num_heads", decoder_num_layers="num_decoder_layers"
+        hidden_size="d_model", num_attention_heads="num_heads", encoder_num_layers="num_layers", decoder_num_layers="num_decoder_layers", key_value_dim="d_kv", allow_new=True
     )
 
 

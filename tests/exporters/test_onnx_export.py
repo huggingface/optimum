@@ -80,7 +80,8 @@ PYTORCH_EXPORT_MODELS = {
     ("mbart", "sshleifer/tiny-mbart"),
     ("t5", "t5-small"),
     ("marian", "Helsinki-NLP/opus-mt-en-de"),
-    ("mt5", "google/mt5-small"),
+    # Not using google/mt5-small because it takes too much time for testing.
+    ("mt5", "hf-internal-testing/tiny-random-mt5"),
     # Not using facebook/m2m100_418M because it takes too much time for testing.
     ("m2m-100", "hf-internal-testing/tiny-random-m2m_100"),
     ("blenderbot-small", "facebook/blenderbot_small-90M"),
