@@ -95,8 +95,7 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
         mapping[backend] = {}
         for task in supported_tasks:
             if "-with-past" in task:
-                task = task.replace("-with-past", "")
-                mapping[backend][task] = partial(config_cls.with_past, task=task)
+                mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
             else:
                 mapping[backend][task] = partial(config_cls, task=task)
 

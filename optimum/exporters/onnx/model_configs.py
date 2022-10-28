@@ -151,11 +151,6 @@ class GPTJOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-# TODO: validate that.
-class BloomOnnxConfig(GPT2OnnxConfig):
-    pass
-
-
 class CodeGenOnnxConfig(GPT2OnnxConfig):
     pass
 
@@ -163,6 +158,32 @@ class CodeGenOnnxConfig(GPT2OnnxConfig):
 class GPTNeoOnnxConfig(DecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
+
+
+class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        past_key_shape = (
+            self.batch_size * self.num_attention_heads,
+            self.hidden_size // self.num_attention_heads,
+            self.sequence_length,
+        )
+        past_value_shape = (
+            self.batch_size * self.num_attention_heads,
+            self.sequence_length,
+            self.hidden_size // self.num_attention_heads,
+        )
+        return [
+            (
+                self.random_float_tensor(past_key_shape, framework=framework),
+                self.random_float_tensor(past_value_shape, framework=framework),
+            )
+            for _ in range(self.num_layers)
+        ]
+
+
+class BloomOnnxConfig(DecoderOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (BloomDummyPastKeyValuesGenerator,) + DecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
 class T5OnnxConfig(Seq2SeqOnnxConfig):
