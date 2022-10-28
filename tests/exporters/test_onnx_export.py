@@ -90,9 +90,6 @@ PYTORCH_EXPORT_MODELS = {
     ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
     # Not using google/long-t5-local-base because it takes too much time for testing.
     ("longt5", "hf-internal-testing/tiny-random-longt5"),
-    # Disable for now as it causes fatal error `Floating point exception (core dumped)` and the subsequential tests are
-    # not run.
-    # ("longt5", "google/long-t5-tglobal-base"),
 }
 
 
