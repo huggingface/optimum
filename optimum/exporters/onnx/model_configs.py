@@ -229,7 +229,7 @@ class T5OnnxConfig(Seq2SeqOnnxConfig):
 
 
 class MT5OnnxConfig(T5OnnxConfig):
-    pass
+    ATOL_FOR_VALIDATION = 1e-4
 
 
 class LongT5OnnxConfig(T5OnnxConfig):

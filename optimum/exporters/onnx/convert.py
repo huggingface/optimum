@@ -89,6 +89,7 @@ def export_pytorch(
         the ONNX configuration.
     """
     import torch
+    from torch.utils._pytree import tree_map
     from torch.onnx import export as onnx_export
 
     logger.info(f"Using framework PyTorch: {torch.__version__}")
@@ -109,7 +110,7 @@ def export_pytorch(
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
-            dummy_inputs = {k: v.to(device) for k, v in dummy_inputs.items()}
+            dummy_inputs = tree_map(lambda value: value.to(device), dummy_inputs)
         check_dummy_inputs_are_allowed(model, dummy_inputs)
         inputs = config.ordered_inputs(model)
         input_names = list(inputs.keys())

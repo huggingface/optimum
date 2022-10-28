@@ -39,11 +39,13 @@ PYTORCH_EXPORT_MODELS = {
     ("convbert", "YituTech/conv-bert-base"),
     # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
     ("codegen", "hf-internal-testing/tiny-random-codegen"),
-    ("deberta", "microsoft/deberta-base"),
+    # Not using microsoft/deberta-base because it takes too much time for testing.
+    ("deberta", "hf-internal-testing/tiny-random-deberta"),
     # Not using microsoft/deberta-v2-xlarge because it takes too much time for testing.
     ("deberta-v2", "hf-internal-testing/tiny-random-deberta-v2"),
     ("convnext", "facebook/convnext-tiny-224"),
-    ("detr", "facebook/detr-resnet-50"),
+    # Not using facebook/detr-resnet-50 because it takes too much time for testing.
+    ("detr", "hf-internal-testing/tiny-random-detr"),
     ("distilbert", "distilbert-base-cased"),
     ("electra", "google/electra-base-generator"),
     ("resnet", "microsoft/resnet-50"),
@@ -53,7 +55,8 @@ PYTORCH_EXPORT_MODELS = {
     ("mobilebert", "google/mobilebert-uncased"),
     ("mobilevit", "apple/mobilevit-small"),
     ("xlm", "xlm-clm-ende-1024"),
-    ("xlm-roberta", "xlm-roberta-base"),
+    # Not using xlm-roberta-base because it takes too much time for testing.
+    ("xlm-roberta", "Unbabel/xlm-roberta-comet-small"),
     ("layoutlm", "microsoft/layoutlm-base-uncased"),
     # ("layoutlmv2", "microsoft/layoutlmv2-base-uncased"),
     ("layoutlmv3", "microsoft/layoutlmv3-base"),
@@ -65,8 +68,10 @@ PYTORCH_EXPORT_MODELS = {
     ("beit", "microsoft/beit-base-patch16-224"),
     ("data2vec-text", "facebook/data2vec-text-base"),
     ("data2vec-vision", "facebook/data2vec-vision-base"),
-    ("perceiver", "deepmind/language-perceiver", ("masked-lm", "sequence-classification")),
-    ("perceiver", "deepmind/vision-perceiver-conv", ("image-classification",)),
+    # Not using deepmind/language-perceiver because it takes too much time for testing.
+    ("perceiver", "hf-internal-testing/tiny-random-language_perceiver", ("masked-lm", "sequence-classification")),
+    # Not using deepmind/vision-perceiver-conv because it takes too much time for testing.
+    ("perceiver", "hf-internal-testing/tiny-random-vision_perceiver_conv", ("image-classification",)),
     # TODO: longformer
     # ("longformer", "allenai/longformer-base-4096"),
     ("yolos", "hustvl/yolos-tiny"),
@@ -81,11 +86,12 @@ PYTORCH_EXPORT_MODELS = {
     ("t5", "t5-small"),
     ("marian", "Helsinki-NLP/opus-mt-en-de"),
     # Not using google/mt5-small because it takes too much time for testing.
-    ("mt5", "hf-internal-testing/tiny-random-mt5"),
+    ("mt5", "lewtun/tiny-random-mt5"),
     # Not using facebook/m2m100_418M because it takes too much time for testing.
     ("m2m-100", "hf-internal-testing/tiny-random-m2m_100"),
     ("blenderbot-small", "facebook/blenderbot_small-90M"),
-    ("blenderbot", "facebook/blenderbot-400M-distill"),
+    # Not using facebook/blenderbot-400M-distill because it takes too much time for testing, and might cause OOM.
+    ("blenderbot", "hf-internal-testing/tiny-random-blenderbot"),
     # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
     ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
     # Not using google/long-t5-local-base because it takes too much time for testing.

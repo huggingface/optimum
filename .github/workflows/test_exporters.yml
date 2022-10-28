@@ -27,7 +27,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        pip install .[tests,onnxruntime] tensorflow tf2onnx
+        pip install .[tests,exporters-tf]
     - name: Test with unittest
       working-directory: tests
       run: |
