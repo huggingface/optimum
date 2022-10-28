@@ -89,8 +89,8 @@ def export_pytorch(
         the ONNX configuration.
     """
     import torch
-    from torch.utils._pytree import tree_map
     from torch.onnx import export as onnx_export
+    from torch.utils._pytree import tree_map
 
     logger.info(f"Using framework PyTorch: {torch.__version__}")
 
