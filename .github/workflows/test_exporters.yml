@@ -31,4 +31,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        RUN_SLOW=1 python -m unittest discover -s exporters -p 'test_*.py'
+        RUN_SLOW=1 pytest "exporters/test_*.py" --durations=0

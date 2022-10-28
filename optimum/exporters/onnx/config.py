@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Common ONNX configuration classes that handle most of features for building model specific configurations."""
+"""Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
 from typing import Mapping
 
