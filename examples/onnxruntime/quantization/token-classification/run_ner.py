@@ -31,12 +31,13 @@ from typing import Optional
 import datasets
 import numpy as np
 import transformers
-from datasets import ClassLabel, load_dataset, load_metric
+from datasets import ClassLabel, load_dataset
 from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
 from transformers.onnx import FeaturesManager
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from evaluate import load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
@@ -413,7 +414,7 @@ def main():
         return tokenized_inputs
 
     # Metrics
-    metric = load_metric("seqeval")
+    metric = load("seqeval")
 
     def compute_metrics(p):
         predictions, labels = p

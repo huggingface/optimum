@@ -110,7 +110,13 @@ class ORTModel(OptimizedModel):
     base_model_prefix = "onnx_model"
     auto_model_class = AutoModel
 
-    def __init__(self, model: ort.InferenceSession = None, config=None, use_io_binding: bool = True, **kwargs):
+    def __init__(
+        self,
+        model: ort.InferenceSession = None,
+        config: PretrainedConfig = None,
+        use_io_binding: bool = True,
+        **kwargs
+    ):
         self.model = model
         self.config = config
         self.use_io_binding = use_io_binding
@@ -308,11 +314,10 @@ class ORTModel(OptimizedModel):
                 kwargs will be passed to the model during initialization
         """
         local_files_only = kwargs.pop("local_files_only", False)
-        config_dict = kwargs.pop("config", {})
+        config = kwargs.pop("config", {})
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
         # load model from local directory
         if os.path.isdir(model_id):
-            config = PretrainedConfig.from_dict(config_dict)
             model = ORTModel.load_model(os.path.join(model_id, model_file_name), **kwargs)
             kwargs["model_save_dir"] = Path(model_id)
             kwargs["latest_model_name"] = model_file_name
@@ -331,7 +336,6 @@ class ORTModel(OptimizedModel):
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
             model = ORTModel.load_model(model_cache_path, **kwargs)
-            config = PretrainedConfig.from_dict(config_dict)
 
         return cls(model=model, config=config, **kwargs)
 
@@ -396,7 +400,7 @@ class ORTModel(OptimizedModel):
             opset=onnx_config.default_onnx_opset,
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
-        kwargs["config"] = model.config.__dict__
+        kwargs["config"] = model.config
         # 3. load normal model
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
