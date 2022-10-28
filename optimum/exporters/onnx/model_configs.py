@@ -182,7 +182,9 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
 
 
 class BloomOnnxConfig(DecoderOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (BloomDummyPastKeyValuesGenerator,) + DecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        BloomDummyPastKeyValuesGenerator,
+    ) + DecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
@@ -213,9 +215,16 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
 
 class T5OnnxConfig(Seq2SeqOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    DUMMY_INPUT_GENERATOR_CLASSES = Seq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (T5DummySeq2SeqPastKeyValuesGenerator,)
+    DUMMY_INPUT_GENERATOR_CLASSES = Seq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
+        T5DummySeq2SeqPastKeyValuesGenerator,
+    )
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
-        hidden_size="d_model", num_attention_heads="num_heads", encoder_num_layers="num_layers", decoder_num_layers="num_decoder_layers", key_value_dim="d_kv", allow_new=True
+        hidden_size="d_model",
+        num_attention_heads="num_heads",
+        encoder_num_layers="num_layers",
+        decoder_num_layers="num_decoder_layers",
+        key_value_dim="d_kv",
+        allow_new=True,
     )
 
 
