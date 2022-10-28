@@ -13,3 +13,4 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 from . import optimization, quantization
+from .modeling_fx import FXModel, wrap_fx_model
