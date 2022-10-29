@@ -15,18 +15,25 @@ from . import bert
 
 
 FAST_LAYERS_MAPPING_DICT = {
+    # Bert Family
     "BertLayer": bert.BertLayerFast,
     "ElectraLayer": bert.BertLayerFast,
     "Data2VecTextLayer": bert.BertLayerFast,
     "CamembertLayer": bert.BertLayerFast,
     "MarkupLMLayer": bert.BertLayerFast,
-    "RealmLayer": bert.BertLayerFast,
     "RobertaLayer": bert.BertLayerFast,
     "SplinterLayer": bert.BertLayerFast,
-    "QDQBertLayer": bert.BertLayerFast,
     "ErnieLayer": bert.BertLayerFast,
     "LayoutLMLayer": bert.BertLayerFast,
     "BertGenerationLayer": bert.BertLayerFast,
+    "RobertaLayer": bert.BertLayerFast,
+    "Data2VecTextLayer": bert.BertLayerFast,
+    "XLMRobertaLayer": bert.BertLayerFast,
+    # TODO: Bart family
+    # TODO: T5 family
+    # Some models cannot be tested such as:
+    # "QDQBertLayer": bert.BertLayerFast, --> needs torch quantization
+    # "RealmLayer": bert.BertLayerFast, --> not mapped in AutoModel
 }
 
 
