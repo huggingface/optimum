@@ -52,11 +52,9 @@ from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.22.0")
+check_min_version("4.23.0")
 
-require_version(
-    "datasets>=1.8.0", "To fix: pip install -r examples/onnxruntime/training/language-modeling/requirements.txt"
-)
+require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
 
 logger = logging.getLogger(__name__)
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_MASKED_LM_MAPPING.keys())

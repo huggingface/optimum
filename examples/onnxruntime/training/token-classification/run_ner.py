@@ -23,7 +23,6 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
 
 import datasets
@@ -50,11 +49,9 @@ from optimum.onnxruntime.training_args import ORTTrainingArguments
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.22.0")
+check_min_version("4.23.0")
 
-require_version(
-    "datasets>=1.18.0", "To fix: pip install -r examples/onnxruntime/training/token-classification/requirements.txt"
-)
+require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +134,10 @@ class DataTrainingArguments:
     max_seq_length: int = field(
         default=None,
         metadata={
-            "help": "The maximum total input sequence length after tokenization. If set, sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
+            "help": (
+                "The maximum total input sequence length after tokenization. If set, sequences longer "
+                "than this will be truncated, sequences shorter will be padded."
+            )
         },
     )
     pad_to_max_length: bool = field(

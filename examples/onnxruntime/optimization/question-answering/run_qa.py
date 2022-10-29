@@ -29,11 +29,12 @@ from typing import Optional
 
 import datasets
 import transformers
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from evaluate import load
 from optimum.onnxruntime import ORTModelForQuestionAnswering, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.model import ORTModel
@@ -430,7 +431,7 @@ def main():
             references = [{"id": ex["id"], "answers": ex[answer_column_name]} for ex in examples]
             return EvalPrediction(predictions=formatted_predictions, label_ids=references)
 
-        metric = load_metric("squad_v2" if data_args.version_2_with_negative else "squad")
+        metric = load("squad_v2" if data_args.version_2_with_negative else "squad")
 
         def compute_metrics(p: EvalPrediction):
             return metric.compute(predictions=p.predictions, references=p.label_ids)

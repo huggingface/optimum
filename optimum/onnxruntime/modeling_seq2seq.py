@@ -20,7 +20,7 @@ from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple, 
 
 import torch
 import transformers
-from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer, PretrainedConfig
+from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
@@ -40,6 +40,7 @@ from .utils import (
     _is_gpu_available,
     get_device_for_provider,
     get_provider_for_device,
+    parse_device,
 )
 
 
@@ -215,7 +216,7 @@ class ORTModelForConditionalGeneration(ORTModel):
             session_options (`onnxruntime.SessionOptions`, *optional*),:
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
             provider_options (`Dict`, **optional**):
-                Provider option dictionaries corresponding to the provider used. See available options
+                Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
         available_providers = onnxruntime.get_available_providers()
@@ -224,15 +225,20 @@ class ORTModelForConditionalGeneration(ORTModel):
                 f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
             )
 
+        providers = [provider]
+        if provider == "TensorrtExecutionProvider":
+            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
+            providers.append("CUDAExecutionProvider")
+
         encoder_session = onnxruntime.InferenceSession(
             str(encoder_path),
-            providers=[provider],
+            providers=providers,
             sess_options=session_options,
             provider_options=None if provider_options is None else [provider_options],
         )
         decoder_session = onnxruntime.InferenceSession(
             str(decoder_path),
-            providers=[provider],
+            providers=providers,
             sess_options=session_options,
             provider_options=None if provider_options is None else [provider_options],
         )
@@ -243,7 +249,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         if decoder_with_past_path is not None:
             decoder_with_past_session = onnxruntime.InferenceSession(
                 str(decoder_with_past_path),
-                providers=[provider],
+                providers=providers,
                 sess_options=session_options,
                 provider_options=None if provider_options is None else [provider_options],
             )
@@ -336,8 +342,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         """
         use_cache = kwargs.pop("use_cache", True)
         local_files_only = kwargs.pop("local_files_only", False)
-        config_dict = kwargs.pop("config", {})
-        config = PretrainedConfig.from_dict(config_dict)
+        config = kwargs.pop("config", {})
         encoder_file_name = encoder_file_name or ONNX_ENCODER_NAME
         decoder_file_name = decoder_file_name or ONNX_DECODER_NAME
         decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
@@ -471,26 +476,31 @@ class ORTModelForConditionalGeneration(ORTModel):
                 output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
             )
 
-        kwargs["config"] = model.config.__dict__
+        kwargs["config"] = model.config
         return cls._from_pretrained(save_dir, **kwargs)
 
-    def to(self, device):
+    def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
-        """
-        # convert string device input (ie. "cuda") to torch.device
-        if type(device) == str:
-            device = torch.device(device)
 
-        self.device = device
+        Arguments:
+            device (`torch.device` or `str` or `int`):
+                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
+                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
+
+        Returns:
+            `ORTModel`: the model placed on the requested device.
+        """
+        device, provider_options = parse_device(device)
+
         provider = get_provider_for_device(device)
         self.encoder._device = device
-        self.encoder.session.set_providers([provider])
+        self.encoder.session.set_providers([provider], provider_options=[provider_options])
         self.decoder._device = device
-        self.decoder.session.set_providers([provider])
+        self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
             self.decoder_with_past._device = device
-            self.decoder_with_past.session.set_providers([provider])
+            self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         return self
 
 
