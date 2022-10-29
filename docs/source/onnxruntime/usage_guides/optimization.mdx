@@ -115,6 +115,7 @@ In the optimization configuration, there are 4 possible optimization levels:
 - `optimization_level=1` to enable basic optimizations such as constant folding or redundant node eliminations,
 - `optimization_level=2` to enable extended graph optimizations such as node fusions,
 - `optimization_level=99` to enable data layout optimizations.
+
 Choosing a level enables the optimizations of that level, as well as the optimizations of all preceding levels.
 More information [here](https://onnxruntime.ai/docs/performance/graph-optimizations.html).
 
@@ -127,4 +128,4 @@ Here is the list of all the operator fusions you can enable:
 - Add Bias and SkipLayerNormalization fusion with `disable_bias_skip_layer_norm_fusion=False`,
 - Add Bias and Gelu / FastGelu fusion with `disable_bias_gelu_fusion=False`.
 
-All other optimization configuration options are detailed [here](`OptimizationConfig`).
+All other optimization configuration options are detailed here: [`OptimizationConfig`].
