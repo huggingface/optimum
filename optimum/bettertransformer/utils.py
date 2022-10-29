@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
 from contextlib import contextmanager
 
 from packaging import version
@@ -31,3 +32,7 @@ def check_if_pytorch_greater_112():
         yield
     finally:
         pass
+
+
+def is_accelerate_available():
+    return importlib.util.find_spec("accelerate") is not None

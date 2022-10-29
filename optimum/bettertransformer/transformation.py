@@ -16,7 +16,26 @@ from copy import deepcopy
 import torch
 
 from .models import is_module_fast
-from .utils import check_if_pytorch_greater_112
+from .utils import check_if_pytorch_greater_112, is_accelerate_available
+
+
+if is_accelerate_available():
+    from accelerate.hooks import attach_align_device_hook_on_blocks, remove_hook_from_submodules
+
+
+def init_accelerate_hooks(slow_module, fast_module):
+    r"""
+    This will initilialize `accelerate` hooks into the `Fast` module.
+    """
+    if (not is_accelerate_available()) or (not hasattr(slow_module, "_hf_hook")):
+        return fast_module
+
+    # Delete the previous hook
+    remove_hook_from_submodules(fast_module)
+
+    exec_hook_dict = {fast_module.__class__.__name__: str(slow_module._hf_hook.execution_device)}
+
+    attach_align_device_hook_on_blocks(fast_module, exec_hook_dict)
 
 
 @check_if_pytorch_greater_112()
@@ -64,7 +83,12 @@ class BetterTransformer(object):
                 class_name = module.__class__.__name__
                 maybe_fast_module = is_module_fast(class_name)
                 if not isinstance(maybe_fast_module, bool):
-                    model._modules[name] = maybe_fast_module(module)
+                    fast_module = maybe_fast_module(module)
+
+                    if is_accelerate_available():
+                        init_accelerate_hooks(module, fast_module)
+
+                    model._modules[name] = fast_module
             return model
 
         if keep_original_model:
@@ -99,9 +123,9 @@ class BetterTransformer(object):
         successfully_converted_model = set_last_layer(model_fast)
         if not successfully_converted_model:
             raise NotImplementedError(
-                "The Better Transformers implementation for the model {model.__class__.__name__} has not been"
-                "implemented yet. Please open an issue requesting the addition of this model with its `Fast`"
-                "implementation."
+                f"The Better Transformers implementation for the model {model.__class__.__name__} has not been"
+                f"implemented yet. Please open an issue requesting the addition of this model with its `Fast`"
+                f"implementation."
             )
 
         # Step 6: Add a class arguments, we might need to identify whether the model

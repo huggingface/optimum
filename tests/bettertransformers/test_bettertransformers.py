@@ -17,10 +17,15 @@ import unittest
 
 import torch
 import transformers
-from transformers import AutoModel
+from transformers import AutoModel, pipeline
 
 from optimum.bettertransformer import FAST_LAYERS_MAPPING_DICT, BetterTransformer, convert_to_hf_classes
-from optimum.utils.testing_utils import is_accelerate_available
+from optimum.utils.testing_utils import (
+    is_accelerate_available,
+    is_torch_greater_than_113,
+    require_accelerate,
+    require_torch_gpu,
+)
 
 
 if is_accelerate_available():
@@ -37,8 +42,6 @@ class BetterTransformersTest(unittest.TestCase):
     in HuggingFace `transformers` library.
     - if the converted model produces the same logits as the original model.
     - if the converted model is faster than the original model.
-
-
     """
 
     def test_dict_consistency(self):
@@ -115,6 +118,7 @@ class BetterTransformersTest(unittest.TestCase):
                     ),
                 )
 
+    @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
     def test_inference_speed(self):
         r"""
         The converted models should be at least slightly faster than the native
@@ -127,10 +131,10 @@ class BetterTransformersTest(unittest.TestCase):
         hf_model = AutoModel.from_pretrained(model_name).eval()
         bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
-        BATCH_SIZE = 32
-        SEQ_LEN = 128
-        MAX_SEQ_LEN = 256
-        STD_SEQ_LEN = 60  # let's take a large sequence length
+        BATCH_SIZE = 1
+        SEQ_LEN = 16
+        MAX_SEQ_LEN = 32
+        STD_SEQ_LEN = 10  # let's take a large sequence length standard deviation
         VOCAB_SIZE = 50
         N_REPEAT = 10
 
@@ -139,6 +143,11 @@ class BetterTransformersTest(unittest.TestCase):
         mean_hf_time = 0
         mean_bt_time = 0
 
+        # warmup hf_model
+        _ = hf_model(input_ids, attention_mask=attention_mask)
+        # warmup bt_model
+        _ = bt_model(input_ids, attention_mask=attention_mask)
+
         for _ in range(N_REPEAT):
             mean_hf_time += timeit.timeit(lambda: hf_model(input_ids, attention_mask=attention_mask), number=1)
             mean_bt_time += timeit.timeit(lambda: bt_model(input_ids, attention_mask=attention_mask), number=1)
@@ -146,23 +155,86 @@ class BetterTransformersTest(unittest.TestCase):
         mean_hf_time /= N_REPEAT
         mean_bt_time /= N_REPEAT
 
-        self.assertLess(
-            mean_bt_time, mean_hf_time, "The converted model is slower than the original model. Failed for the model"
-        )
+        self.assertLess(mean_bt_time, mean_hf_time, "The converted model is slower than the original model.")
 
     def test_class_functions(self):
         r"""
         This test runs class functions such as `generate` and checks if the
         function works as expected.
         """
-        pass
 
-    def test_accelerate_compatibility(self):
+    @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
+    @require_torch_gpu
+    @require_accelerate
+    def test_accelerate_compatibility_cpu_gpu(self):
         r"""
         This tests if a model loaded with `accelerate` will be successfully converted
         into its BetterTransformers format.
+
+        If this works for roberta, it should work for all other models too.
         """
-        pass
+        max_memory = {0: "1GB", "cpu": "3GB"}
+        # max_memory = {0:"800MB", 1:"1100MB"}
+
+        hf_model = AutoModel.from_pretrained("xlm-roberta-base", device_map="auto", max_memory=max_memory)
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
+
+        inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
+        attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
+
+        # Check that the model has been dispatched on CPU and GPU
+        self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0, "cpu"]))
+        # self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0, 1]))
+
+        # Check that the model has weights on GPU and CPU
+        self.assertEqual(bt_model.encoder.layer[0].in_proj_weight.device, torch.device("cuda:0"))
+        # TODO: check with @sgugger why the last devices are on meta?? And the forward pass works
+
+        # Forward pass should work
+        output_bt = bt_model(inputs_ids, attention_mask)
+        output_hf = hf_model(inputs_ids, attention_mask)
+
+        # Assert that the output has been correctly set to the CPU!
+        self.assertEqual(output_bt[0].device, torch.device("cpu"))
+
+        # Final step: check the logits
+        self.assertTrue(torch.allclose(output_bt[0], output_hf[0]))
+
+    @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
+    @require_torch_gpu
+    @require_accelerate
+    def test_accelerate_compatibility_single_gpu(self):
+        r"""
+        This tests if a model loaded with `accelerate` will be successfully converted
+        into its BetterTransformers format.
+
+        If this works for roberta, it should work for all other models too.
+        """
+        max_memory = {0: "2GB"}
+
+        hf_model = AutoModel.from_pretrained("xlm-roberta-base", device_map="auto", max_memory=max_memory)
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
+
+        inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
+        attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
+
+        # Check that the model has been dispatched on CPU and GPU
+        self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0]))
+        # self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0, 1]))
+
+        # Check that the model has weights on GPU and CPU
+        self.assertEqual(bt_model.encoder.layer[0].in_proj_weight.device, torch.device("cuda:0"))
+        # TODO: check with @sgugger why the last devices are on meta?? And the forward pass works
+
+        # Forward pass should work
+        output_bt = bt_model(inputs_ids, attention_mask)
+        output_hf = hf_model(inputs_ids, attention_mask)
+
+        # Assert that the output has been correctly set to the CPU!
+        self.assertEqual(output_bt[0].device, torch.device("cpu"))
+
+        # Final step: check the logits
+        self.assertTrue(torch.allclose(output_bt[0], output_hf[0]))
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
@@ -189,7 +261,6 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
         (batch_size, max_sequence_length),
         0,
     )
-    lengths[0] = max_sequence_length
     for i in range(batch_size):
         mask[i, : lengths[i]] = 1
     return tokens, lengths, mask
