@@ -242,7 +242,7 @@ class ORTOptimizer:
         """
         Parses fusion options in the optimization configuration.
         This is needed because we do not use the same option names as
-        ONNX Runtime because they are misleading.
+        ONNX Runtime because they can be misleading.
 
         Args:
             optimization_config (`OptimizationConfig`): optimization configuration.

@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import os
+import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -652,18 +653,56 @@ class OptimizationConfig:
     optimization_level: int = 1
     optimize_for_gpu: bool = False
     fp16: bool = False
-    fuse_operators: bool = True
-    disable_gelu_fusion: bool = False
-    disable_layer_norm_fusion: bool = False
-    disable_attention_fusion: bool = False
-    disable_skip_layer_norm_fusion: bool = False
-    disable_bias_skip_layer_norm_fusion: bool = False
-    disable_bias_gelu_fusion: bool = False
     enable_gelu_approximation: bool = False
     use_mask_index: bool = False
     no_attention_mask: bool = False
-    disable_embed_layer_norm_fusion: bool = True
     disable_shape_inference: bool = False
+
+    # TODO: for all couples of fields below, remove the second one in a future release
+    fuse_operators: bool = True
+    optimize_with_onnxruntime_only: bool = False
+
+    disable_gelu_fusion: bool = False
+    disable_gelu: bool = False
+
+    disable_layer_norm_fusion: bool = False
+    disable_layer_norm: bool = False
+
+    disable_attention_fusion: bool = False
+    disable_attention: bool = False
+
+    disable_skip_layer_norm_fusion: bool = False
+    disable_skip_layer_norm: bool = False
+
+    disable_bias_skip_layer_norm_fusion: bool = False
+    disable_bias_skip_layer_norm: bool = False
+
+    disable_bias_gelu_fusion: bool = False
+    disable_bias_gelu: bool = False
+
+    disable_embed_layer_norm_fusion: bool = False
+    disable_embed_layer_norm: bool = True
+
+    def __post_init__(self):
+        old_to_new_fields_mapping = {
+            "optimize_with_onnxruntime_only": "fuse_operators",
+            "disable_gelu": "disable_gelu_fusion",
+            "disable_layer_norm": "disable_layer_norm_fusion",
+            "disable_attention": "disable_attention_fusion",
+            "disable_skip_layer_norm": "disable_skip_layer_norm_fusion",
+            "disable_bias_skip_layer_norm": "disable_bias_skip_layer_norm_fusion",
+            "disable_bias_gelu": "disable_bias_gelu_fusion",
+            "disable_embed_layer_norm": "disable_embed_layer_norm_fusion",
+        }
+
+        for old_field, new_field in old_to_new_fields_mapping.items():
+            if getattr(self, old_field):
+                new_field_value = False if old_field == "optimize_with_onnxruntime_only" else True
+                setattr(self, new_field, new_field_value)
+                warnings.warn(
+                    f"The optimization configuration field `{old_field}` is deprecated and will be removed in a future version. Use `{new_field}` instead. Setting `{new_field}={new_field_value}`.",
+                    FutureWarning,
+                )
 
 
 class ORTConfig(BaseConfig):
