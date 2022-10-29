@@ -680,8 +680,10 @@ class OptimizationConfig:
     disable_bias_gelu_fusion: bool = False
     disable_bias_gelu: bool = False
 
-    disable_embed_layer_norm_fusion: bool = False
-    disable_embed_layer_norm: bool = True
+    # Setting disable_embed_layer_norm to False to avoid the deprecation warning by default
+    # Only disable_embed_layer_norm_fusion sets the actual value anyway
+    disable_embed_layer_norm_fusion: bool = True
+    disable_embed_layer_norm: bool = False
 
     def __post_init__(self):
         old_to_new_fields_mapping = {
