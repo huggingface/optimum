@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from . import bert
+from . import bert, distilbert
 
 
 FAST_LAYERS_MAPPING_DICT = {
@@ -34,6 +34,7 @@ FAST_LAYERS_MAPPING_DICT = {
     # Some models cannot be tested such as:
     # "QDQBertLayer": bert.BertLayerFast, --> needs torch quantization
     # "RealmLayer": bert.BertLayerFast, --> not mapped in AutoModel
+    "DistilBertLayer": distilbert.DistilBertLayerFast,
 }
 
 
