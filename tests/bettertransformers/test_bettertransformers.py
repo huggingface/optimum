@@ -70,7 +70,11 @@ class BetterTransformersTest(unittest.TestCase):
         ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(FAST_LAYERS_MAPPING_DICT)
 
         for layer_class in FAST_LAYERS_MAPPING_DICT.keys():
-            random_config = getattr(transformers, layer_class[:-5] + "Config")
+            if "EncoderLayer" in layer_class:
+                class_name = layer_class[:-12]
+            else:
+                class_name = layer_class[:-5]
+            random_config = getattr(transformers, class_name + "Config")
 
             hf_random_model = AutoModel.from_config(random_config())
             converted_model = BetterTransformer.transform(hf_random_model)
@@ -93,7 +97,11 @@ class BetterTransformersTest(unittest.TestCase):
         attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
 
         for layer_class in FAST_LAYERS_MAPPING_DICT.keys():
-            random_config = getattr(transformers, layer_class[:-5] + "Config")
+            if "EncoderLayer" in layer_class:
+                class_name = layer_class[:-12]
+            else:
+                class_name = layer_class[:-5]
+            random_config = getattr(transformers, class_name + "Config")
 
             hf_random_model = AutoModel.from_config(random_config()).eval()
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
@@ -119,6 +127,7 @@ class BetterTransformersTest(unittest.TestCase):
                 )
 
     @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
+    @torch.no_grad()
     def test_inference_speed(self):
         r"""
         The converted models should be at least slightly faster than the native

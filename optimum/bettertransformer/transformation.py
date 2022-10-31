@@ -38,6 +38,65 @@ def init_accelerate_hooks(slow_module, fast_module):
     attach_align_device_hook_on_blocks(fast_module, exec_hook_dict)
 
 
+# Step 1: Recurse over the modules of the model
+# Step 2: Verify if the module `Fast` is present for that model
+# Step 3: If yes, replace the `...Layer` module with the `...LayerFast` modules
+# Step 4: If not, yield an error.
+def replace_to_fast(model):
+    r"""
+    Replaces the current model to its `Fast` implementation. Loops recursively into the model and replaces the
+    `Layer` modules with its `Fast` correspondant model
+
+    Args:
+        `model` (`torch.nn.Module`, **required**):
+            The input model to convert
+    Returns:
+        The converted model
+    """
+    for name, module in model.named_children():
+        if len(list(module.children())) > 0:
+            replace_to_fast(module)
+
+        if hasattr(module, "is_decoder"):
+            if module.is_decoder:
+                continue
+
+        class_name = module.__class__.__name__
+        maybe_fast_module = is_module_fast(class_name)
+        if not isinstance(maybe_fast_module, bool):
+            fast_module = maybe_fast_module(module)
+
+            # if is_accelerate_available():
+            #     init_accelerate_hooks(module, fast_module)
+
+            model._modules[name] = fast_module
+    return model
+
+
+# Step 5: Post process the potentially converted model by setting the `is_last_layer` attribute to `True`
+# For the last `Fast` layer.
+def set_last_layer(model):
+    r"""
+    Args:
+    Iterates over the module list containing the `LayerFast` modules. Sets the last layer's `is_last_layer`
+    attribute to `True`
+        `model` (`torch.nn.Module`, **required**):
+            The input converted model
+    Returns:
+        Returns `True` if it has succesfully set the attribute to `True`, otherwise return `False`.
+    """
+    dict_named_module = dict(model.named_modules())
+    sort_fn = lambda list_modules: [module.__class__.__name__ for module in list_modules]  # noqa: E731
+
+    for key in dict_named_module.keys():
+        if isinstance(dict_named_module[key], torch.nn.ModuleList) and all(
+            "LayerFast" in module_name for module_name in sort_fn(dict_named_module[key])
+        ):
+            setattr(dict_named_module[key][-1], "is_last_layer", True)
+            return True
+    return False
+
+
 @check_if_pytorch_greater_112()
 class BetterTransformer(object):
     r"""
@@ -61,64 +120,11 @@ class BetterTransformer(object):
                 whether to keep or override the original model - essentially
                 for memory efficiency reasons
         """
-        # Step 1: Recurse over the modules of the model
-        # Step 2: Verify if the module `Fast` is present for that model
-        # Step 3: If yes, replace the `...Layer` module with the `...LayerFast` modules
-        # Step 4: If not, yield an error.
-        def replace_to_fast(model):
-            r"""
-            Replaces the current model to its `Fast` implementation. Loops recursively into the model and replaces the
-            `Layer` modules with its `Fast` correspondant model
-
-            Args:
-                `model` (`torch.nn.Module`, **required**):
-                    The input model to convert
-            Returns:
-                The converted model
-            """
-            for name, module in model.named_children():
-                if len(list(module.children())) > 0:
-                    replace_to_fast(module)
-
-                class_name = module.__class__.__name__
-                maybe_fast_module = is_module_fast(class_name)
-                if not isinstance(maybe_fast_module, bool):
-                    fast_module = maybe_fast_module(module)
-
-                    if is_accelerate_available():
-                        init_accelerate_hooks(module, fast_module)
-
-                    model._modules[name] = fast_module
-            return model
-
         if keep_original_model:
             model_fast = deepcopy(model)
             model_fast = replace_to_fast(model_fast).eval()
         else:
             model_fast = replace_to_fast(model).eval()
-
-        # Step 5: Post process the potentially converted model by setting the `is_last_layer` attribute to `True`
-        # For the last `Fast` layer.
-        def set_last_layer(model):
-            r"""
-            Args:
-            Iterates over the module list containing the `LayerFast` modules. Sets the last layer's `is_last_layer`
-            attribute to `True`
-                `model` (`torch.nn.Module`, **required**):
-                    The input converted model
-            Returns:
-                Returns `True` if it has succesfully set the attribute to `True`, otherwise return `False`.
-            """
-            dict_named_module = dict(model.named_modules())
-            sort_fn = lambda list_modules: [module.__class__.__name__ for module in list_modules]  # noqa: E731
-
-            for key in dict_named_module.keys():
-                if isinstance(dict_named_module[key], torch.nn.ModuleList) and all(
-                    "LayerFast" in module_name for module_name in sort_fn(dict_named_module[key])
-                ):
-                    setattr(dict_named_module[key][-1], "is_last_layer", True)
-                    return True
-            return False
 
         successfully_converted_model = set_last_layer(model_fast)
         if not successfully_converted_model:

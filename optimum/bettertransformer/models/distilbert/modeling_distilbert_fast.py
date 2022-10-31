@@ -18,11 +18,11 @@ import torch.nn as nn
 class DistilBertLayerFast(nn.Module):
     def __init__(self, bert_layer):
         r"""
-        A simple conversion of the BERTLayer to its `Fast` implementation.
+        A simple conversion of the Distill-BERTLayer to its `Fast` implementation.
 
         Args:
             bert_layer (`torch.nn.Module`):
-                The original BERT Layer where the weights needs to be retrieved.
+                The original Distill-BERT Layer where the weights needs to be retrieved.
         """
         super().__init__()
         # In_proj layer

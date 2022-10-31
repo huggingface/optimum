@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from . import bert, distilbert
+from . import bart, bert, distilbert, t5
 
 
 FAST_LAYERS_MAPPING_DICT = {
@@ -29,8 +29,14 @@ FAST_LAYERS_MAPPING_DICT = {
     "RobertaLayer": bert.BertLayerFast,
     "Data2VecTextLayer": bert.BertLayerFast,
     "XLMRobertaLayer": bert.BertLayerFast,
-    # TODO: Bart family
-    # TODO: T5 family
+    # Bart family - need to tweak the tests a bit
+    "BartEncoderLayer": bart.BartLayerFast,
+    # "PLBartEncoderLayer": bart.BartLayerFast,
+    # "MarianEncoderLayer": bart.BartLayerFast,
+    # "TimeSeriesTransformerEncoderLayer": bart.BartLayerFast,
+    # "BlenderbotSmallEncoderLayer": bart.BartLayerFast,
+    # T5 family - needs to check compatibility first
+    # "T5Block": t5.T5LayerFast,
     # Some models cannot be tested such as:
     # "QDQBertLayer": bert.BertLayerFast, --> needs torch quantization
     # "RealmLayer": bert.BertLayerFast, --> not mapped in AutoModel
@@ -50,6 +56,17 @@ def convert_to_hf_classes(mapping_dict):
 
     hf_names_dict = {}
     for fast_layer_key in mapping_dict.keys():
-        hf_class = getattr(transformers, fast_layer_key[:-5] + "PreTrainedModel")
+        # For enc-decoder models the prefix is different
+        if "EncoderLayer" in fast_layer_key:
+            prefix = fast_layer_key[:-12]
+        else:
+            prefix = fast_layer_key[:-5]
+
+        # some `PreTrainedModel` models are not registerd in the auto mapping
+        if hasattr(transformers, prefix + "PreTrainedModel"):
+            hf_class = getattr(transformers, prefix + "PreTrainedModel")
+        else:
+            hf_class = getattr(transformers, prefix + "Model")
+
         hf_names_dict[fast_layer_key] = hf_class
     return hf_names_dict
