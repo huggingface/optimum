@@ -467,7 +467,7 @@ class MobileViTOnnxConfig(ViTOnnxConfig):
 
 
 class ResNetOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
+    ATOL_FOR_VALIDATION = 1e-3
 
 
 class DetrOnnxConfig(ViTOnnxConfig):
