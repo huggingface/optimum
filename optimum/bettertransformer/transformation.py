@@ -138,6 +138,8 @@ class BetterTransformer(object):
             max_memory (`dict`, *optional*):
                 Same argument as `max_memory` argument from `.from_pretrained` function
                 in `transformers`.
+        Returns:
+            The converted model if the conversion has been successful.
         """
 
         # Check if we have to load the model using `accelerate`
