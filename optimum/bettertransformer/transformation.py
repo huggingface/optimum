@@ -184,6 +184,8 @@ class BetterTransformer(object):
             device_map_bt = infer_auto_device_map(model_fast, max_memory=max_memory)
 
             remove_hooks_recursive(model_fast)
+            # TODO: @younesbelkada uncomment below when https://github.com/huggingface/accelerate/pull/812 gets merged
+            # remove_hook_from_module(model_fast, recurse=True)
 
             model_fast = dispatch_model(model_fast, device_map_bt)
 
