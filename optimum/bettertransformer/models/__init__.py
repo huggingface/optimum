@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from . import bart, bert, distilbert, t5
+from . import bart, bert, distilbert
 
 
 FAST_LAYERS_MAPPING_DICT = {
