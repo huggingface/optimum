@@ -91,7 +91,7 @@ PYTORCH_EXPORT_MODELS = {
     ("m2m-100", "hf-internal-testing/tiny-random-m2m_100"),
     ("blenderbot-small", "facebook/blenderbot_small-90M"),
     # Not using facebook/blenderbot-400M-distill because it takes too much time for testing, and might cause OOM.
-    ("blenderbot", "hf-internal-testing/tiny-random-blenderbot"),
+    ("blenderbot", "facebook/blenderbot-90M"),
     # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
     ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
     # Not using google/long-t5-local-base because it takes too much time for testing.
