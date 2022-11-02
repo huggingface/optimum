@@ -43,6 +43,8 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf==3.20.1",
     ],
+    "exporters": ["onnx", "onnxruntime", "timm"],
+    "exporters-tf": ["tensorflow", "tf2onnx", "onnx", "onnxruntime", "timm"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
     "nncf": "optimum-intel[nncf]",
