@@ -549,8 +549,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.end_logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.start_logits, io_outputs.start_logits, atol=1e-4))
-        self.assertTrue(torch.allclose(onnx_outputs.end_logits, io_outputs.end_logits, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.start_logits, io_outputs.start_logits))
+        self.assertTrue(torch.equal(onnx_outputs.end_logits, io_outputs.end_logits))
 
         gc.collect()
 
@@ -681,7 +681,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
 
         gc.collect()
 
@@ -790,7 +790,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
 
         gc.collect()
 
@@ -894,7 +894,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.last_hidden_state, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.last_hidden_state, io_outputs.last_hidden_state, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.last_hidden_state, io_outputs.last_hidden_state))
 
         gc.collect()
 
@@ -974,7 +974,7 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
 
         gc.collect()
 
@@ -1097,7 +1097,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
 
         gc.collect()
 
@@ -1116,7 +1116,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         io_outputs = io_model.generate(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs, io_outputs, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
 
         gc.collect()
 
@@ -1227,7 +1227,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
 
         gc.collect()
 
@@ -1394,7 +1394,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
 
         gc.collect()
 
@@ -1413,7 +1413,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         io_outputs = io_model.generate(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs, io_outputs, atol=1e-4))
+        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
 
         gc.collect()
 
