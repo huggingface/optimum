@@ -38,7 +38,7 @@ def init_accelerate_hook(module):
     """
     for name, child in module.named_children():
         if hasattr(child, "_hf_hook"):
-            if child._hf_hook.weights_map:
+            if child._hf_hook.weights_map is not None:
                 hook = child._hf_hook
                 if child._hf_hook.offload:
                     for name, _ in named_module_tensors(
