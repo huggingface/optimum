@@ -32,7 +32,3 @@ def check_if_pytorch_greater_112():
         yield
     finally:
         pass
-
-
-def is_accelerate_available():
-    return importlib.util.find_spec("accelerate") is not None

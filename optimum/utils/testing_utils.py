@@ -6,9 +6,7 @@ import unittest
 
 from packaging import version
 
-
-def is_accelerate_available():
-    return importlib.util.find_spec("accelerate") is not None
+from optimum.utils import is_accelerate_available
 
 
 def require_accelerate(test_case):

@@ -18,6 +18,7 @@ CONFIG_NAME = "config.json"
 
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
 _pydantic_available = importlib.util.find_spec("pydantic") is not None
+_accelerate_available = importlib.util.find_spec("accelerate") is not None
 
 
 def is_onnxruntime_available():
@@ -26,3 +27,7 @@ def is_onnxruntime_available():
 
 def is_pydantic_available():
     return _pydantic_available
+
+
+def is_accelerate_available():
+    return _accelerate_available

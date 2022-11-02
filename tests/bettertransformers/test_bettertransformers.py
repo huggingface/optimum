@@ -20,9 +20,9 @@ import transformers
 from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, pipeline
 
 from optimum.bettertransformer import FAST_LAYERS_MAPPING_DICT, BetterTransformer
+from optimum.utils import is_accelerate_available
 from optimum.utils.testing_utils import (
     convert_to_hf_classes,
-    is_accelerate_available,
     is_torch_greater_than_113,
     require_accelerate,
     require_torch_gpu,

@@ -15,8 +15,10 @@ from copy import deepcopy
 
 import torch
 
+from optimum.utils import is_accelerate_available
+
 from .models import is_module_fast
-from .utils import check_if_pytorch_greater_112, is_accelerate_available
+from .utils import check_if_pytorch_greater_112
 
 
 if is_accelerate_available():
