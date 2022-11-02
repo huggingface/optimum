@@ -49,21 +49,6 @@ def init_accelerate_hook(module):
     return module
 
 
-def remove_hooks_recursive(model):
-    r"""
-    Utility function to clean the hooks of the model
-    this is useful when overriding the parent model (i.e. when `keep_original_model`=`True`)
-
-    Args:
-        `module` (`torch.nn.Module`, **required**):
-            The input module to initialize
-    """
-    for _, child in model.named_children():
-        remove_hook_from_module(child)
-        if len(list(child.children())) > 1:
-            remove_hooks_recursive(child)
-
-
 # Step 1: Recurse over the modules of the model
 # Step 2: Verify if the module `Fast` is present for that model
 # Step 3: If yes, replace the `...Layer` module with the `...LayerFast` modules
@@ -183,9 +168,7 @@ class BetterTransformer(object):
         if load_accelerate:
             device_map_bt = infer_auto_device_map(model_fast, max_memory=max_memory)
 
-            remove_hooks_recursive(model_fast)
-            # TODO: @younesbelkada uncomment below when https://github.com/huggingface/accelerate/pull/812 gets merged
-            # remove_hook_from_module(model_fast, recurse=True)
+            remove_hook_from_module(model_fast, recurse=True)
 
             model_fast = dispatch_model(model_fast, device_map_bt)
 
