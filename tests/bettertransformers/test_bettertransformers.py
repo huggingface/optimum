@@ -17,7 +17,7 @@ import unittest
 
 import torch
 import transformers
-from transformers import AutoModel, pipeline
+from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, pipeline
 
 from optimum.bettertransformer import FAST_LAYERS_MAPPING_DICT, BetterTransformer, convert_to_hf_classes
 from optimum.utils.testing_utils import (
@@ -30,6 +30,8 @@ from optimum.utils.testing_utils import (
 
 if is_accelerate_available():
     from accelerate import init_empty_weights
+
+MODELS_ACCELERATE = "xlm-roberta-base" "facebook/bart-base"
 
 
 class BetterTransformersTest(unittest.TestCase):
@@ -166,84 +168,94 @@ class BetterTransformersTest(unittest.TestCase):
 
         self.assertLess(mean_bt_time, mean_hf_time, "The converted model is slower than the original model.")
 
-    def test_class_functions(self):
+    def test_pipeline(self):
         r"""
-        This test runs class functions such as `generate` and checks if the
-        function works as expected.
+        This test runs pipeline together with Better Transformers converted models.
+        TODO: @younesbelkada : open a PR to add an argument in `pipeline` to be able to use it
+        under the hood.
         """
+        model_name = "distilbert-base-uncased"
+
+        model = AutoModelForMaskedLM.from_pretrained(model_name)
+        model = BetterTransformer.transform(model)
+
+        unmasker = pipeline("fill-mask", model=model, tokenizer=AutoTokenizer.from_pretrained(model_name))
+        out = unmasker("Hello I'm a [MASK] model.")
+
+        self.assertEqual(out[0]["token_str"], "role")
 
     @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
     @require_torch_gpu
     @require_accelerate
+    def check_accelerate_compatibility_cpu_gpu(self, keep_original_model=True, max_memory=None):
+        r"""
+        This tests if a model loaded with `accelerate` will be successfully converted
+        into its BetterTransformers format.
+
+        If this works for roberta, it should work for all other models too.
+        """
+
+        hf_model = AutoModel.from_pretrained("xlm-roberta-base", device_map="auto", max_memory=max_memory).eval()
+        bt_model = BetterTransformer.transform(
+            hf_model, keep_original_model=keep_original_model, max_memory=max_memory
+        )
+
+        inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
+        attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
+
+        # Check that the model has been dispatched on CPU and GPU
+        self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set(max_memory))
+        self.assertSetEqual(set(list(bt_model.hf_device_map.values())), set(max_memory))
+
+        # Check that the model has weights on GPU and CPU
+        self.assertEqual(bt_model.encoder.layer[0].in_proj_weight.device, torch.device("cuda:0"))
+        # Weights that are offloaded on the CPU are offloaded on the meta device
+        if "cpu" in set(max_memory):
+            self.assertEqual(bt_model.encoder.layer[-1].in_proj_weight.device, torch.device("meta"))
+
+        # Forward pass should work
+        output_bt = bt_model(inputs_ids, attention_mask)
+        output_hf = hf_model(inputs_ids, attention_mask)
+
+        # Assert that the output has been correctly set to the CPU!
+        self.assertEqual(output_bt[0].device, torch.device("cpu"))
+
+        # Final step: check the logits
+        self.assertTrue(torch.allclose(output_bt[0][0, :3], output_hf[0][0, :3], atol=1e-3))
+
+        # Check that the padding has been taken into account correctly - this checks also if the hooks
+        # have been correctly set.
+        self.assertTrue(torch.allclose(output_bt[0][1, 3:], torch.zeros_like(output_bt[0][1, 3:])))
+
     def test_accelerate_compatibility_cpu_gpu(self):
         r"""
-        This tests if a model loaded with `accelerate` will be successfully converted
-        into its BetterTransformers format.
-
-        If this works for roberta, it should work for all other models too.
+        Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
         """
         max_memory = {0: "1GB", "cpu": "3GB"}
-        # max_memory = {0:"800MB", 1:"1100MB"}
+        self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
-        hf_model = AutoModel.from_pretrained("xlm-roberta-base", device_map="auto", max_memory=max_memory)
-        bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
+    def test_accelerate_compatibility_cpu_gpu_without_keeping(self):
+        r"""
+        Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
+        """
+        max_memory = {0: "1GB", "cpu": "3GB"}
+        self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
-        inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
-        attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
-
-        # Check that the model has been dispatched on CPU and GPU
-        self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0, "cpu"]))
-        # self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0, 1]))
-
-        # Check that the model has weights on GPU and CPU
-        self.assertEqual(bt_model.encoder.layer[0].in_proj_weight.device, torch.device("cuda:0"))
-        # TODO: check with @sgugger why the last devices are on meta?? And the forward pass works
-
-        # Forward pass should work
-        output_bt = bt_model(inputs_ids, attention_mask)
-        output_hf = hf_model(inputs_ids, attention_mask)
-
-        # Assert that the output has been correctly set to the CPU!
-        self.assertEqual(output_bt[0].device, torch.device("cpu"))
-
-        # Final step: check the logits
-        self.assertTrue(torch.allclose(output_bt[0], output_hf[0]))
-
-    @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
-    @require_torch_gpu
-    @require_accelerate
     def test_accelerate_compatibility_single_gpu(self):
         r"""
-        This tests if a model loaded with `accelerate` will be successfully converted
-        into its BetterTransformers format.
-
-        If this works for roberta, it should work for all other models too.
+        Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
+        & `max_memory = {0: "2GB"}`
         """
         max_memory = {0: "2GB"}
+        self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
-        hf_model = AutoModel.from_pretrained("xlm-roberta-base", device_map="auto", max_memory=max_memory)
-        bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
-
-        inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
-        attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
-
-        # Check that the model has been dispatched on CPU and GPU
-        self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0]))
-        # self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set([0, 1]))
-
-        # Check that the model has weights on GPU and CPU
-        self.assertEqual(bt_model.encoder.layer[0].in_proj_weight.device, torch.device("cuda:0"))
-        # TODO: check with @sgugger why the last devices are on meta?? And the forward pass works
-
-        # Forward pass should work
-        output_bt = bt_model(inputs_ids, attention_mask)
-        output_hf = hf_model(inputs_ids, attention_mask)
-
-        # Assert that the output has been correctly set to the CPU!
-        self.assertEqual(output_bt[0].device, torch.device("cpu"))
-
-        # Final step: check the logits
-        self.assertTrue(torch.allclose(output_bt[0], output_hf[0]))
+    def test_accelerate_compatibility_single_gpu_without_keeping(self):
+        r"""
+        Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
+        & `max_memory = {0: "2GB"}`
+        """
+        max_memory = {0: "2GB"}
+        self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

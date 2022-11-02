@@ -20,22 +20,48 @@ from .utils import check_if_pytorch_greater_112, is_accelerate_available
 
 
 if is_accelerate_available():
-    from accelerate.hooks import attach_align_device_hook_on_blocks, remove_hook_from_submodules
+    from accelerate import dispatch_model, infer_auto_device_map
+    from accelerate.hooks import remove_hook_from_module
+    from accelerate.utils import named_module_tensors, set_module_tensor_to_device
 
 
-def init_accelerate_hooks(slow_module, fast_module):
+def init_accelerate_hook(module):
     r"""
-    This will initilialize `accelerate` hooks into the `Fast` module.
+    This function initializes `accelerate` hooks by setting the
+    parameters of the module on the `cpu` if there is any offloading involved
+
+    Args:
+        `module` (`torch.nn.Module`, **required**):
+            The input module to initialize
+    Returns:
+        The initialized module
     """
-    if (not is_accelerate_available()) or (not hasattr(slow_module, "_hf_hook")):
-        return fast_module
+    for name, child in module.named_children():
+        if hasattr(child, "_hf_hook"):
+            if child._hf_hook.weights_map:
+                hook = child._hf_hook
+                if child._hf_hook.offload:
+                    for name, _ in named_module_tensors(
+                        child, include_buffers=hook.offload_buffers, recurse=hook.place_submodules
+                    ):
+                        set_module_tensor_to_device(child, name, "cpu", value=hook.weights_map[name])
+        init_accelerate_hook(child)
+    return module
 
-    # Delete the previous hook
-    remove_hook_from_submodules(fast_module)
 
-    exec_hook_dict = {fast_module.__class__.__name__: str(slow_module._hf_hook.execution_device)}
+def remove_hooks_recursive(model):
+    r"""
+    Utility function to clean the hooks of the model
+    this is useful when overriding the parent model (i.e. when `keep_original_model`=`True`)
 
-    attach_align_device_hook_on_blocks(fast_module, exec_hook_dict)
+    Args:
+        `module` (`torch.nn.Module`, **required**):
+            The input module to initialize
+    """
+    for _, child in model.named_children():
+        remove_hook_from_module(child)
+        if len(list(child.children())) > 1:
+            remove_hooks_recursive(child)
 
 
 # Step 1: Recurse over the modules of the model
@@ -58,18 +84,22 @@ def replace_to_fast(model):
             replace_to_fast(module)
 
         if hasattr(module, "is_decoder"):
+            # Decoders are not supported yet on Better Transformers
             if module.is_decoder:
                 continue
 
         class_name = module.__class__.__name__
         maybe_fast_module = is_module_fast(class_name)
+
         if not isinstance(maybe_fast_module, bool):
             fast_module = maybe_fast_module(module)
-
-            # if is_accelerate_available():
-            #     init_accelerate_hooks(module, fast_module)
-
             model._modules[name] = fast_module
+        elif hasattr(module, "_hf_hook"):
+            # If the module has `accelerate` hooks, manually
+            # set the parameters on the `CPU` if there is
+            # any offload involved.
+            module = init_accelerate_hook(module)
+            model._modules[name] = module
     return model
 
 
@@ -77,9 +107,10 @@ def replace_to_fast(model):
 # For the last `Fast` layer.
 def set_last_layer(model):
     r"""
-    Args:
     Iterates over the module list containing the `LayerFast` modules. Sets the last layer's `is_last_layer`
     attribute to `True`
+
+    Args:
         `model` (`torch.nn.Module`, **required**):
             The input converted model
     Returns:
@@ -109,7 +140,7 @@ class BetterTransformer(object):
     this script.
     """
 
-    def transform(model, keep_original_model=False):
+    def transform(model, keep_original_model=False, max_memory=None):
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
 
@@ -119,7 +150,17 @@ class BetterTransformer(object):
             keep_original_model (`bool`, *optional):
                 whether to keep or override the original model - essentially
                 for memory efficiency reasons
+            max_memory (`dict`, *optional*):
+                Same argument as `max_memory` argument from `.from_pretrained` function
+                in `transformers`.
         """
+
+        # Check if we have to load the model using `accelerate`
+        if hasattr(model, "hf_device_map"):
+            load_accelerate = True
+        else:
+            load_accelerate = False
+
         if keep_original_model:
             model_fast = deepcopy(model)
             model_fast = replace_to_fast(model_fast).eval()
@@ -137,5 +178,13 @@ class BetterTransformer(object):
         # Step 6: Add a class arguments, we might need to identify whether the model
         # has been correctly converted to its `Fast` version.
         setattr(model_fast, "is_fast", True)
+
+        # Step 7: dispatch model if `accelerate` is enabled
+        if load_accelerate:
+            device_map_bt = infer_auto_device_map(model_fast, max_memory=max_memory)
+
+            remove_hooks_recursive(model_fast)
+
+            model_fast = dispatch_model(model_fast, device_map_bt)
 
         return model_fast
