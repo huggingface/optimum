@@ -132,7 +132,7 @@ class BetterTransformer(object):
         Args:
             model, (`torch.nn.Module`, **required**):
                 Original `transformers` model
-            keep_original_model (`bool`, *optional):
+            keep_original_model (`bool`, *optional*):
                 whether to keep or override the original model - essentially
                 for memory efficiency reasons
             max_memory (`dict`, *optional*):
