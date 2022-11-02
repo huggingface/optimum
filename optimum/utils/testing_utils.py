@@ -80,3 +80,27 @@ def require_ort_training(test_case):
         is_ort_training_available(),
         "test requires torch_ort correctly installed and configured",
     )(test_case)
+
+
+def convert_to_hf_classes(mapping_dict):
+    r"""
+    Utility function useful in the context of testing `BetterTransformers` integration.
+    """
+    import transformers
+
+    hf_names_dict = {}
+    for fast_layer_key in mapping_dict.keys():
+        # For enc-decoder models the prefix is different
+        if "EncoderLayer" in fast_layer_key:
+            prefix = fast_layer_key[:-12]
+        else:
+            prefix = fast_layer_key[:-5]
+
+        # some `PreTrainedModel` models are not registerd in the auto mapping
+        if hasattr(transformers, prefix + "PreTrainedModel"):
+            hf_class = getattr(transformers, prefix + "PreTrainedModel")
+        else:
+            hf_class = getattr(transformers, prefix + "Model")
+
+        hf_names_dict[fast_layer_key] = hf_class
+    return hf_names_dict

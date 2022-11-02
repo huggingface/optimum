@@ -11,5 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .models import FAST_LAYERS_MAPPING_DICT, convert_to_hf_classes
+from .models import FAST_LAYERS_MAPPING_DICT
 from .transformation import BetterTransformer
