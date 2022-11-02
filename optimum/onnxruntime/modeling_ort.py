@@ -376,7 +376,6 @@ class ORTModel(OptimizedModel):
                 task = "default"
         # 2. convert to temp dir
         # FIXME: transformers.onnx conversion doesn't support private models
-        # FIXME: load preprocessor from subfolder
         preprocessor = get_preprocessor(model_id)
 
         framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
