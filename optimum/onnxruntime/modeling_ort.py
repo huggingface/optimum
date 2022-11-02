@@ -175,7 +175,7 @@ class ORTModel(OptimizedModel):
 
         Arguments:
             path (`str` or `Path`):
-                Directory from which to load the model.
+                Path of the ONNX model.
             provider (`str`, *optional*):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers. Defaults to `CPUExecutionProvider`.
@@ -230,6 +230,7 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         provider: Optional[str] = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict] = None,
@@ -255,6 +256,7 @@ class ORTModel(OptimizedModel):
             force_download,
             use_auth_token,
             cache_dir,
+            subfolder,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -271,6 +273,7 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """
@@ -301,9 +304,9 @@ class ORTModel(OptimizedModel):
         config = kwargs.pop("config", {})
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
         # load model from local directory
-        if os.path.isdir(model_id):
-            model = ORTModel.load_model(os.path.join(model_id, model_file_name), **kwargs)
-            kwargs["model_save_dir"] = Path(model_id)
+        if os.path.isdir(os.path.join(model_id, subfolder)):
+            model = ORTModel.load_model(os.path.join(model_id, subfolder, model_file_name), **kwargs)
+            kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
             kwargs["latest_model_name"] = model_file_name
         # load model from hub
         else:
@@ -311,6 +314,7 @@ class ORTModel(OptimizedModel):
             model_cache_path = hf_hub_download(
                 repo_id=model_id,
                 filename=model_file_name,
+                subfolder=subfolder,
                 use_auth_token=use_auth_token,
                 revision=revision,
                 cache_dir=cache_dir,
@@ -332,6 +336,7 @@ class ORTModel(OptimizedModel):
         revision: Optional[Union[str, None]] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """
@@ -356,7 +361,7 @@ class ORTModel(OptimizedModel):
                 kwargs will be passed to the model during initialization
         """
         # create local save dir in cache dir
-        save_dir = Path(save_dir).joinpath(model_id)
+        save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
 
@@ -364,15 +369,20 @@ class ORTModel(OptimizedModel):
         if cls.export_feature is not None:
             task = cls.export_feature
         else:
-            task = HfApi().model_info(model_id, revision=revision).pipeline_tag
+            task = HfApi().model_info(model_id, revision=revision).pipeline_tag  # FIXME: load from subfolder?
             if task in ["sentiment-analysis", "text-classification", "zero-shot-classification"]:
                 task = "sequence-classification"
             elif task in ["feature-extraction", "fill-mask"]:
                 task = "default"
         # 2. convert to temp dir
         # FIXME: transformers.onnx conversion doesn't support private models
+        # FIXME: load preprocessor from subfolder
         preprocessor = get_preprocessor(model_id)
-        model = FeaturesManager.get_model_from_feature(task, model_id)
+
+        framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
+        model_class = FeaturesManager.get_model_class_for_feature(task, framework)
+        model = model_class.from_pretrained(model_id, subfolder=subfolder, cache_dir=cache_dir)
+
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
         onnx_config = model_onnx_config(model.config)
 

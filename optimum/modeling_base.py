@@ -40,6 +40,9 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
             standard cache should not be used.
         local_files_only(`bool`, *optional*, defaults to `False`):
             Whether or not to only look at local files (i.e., do not try to download the model).
+        subfolder (`str`, *optional*, defaults to `""`):
+            In case the relevant files are located inside a subfolder of the model repo either locally or on huggingface.co, you can
+            specify the folder name here.
 """
 
 
@@ -183,6 +186,7 @@ class OptimizedModel(ABC):
         revision: Optional[Union[str, None]] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from pretrained"""
@@ -197,6 +201,7 @@ class OptimizedModel(ABC):
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **model_kwargs,
     ):
         """
@@ -207,7 +212,9 @@ class OptimizedModel(ABC):
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
 
-        if os.path.isdir(model_id) and CONFIG_NAME in os.listdir(model_id):
+        if os.path.isdir(os.path.join(model_id, subfolder)) and CONFIG_NAME in os.listdir(
+            os.path.join(model_id, subfolder)
+        ):
             config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
         else:
             try:
@@ -217,6 +224,7 @@ class OptimizedModel(ABC):
                     cache_dir=cache_dir,
                     force_download=force_download,
                     use_auth_token=use_auth_token,
+                    subfolder=subfolder,
                 )
             except requests.exceptions.RequestException:
                 logger.warning("config.json NOT FOUND in HuggingFace Hub")
@@ -232,6 +240,7 @@ class OptimizedModel(ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 use_auth_token=use_auth_token,
+                subfolder=subfolder,
                 **model_kwargs,
             )
         else:
@@ -241,6 +250,7 @@ class OptimizedModel(ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 use_auth_token=use_auth_token,
+                subfolder=subfolder,
                 **model_kwargs,
             )
 
@@ -252,6 +262,7 @@ class OptimizedModel(ABC):
         revision: Optional[Union[str, None]] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
