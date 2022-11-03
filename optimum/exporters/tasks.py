@@ -689,6 +689,7 @@ class TasksManager:
                     break
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
+        logger.info(f"Automatic task detection to {inferred_task_name}")
         return inferred_task_name
 
     @staticmethod
