@@ -78,3 +78,6 @@
       title: Optimization
     title: Reference
   title: Torch FX
+- sections:
+  - local: bettertransformers/quickstart
+    titla: Quickstart
