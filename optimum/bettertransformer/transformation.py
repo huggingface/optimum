@@ -133,7 +133,7 @@ class BetterTransformer(object):
         keep_original_model: Optional[bool] = False,
         max_memory: Optional[dict] = None,
         **kwargs
-    ):
+    ) -> torch.nn.Module:
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
 
