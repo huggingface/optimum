@@ -76,7 +76,7 @@ def main():
     # Infer the task
     task = args.task
     if task == "auto":
-        task = TasksManager.infer_task_from_model_info(args.model)
+        task = TasksManager.infer_task_from_model(args.model)
 
     # Allocate the model
     model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
@@ -127,7 +127,11 @@ def main():
         if isinstance(args.atol, dict):
             args.atol = args.atol[task.replace("-with-past", "")]
 
-    validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
+    try:
+        validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
+    except ValueError:
+        logger.error(f"An error occured, but the model was saved at: {args.output.as_posix()}")
+        return
     logger.info(f"All good, model saved at: {args.output.as_posix()}")
 
 

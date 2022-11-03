@@ -662,7 +662,7 @@ class TasksManager:
         return framework
 
     @staticmethod
-    def infer_task_from_model_info(model_name_or_path):
+    def infer_task_from_model(model_name_or_path):
         tasks_to_automodels = {}
         class_name_prefix = ""
         if is_torch_available():
@@ -689,7 +689,7 @@ class TasksManager:
                     break
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
-        logger.info(f"Automatic task detection to {inferred_task_name}")
+        logger.info(f"Automatic task detection to {inferred_task_name}.")
         return inferred_task_name
 
     @staticmethod
@@ -716,7 +716,7 @@ class TasksManager:
         """
         framework = TasksManager.determine_framework(model, framework)
         if task == "auto":
-            task = TasksManager.infer_task_from_model_info(model)
+            task = TasksManager.infer_task_from_model(model)
         model_class = TasksManager.get_model_class_for_task(task, framework)
         try:
             model = model_class.from_pretrained(model, cache_dir=cache_dir)
