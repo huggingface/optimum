@@ -29,12 +29,13 @@ import datasets
 import numpy as np
 import torch
 import transformers
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import AutoFeatureExtractor, EvalPrediction, HfArgumentParser, TrainingArguments
 from transformers.onnx import FeaturesManager
 from transformers.utils.versions import require_version
 
+from evaluate import load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
@@ -265,7 +266,7 @@ def main():
         ]
         return example_batch
 
-    metric = load_metric("accuracy")
+    metric = load("accuracy")
 
     # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
     # predictions and label_ids field) and has to return a dictionary string to float.

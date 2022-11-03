@@ -1,4 +1,4 @@
-name: ONNX / Python - Test
+name: Exporters / Python - Test
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, macos-latest]
+        os: [ubuntu-20.04]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -27,8 +27,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        pip install .[tests,onnxruntime] tensorflow tf2onnx
+        pip install .[tests,exporters-tf]
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m unittest discover -s onnx -p 'test_*.py'
+        RUN_SLOW=1 pytest exporters --durations=0
