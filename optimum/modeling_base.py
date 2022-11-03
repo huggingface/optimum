@@ -208,12 +208,11 @@ class OptimizedModel(ABC):
             model_id, revision = model_id.split("@")
 
         if os.path.isdir(model_id) and CONFIG_NAME in os.listdir(model_id):
-            config_file = os.path.join(model_id, CONFIG_NAME)
+            config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
         else:
             try:
-                config_file = hf_hub_download(
-                    repo_id=model_id,
-                    filename=CONFIG_NAME,
+                config = AutoConfig.from_pretrained(
+                    pretrained_model_name_or_path=model_id,
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
@@ -221,11 +220,9 @@ class OptimizedModel(ABC):
                 )
             except requests.exceptions.RequestException:
                 logger.warning("config.json NOT FOUND in HuggingFace Hub")
-                config_file = None
+                config = None
 
-        if config_file is not None:
-            with open(config_file, "r", encoding="utf-8") as f:
-                config = json.load(f)
+        if config is not None:
             model_kwargs.update({"config": config})
 
         if from_transformers:
