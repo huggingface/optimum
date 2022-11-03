@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import importlib.util
 from enum import Enum
 from typing import Dict, Tuple, Union
 
@@ -20,6 +21,7 @@ from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
+import pkg_resources
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
 
@@ -44,6 +46,24 @@ def _is_gpu_available():
         return True
     else:
         return False
+
+
+def is_onnxruntime_training_available():
+    """
+    checks if onnxruntime-training is available.
+    """
+    env = {pkg.key for pkg in pkg_resources.working_set}
+    if "onnxruntime-training" in env:
+        return True
+    else:
+        return False
+
+
+def is_cupy_available():
+    """
+    checks if onnxruntime-training is available.
+    """
+    return importlib.util.find_spec("cupy") is not None
 
 
 class ORTConfigManager:
