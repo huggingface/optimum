@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
+from typing import Optional
 
 import torch
 
@@ -127,7 +128,12 @@ class BetterTransformer(object):
     this script.
     """
 
-    def transform(model, keep_original_model=False, max_memory=None, **kwargs):
+    def transform(
+        model: torch.nn.Module,
+        keep_original_model: Optional[bool] = False,
+        max_memory: Optional[dict] = None,
+        **kwargs
+    ):
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
 

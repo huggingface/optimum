@@ -27,9 +27,11 @@ def is_onnxruntime_available():
 
 def is_pydantic_available():
     return _pydantic_available
-    
+
+
 def is_accelerate_available():
     return _accelerate_available
+
 
 from .input_generators import (  # noqa
     DummyBboxInputGenerator,
