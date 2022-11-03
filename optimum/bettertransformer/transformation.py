@@ -127,7 +127,7 @@ class BetterTransformer(object):
     this script.
     """
 
-    def transform(model, keep_original_model=False, max_memory=None):
+    def transform(model, keep_original_model=False, max_memory=None, **kwargs):
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
 

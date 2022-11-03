@@ -2,6 +2,7 @@ from typing import Any, Optional, Union
 
 from transformers import (
     FeatureExtractionPipeline,
+    FillMaskPipeline,
     ImageClassificationPipeline,
     Pipeline,
     PreTrainedTokenizer,
@@ -96,6 +97,12 @@ if is_onnxruntime_available():
             "default": "t5-small",
             "type": "text",
         },
+        "fill-mask": {
+            "impl": FillMaskPipeline,
+            "class": () if is_onnxruntime_available() else (),
+            "default": "distilbert-base-uncased",
+            "type": "text",
+        },
     }
 
 NO_FEATURE_EXTRACTOR_TASKS = set()
@@ -109,39 +116,7 @@ for task, values in SUPPORTED_TASKS.items():
         raise ValueError(f"Supported types are 'text' and 'image', got {values['type']}")
 
 
-def pipeline(
-    task: str = None,
-    model: Optional[Any] = None,
-    tokenizer: Optional[Union[str, PreTrainedTokenizer]] = None,
-    feature_extractor: Optional[Union[str, PreTrainedFeatureExtractor]] = None,
-    use_fast: bool = True,
-    use_auth_token: Optional[Union[str, bool]] = None,
-    accelerator: Optional[str] = "ort",
-    **kwargs,
-) -> Pipeline:
-
-    targeted_task = "translation" if task.startswith("translation") else task
-
-    if targeted_task not in list(SUPPORTED_TASKS.keys()):
-        raise ValueError(f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
-
-    if accelerator != "ort":
-        raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are ort")
-
-    # copied from transformers.pipelines.__init__.py l.609
-    if targeted_task in NO_TOKENIZER_TASKS:
-        # These will never require a tokenizer.
-        # the model on the other hand might have a tokenizer, but
-        # the files could be missing from the hub, instead of failing
-        # on such repos, we just force to not load it.
-        load_tokenizer = False
-    else:
-        load_tokenizer = True
-    if targeted_task in NO_FEATURE_EXTRACTOR_TASKS:
-        load_feature_extractor = False
-    else:
-        load_feature_extractor = True
-
+def load_from_ort(model, targeted_task, tokenizer, load_tokenizer, feature_extractor, load_feature_extractor):
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
@@ -158,6 +133,71 @@ def pipeline(
             f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
             You can also provide non model then a default one will be used"""
         )
+    return model, model_id
+
+
+def load_bettertransformer(model, targeted_task, **kwargs):
+    from transformers.pipelines import SUPPORTED_TASKS
+
+    from optimum.bettertransformer import BetterTransformer
+
+    if model is None:
+        model_id = SUPPORTED_TASKS[targeted_task]["default"]
+        model = SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, **kwargs)
+    elif isinstance(model, str):
+        model_id = model
+        model = SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, **kwargs)
+    else:
+        raise ValueError(
+            f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
+            You can also provide non model then a default one will be used"""
+        )
+
+    model = BetterTransformer.transform(model, **kwargs)
+
+    return model, model_id
+
+
+def pipeline(
+    task: str = None,
+    model: Optional[Any] = None,
+    tokenizer: Optional[Union[str, PreTrainedTokenizer]] = None,
+    feature_extractor: Optional[Union[str, PreTrainedFeatureExtractor]] = None,
+    use_fast: bool = True,
+    use_auth_token: Optional[Union[str, bool]] = None,
+    accelerator: Optional[str] = "ort",
+    **kwargs,
+) -> Pipeline:
+    targeted_task = "translation" if task.startswith("translation") else task
+    if accelerator == "bettertransformer":
+        from transformers.pipelines import SUPPORTED_TASKS
+
+    if targeted_task not in list(SUPPORTED_TASKS.keys()):
+        raise ValueError(f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
+
+    if accelerator not in ["ort", "bettertransformer"]:
+        raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are ort")
+
+    # copied from transformers.pipelines.__init__.py l.609
+    if targeted_task in NO_TOKENIZER_TASKS:
+        # These will never require a tokenizer.
+        # the model on the other hand might have a tokenizer, but
+        # the files could be missing from the hub, instead of failing
+        # on such repos, we just force to not load it.
+        load_tokenizer = False
+    else:
+        load_tokenizer = True
+    if targeted_task in NO_FEATURE_EXTRACTOR_TASKS:
+        load_feature_extractor = False
+    else:
+        load_feature_extractor = True
+
+    if accelerator == "ort":
+        model, model_id = load_from_ort(
+            model, targeted_task, tokenizer, load_tokenizer, feature_extractor, load_feature_extractor
+        )
+    else:
+        model, model_id = load_bettertransformer(model, targeted_task, **kwargs)
 
     if tokenizer is None and load_tokenizer:
         tokenizer = get_preprocessor(model_id)

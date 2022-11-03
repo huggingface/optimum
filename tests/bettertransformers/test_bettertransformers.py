@@ -32,8 +32,6 @@ from optimum.utils.testing_utils import (
 if is_accelerate_available():
     from accelerate import init_empty_weights
 
-MODELS_ACCELERATE = "xlm-roberta-base" "facebook/bart-base"
-
 
 class BetterTransformersTest(unittest.TestCase):
     r"""
@@ -171,16 +169,13 @@ class BetterTransformersTest(unittest.TestCase):
 
     def test_pipeline(self):
         r"""
-        This test runs pipeline together with Better Transformers converted models.
-        TODO: @younesbelkada : open a PR to add an argument in `pipeline` to be able to use it
-        under the hood.
+        This test runs pipeline together with Better Transformers converted models using optimum `pipeline`.
         """
+        from optimum.pipelines import pipeline
+
         model_name = "distilbert-base-uncased"
+        unmasker = pipeline("fill-mask", model_name, accelerator="bettertransformer")
 
-        model = AutoModelForMaskedLM.from_pretrained(model_name)
-        model = BetterTransformer.transform(model)
-
-        unmasker = pipeline("fill-mask", model=model, tokenizer=AutoTokenizer.from_pretrained(model_name))
         out = unmasker("Hello I'm a [MASK] model.")
 
         self.assertEqual(out[0]["token_str"], "role")
@@ -210,7 +205,7 @@ class BetterTransformersTest(unittest.TestCase):
 
         # Check that the model has weights on GPU and CPU
         self.assertEqual(bt_model.encoder.layer[0].in_proj_weight.device, torch.device("cuda:0"))
-        # Weights that are offloaded on the CPU are offloaded on the meta device
+        # Weights that are offloaded on the CPU are offloaded on the `meta` device
         if "cpu" in set(max_memory):
             self.assertEqual(bt_model.encoder.layer[-1].in_proj_weight.device, torch.device("meta"))
 
