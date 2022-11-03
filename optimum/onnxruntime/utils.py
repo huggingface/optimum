@@ -62,6 +62,7 @@ class ORTConfigManager:
         "bart": ("encoder_attention_heads", "d_model", "bart"),
         "bert": ("num_attention_heads", "hidden_size", "bert"),
         "big_bird": ("num_attention_heads", "hidden_size", "bert"),
+        "bigbird_pegasus": ("encoder_attention_heads", "d_model", None),  # bug in `fusion_skiplayernorm.py`
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
         "codegen": ("n_head", "n_embd", "gpt2"),
         "deberta": ("num_attention_heads", "hidden_size", "bert"),
@@ -70,10 +71,13 @@ class ORTConfigManager:
         "electra": ("num_attention_heads", "hidden_size", "bert"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
-        "mt5": ("num_heads", "d_model", "bart"),
         "marian": ("encoder_attention_heads", "d_model", "bart"),
+        "mbart": ("encoder_attention_heads", "d_model", "bart"),
+        "mt5": ("num_heads", "d_model", "bart"),
+        "m2m_100": ("encoder_attention_heads", "d_model", "bart"),
         "pegasus": ("encoder_attention_heads", "d_model", "bart"),
         "roberta": ("num_attention_heads", "hidden_size", "bert"),
+        "t5": ("num_heads", "d_model", "t5"),
         "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
     }
 
@@ -115,6 +119,15 @@ class ORTConfigManager:
             raise KeyError(
                 f"{model_type} model type is not supported yet. Only {list(cls._conf.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
+            )
+
+    @classmethod
+    def check_optimization_supported_model_or_raise(cls, model_type: str) -> bool:
+        supported_model_types_for_optimization = ["bert", "gpt2", "bart"]
+        if (model_type not in cls._conf) or (cls._conf[model_type][2] not in supported_model_types_for_optimization):
+            raise KeyError(
+                f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {supported_model_types_for_optimization} are supported. "
+                f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."
             )
 
 

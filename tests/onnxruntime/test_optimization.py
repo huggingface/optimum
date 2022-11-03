@@ -77,7 +77,12 @@ class ORTOptimizerTest(unittest.TestCase):
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-pegasus", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-pegasus", True),
     )
