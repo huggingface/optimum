@@ -6,6 +6,7 @@ on:
       - main
       - doc-builder*
       - v*-release
+  workflow_dispatch:
 
 jobs:
   build_documentation:
@@ -99,7 +100,7 @@ jobs:
       - name: Make Optimum documentation
         run: |
           cd optimum
-          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
+          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }} COMMIT_SHA_OPTIMUM=${{ env.VERSION }}
           cd ..
 
       - name: Combine subpackage documentation

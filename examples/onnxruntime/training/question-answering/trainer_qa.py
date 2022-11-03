@@ -32,6 +32,7 @@ class QuestionAnsweringORTTrainer(ORTTrainer):
         eval_examples=None,
         ignore_keys=None,
         metric_key_prefix: str = "eval",
+        inference_with_ort: bool = False,
     ):
         eval_dataset = self.eval_dataset if eval_dataset is None else eval_dataset
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
@@ -40,7 +41,11 @@ class QuestionAnsweringORTTrainer(ORTTrainer):
         # Temporarily disable metric computation, we will do it in the loop here.
         compute_metrics = self.compute_metrics
         self.compute_metrics = None
-        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+        if inference_with_ort:
+            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+        else:
+            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
+
         try:
             output = eval_loop(
                 eval_dataloader,
@@ -75,13 +80,17 @@ class QuestionAnsweringORTTrainer(ORTTrainer):
         predict_examples,
         ignore_keys=None,
         metric_key_prefix: str = "test",
+        inference_with_ort: bool = False,
     ):
         predict_dataloader = self.get_test_dataloader(predict_dataset)
 
         # Temporarily disable metric computation, we will do it in the loop here.
         compute_metrics = self.compute_metrics
         self.compute_metrics = None
-        eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+        if inference_with_ort:
+            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
+        else:
+            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
         try:
             output = eval_loop(
                 predict_dataloader,

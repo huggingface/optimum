@@ -246,7 +246,7 @@ class QuantizationConfig:
             List of the nodes names to quantize.
         nodes_to_exclude (`list`):
             List of the nodes names to exclude when applying quantization.
-        operators_to_quantize (`list`):
+        operators_to_quantize (`list`, defaults to `["MatMul", "Add"]`):
             List of the operators types to quantize.
         qdq_add_pair_to_weight (`bool`, defaults to `False`):
             By default, floating-point weights are quantized and feed to solely inserted DeQuantizeLinear node.
@@ -643,7 +643,10 @@ class OptimizationConfig:
             Whether to not use attention masks. Only works for bert model type.
         disable_embed_layer_norm (`bool`, defaults to `True`):
             Whether to disable EmbedLayerNormalization fusion.
-            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
+            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization.
+        disable_shape_inference (`bool`, defaults to `False`):
+            Whether to disable symbolic shape inference.
+            The default value is set to `False` but symbolic shape inference might cause issues sometimes.
     """
 
     optimization_level: int = 1
@@ -660,6 +663,7 @@ class OptimizationConfig:
     use_mask_index: bool = False
     no_attention_mask: bool = False
     disable_embed_layer_norm: bool = True
+    disable_shape_inference: bool = False
 
 
 class ORTConfig(BaseConfig):

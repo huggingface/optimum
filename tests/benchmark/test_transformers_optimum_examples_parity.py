@@ -64,7 +64,6 @@ class TestParity(unittest.TestCase):
             f" --max_seq_length 9999999999"  # rely on tokenizer.model_max_length for max_length
             f" --output_dir {self.dir_path}/textclassification_sst2_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --overwrite_cache True",
             shell=True,
@@ -90,7 +89,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 15},
+            "framework_args": {"optimization_level": 1},
             "batch_sizes": [8],
             "input_lengths": [128],
             "max_eval_samples": n_samples,
@@ -143,7 +142,6 @@ class TestParity(unittest.TestCase):
             f" --do_eval"
             f" --output_dir {self.dir_path}/tokenclassification_conll2003_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --overwrite_cache True",
             shell=True,
@@ -167,7 +165,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 11},
+            "framework_args": {"optimization_level": 1},
             "batch_sizes": [8],
             "input_lengths": [128],
             "max_eval_samples": n_samples,
@@ -180,14 +178,17 @@ class TestParity(unittest.TestCase):
         benchmark_results = run_instance.launch()
 
         self.assertEqual(
-            transformers_results["eval_accuracy"], benchmark_results["evaluation"]["others"]["baseline"]["accuracy"]
+            transformers_results["eval_accuracy"],
+            benchmark_results["evaluation"]["others"]["baseline"]["overall_accuracy"],
         )
-        self.assertEqual(transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["baseline"]["f1"])
+        self.assertEqual(
+            transformers_results["eval_f1"], benchmark_results["evaluation"]["others"]["baseline"]["overall_f1"]
+        )
 
         self.assertEqual(
-            optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["optimized"]["accuracy"]
+            optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["optimized"]["overall_accuracy"]
         )
-        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["optimized"]["f1"])
+        self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["optimized"]["overall_f1"])
 
     def test_question_answering_parity(self):
         model_name = "mrm8488/bert-tiny-finetuned-squadv2"
@@ -224,7 +225,6 @@ class TestParity(unittest.TestCase):
             f" --do_eval"
             f" --output_dir {self.dir_path}/questionanswering_squad_optimum"
             f" --max_eval_samples {n_samples}"
-            f" --opset 11"
             f" --quantization_approach dynamic"
             f" --max_seq_length 384",
             shell=True,
@@ -248,7 +248,7 @@ class TestParity(unittest.TestCase):
             "node_exclusion": [],
             "per_channel": False,
             "framework": "onnxruntime",
-            "framework_args": {"optimization_level": 1, "opset": 15},
+            "framework_args": {"optimization_level": 1},
             "batch_sizes": [8],
             "input_lengths": [128],
             "max_eval_samples": n_samples,
@@ -271,10 +271,44 @@ class TestParity(unittest.TestCase):
             optimum_results["exact_match"], benchmark_results["evaluation"]["others"]["optimized"]["exact_match"]
         )
 
+    @unittest.skip(
+        "failing related to shuffle issue https://github.com/huggingface/datasets/issues/5145 , skip for now"
+    )
     def test_image_classification_parity(self):
-        # wait to have an answer on
+        # dummy test until this question is solved
         # https://discuss.huggingface.co/t/why-use-val-transforms-function-in-image-classification-example-instead-of-feature-extractor/19976
-        pass
+        model_name = "fxmarty/resnet-tiny-beans"
+        n_samples = 120
+
+        run_config = {
+            "task": "image-classification",
+            "model_name_or_path": model_name,
+            "dataset": {
+                "path": "beans",
+                "eval_split": "validation",
+                "data_keys": {"primary": "image"},
+                "ref_keys": ["labels"],
+            },
+            "metrics": ["accuracy"],
+            "quantization_approach": "dynamic",
+            "operators_to_quantize": ["Add", "MatMul"],
+            "node_exclusion": [],
+            "per_channel": False,
+            "framework": "onnxruntime",
+            "framework_args": {"optimization_level": 1, "opset": 15},
+            "batch_sizes": [8],
+            "input_lengths": [128],
+            "max_eval_samples": n_samples,
+            "time_benchmark_args": {"warmup_runs": 0, "duration": 0},
+        }
+        run_config = RunConfig(**run_config)
+        run_config = dataclasses.asdict(run_config)
+
+        run_instance = OnnxRuntimeRun(run_config)
+        benchmark_results = run_instance.launch()
+
+        print(benchmark_results)
+        self.assertEqual(benchmark_results["evaluation"]["others"]["baseline"]["accuracy"], 84 / 120)
 
 
 if __name__ == "__main__":

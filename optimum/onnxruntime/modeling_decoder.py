@@ -33,12 +33,7 @@ from huggingface_hub import HfApi, hf_hub_download
 from optimum.onnx.configuration import DecoderOnnxConfigWithPast
 
 from .modeling_ort import ORTModel
-from .utils import (
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    get_device_for_provider,
-    get_provider_for_device,
-)
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_device_for_provider, get_provider_for_device
 
 
 logger = logging.getLogger(__name__)
@@ -513,4 +508,3 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         for layer_past in past:
             reordered_past += (tuple(past_state.index_select(0, beam_idx) for past_state in layer_past),)
         return reordered_past
-

@@ -10,11 +10,25 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-# Optimization
+# Trainer
 
-🤗 Optimum provides an `optimum.onnxruntime` package that enables you to apply graph optimization on many model hosted on the 🤗 hub using the [ONNX Runtime](https://github.com/microsoft/onnxruntime/tree/master/onnxruntime/python/tools/transformers) model optimization tool.
+## ORTTrainer
 
-## ORTOptimizer
+[[autodoc]] onnxruntime.trainer.ORTTrainer
+    - all
 
-[[autodoc]] onnxruntime.optimization.ORTOptimizer
+## ORTSeq2SeqTrainer
+
+[[autodoc]] onnxruntime.trainer_seq2seq.ORTSeq2SeqTrainer
+    - evaluate
+    - predict
+
+## ORTTrainingArguments
+
+[[autodoc]] onnxruntime.training_args.ORTTrainingArguments
+    - all
+
+## ORTSeq2SeqTrainingArguments
+
+[[autodoc]] onnxruntime.training_args_seq2seq.ORTSeq2SeqTrainingArguments
     - all

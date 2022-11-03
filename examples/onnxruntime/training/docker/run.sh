@@ -12,10 +12,10 @@ GPU_DEVICES=${2:-"all"}
 # docker run -it --rm -p 80:8888 --gpus $GPU_DEVICES ort9/cu11:latest $CMD
 
 # Install dependencies
-pip install transformers datasets
-pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized
+pip install git+https://github.com/huggingface/transformers
+pip install datasets accelerate evaluate
+pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized sentencepiece
 pip install fairscale deepspeed mpi4py
-pip install --upgrade protobuf==3.20.1
 # pip install optuna ray sigopt wandb # Hyper parameter search
 
 # Install apex

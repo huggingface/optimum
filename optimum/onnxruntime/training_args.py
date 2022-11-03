@@ -31,6 +31,7 @@ from transformers.trainer_utils import (
 from transformers.training_args import OptimizerNames, default_logdir, logger, trainer_log_levels
 from transformers.utils import (
     ExplicitEnum,
+    add_start_docstrings,
     get_full_repo_name,
     is_torch_available,
     is_torch_bf16_available,
@@ -53,6 +54,11 @@ class ORTOptimizerNames(ExplicitEnum):
 
 @dataclass
 class ORTTrainingArguments(TrainingArguments):
+    """
+    Parameters:
+        optim (`str` or [`training_args.ORTOptimizerNames`] or [`transformers.training_args.OptimizerNames`], *optional*, defaults to `"adamw_hf"`):
+            The optimizer to use, including optimizers in Transformers: adamw_hf, adamw_torch, adamw_apex_fused, or adafactor. And optimizers implemented by ONNX Runtime: adamw_ort_fused.
+    """
 
     optim: Optional[str] = field(
         default="adamw_hf",
@@ -66,10 +72,6 @@ class ORTTrainingArguments(TrainingArguments):
         env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
         if env_local_rank != -1 and env_local_rank != self.local_rank:
             self.local_rank = env_local_rank
-
-        # convert to int
-        self.log_level = trainer_log_levels[self.log_level]
-        self.log_level_replica = trainer_log_levels[self.log_level_replica]
 
         # expand paths, if not os.makedirs("~/bar") will make directory
         # in the current directory instead of the actual home
@@ -256,7 +258,7 @@ class ORTTrainingArguments(TrainingArguments):
                 "`--fsdp offload` can't work on its own. It needs to be added to `--fsdp full_shard` or "
                 '`--fsdp shard_grad_op`. For example, `--fsdp "full_shard offload"`.'
             )
-        elif FSDPOption.FULL_SHARD in self.fsdp and FSDPOption.SHARD_GRAD_OP in self.sharded_ddp:
+        elif FSDPOption.FULL_SHARD in self.fsdp and FSDPOption.SHARD_GRAD_OP in self.fsdp:
             raise ValueError("`--fsdp full_shard` is not compatible with `--fsdp shard_grad_op`.")
 
         if len(self.fsdp) == 0 and self.fsdp_min_num_params > 0:

@@ -16,18 +16,19 @@ import os
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer, PreTrainedModel
-from transformers.onnx import export
-from transformers.onnx.features import FeaturesManager
-from transformers.onnx.utils import get_preprocessor
+import transformers
+from transformers.models.auto.configuration_auto import AutoConfig
 
 from onnx import load_model
 from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import get_fusion_statistics, optimize_model
 
-from .configuration import OptimizationConfig
-from .utils import ORTConfigManager
+from ..utils import CONFIG_NAME
+from .configuration import OptimizationConfig, ORTConfig
+from .modeling_ort import ORTModel
+from .modeling_seq2seq import ORTModelForSeq2SeqLM
+from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
 LOGGER = logging.getLogger(__name__)
@@ -38,126 +39,118 @@ class ORTOptimizer:
     Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
     """
 
-    @staticmethod
-    def from_pretrained(
-        model_name_or_path: Union[str, os.PathLike], feature: str, opset: Optional[int] = None
-    ) -> "ORTOptimizer":
-        """
-        Instantiate a `ORTOptimizer` from a pretrained pytorch model and preprocessor.
-
-        Args:
-            model_name_or_path (`Union[str, os.PathLike]`):
-                Repository name in the Hugging Face Hub or path to a local directory hosting the model.
-            feature (`str`):
-                Feature to use when exporting the model.
-            opset (`int`, *optional*):
-                ONNX opset version to export the model with.
-
-        Returns:
-            An instance of `ORTOptimizer`.
-        """
-        preprocessor = get_preprocessor(model_name_or_path)
-        model_class = FeaturesManager.get_model_class_for_feature(feature)
-        model = model_class.from_pretrained(model_name_or_path)
-
-        return ORTOptimizer(preprocessor, model, feature, opset)
-
-    def __init__(
-        self,
-        preprocessor: Union[AutoFeatureExtractor, AutoProcessor, AutoTokenizer],
-        model: PreTrainedModel,
-        feature: str = "default",
-        opset: Optional[int] = None,
-    ):
+    def __init__(self, onnx_model_path: List[os.PathLike], config: transformers.PretrainedConfig):
         """
         Args:
-            preprocessor (`Union[AutoFeatureExtractor, AutoProcessor, AutoTokenizer]`):
-                The preprocessor used to preprocess the data.
-            model (`PreTrainedModel`):
-                The model to optimize.
-            feature (`str`, defaults to `"default"`):
-                Feature to use when exporting the model.
-            opset (`int`, *optional*):
-                ONNX opset version to export the model with.
+            onnx_model_path (`List[os.PathLike]`):
+                The paths of the onnx models to optimize.
+            config (`transformers.PretrainedConfig`):
+                An instance of the configuration associated to the model to optimize.
         """
         super().__init__()
+        self.onnx_model_path = onnx_model_path
+        self.config = config
 
-        self.preprocessor = preprocessor
-        self.model = model
-        self.feature = feature
-        self._model_type, onnx_config_factory = FeaturesManager.check_supported_model_or_raise(model, feature=feature)
-        self._onnx_config = onnx_config_factory(self.model.config)
-        self.opset = self._onnx_config.default_onnx_opset if opset is None else opset
+    @classmethod
+    def from_pretrained(cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None):
+        """
+        Args:
+            model_or_path (`Union[str, os.PathLike, ORTModel]`):
+                The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
+                Can be either:
+                    - A path to a local *directory* containing the model to optimize.
+                    - An instance of ORTModel.
+            file_names(`List[str]`, *optional*):
+                The list of file names of the models to optimize.
+        """
+        if isinstance(model_or_path, ORTModel):
+            if isinstance(model_or_path, ORTModelForSeq2SeqLM):
+                model_save_dir = model_or_path.model_save_dir
+                onnx_model_path = [
+                    model_save_dir.joinpath(model_or_path.encoder_file_name),
+                    model_save_dir.joinpath(model_or_path.decoder_file_name),
+                ]
+                # Add the decoder with past key/values if present
+                if model_or_path.use_cache:
+                    onnx_model_path.append(model_save_dir.joinpath(model_or_path.decoder_file_with_past_name))
+            else:
+                onnx_model_path = [model_or_path.model_save_dir.joinpath(model_or_path.latest_model_name)]
+            return cls(onnx_model_path, config=model_or_path.config)
+        elif os.path.isdir(model_or_path):
+            file_names = [ONNX_WEIGHTS_NAME] if file_names is None else file_names
+            model_or_path = Path(model_or_path)
+            if CONFIG_NAME not in os.listdir(model_or_path):
+                raise ValueError(f"The local directory does not contain the configuration file {CONFIG_NAME}.")
+            config = AutoConfig.from_pretrained(model_or_path)
+            onnx_model_path = []
+            for file_name in file_names:
+                onnx_model_path.append(model_or_path.joinpath(file_name))
+            return cls(onnx_model_path, config=config)
+        else:
+            raise ValueError(f"Unable to load the model from {model_or_path}.")
 
-    def export(
+    def optimize(
         self,
-        onnx_model_path: Union[str, os.PathLike],
-        onnx_optimized_model_output_path: Union[str, os.PathLike],
         optimization_config: OptimizationConfig,
+        save_dir: Union[str, os.PathLike],
+        file_suffix: Optional[str] = "optimized",
         use_external_data_format: bool = False,
-    ) -> Path:
+    ):
         """
         Optimize a model given the optimization specifications defined in `optimization_config`.
 
         Args:
-            onnx_model_path (`Union[str, os.PathLike]`):
-                The path used to save the model exported to an ONNX Intermediate Representation (IR).
-            onnx_optimized_model_output_path (`Union[str, os.PathLike]`):
-                The path used to save the optimized model exported to an ONNX Intermediate Representation (IR).
             optimization_config (`OptimizationConfig`):
                 The configuration containing the parameters related to optimization.
-            use_external_data_format (`bool`, defaults to `False`):
-                Whether uto se external data format to store model which size is >= 2Gb.
-
-        Returns:
-            The path of the resulting optimized model.
+            save_dir (`Union[str, os.PathLike]`):
+                The path used to save the optimized model.
+            file_suffix (`str`, *optional*, defaults to `"optimized"`):
+                The file suffix used to save the optimized model.
+            use_external_data_format (`bool`, *optional*, defaults to `False`):
+                Whether to use external data format to store model of size >= 2Gb.
         """
-        if not isinstance(onnx_model_path, Path):
-            onnx_model_path = Path(onnx_model_path)
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        model_type = self.config.model_type
+        ORTConfigManager.check_optimization_supported_model_or_raise(model_type)
 
-        if not isinstance(onnx_optimized_model_output_path, str):
-            onnx_optimized_model_output_path = str(onnx_optimized_model_output_path)
+        # Save the model configuration
+        self.config.save_pretrained(save_dir)
 
-        # Export the model if it has not already been exported to ONNX IR
-        if not onnx_model_path.exists():
-            export(self.preprocessor, self.model, self._onnx_config, self.opset, onnx_model_path)
+        # Create and save the configuration summarizing all the parameters related to optimization
+        ort_config = ORTConfig(optimization=optimization_config)
+        ort_config.save_pretrained(save_dir)
 
-        ORTConfigManager.check_supported_model_or_raise(self._model_type)
-        num_heads = getattr(self.model.config, ORTConfigManager.get_num_heads_name(self._model_type))
-        hidden_size = getattr(self.model.config, ORTConfigManager.get_hidden_size_name(self._model_type))
-        model_type = ORTConfigManager.get_model_ort_type(self._model_type)
+        num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(model_type))
+        hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(model_type))
+        model_type = ORTConfigManager.get_model_ort_type(model_type)
         optimization_config.model_type = model_type
         optimization_options = FusionOptions.parse(optimization_config)
+        LOGGER.info("Optimizing model...")
 
-        LOGGER.info(f"Creating optimizer: {optimization_config}")
+        for model_path in self.onnx_model_path:
+            optimizer = optimize_model(
+                model_path.as_posix(),
+                model_type,
+                num_heads,
+                hidden_size,
+                opt_level=optimization_config.optimization_level,
+                optimization_options=optimization_options,
+                use_gpu=optimization_config.optimize_for_gpu,
+                only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
+            )
 
-        optimizer = optimize_model(
-            onnx_model_path.as_posix(),
-            model_type,
-            num_heads,
-            hidden_size,
-            opt_level=optimization_config.optimization_level,
-            optimization_options=optimization_options,
-            use_gpu=optimization_config.optimize_for_gpu,
-            only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
-        )
+            if optimization_config.fp16:
+                # keep_io_types to keep inputs/outputs as float32
+                optimizer.convert_float_to_float16(keep_io_types=True)
 
-        if optimization_config.fp16:
-            # keep_io_types to keep inputs/outputs as float32
-            optimizer.convert_float_to_float16(keep_io_types=True)
+            suffix = f"_{file_suffix}" if file_suffix else ""
+            output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
+            optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format)
 
-        optimizer.save_model_to_file(onnx_optimized_model_output_path, use_external_data_format)
+        LOGGER.info(f"Optimized model saved at: {save_dir} (external data format: " f"{use_external_data_format})")
 
-        if optimizer.is_fully_optimized():
-            msg = "The model has been fully optimized "
-        else:
-            msg = "The model has been optimized "
-
-        LOGGER.info(
-            msg + f"and saved at {onnx_optimized_model_output_path} (external data format: {use_external_data_format})"
-        )
-
-        return Path(onnx_optimized_model_output_path)
+        return Path(save_dir)
 
     @staticmethod
     def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> Dict[str, int]:

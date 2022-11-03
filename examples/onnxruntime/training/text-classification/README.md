@@ -19,10 +19,10 @@ limitations under the License.
 ## GLUE Tasks
 
 By running the script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/text-classification/run_glue.py),
-we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune the models from the 
+we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune the models from the
 [HuggingFace hub](https://huggingface.co/models) for sequence classification on the [GLUE benchmark](https://gluebenchmark.com/).
 
- 
+
 __The following example applies the acceleration features powered by ONNX Runtime.__
 
 
@@ -41,15 +41,15 @@ python run_glue.py \
 
 ### Performance
 
-We get the following results for [roberta-base](https://huggingface.co/roberta-base) and [roberta-large](https://huggingface.co/roberta-large) 
-mixed precision training(fp16) on sst2 dataset under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the 
+We get the following results for [roberta-base](https://huggingface.co/roberta-base) and [roberta-large](https://huggingface.co/roberta-large)
+mixed precision training(fp16) on sst2 dataset under PyTorch and ONNX Runtime backends. A single Nvidia A100 card was used to run the
 experiment for 3 epochs::
 
 | Model           | Backend      | Runtime(s) | Train samples(/s) |
 | --------------- |------------- | ---------- | ----------------- |
 | roberta-base    | PyTorch      | 752.3      | 268.6             |
-| roberta-base    | ONNX Runtime | 729.7      | 276.9             | 
-| roberta-large   | PyTorch      | 3523.7     | 57.3              | 
+| roberta-base    | ONNX Runtime | 729.7      | 276.9             |
+| roberta-large   | PyTorch      | 3523.7     | 57.3              |
 | roberta-large   | ONNX Runtime | 2986.6     | 67.7              |
 
 We observe the gain of ONNX Runtime compared to PyTorch as follow:
@@ -62,7 +62,8 @@ We observe the gain of ONNX Runtime compared to PyTorch as follow:
 
 __Note__
 > *To enable ONNX Runtime training, your devices need to be equipped with GPU. Install the dependencies either with our prepared*
-*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions* 
+*[Dockerfiles](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/) or follow the instructions*
 *in [`torch_ort`](https://github.com/pytorch/ort/blob/main/torch_ort/docker/README.md).*
 
+> *The inference will use PyTorch by default, if you want to use ONNX Runtime backend instead, add the flag `--inference_with_ort`.*
 ---

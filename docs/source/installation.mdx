@@ -1,0 +1,42 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Installation
+
+🤗 Optimum can be installed using `pip` as follows:
+
+```bash
+python -m pip install optimum
+```
+
+If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
+
+| Accelerator                                                                                                            | Installation                                      |
+|:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
+| [ONNX runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]`      |
+| [Intel Neural Compressor (INC)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) | `python -m pip install optimum[neural-compressor]`|
+| [Intel OpenVINO](https://docs.openvino.ai/latest/index.html)                                                           | `python -m pip install optimum[openvino,nncf]`    |
+| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`        |
+| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`           |
+
+
+If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
+
+```bash
+python -m pip install git+https://github.com/huggingface/optimum.git
+```
+
+For the accelerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
+
+```bash
+python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
+```

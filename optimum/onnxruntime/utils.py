@@ -12,8 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 from enum import Enum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Dict, Tuple, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -57,19 +56,28 @@ class ORTConfigManager:
             and the hidden size model config attribute names as well as the corresponding ONNX Runtime model type.
     """
 
+    # Contribution note: Please add new models in alphabetical order
     _conf = {
-        "bert": ("num_attention_heads", "hidden_size", "bert"),
         "albert": ("num_attention_heads", "hidden_size", "bert"),
+        "bart": ("encoder_attention_heads", "d_model", "bart"),
+        "bert": ("num_attention_heads", "hidden_size", "bert"),
+        "big_bird": ("num_attention_heads", "hidden_size", "bert"),
+        "bigbird_pegasus": ("encoder_attention_heads", "d_model", None),  # bug in `fusion_skiplayernorm.py`
         "camembert": ("num_attention_heads", "hidden_size", "bert"),
         "codegen": ("n_head", "n_embd", "gpt2"),
-        "distilbert": ("n_heads", "dim", "bert"),
         "deberta": ("num_attention_heads", "hidden_size", "bert"),
         "deberta-v2": ("num_attention_heads", "hidden_size", "bert"),
+        "distilbert": ("n_heads", "dim", "bert"),
         "electra": ("num_attention_heads", "hidden_size", "bert"),
-        "roberta": ("num_attention_heads", "hidden_size", "bert"),
-        "bart": ("encoder_attention_heads", "d_model", "bart"),
         "gpt2": ("n_head", "n_embd", "gpt2"),
         "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
+        "marian": ("encoder_attention_heads", "d_model", "bart"),
+        "mbart": ("encoder_attention_heads", "d_model", "bart"),
+        "mt5": ("num_heads", "d_model", "bart"),
+        "m2m_100": ("encoder_attention_heads", "d_model", "bart"),
+        "roberta": ("num_attention_heads", "hidden_size", "bert"),
+        "t5": ("num_heads", "d_model", "t5"),
+        "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
     }
 
     @classmethod
@@ -110,6 +118,15 @@ class ORTConfigManager:
             raise KeyError(
                 f"{model_type} model type is not supported yet. Only {list(cls._conf.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
+            )
+
+    @classmethod
+    def check_optimization_supported_model_or_raise(cls, model_type: str) -> bool:
+        supported_model_types_for_optimization = ["bert", "gpt2", "bart"]
+        if (model_type not in cls._conf) or (cls._conf[model_type][2] not in supported_model_types_for_optimization):
+            raise KeyError(
+                f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {supported_model_types_for_optimization} are supported. "
+                f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."
             )
 
 
@@ -155,7 +172,11 @@ def get_device_for_provider(provider: str) -> torch.device:
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
-    return torch.device("cuda") if provider == "CUDAExecutionProvider" else torch.device("cpu")
+    return (
+        torch.device("cuda")
+        if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]
+        else torch.device("cpu")
+    )
 
 
 def get_provider_for_device(device: torch.device) -> str:
@@ -163,6 +184,21 @@ def get_provider_for_device(device: torch.device) -> str:
     Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
     """
     return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"
+
+
+def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, Dict]:
+    """Get the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
+
+    if device == -1:
+        device = torch.device("cpu")
+    else:
+        device = torch._C._nn._parse_to(device)[0]
+
+    provider_options = {}
+    if device.type == "cuda" and device.index:
+        provider_options["device_id"] = device.index
+
+    return device, provider_options
 
 
 class ORTQuantizableOperator(Enum):
