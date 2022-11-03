@@ -22,7 +22,7 @@ class BartLayerFast(nn.Module):
 
         Args:
             bart_layer (`torch.nn.Module`):
-                The original T5 Layer where the weights needs to be retrieved.
+                The original BART layer where the weights needs to be retrieved.
         """
         super().__init__()
         # In_proj layer

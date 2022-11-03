@@ -18,7 +18,7 @@ import torch.nn as nn
 class BertLayerFast(nn.Module):
     def __init__(self, bert_layer):
         r"""
-        A simple conversion of the BERTLayer to its `Fast` implementation.
+        A simple conversion of the BERT layer to its `Fast` implementation.
 
         Args:
             bert_layer (`torch.nn.Module`):
@@ -119,4 +119,3 @@ class BertLayerFast(nn.Module):
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
 
-    # return (nested_hidden_states,)

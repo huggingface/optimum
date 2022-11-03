@@ -119,4 +119,3 @@ class DistilBertLayerFast(nn.Module):
             x = x.to_padded_tensor(0.0)
         return (x,)
 
-    # return (nested_x,)

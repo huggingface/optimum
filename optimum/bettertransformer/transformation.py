@@ -130,7 +130,7 @@ class BetterTransformer(object):
 
     def transform(
         model: torch.nn.Module,
-        keep_original_model: Optional[bool] = False,
+        keep_original_model: bool = False,
         max_memory: Optional[dict] = None,
         **kwargs
     ) -> torch.nn.Module:

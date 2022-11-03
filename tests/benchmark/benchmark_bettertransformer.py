@@ -178,6 +178,5 @@ if __name__ == "__main__":
                     )
                 )
     output_file.close()
-    # total_bt_time, total_hf_time = benchmark(args.model_name, args.num_batches, args.batch_size, args.avg_seqlen, args.max_seqlen, args.seqlen_stdev, args.use_cuda, args.use_half, args.use_mask)
     # print(total_bt_time, total_hf_time)
     # print("BT w.r.t HF: {}".format(total_hf_time/total_bt_time))
