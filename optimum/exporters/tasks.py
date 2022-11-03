@@ -662,7 +662,18 @@ class TasksManager:
         return framework
 
     @staticmethod
-    def infer_task_from_model(model_name_or_path):
+    def infer_task_from_model(model_name_or_path: str) -> str:
+        """
+        Infers the task from the model repo.
+
+        Args:
+            model_name_or_path (`str`):
+                The model repo or local path (not supported for now).
+
+        Returns:
+            `str`: The task name automatically detected from the model repo.
+        """
+
         tasks_to_automodels = {}
         class_name_prefix = ""
         if is_torch_available():
@@ -675,14 +686,16 @@ class TasksManager:
         is_local = os.path.isdir(model_name_or_path)
 
         if is_local:
-            # TODO: implement this.
-            raise NotImplementedError("Cannot infer the task from a local directory yet.")
+            # TODO: maybe implement that.
+            raise RuntimeError("Cannot infer the task from a local directory yet, please specify the task manually.")
         else:
             model_info = huggingface_hub.model_info(model_name_or_path)
             transformers_info = model_info.transformersInfo
             if transformers_info is None or transformers_info.get("auto_model") is None:
                 raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
-            auto_model_class_name = f"{class_name_prefix}{transformers_info['auto_model']}"
+            auto_model_class_name = transformers_info["auto_model"]
+            if not auto_model_class_name.startswith("TF"):
+                auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
             for task_name, class_ in tasks_to_automodels.items():
                 if class_.__name__ == auto_model_class_name:
                     inferred_task_name = task_name

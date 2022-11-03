@@ -37,7 +37,7 @@ def main():
     parser.add_argument(
         "--task",
         default="auto",
-        help="The type of tasks to export the model with.",
+        help="The type of task to export the model with.",
     )
     parser.add_argument("--opset", type=int, default=None, help="ONNX opset version to export the model with.")
     parser.add_argument(
