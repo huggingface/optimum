@@ -16,10 +16,9 @@ from typing import Optional
 
 import torch
 
-from optimum.utils import is_accelerate_available
+from optimum.utils import is_accelerate_available, check_if_pytorch_greater_112
 
 from .models import is_module_fast
-from .utils import check_if_pytorch_greater_112
 
 
 if is_accelerate_available():

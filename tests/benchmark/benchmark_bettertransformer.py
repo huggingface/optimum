@@ -178,5 +178,3 @@ if __name__ == "__main__":
                     )
                 )
     output_file.close()
-    # print(total_bt_time, total_hf_time)
-    # print("BT w.r.t HF: {}".format(total_hf_time/total_bt_time))
