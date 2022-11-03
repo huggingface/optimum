@@ -18,7 +18,7 @@ import torch.nn as nn
 class BartLayerFast(nn.Module):
     def __init__(self, bart_layer):
         r"""
-        A simple conversion of the T5-layer to its `Fast` implementation.
+        A simple conversion of the BART layer to its `Fast` implementation.
 
         Args:
             bart_layer (`torch.nn.Module`):
