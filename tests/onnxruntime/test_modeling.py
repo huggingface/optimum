@@ -1471,9 +1471,9 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
     def test_compare_to_io_binding(self, *args, **kwargs):
         model_arch, model_id = args
         set_seed(SEED)
-        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False)
         set_seed(SEED)
-        io_model = ORTModelForCustomTasks.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True)
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
