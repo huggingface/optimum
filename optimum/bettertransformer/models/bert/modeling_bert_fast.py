@@ -118,4 +118,3 @@ class BertLayerFast(nn.Module):
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
-

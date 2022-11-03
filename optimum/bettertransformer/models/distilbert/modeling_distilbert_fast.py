@@ -118,4 +118,3 @@ class DistilBertLayerFast(nn.Module):
         if x.is_nested and self.is_last_layer:
             x = x.to_padded_tensor(0.0)
         return (x,)
-

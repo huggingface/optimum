@@ -16,7 +16,7 @@ from typing import Optional
 
 import torch
 
-from optimum.utils import is_accelerate_available, check_if_pytorch_greater_112
+from optimum.utils import check_if_pytorch_greater_112, is_accelerate_available
 
 from .models import is_module_fast
 
@@ -51,14 +51,17 @@ def init_accelerate_hook(module):
     return module
 
 
-# Step 1: Recurse over the modules of the model
-# Step 2: Verify if the module `Fast` is present for that model
-# Step 3: If yes, replace the `...Layer` module with the `...LayerFast` modules
-# Step 4: If not, yield an error.
 def replace_to_fast(model):
     r"""
     Replaces the current model to its `Fast` implementation. Loops recursively into the model and replaces the
     `Layer` modules with its `Fast` correspondant model
+
+    - Step 1: Recurse over the modules of the model
+    - Step 2: Verify if the module `Fast` is present for that model
+    - Step 3: If yes, replace the `...Layer` module with the `...LayerFast` modules
+    - Step 4: If not, yield an error.
+    - Step 5: Post process the potentially converted model by setting the `is_last_layer` attribute to `True` for the last `Fast` layer.
+    (done in `set_last_layer` function)
 
     Args:
         `model` (`torch.nn.Module`, **required**):
@@ -90,8 +93,6 @@ def replace_to_fast(model):
     return model
 
 
-# Step 5: Post process the potentially converted model by setting the `is_last_layer` attribute to `True`
-# For the last `Fast` layer.
 def set_last_layer(model):
     r"""
     Iterates over the module list containing the `LayerFast` modules. Sets the last layer's `is_last_layer`
@@ -128,10 +129,7 @@ class BetterTransformer(object):
     """
 
     def transform(
-        model: torch.nn.Module,
-        keep_original_model: bool = False,
-        max_memory: Optional[dict] = None,
-        **kwargs
+        model: torch.nn.Module, keep_original_model: bool = False, max_memory: Optional[dict] = None, **kwargs
     ) -> torch.nn.Module:
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
