@@ -228,13 +228,17 @@ class OptimizedModel(ABC):
                 )
             except OSError:
                 # if config not found in subfolder, search for it at the top level
-                config = AutoConfig.from_pretrained(
-                    pretrained_model_name_or_path=model_id,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    use_auth_token=use_auth_token,
-                )
+                if subfolder != "":
+                    config = AutoConfig.from_pretrained(
+                        pretrained_model_name_or_path=model_id,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        use_auth_token=use_auth_token,
+                    )
+                    logger.info(
+                        f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
+                    )
             except requests.exceptions.RequestException:
                 logger.warning("config.json NOT FOUND in HuggingFace Hub")
                 config = None
