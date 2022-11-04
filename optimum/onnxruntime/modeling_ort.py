@@ -365,6 +365,8 @@ class ORTModel(OptimizedModel):
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
 
+        config = kwargs.get("config", {})
+
         # reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
         if cls.export_feature is not None:
             task = cls.export_feature
@@ -380,7 +382,7 @@ class ORTModel(OptimizedModel):
 
         framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
         model_class = FeaturesManager.get_model_class_for_feature(task, framework)
-        model = model_class.from_pretrained(model_id, subfolder=subfolder, cache_dir=cache_dir)
+        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
 
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
         onnx_config = model_onnx_config(model.config)
@@ -393,7 +395,7 @@ class ORTModel(OptimizedModel):
             opset=onnx_config.default_onnx_opset,
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
-        kwargs["config"] = model.config
+
         # 3. load normal model
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 

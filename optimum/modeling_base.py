@@ -226,6 +226,15 @@ class OptimizedModel(ABC):
                     use_auth_token=use_auth_token,
                     subfolder=subfolder,
                 )
+            except OSError:
+                # if config not found in subfolder, search for it at the top level
+                config = AutoConfig.from_pretrained(
+                    pretrained_model_name_or_path=model_id,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    use_auth_token=use_auth_token,
+                )
             except requests.exceptions.RequestException:
                 logger.warning("config.json NOT FOUND in HuggingFace Hub")
                 config = None

@@ -438,13 +438,14 @@ class ORTModelForConditionalGeneration(ORTModel):
         save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
+        config = kwargs.get("config", {})
         use_cache = kwargs.get("use_cache", True)
 
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
         framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
         model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
-        model = model_class.from_pretrained(model_id, subfolder=subfolder, cache_dir=cache_dir)
+        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
 
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
         onnx_config = model_onnx_config(model.config)
