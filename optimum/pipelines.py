@@ -149,8 +149,6 @@ def pipeline(
     **kwargs,
 ) -> Pipeline:
     targeted_task = "translation" if task.startswith("translation") else task
-    if accelerator == "bettertransformer":
-        from transformers.pipelines import SUPPORTED_TASKS
 
     if targeted_task not in list(SUPPORTED_TASKS.keys()):
         raise ValueError(f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
