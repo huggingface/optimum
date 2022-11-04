@@ -117,16 +117,16 @@ for task, values in SUPPORTED_TASKS.items():
 
 
 def load_bettertransformer(model, targeted_task, **kwargs):
-    from transformers.pipelines import SUPPORTED_TASKS
+    from transformers.pipelines import TRANSFORMERS_SUPPORTED_TASKS
 
     from optimum.bettertransformer import BetterTransformer
 
     if model is None:
-        model_id = SUPPORTED_TASKS[targeted_task]["default"]
-        model = SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, **kwargs)
+        model_id = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["default"]
+        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, **kwargs)
     elif isinstance(model, str):
         model_id = model
-        model = SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, **kwargs)
+        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, **kwargs)
     else:
         raise ValueError(
             f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
