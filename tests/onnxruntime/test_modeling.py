@@ -107,6 +107,33 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
+    def test_load_model_from_hub_subfolder(self):
+        # does not pass with ORTModel as it does not have export_feature attribute
+        model = ORTModelForSequenceClassification.from_pretrained(
+            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", from_transformers=True
+        )
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+        model = ORTModel.from_pretrained("fxmarty/tiny-bert-sst2-distilled-onnx-subfolder", subfolder="my_subfolder")
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_seq2seq_model_from_hub_subfolder(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", from_transformers=True
+        )
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-onnx-subfolder", subfolder="my_folder")
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
     def test_load_model_from_cache(self):
         _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID)  # caching
 
