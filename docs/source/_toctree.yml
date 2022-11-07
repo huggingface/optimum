@@ -79,6 +79,6 @@
     title: Reference
   title: Torch FX
 - sections:
-  - local: bettertransformers/quickstart
+  - local: bettertransformer/quickstart
     title: Quickstart
   title: BetterTransformer integration
