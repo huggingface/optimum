@@ -79,8 +79,6 @@ class DistilBertLayerBetterTransformer(nn.Module):
         self.num_heads = bert_layer.attention.n_heads
         self.embed_dim = bert_layer.attention.dim
 
-        del bert_layer
-
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
 

@@ -1,41 +1,36 @@
 # Copyright 2022 The HuggingFace and Meta Team.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
+# you may not use this file ehidden_statescept in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either ehidden_statespress or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
 import torch.nn as nn
 
 
-class BertLayerBetterTransformer(nn.Module):
-    def __init__(self, bert_layer, config):
+class BartLayerBetterTransformer(nn.Module):
+    def __init__(self, bart_layer, config):
         r"""
-        A simple conversion of the BERT layer to its `BetterTransformer` implementation.
+        A simple conversion of the BART layer to its `BetterTransformer` implementation.
 
         Args:
-            bert_layer (`torch.nn.Module`):
-                The original BERT Layer where the weights needs to be retrieved.
+            bart_layer (`torch.nn.Module`):
+                The original BART layer where the weights needs to be retrieved.
         """
         super().__init__()
         # Sanity checks
-        self.act_fn = config.hidden_act
         self.norm_first = False
+        self.act_fn = config.activation_function
         if self.act_fn not in ["gelu", "relu"]:
             raise ValueError(
                 f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
-            )
-        if hasattr(config, "position_embedding_type") and config.position_embedding_type != "absolute":
-            raise ValueError(
-                f"Positional embedding type {config.position_embedding_type} not "
-                "supported for `BetterTransformer` integration"
             )
         self.use_gelu = self.act_fn == "gelu"
 
@@ -43,53 +38,52 @@ class BertLayerBetterTransformer(nn.Module):
         self.in_proj_weight = nn.Parameter(
             torch.cat(
                 [
-                    bert_layer.attention.self.query.weight,
-                    bert_layer.attention.self.key.weight,
-                    bert_layer.attention.self.value.weight,
+                    bart_layer.self_attn.q_proj.weight,
+                    bart_layer.self_attn.k_proj.weight,
+                    bart_layer.self_attn.v_proj.weight,
                 ]
             )
         )
+
         self.in_proj_bias = nn.Parameter(
             torch.cat(
                 [
-                    bert_layer.attention.self.query.bias,
-                    bert_layer.attention.self.key.bias,
-                    bert_layer.attention.self.value.bias,
+                    bart_layer.self_attn.q_proj.bias,
+                    bart_layer.self_attn.k_proj.bias,
+                    bart_layer.self_attn.v_proj.bias,
                 ]
             )
         )
 
         # Out proj layer
-        self.out_proj_weight = bert_layer.attention.output.dense.weight
-        self.out_proj_bias = bert_layer.attention.output.dense.bias
+        self.out_proj_weight = bart_layer.self_attn.out_proj.weight
+        self.out_proj_bias = bart_layer.self_attn.out_proj.bias
 
         # Linear layer 1
-        self.linear1_weight = bert_layer.intermediate.dense.weight
-        self.linear1_bias = bert_layer.intermediate.dense.bias
+        self.linear1_weight = bart_layer.fc1.weight
+        self.linear1_bias = bart_layer.fc1.bias
 
         # Linear layer 2
-        self.linear2_weight = bert_layer.output.dense.weight
-        self.linear2_bias = bert_layer.output.dense.bias
+        self.linear2_weight = bart_layer.fc2.weight
+        self.linear2_bias = bart_layer.fc2.bias
 
         # Layer norm 1
-        self.norm1_eps = bert_layer.attention.output.LayerNorm.eps
-        self.norm1_weight = bert_layer.attention.output.LayerNorm.weight
-        self.norm1_bias = bert_layer.attention.output.LayerNorm.bias
+        self.norm1_eps = bart_layer.self_attn_layer_norm.eps
+        self.norm1_weight = bart_layer.self_attn_layer_norm.weight
+        self.norm1_bias = bart_layer.self_attn_layer_norm.bias
 
         # Layer norm 2
-        self.norm2_weight = bert_layer.output.LayerNorm.weight
-        self.norm2_bias = bert_layer.output.LayerNorm.bias
+        self.norm2_weight = bart_layer.final_layer_norm.weight
+        self.norm2_bias = bart_layer.final_layer_norm.bias
 
         # Model hyper parameters
-        self.num_heads = bert_layer.attention.self.num_attention_heads
-        self.embed_dim = bert_layer.attention.self.all_head_size
-
-        del bert_layer
+        self.num_heads = bart_layer.self_attn.num_heads
+        self.embed_dim = bart_layer.self_attn.embed_dim
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
 
-    def forward(self, hidden_states, attention_mask, *_):
+    def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553
@@ -100,6 +94,8 @@ class BertLayerBetterTransformer(nn.Module):
         if attention_mask is not None:
             # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
             # 0->false->keep this token -inf->true->mask this token
+            if len(attention_mask.shape) == 4:
+                attention_mask = attention_mask.squeeze(1)[:, 0]
             attention_mask = attention_mask.bool()
             attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
             seqlen = attention_mask.shape[1]
