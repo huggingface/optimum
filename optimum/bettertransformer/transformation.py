@@ -53,14 +53,14 @@ def init_accelerate_hook(module):
 
 def replace_to_fast(model):
     r"""
-    Replaces the current model to its `Fast` implementation. Loops recursively into the model and replaces the
-    `Layer` modules with its `Fast` correspondant model
+    Replaces the current model to its `BetterTransformer` implementation. Loops recursively into the model and replaces the
+    `Layer` modules with its `BetterTransformer` correspondant model
 
     - Step 1: Recurse over the modules of the model
-    - Step 2: Verify if the module `Fast` is present for that model
-    - Step 3: If yes, replace the `...Layer` module with the `...LayerFast` modules
+    - Step 2: Verify if the module `BetterTransformer` is present for that model
+    - Step 3: If yes, replace the `...Layer` module with the `...LayerBetterTransformer` modules
     - Step 4: If not, yield an error.
-    - Step 5: Post process the potentially converted model by setting the `is_last_layer` attribute to `True` for the last `Fast` layer.
+    - Step 5: Post process the potentially converted model by setting the `is_last_layer` attribute to `True` for the last `BetterTransformer` layer.
     (done in `set_last_layer` function)
 
     Args:
@@ -95,7 +95,7 @@ def replace_to_fast(model):
 
 def set_last_layer(model):
     r"""
-    Iterates over the module list containing the `LayerFast` modules. Sets the last layer's `is_last_layer`
+    Iterates over the module list containing the `LayerBetterTransformer` modules. Sets the last layer's `is_last_layer`
     attribute to `True`
 
     Args:
@@ -109,7 +109,7 @@ def set_last_layer(model):
 
     for key in dict_named_module.keys():
         if isinstance(dict_named_module[key], torch.nn.ModuleList) and all(
-            "LayerFast" in module_name for module_name in sort_fn(dict_named_module[key])
+            "LayerBetterTransformer" in module_name for module_name in sort_fn(dict_named_module[key])
         ):
             setattr(dict_named_module[key][-1], "is_last_layer", True)
             return True
@@ -120,7 +120,7 @@ def set_last_layer(model):
 class BetterTransformer(object):
     r"""
     A conversion wrapper that takes as an input the `transformers` model to be converted
-    and returns the converted `Fast` model. The `Fast` model is based on the `BetterTransformer`
+    and returns the converted `BetterTransformer` model. The `BetterTransformer` model is based on the `BetterTransformer`
     recently released by PyTorch from its 1.12 version:
     https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/
 
@@ -163,12 +163,12 @@ class BetterTransformer(object):
         if not successfully_converted_model:
             raise NotImplementedError(
                 f"The Better Transformers implementation for the model {model.__class__.__name__} has not been"
-                f"implemented yet. Please open an issue requesting the addition of this model with its `Fast`"
+                f"implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer`"
                 f"implementation."
             )
 
         # Step 6: Add a class arguments, we might need to identify whether the model
-        # has been correctly converted to its `Fast` version.
+        # has been correctly converted to its `BetterTransformer` version.
         setattr(model_fast, "is_fast", True)
 
         # Step 7: dispatch model if `accelerate` is enabled

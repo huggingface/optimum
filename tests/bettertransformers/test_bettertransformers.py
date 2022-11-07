@@ -19,7 +19,7 @@ import torch
 import transformers
 from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, pipeline
 
-from optimum.bettertransformer import FAST_LAYERS_MAPPING_DICT, BetterTransformer
+from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
 from optimum.utils import is_accelerate_available
 from optimum.utils.testing_utils import (
     convert_to_hf_classes,
@@ -50,11 +50,11 @@ class BetterTransformersTest(unittest.TestCase):
         A test to check if the modified dictionnary is consistent (same number of keys + successfully import
         the correct `PreTrainedModel` module).
         """
-        for keys in FAST_LAYERS_MAPPING_DICT.keys():
+        for keys in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
             self.assertTrue(("Layer" in keys) or ("Block" in keys))
 
-        ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(FAST_LAYERS_MAPPING_DICT)
-        self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(FAST_LAYERS_MAPPING_DICT.keys()))
+        ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
+        self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()))
 
     @unittest.skipIf(not is_accelerate_available(), "Skipping the test since `accelerate` is not available...")
     @init_empty_weights()
@@ -68,9 +68,9 @@ class BetterTransformersTest(unittest.TestCase):
         # Step 2: check also that some class attributes still remains in the model
         # (for eg, `generate`)
 
-        ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(FAST_LAYERS_MAPPING_DICT)
+        ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
 
-        for layer_class in FAST_LAYERS_MAPPING_DICT.keys():
+        for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
             if layer_class == "TransformerBlock":
                 # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
                 class_name = "DistilBert"
@@ -100,7 +100,7 @@ class BetterTransformersTest(unittest.TestCase):
         inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
         attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
 
-        for layer_class in FAST_LAYERS_MAPPING_DICT.keys():
+        for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
             if layer_class == "TransformerBlock":
                 # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
                 class_name = "DistilBert"

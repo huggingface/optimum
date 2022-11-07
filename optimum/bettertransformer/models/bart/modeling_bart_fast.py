@@ -15,10 +15,10 @@ import torch
 import torch.nn as nn
 
 
-class BartLayerFast(nn.Module):
+class BartLayerBetterTransformer(nn.Module):
     def __init__(self, bart_layer):
         r"""
-        A simple conversion of the BART layer to its `Fast` implementation.
+        A simple conversion of the BART layer to its `BetterTransformer` implementation.
 
         Args:
             bart_layer (`torch.nn.Module`):

@@ -14,38 +14,38 @@
 from . import bart, bert, distilbert
 
 
-FAST_LAYERS_MAPPING_DICT = {
+BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # Bert Family
-    "BertLayer": bert.BertLayerFast,
-    "ElectraLayer": bert.BertLayerFast,
-    "Data2VecTextLayer": bert.BertLayerFast,
-    "CamembertLayer": bert.BertLayerFast,
-    "MarkupLMLayer": bert.BertLayerFast,
-    "RobertaLayer": bert.BertLayerFast,
-    "SplinterLayer": bert.BertLayerFast,
-    "ErnieLayer": bert.BertLayerFast,
-    "LayoutLMLayer": bert.BertLayerFast,
-    "BertGenerationLayer": bert.BertLayerFast,
-    "RobertaLayer": bert.BertLayerFast,
-    "Data2VecTextLayer": bert.BertLayerFast,
-    "XLMRobertaLayer": bert.BertLayerFast,
+    "BertLayer": bert.BertLayerBetterTransformer,
+    "ElectraLayer": bert.BertLayerBetterTransformer,
+    "Data2VecTextLayer": bert.BertLayerBetterTransformer,
+    "CamembertLayer": bert.BertLayerBetterTransformer,
+    "MarkupLMLayer": bert.BertLayerBetterTransformer,
+    "RobertaLayer": bert.BertLayerBetterTransformer,
+    "SplinterLayer": bert.BertLayerBetterTransformer,
+    "ErnieLayer": bert.BertLayerBetterTransformer,
+    "LayoutLMLayer": bert.BertLayerBetterTransformer,
+    "BertGenerationLayer": bert.BertLayerBetterTransformer,
+    "RobertaLayer": bert.BertLayerBetterTransformer,
+    "Data2VecTextLayer": bert.BertLayerBetterTransformer,
+    "XLMRobertaLayer": bert.BertLayerBetterTransformer,
     # Bart family - need to tweak the tests a bit
-    "BartEncoderLayer": bart.BartLayerFast,
-    # "PLBartEncoderLayer": bart.BartLayerFast,
-    # "MarianEncoderLayer": bart.BartLayerFast,
-    # "TimeSeriesTransformerEncoderLayer": bart.BartLayerFast,
-    # "BlenderbotSmallEncoderLayer": bart.BartLayerFast,
+    "BartEncoderLayer": bart.BartLayerBetterTransformer,
+    # "PLBartEncoderLayer": bart.BartLayerBetterTransformer,
+    # "MarianEncoderLayer": bart.BartLayerBetterTransformer,
+    # "TimeSeriesTransformerEncoderLayer": bart.BartLayerBetterTransformer,
+    # "BlenderbotSmallEncoderLayer": bart.BartLayerBetterTransformer,
     # T5 family - needs to check compatibility first
-    # "T5Block": t5.T5LayerFast,
+    # "T5Block": t5.T5LayerBetterTransformer,
     # Some models cannot be tested such as:
-    # "QDQBertLayer": bert.BertLayerFast, --> needs torch quantization
-    # "RealmLayer": bert.BertLayerFast, --> not mapped in AutoModel
-    "TransformerBlock": distilbert.DistilBertLayerFast,
+    # "QDQBertLayer": bert.BertLayerBetterTransformer, --> needs torch quantization
+    # "RealmLayer": bert.BertLayerBetterTransformer, --> not mapped in AutoModel
+    "TransformerBlock": distilbert.DistilBertLayerBetterTransformer,
 }
 
 
 def is_module_fast(module_name):
-    if module_name not in FAST_LAYERS_MAPPING_DICT.keys():
+    if module_name not in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
         return False
     else:
-        return FAST_LAYERS_MAPPING_DICT[module_name]
+        return BETTER_TRANFORMER_LAYERS_MAPPING_DICT[module_name]

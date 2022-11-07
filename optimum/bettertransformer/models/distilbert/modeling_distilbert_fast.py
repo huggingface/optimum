@@ -15,10 +15,10 @@ import torch
 import torch.nn as nn
 
 
-class DistilBertLayerFast(nn.Module):
+class DistilBertLayerBetterTransformer(nn.Module):
     def __init__(self, bert_layer):
         r"""
-        A simple conversion of the Distill-BERTLayer to its `Fast` implementation.
+        A simple conversion of the Distill-BERTLayer to its `BetterTransformer` implementation.
 
         Args:
             bert_layer (`torch.nn.Module`):
