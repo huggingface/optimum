@@ -148,7 +148,14 @@ def load_bettertransformer(
 
 
 def load_ort_pipeline(
-    model, targeted_task, load_tokenizer, tokenizer, feature_extractor, load_feature_extractor, SUPPORTED_TASKS
+    model,
+    targeted_task,
+    load_tokenizer,
+    tokenizer,
+    feature_extractor,
+    load_feature_extractor,
+    SUPPORTED_TASKS,
+    **kwargs
 ):
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
