@@ -80,4 +80,4 @@
   title: Torch FX
 - sections:
   - local: bettertransformers/quickstart
-    titla: Quickstart
+    title: Quickstart
