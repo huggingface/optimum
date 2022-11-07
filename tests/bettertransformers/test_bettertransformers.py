@@ -51,7 +51,7 @@ class BetterTransformersTest(unittest.TestCase):
         the correct `PreTrainedModel` module).
         """
         for keys in FAST_LAYERS_MAPPING_DICT.keys():
-            self.assertTrue("Layer" in keys)
+            self.assertTrue(("Layer" in keys) or ("Block" in keys))
 
         ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(FAST_LAYERS_MAPPING_DICT)
         self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(FAST_LAYERS_MAPPING_DICT.keys()))
@@ -71,7 +71,10 @@ class BetterTransformersTest(unittest.TestCase):
         ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(FAST_LAYERS_MAPPING_DICT)
 
         for layer_class in FAST_LAYERS_MAPPING_DICT.keys():
-            if "EncoderLayer" in layer_class:
+            if layer_class == "TransformerBlock":
+                # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
+                class_name = "DistilBert"
+            elif "EncoderLayer" in layer_class:
                 class_name = layer_class[:-12]
             else:
                 class_name = layer_class[:-5]
@@ -98,7 +101,10 @@ class BetterTransformersTest(unittest.TestCase):
         attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
 
         for layer_class in FAST_LAYERS_MAPPING_DICT.keys():
-            if "EncoderLayer" in layer_class:
+            if layer_class == "TransformerBlock":
+                # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
+                class_name = "DistilBert"
+            elif "EncoderLayer" in layer_class:
                 class_name = layer_class[:-12]
             else:
                 class_name = layer_class[:-5]

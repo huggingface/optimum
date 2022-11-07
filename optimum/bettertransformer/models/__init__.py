@@ -40,7 +40,7 @@ FAST_LAYERS_MAPPING_DICT = {
     # Some models cannot be tested such as:
     # "QDQBertLayer": bert.BertLayerFast, --> needs torch quantization
     # "RealmLayer": bert.BertLayerFast, --> not mapped in AutoModel
-    "DistilBertLayer": distilbert.DistilBertLayerFast,
+    "TransformerBlock": distilbert.DistilBertLayerFast,
 }
 
 

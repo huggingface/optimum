@@ -88,8 +88,11 @@ def convert_to_hf_classes(mapping_dict):
 
     hf_names_dict = {}
     for fast_layer_key in mapping_dict.keys():
+        if fast_layer_key == "TransformerBlock":
+            # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
+            prefix = "DistilBert"
         # For enc-decoder models the prefix is different
-        if "EncoderLayer" in fast_layer_key:
+        elif "EncoderLayer" in fast_layer_key:
             prefix = fast_layer_key[:-12]
         else:
             prefix = fast_layer_key[:-5]

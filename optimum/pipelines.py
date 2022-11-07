@@ -117,7 +117,7 @@ for task, values in SUPPORTED_TASKS.items():
 
 
 def load_bettertransformer(model, targeted_task, **kwargs):
-    from transformers.pipelines import TRANSFORMERS_SUPPORTED_TASKS
+    from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 
     from optimum.bettertransformer import BetterTransformer
 
