@@ -127,8 +127,15 @@ class BetterTransformersTest(unittest.TestCase):
                 hf_hidden_states = hf_random_model(inputs_ids, attention_mask=attention_mask)[0]
                 bt_hidden_states = converted_model(inputs_ids, attention_mask=attention_mask)[0]
 
+                if "gelu_new" in vars(random_config()).values():
+                    # Since `gelu_new` is a slightly modified version of `GeLU` we expect a small
+                    # discrepency.
+                    tol = 4e-2
+                else:
+                    tol = 1e-3
+
                 self.assertTrue(
-                    torch.allclose(hf_hidden_states[:, :3, :], bt_hidden_states[:, :3, :], atol=1e-3),
+                    torch.allclose(hf_hidden_states[:, :3, :], bt_hidden_states[:, :3, :], atol=tol),
                     "The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {}".format(
                         hf_random_model.__class__.__name__
                     ),

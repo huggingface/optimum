@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 
-from . import bart, bert, distilbert
+from . import albert, bart, bert, distilbert
 
 
 BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
@@ -31,6 +31,8 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "RobertaLayer": bert.BertLayerBetterTransformer,
     "Data2VecTextLayer": bert.BertLayerBetterTransformer,
     "XLMRobertaLayer": bert.BertLayerBetterTransformer,
+    # Albert Family
+    "AlbertLayer": albert.AlbertLayerBetterTransformer,
     # Bart family - need to tweak the tests a bit
     "BartEncoderLayer": bart.BartLayerBetterTransformer,
     # "PLBartEncoderLayer": bart.BartLayerBetterTransformer,
