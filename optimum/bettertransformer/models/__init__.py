@@ -45,6 +45,17 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
 
 
 def is_module_fast(module_name):
+    r"""
+    An utility function that checks if the input module is compatible with its `BetterTransformer`
+    implementation.
+
+    Args:
+        module_name, (`str`, **required**):
+            Input module_name
+    Returns:
+        The corresponding `torch.nn.Module` of the `BetterTransformer` layer, or a `False`
+        boolean if the `module_name` is not in the list of supported modules.
+    """
     if module_name not in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
         return False
     else:
