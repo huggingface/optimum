@@ -329,6 +329,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         encoder_file_name: Optional[str] = None,
         decoder_file_name: Optional[str] = None,
         decoder_with_past_file_name: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """
@@ -373,15 +374,17 @@ class ORTModelForConditionalGeneration(ORTModel):
         decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
 
         # Load model from a local directory
-        if os.path.isdir(model_id):
-            decoder_with_past_path = os.path.join(model_id, decoder_with_past_file_name) if use_cache else None
+        if os.path.isdir(os.path.join(model_id, subfolder)):
+            decoder_with_past_path = (
+                os.path.join(model_id, subfolder, decoder_with_past_file_name) if use_cache else None
+            )
             model = cls.load_model(
-                encoder_path=os.path.join(model_id, encoder_file_name),
-                decoder_path=os.path.join(model_id, decoder_file_name),
+                encoder_path=os.path.join(model_id, subfolder, encoder_file_name),
+                decoder_path=os.path.join(model_id, subfolder, decoder_file_name),
                 decoder_with_past_path=decoder_with_past_path,
                 **kwargs,
             )
-            kwargs["model_save_dir"] = Path(model_id)
+            kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
             kwargs["last_encoder_name"] = encoder_file_name
             kwargs["last_decoder_name"] = decoder_file_name
             kwargs["last_decoder_with_past_name"] = decoder_with_past_file_name
@@ -396,6 +399,7 @@ class ORTModelForConditionalGeneration(ORTModel):
             for file_name, default_file_name in zip(model_file_names, default_file_names):
                 model_cache_path = hf_hub_download(
                     repo_id=model_id,
+                    subfolder=subfolder,
                     filename=file_name,
                     use_auth_token=use_auth_token,
                     revision=revision,
@@ -422,6 +426,7 @@ class ORTModelForConditionalGeneration(ORTModel):
     def _from_transformers(
         cls,
         model_id: str,
+        subfolder: Optional[str] = "",
         save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
@@ -455,12 +460,18 @@ class ORTModelForConditionalGeneration(ORTModel):
                 kwargs will be passed to the model during initialization.
         """
         # Create local save dir in cache dir
-        save_dir = Path(save_dir).joinpath(model_id)
+        save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
+        config = kwargs.get("config", {})
         use_cache = kwargs.get("use_cache", True)
+
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = FeaturesManager.get_model_from_feature(cls.export_feature, model_id)
+
+        framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
+        model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
+        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
+
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
         onnx_config = model_onnx_config(model.config)
         onnx_opset = onnx_config.default_onnx_opset

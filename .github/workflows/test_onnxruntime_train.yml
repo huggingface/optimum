@@ -54,14 +54,14 @@ jobs:
       - name: Build Image
         working-directory: examples/onnxruntime/training/docker
         run: |
-            docker build -f Dockerfile-ort1.12.0-cu113 -t ort12/cu113 .
+            docker build -f Dockerfile-ort1.13.1-cu116 -t ort13/cu116 .
       - name: Run Test
         run: |
             docker run --rm -p 80:8888 \
               --gpus all \
               -v $PWD:/workspace \
               --workdir=/workspace \
-              ort12/cu113:latest /bin/bash examples/onnxruntime/training/docker/run.sh
+              ort13/cu116:latest /bin/bash examples/onnxruntime/training/docker/run.sh
 
   stop-runner:
     name: Stop self-hosted EC2 runner

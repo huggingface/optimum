@@ -324,7 +324,8 @@ def validate_model_outputs(
             f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
         )
     else:
-        logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_outputs_set})")
+        onnx_output_names = ", ".join(onnx_outputs_set)
+        logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
 
     # Check the shape and values match
     shape_failures = []
@@ -352,9 +353,9 @@ def validate_model_outputs(
             logger.info(f"\t\t-[✓] all values close (atol: {atol})")
 
     if shape_failures:
-        msg = "\n\t".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
-        raise ValueError("Output shapes do not match between reference model and ONNX exported model:\n" f"{msg}")
+        msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
+        raise ValueError(f"Output shapes do not match between reference model and ONNX exported model:\n{msg}")
 
     if value_failures:
-        msg = "\n\t".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
-        raise ValueError("Output values do not match between reference model and ONNX exported model:\n" f"{msg}")
+        msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
+        raise ValueError(f"Output values do not match between reference model and ONNX exported model:\n{msg}")

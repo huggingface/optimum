@@ -36,8 +36,8 @@ def main():
     )
     parser.add_argument(
         "--task",
-        default="default",
-        help="The type of tasks to export the model with.",
+        default="auto",
+        help="The type of task to export the model with.",
     )
     parser.add_argument("--opset", type=int, default=None, help="ONNX opset version to export the model with.")
     parser.add_argument(
@@ -73,20 +73,25 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
+    # Infer the task
+    task = args.task
+    if task == "auto":
+        task = TasksManager.infer_task_from_model(args.model)
+
     # Allocate the model
-    model = TasksManager.get_model_from_task(args.task, args.model, framework=args.framework, cache_dir=args.cache_dir)
+    model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
     model_type = model.config.model_type.replace("_", "-")
     model_name = getattr(model, "name", None)
 
     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-        model_type, "onnx", task=args.task, model_name=model_name
+        model_type, "onnx", task=task, model_name=model_name
     )
     onnx_config = onnx_config_constructor(model.config)
 
     needs_pad_token_id = (
         isinstance(onnx_config, OnnxConfigWithPast)
         and getattr(model.config, "pad_token_id", None) is None
-        and args.task in ["sequence_classification"]
+        and task in ["sequence_classification"]
     )
     if needs_pad_token_id:
         if args.pad_token_id is not None:
@@ -120,9 +125,13 @@ def main():
     if args.atol is None:
         args.atol = onnx_config.ATOL_FOR_VALIDATION
         if isinstance(args.atol, dict):
-            args.atol = args.atol[args.task.replace("-with-past", "")]
+            args.atol = args.atol[task.replace("-with-past", "")]
 
-    validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
+    try:
+        validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
+    except ValueError:
+        logger.error(f"An error occured, but the model was saved at: {args.output.as_posix()}")
+        return
     logger.info(f"All good, model saved at: {args.output.as_posix()}")
 
 

@@ -383,8 +383,6 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
         decoded_labels = ["\n".join(nltk.sent_tokenize(label.strip())) for label in decoded_labels]
 
         result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-        # Extract a few results
-        result = {key: value.mid.fmeasure * 100 for key, value in result.items()}
 
         # Add mean generated length
         prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]

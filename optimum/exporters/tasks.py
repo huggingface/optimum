@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Type, Union
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
+import huggingface_hub
+
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
@@ -568,7 +570,7 @@ class TasksManager:
             return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
-    def task_to_task(task: str) -> str:
+    def format_task(task: str) -> str:
         return task.replace("-with-past", "")
 
     @staticmethod
@@ -598,7 +600,7 @@ class TasksManager:
         Returns:
             The AutoModel class corresponding to the task.
         """
-        task = TasksManager.task_to_task(task)
+        task = TasksManager.format_task(task)
         TasksManager._validate_framework_choice(framework)
         if framework == "pt":
             task_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
@@ -660,6 +662,50 @@ class TasksManager:
         return framework
 
     @staticmethod
+    def infer_task_from_model(model_name_or_path: str) -> str:
+        """
+        Infers the task from the model repo.
+
+        Args:
+            model_name_or_path (`str`):
+                The model repo or local path (not supported for now).
+
+        Returns:
+            `str`: The task name automatically detected from the model repo.
+        """
+
+        tasks_to_automodels = {}
+        class_name_prefix = ""
+        if is_torch_available():
+            tasks_to_automodels = TasksManager._TASKS_TO_AUTOMODELS
+        else:
+            tasks_to_automodels = TasksManager._TASKS_TO_TF_AUTOMODELS
+            class_name_prefix = "TF"
+
+        inferred_task_name = None
+        is_local = os.path.isdir(model_name_or_path)
+
+        if is_local:
+            # TODO: maybe implement that.
+            raise RuntimeError("Cannot infer the task from a local directory yet, please specify the task manually.")
+        else:
+            model_info = huggingface_hub.model_info(model_name_or_path)
+            transformers_info = model_info.transformersInfo
+            if transformers_info is None or transformers_info.get("auto_model") is None:
+                raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
+            auto_model_class_name = transformers_info["auto_model"]
+            if not auto_model_class_name.startswith("TF"):
+                auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
+            for task_name, class_ in tasks_to_automodels.items():
+                if class_.__name__ == auto_model_class_name:
+                    inferred_task_name = task_name
+                    break
+        if inferred_task_name is None:
+            raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
+        logger.info(f"Automatic task detection to {inferred_task_name}.")
+        return inferred_task_name
+
+    @staticmethod
     def get_model_from_task(
         task: str, model: str, framework: str = None, cache_dir: str = None
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
@@ -682,6 +728,8 @@ class TasksManager:
 
         """
         framework = TasksManager.determine_framework(model, framework)
+        if task == "auto":
+            task = TasksManager.infer_task_from_model(model)
         model_class = TasksManager.get_model_class_for_task(task, framework)
         try:
             model = model_class.from_pretrained(model, cache_dir=cache_dir)
