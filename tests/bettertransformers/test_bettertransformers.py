@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 import timeit
 import unittest
 
@@ -132,6 +133,40 @@ class BetterTransformersTest(unittest.TestCase):
                         hf_random_model.__class__.__name__
                     ),
                 )
+
+    def test_raise_pos_emb(self):
+        r"""
+        Test if the converion properly raises an error if the model has an activate function that is
+        not supported by `BtterTransformer`.
+        """
+        random_config = getattr(transformers, "BertConfig")()
+        random_config.hidden_act = "silu"
+
+        with self.assertRaises(ValueError):
+            hf_model = AutoModel.from_config(random_config).eval()
+            _ = BetterTransformer.transform(hf_model, keep_original_model=False)
+
+    def test_raise_activation_fun(self):
+        r"""
+        Test if the converion properly raises an error if the model has an activate function that is
+        not supported by `BtterTransformer`.
+        """
+        random_config = getattr(transformers, "BertConfig")()
+        random_config.position_embedding_type = "relative"
+
+        with self.assertRaises(ValueError):
+            hf_model = AutoModel.from_config(random_config).eval()
+            _ = BetterTransformer.transform(hf_model, keep_original_model=False)
+
+    def test_raise_on_save(self):
+        r"""
+        Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
+        """
+        random_config = getattr(transformers, "BertConfig")()
+        with self.assertWarns(UserWarning), tempfile.TemporaryDirectory() as tmpdirname:
+            hf_model = AutoModel.from_config(random_config).eval()
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
+            bt_model.save_pretrained(tmpdirname)
 
     @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
     @torch.no_grad()

@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
+
 from . import bart, bert, distilbert
 
 
@@ -60,3 +62,21 @@ def is_module_fast(module_name):
         return False
     else:
         return BETTER_TRANFORMER_LAYERS_MAPPING_DICT[module_name]
+
+
+class warn_uncompatible_save(object):
+    def __init__(self, callback):
+        self.callback = callback
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, ex_typ, ex_val, traceback):
+        return True
+
+    def __call__(self, *args, **kwargs):
+        warnings.warn(
+            "You are calling `save_pretrained` to a `BetterTransformer` converted model you may likely encounter unexepected behaviors. ",
+            UserWarning,
+        )
+        return self.callback(*args, **kwargs)

@@ -16,7 +16,7 @@ import torch.nn as nn
 
 
 class DistilBertLayerBetterTransformer(nn.Module):
-    def __init__(self, bert_layer):
+    def __init__(self, bert_layer, config):
         r"""
         A simple conversion of the Distill-BERTLayer to its `BetterTransformer` implementation.
 
@@ -25,6 +25,15 @@ class DistilBertLayerBetterTransformer(nn.Module):
                 The original Distill-BERT Layer where the weights needs to be retrieved.
         """
         super().__init__()
+        # Sanity checks
+        self.act_fn = config.activation
+        if self.act_fn not in ["gelu", "relu"]:
+            raise ValueError(
+                f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
+            )
+        self.use_gelu = self.act_fn == "gelu"
+        self.norm_first = False
+
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -102,8 +111,8 @@ class DistilBertLayerBetterTransformer(nn.Module):
             self.in_proj_bias,
             self.out_proj_weight,
             self.out_proj_bias,
-            True,  # TODO use_gelu. make it not hardcoded
-            False,  # norm_first, currently not supported
+            self.use_gelu,
+            self.norm_first,
             self.norm1_eps,
             self.norm1_weight,
             self.norm1_bias,
@@ -113,7 +122,7 @@ class DistilBertLayerBetterTransformer(nn.Module):
             self.linear1_bias,
             self.linear2_weight,
             self.linear2_bias,
-            attn_mask,  # TODO fix this
+            attn_mask,
         )
         if x.is_nested and self.is_last_layer:
             x = x.to_padded_tensor(0.0)

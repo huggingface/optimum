@@ -16,7 +16,7 @@ import torch.nn as nn
 
 
 class BartLayerBetterTransformer(nn.Module):
-    def __init__(self, bart_layer):
+    def __init__(self, bart_layer, config):
         r"""
         A simple conversion of the BART layer to its `BetterTransformer` implementation.
 
@@ -25,6 +25,15 @@ class BartLayerBetterTransformer(nn.Module):
                 The original BART layer where the weights needs to be retrieved.
         """
         super().__init__()
+        # Sanity checks
+        self.norm_first = False
+        self.act_fn = config.activation_function
+        if self.act_fn not in ["gelu", "relu"]:
+            raise ValueError(
+                f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
+            )
+        self.use_gelu = self.act_fn == "gelu"
+
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -105,8 +114,8 @@ class BartLayerBetterTransformer(nn.Module):
             self.in_proj_bias,
             self.out_proj_weight,
             self.out_proj_bias,
-            True,  # TODO use_gelu. make it not hardcoded
-            False,  # norm_first, currently not supported
+            self.use_gelu,
+            self.norm_first,
             self.norm1_eps,
             self.norm1_weight,
             self.norm1_bias,
@@ -116,10 +125,8 @@ class BartLayerBetterTransformer(nn.Module):
             self.linear1_bias,
             self.linear2_weight,
             self.linear2_bias,
-            attention_mask,  # TODO fihidden_states this
+            attention_mask,
         )
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
-
-    # return (nested_hidden_states,)

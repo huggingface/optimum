@@ -16,7 +16,7 @@ import torch.nn as nn
 
 
 class BertLayerBetterTransformer(nn.Module):
-    def __init__(self, bert_layer):
+    def __init__(self, bert_layer, config):
         r"""
         A simple conversion of the BERT layer to its `BetterTransformer` implementation.
 
@@ -25,6 +25,20 @@ class BertLayerBetterTransformer(nn.Module):
                 The original BERT Layer where the weights needs to be retrieved.
         """
         super().__init__()
+        # Sanity checks
+        self.act_fn = config.hidden_act
+        self.norm_first = False
+        if self.act_fn not in ["gelu", "relu"]:
+            raise ValueError(
+                f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
+            )
+        if hasattr(config, "position_embedding_type") and config.position_embedding_type != "absolute":
+            raise ValueError(
+                f"Positional embedding type {config.position_embedding_type} not "
+                "supported for `BetterTransformer` integration"
+            )
+        self.use_gelu = self.act_fn == "gelu"
+
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -102,8 +116,8 @@ class BertLayerBetterTransformer(nn.Module):
             self.in_proj_bias,
             self.out_proj_weight,
             self.out_proj_bias,
-            True,  # TODO use_gelu. make it not hardcoded
-            False,  # norm_first, currently not supported
+            self.use_gelu,
+            self.norm_first,
             self.norm1_eps,
             self.norm1_weight,
             self.norm1_bias,
@@ -113,7 +127,7 @@ class BertLayerBetterTransformer(nn.Module):
             self.linear1_bias,
             self.linear2_weight,
             self.linear2_bias,
-            attention_mask,  # TODO fix this
+            attention_mask,
         )
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)

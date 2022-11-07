@@ -18,7 +18,7 @@ import torch
 
 from optimum.utils import check_if_pytorch_greater_112, is_accelerate_available
 
-from .models import is_module_fast
+from .models import is_module_fast, warn_uncompatible_save
 
 
 if is_accelerate_available():
@@ -51,7 +51,7 @@ def init_accelerate_hook(module):
     return module
 
 
-def replace_to_fast(model):
+def replace_to_fast(model, config):
     r"""
     Replaces the current model to its `BetterTransformer` implementation. Loops recursively into the model and replaces the
     `Layer` modules with its `BetterTransformer` correspondant model
@@ -66,12 +66,14 @@ def replace_to_fast(model):
     Args:
         `model` (`torch.nn.Module`, **required**):
             The input model to convert
+        `config` (`transformers.PreTrainedConfig`, **required**):
+            The configuration dictionary of the model
     Returns:
         The converted model
     """
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
-            replace_to_fast(module)
+            replace_to_fast(module, config)
 
         if hasattr(module, "is_decoder"):
             # Decoders are not supported yet on Better Transformers
@@ -82,7 +84,7 @@ def replace_to_fast(model):
         maybe_fast_module = is_module_fast(class_name)
 
         if not isinstance(maybe_fast_module, bool):
-            fast_module = maybe_fast_module(module)
+            fast_module = maybe_fast_module(module, config)
             model._modules[name] = fast_module
         elif hasattr(module, "_hf_hook"):
             # If the module has `accelerate` hooks, manually
@@ -153,11 +155,13 @@ class BetterTransformer(object):
         else:
             load_accelerate = False
 
+        hf_config = model.config
+
         if keep_original_model:
             model_fast = deepcopy(model)
-            model_fast = replace_to_fast(model_fast).eval()
+            model_fast = replace_to_fast(model_fast, hf_config).eval()
         else:
-            model_fast = replace_to_fast(model).eval()
+            model_fast = replace_to_fast(model, hf_config).eval()
 
         successfully_converted_model = set_last_layer(model_fast)
         if not successfully_converted_model:
@@ -178,5 +182,9 @@ class BetterTransformer(object):
             remove_hook_from_module(model_fast, recurse=True)
 
             model_fast = dispatch_model(model_fast, device_map_bt)
+
+        # Step 8: overwrite the `save_pretrained` method
+        # by adding a context manager
+        setattr(model_fast, "save_pretrained", warn_uncompatible_save(model_fast.save_pretrained))
 
         return model_fast
