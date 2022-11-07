@@ -81,3 +81,4 @@
 - sections:
   - local: bettertransformers/quickstart
     title: Quickstart
+  title: BetterTransformer integration
