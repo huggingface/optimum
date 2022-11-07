@@ -185,6 +185,7 @@ class BetterTransformer(object):
 
         # Step 8: overwrite the `save_pretrained` method
         # by adding a context manager
-        setattr(model_fast, "save_pretrained", warn_uncompatible_save(model_fast.save_pretrained))
+        if hasattr(model_fast, "save_pretrained"):
+            setattr(model_fast, "save_pretrained", warn_uncompatible_save(model_fast.save_pretrained))
 
         return model_fast

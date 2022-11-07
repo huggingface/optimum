@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 
-from . import bart, bert, distilbert
+from . import bart, bert, distilbert, clip
 
 
 BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
@@ -43,6 +43,8 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # "QDQBertLayer": bert.BertLayerBetterTransformer, --> needs torch quantization
     # "RealmLayer": bert.BertLayerBetterTransformer, --> not mapped in AutoModel
     "TransformerBlock": distilbert.DistilBertLayerBetterTransformer,
+    # Clip Family
+    "CLIPEncoderLayer":clip.CLIPLayerBetterTransformer,
 }
 
 

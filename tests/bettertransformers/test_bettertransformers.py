@@ -112,6 +112,9 @@ class BetterTransformersTest(unittest.TestCase):
             random_config = getattr(transformers, class_name + "Config")
 
             hf_random_model = AutoModel.from_config(random_config()).eval()
+            if hasattr(hf_random_model, "text_model"):
+                hf_random_model = hf_random_model.text_model
+
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
             self.assertFalse(
