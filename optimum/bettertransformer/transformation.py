@@ -18,7 +18,7 @@ import torch
 
 from optimum.utils import check_if_pytorch_greater_112, is_accelerate_available
 
-from .models import is_module_fast, warn_uncompatible_save
+from .models import is_supporting_bettertransformer, warn_uncompatible_save
 
 
 if is_accelerate_available():
@@ -81,9 +81,9 @@ def replace_to_bettertransformer(model, config):
                 continue
 
         class_name = module.__class__.__name__
-        maybe_fast_module = is_module_fast(class_name)
+        maybe_fast_module = is_supporting_bettertransformer(class_name)
 
-        if not isinstance(maybe_fast_module, bool):
+        if maybe_fast_module is not None:
             fast_module = maybe_fast_module(module, config)
             model._modules[name] = fast_module
         elif hasattr(module, "_hf_hook"):
