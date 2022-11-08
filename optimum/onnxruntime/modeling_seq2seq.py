@@ -985,10 +985,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        print("The encoder _device while calling forward is:", self.encoder._device)
-        print("The decoder _device while calling forward is:", self.decoder._device)
-        print("The model device while calling forward is:", self.device)
-        print("The model _device while calling forward is:", self._device)
 
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
