@@ -14,8 +14,10 @@
 import torch
 import torch.nn as nn
 
+from ..base import BetterTransformerBaseLayer, bettertransformer_forward_checker
 
-class DistilBertLayerBetterTransformer(nn.Module):
+
+class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, bert_layer, config):
         r"""
         A simple conversion of the Distill-BERTLayer to its `BetterTransformer` implementation.
@@ -24,16 +26,7 @@ class DistilBertLayerBetterTransformer(nn.Module):
             bert_layer (`torch.nn.Module`):
                 The original Distill-BERT Layer where the weights needs to be retrieved.
         """
-        super().__init__()
-        # Sanity checks
-        self.act_fn = config.activation
-        if self.act_fn not in ["gelu", "relu"]:
-            raise ValueError(
-                f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
-            )
-        self.use_gelu = self.act_fn == "gelu"
-        self.norm_first = False
-
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -72,6 +65,7 @@ class DistilBertLayerBetterTransformer(nn.Module):
         self.norm1_bias = bert_layer.sa_layer_norm.bias
 
         # Layer norm 2
+        self.norm2_eps = bert_layer.output_layer_norm.eps
         self.norm2_weight = bert_layer.output_layer_norm.weight
         self.norm2_bias = bert_layer.output_layer_norm.bias
 
@@ -82,11 +76,15 @@ class DistilBertLayerBetterTransformer(nn.Module):
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
 
+        self.validate_bettertransformer()
+
     def forward(self, x, attn_mask, head_mask=None, output_attentions=None, *_):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553
         """
+        super().forward_checker()
+
         if x.is_nested:
             attn_mask = None
 

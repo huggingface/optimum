@@ -14,8 +14,10 @@
 import torch
 import torch.nn as nn
 
+from ..base import BetterTransformerBaseLayer, bettertransformer_forward_checker
 
-class AlbertLayerBetterTransformer(nn.Module):
+
+class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, albert_layer, config):
         r"""
         A simple conversion of the BERT layer to its `BetterTransformer` implementation.
@@ -24,21 +26,7 @@ class AlbertLayerBetterTransformer(nn.Module):
             albert_layer (`torch.nn.Module`):
                 The original BERT Layer where the weights needs to be retrieved.
         """
-        super().__init__()
-        # Sanity checks
-        self.act_fn = config.hidden_act
-        self.norm_first = False
-        if self.act_fn not in ["gelu", "relu", "gelu_new"]:
-            raise ValueError(
-                f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
-            )
-        if hasattr(config, "position_embedding_type") and config.position_embedding_type != "absolute":
-            raise ValueError(
-                f"Positional embedding type {config.position_embedding_type} not "
-                "supported for `BetterTransformer` integration"
-            )
-        self.use_gelu = (self.act_fn == "gelu") or (self.act_fn == "gelu_new")
-
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -77,6 +65,7 @@ class AlbertLayerBetterTransformer(nn.Module):
         self.norm1_bias = albert_layer.attention.LayerNorm.bias
 
         # Layer norm 2
+        self.norm2_eps = albert_layer.full_layer_layer_norm.eps
         self.norm2_weight = albert_layer.full_layer_layer_norm.weight
         self.norm2_bias = albert_layer.full_layer_layer_norm.bias
 
@@ -87,11 +76,15 @@ class AlbertLayerBetterTransformer(nn.Module):
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
 
+        self.validate_bettertransformer()
+
     def forward(self, hidden_states, attention_mask, *_):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553
         """
+        super().forward_checker()
+
         if hidden_states.is_nested:
             attention_mask = None
 

@@ -14,8 +14,10 @@
 import torch
 import torch.nn as nn
 
+from ..base import BetterTransformerBaseLayer, bettertransformer_forward_checker
 
-class BartLayerBetterTransformer(nn.Module):
+
+class BartLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, bart_layer, config):
         r"""
         A simple conversion of the BART layer to its `BetterTransformer` implementation.
@@ -24,16 +26,7 @@ class BartLayerBetterTransformer(nn.Module):
             bart_layer (`torch.nn.Module`):
                 The original BART layer where the weights needs to be retrieved.
         """
-        super().__init__()
-        # Sanity checks
-        self.norm_first = False
-        self.act_fn = config.activation_function
-        if self.act_fn not in ["gelu", "relu"]:
-            raise ValueError(
-                f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
-            )
-        self.use_gelu = self.act_fn == "gelu"
-
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -73,6 +66,7 @@ class BartLayerBetterTransformer(nn.Module):
         self.norm1_bias = bart_layer.self_attn_layer_norm.bias
 
         # Layer norm 2
+        self.norm2_eps = bart_layer.final_layer_norm.eps
         self.norm2_weight = bart_layer.final_layer_norm.weight
         self.norm2_bias = bart_layer.final_layer_norm.bias
 
@@ -83,11 +77,15 @@ class BartLayerBetterTransformer(nn.Module):
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
 
+        self.validate_bettertransformer()
+
     def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553
         """
+        super().forward_checker()
+
         if hidden_states.is_nested:
             attention_mask = None
 
