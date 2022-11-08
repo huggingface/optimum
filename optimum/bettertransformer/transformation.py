@@ -64,9 +64,9 @@ def replace_to_fast(model, config):
     (done in `set_last_layer` function)
 
     Args:
-        `model` (`torch.nn.Module`, **required**):
+        `model` (`torch.nn.Module`):
             The input model to convert
-        `config` (`transformers.PreTrainedConfig`, **required**):
+        `config` (`transformers.PreTrainedConfig`):
             The configuration dictionary of the model
     Returns:
         The converted model
@@ -137,7 +137,7 @@ class BetterTransformer(object):
         Conversion script from `transformers` model to its BetterTransformers version
 
         Args:
-            model, (`torch.nn.Module`, **required**):
+            model, (`torch.nn.Module`):
                 Original `transformers` model
             keep_original_model (`bool`, *optional*):
                 whether to keep or override the original model - essentially

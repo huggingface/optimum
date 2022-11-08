@@ -61,7 +61,7 @@ class BetterTransformersTest(unittest.TestCase):
     @init_empty_weights()
     def test_conversion(self):
         r"""
-        This tests if the conversion of a slow model to its `Fast` version
+        This tests if the conversion of a slow model to its BetterTransformer version using fastpath
         has been successfull.
         """
         # Step 0: for each model_class that support the `Fast` version,
