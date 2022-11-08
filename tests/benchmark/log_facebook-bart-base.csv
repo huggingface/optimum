@@ -1,2 +1,0 @@
-num_batches, batch_size, seq_len, is cuda, is half, use mask, pad percentage, HF time, BT time, Speedup
-10,True,8,64,True,True,0,0.018266053771972657,0.01513922576904297,1.2065381711476617
