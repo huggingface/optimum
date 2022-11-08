@@ -14,7 +14,7 @@
 import torch
 import torch.nn as nn
 
-from ..base import BetterTransformerBaseLayer, bettertransformer_forward_checker
+from ..base import BetterTransformerBaseLayer
 
 
 class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):

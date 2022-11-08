@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from contextlib import ContextDecorator
-
 import torch
 import torch.nn as nn
 
@@ -21,20 +19,6 @@ KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation
 KNOWN_POS_EMB_ATTRIBUTES = ["position_embedding_type"]
 
 SUPPORTED_ACTIVATION_FUNCTIONS = ["gelu", "relu", "gelu_new"]
-
-
-class bettertransformer_forward_checker(ContextDecorator):
-    r""" "
-    A context manager to check if the forward pass is called with the correct
-    arguments.
-    """
-
-    def __enter__(self) -> None:
-        if torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled():
-            raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
-
-    def __exit__(self, *exec) -> None:
-        return False
 
 
 class BetterTransformerBaseLayer(nn.Module):
@@ -99,8 +83,10 @@ class BetterTransformerBaseLayer(nn.Module):
                 f" Number of heads must be even."
             )
 
-    @bettertransformer_forward_checker()
     def forward_checker(self, *args, **kwargs):
+        if torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled():
+            raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
+
         if self.training:
             raise ValueError(
                 "Training is not supported for `BetterTransformer` integration.",
