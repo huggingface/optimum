@@ -530,6 +530,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         device, provider_options = parse_device(device)
 
         provider = get_provider_for_device(device)
+        self.device = device
         self.encoder._device = device
         self.encoder.session.set_providers([provider], provider_options=[provider_options])
         self.decoder._device = device
