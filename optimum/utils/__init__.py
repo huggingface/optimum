@@ -11,8 +11,8 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-import importlib
 import importlib.util
+import inspect
 from contextlib import contextmanager
 
 from packaging import version
@@ -26,6 +26,12 @@ _accelerate_available = importlib.util.find_spec("accelerate") is not None
 
 
 def is_onnxruntime_available():
+    try:
+        # Try to import the source file of onnxruntime
+        mod = importlib.import_module("onnxruntime")
+        inspect.getsourcefile(mod)
+    except TypeError:
+        return False
     return _onnxruntime_available
 
 

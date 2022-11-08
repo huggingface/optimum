@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import gc
 import tempfile
 import timeit
 import unittest
@@ -45,6 +46,9 @@ class BetterTransformersTest(unittest.TestCase):
     - if the converted model produces the same logits as the original model.
     - if the converted model is faster than the original model.
     """
+
+    def tearDown(self):
+        gc.collect()
 
     def _loop_all_classes(self):
         for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
