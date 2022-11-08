@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
+        python-version: [3.8]
         os: [ubuntu-20.04, macos-latest]
 
     runs-on: ${{ matrix.os }}
@@ -29,7 +29,8 @@ jobs:
       run: |
         pip install .[tests]
         pip3 install --upgrade torch torchvision torchaudio
-        pip install git+https://github.com/huggingface/accelerate.git@main
+        pip install --upgrade git+https://github.com/huggingface/accelerate.git@main
+        pip install --upgrade git+https://github.com/huggingface/transformers.git@main
     - name: Test with unittest
       working-directory: tests
       run: |
