@@ -65,7 +65,7 @@ class BetterTransformersTest(unittest.TestCase):
         has been successfull.
         """
         # Step 0: for each model_class that support the `Fast` version,
-        # Step 1: convert the model, ie if it contains the attribute `is_fast`
+        # Step 1: convert the model, ie if it contains the attribute `use_bettertransformer`
         # Step 2: check also that some class attributes still remains in the model
         # (for eg, `generate`)
 
@@ -85,7 +85,7 @@ class BetterTransformersTest(unittest.TestCase):
             converted_model = BetterTransformer.transform(hf_random_model)
 
             self.assertTrue(
-                hasattr(converted_model, "is_fast"),
+                hasattr(converted_model, "use_bettertransformer"),
                 f"The model {converted_model.__class__.__name__} is not a fast model.",
             )
 
@@ -115,7 +115,7 @@ class BetterTransformersTest(unittest.TestCase):
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
             self.assertFalse(
-                hasattr(hf_random_model, "is_fast"),
+                hasattr(hf_random_model, "use_bettertransformer"),
                 f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
             )
 

@@ -199,7 +199,9 @@ def pipeline(
         raise ValueError(f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
 
     if accelerator not in ["ort", "bettertransformer"]:
-        raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are \"ort\" and \"bettertransformer\".")
+        raise ValueError(
+            f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
+        )
 
     # copied from transformers.pipelines.__init__.py l.609
     if targeted_task in NO_TOKENIZER_TASKS:

@@ -51,7 +51,7 @@ def init_accelerate_hook(module):
     return module
 
 
-def replace_to_fast(model, config):
+def replace_to_bettertransformer(model, config):
     r"""
     Replaces the current model to its `BetterTransformer` implementation. Loops recursively into the model and replaces the
     `Layer` modules with its `BetterTransformer` correspondant model
@@ -73,7 +73,7 @@ def replace_to_fast(model, config):
     """
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
-            replace_to_fast(module, config)
+            replace_to_bettertransformer(module, config)
 
         if hasattr(module, "is_decoder"):
             # Decoders are not supported yet on Better Transformers
@@ -126,8 +126,7 @@ class BetterTransformer(object):
     recently released by PyTorch from its 1.12 version:
     https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/
 
-    Original PR from: https://github.com/huggingface/transformers/pull/19553 adapted and wrapped in
-    this script.
+    # Original PR from: https://github.com/huggingface/transformers/pull/19553 adapted and wrapped in this script.
     """
 
     def transform(
@@ -159,9 +158,9 @@ class BetterTransformer(object):
 
         if keep_original_model:
             model_fast = deepcopy(model)
-            model_fast = replace_to_fast(model_fast, hf_config).eval()
+            model_fast = replace_to_bettertransformer(model_fast, hf_config).eval()
         else:
-            model_fast = replace_to_fast(model, hf_config).eval()
+            model_fast = replace_to_bettertransformer(model, hf_config).eval()
 
         successfully_converted_model = set_last_layer(model_fast)
         if not successfully_converted_model:
@@ -173,7 +172,7 @@ class BetterTransformer(object):
 
         # Step 6: Add a class arguments, we might need to identify whether the model
         # has been correctly converted to its `BetterTransformer` version.
-        setattr(model_fast, "is_fast", True)
+        setattr(model_fast, "use_bettertransformer", True)
 
         # Step 7: dispatch model if `accelerate` is enabled
         if load_accelerate:
