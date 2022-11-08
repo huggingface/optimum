@@ -2,7 +2,6 @@ from typing import Any, Optional, Union
 
 from transformers import (
     FeatureExtractionPipeline,
-    FillMaskPipeline,
     ImageClassificationPipeline,
     Pipeline,
     PreTrainedTokenizer,
@@ -95,12 +94,6 @@ if is_onnxruntime_available():
             "impl": Text2TextGenerationPipeline,
             "class": (ORTModelForSeq2SeqLM,) if is_onnxruntime_available() else (),
             "default": "t5-small",
-            "type": "text",
-        },
-        "fill-mask": {
-            "impl": FillMaskPipeline,
-            "class": () if is_onnxruntime_available() else (),
-            "default": "distilbert-base-uncased",
             "type": "text",
         },
     }
