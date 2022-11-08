@@ -188,8 +188,11 @@ def pipeline(
 ) -> Pipeline:
     targeted_task = "translation" if task.startswith("translation") else task
 
-    if targeted_task not in list(SUPPORTED_TASKS.keys()):
-        raise ValueError(f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
+    if accelerator == "ort":
+        if targeted_task not in list(SUPPORTED_TASKS.keys()):
+            raise ValueError(
+                f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}"
+            )
 
     if accelerator not in ["ort", "bettertransformer"]:
         raise ValueError(

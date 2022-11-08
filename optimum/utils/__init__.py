@@ -30,7 +30,7 @@ def is_onnxruntime_available():
         # Try to import the source file of onnxruntime
         mod = importlib.import_module("onnxruntime")
         inspect.getsourcefile(mod)
-    except TypeError:
+    except:
         return False
     return _onnxruntime_available
 
