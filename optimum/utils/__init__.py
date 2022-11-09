@@ -27,7 +27,9 @@ _accelerate_available = importlib.util.find_spec("accelerate") is not None
 
 def is_onnxruntime_available():
     try:
-        # Try to import the source file of onnxruntime
+        # Try to import the source file of onnxruntime - if you run the tests from `tests` the function gets 
+        # confused since there a folder named `onnxruntime` in `tests`. Therefore, `_onnxruntime_available`
+        # will be set to `True` even if not installed.
         mod = importlib.import_module("onnxruntime")
         inspect.getsourcefile(mod)
     except:
