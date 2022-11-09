@@ -15,7 +15,7 @@ You want to add a new model for `BetterTransformer` API? Check this guideline!
 
 ## Models that should be supported
 
-In theory, any model that has a transformer encoder layer, similar to the classic encoder described in the ["Attention is all you need"](https://arxiv.org/abs/1706.03762) paper should be supported. 
+In theory, any model that has a transformer encoder layer, similar to the classic encoder described in the ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762) paper should be supported. 
 More specifically, a model that has an encoder block with a MultiHead-Attention module (with pre or post-attention layer norm) should be convertible to its `BetterTransformer` equivalent. The conditions can be summarized as follows:
 
 - Use classic Multi Head attention module (for example, [DeBERTa](https://arxiv.org/abs/2006.03654) cannot be supported)
@@ -24,9 +24,9 @@ More specifically, a model that has an encoder block with a MultiHead-Attention 
 - Do not use any attention bias (for eg `T5` uses attention bias, therefore cannot be supported)
 - `eps` must be equal between the first and second layer norms for each layer
 
-## How to convert a model into `BetterTransformer` format?
+## How to convert a model into its `BetterTransformer` format?
 
-### Step 1: Identifying the layer to change
+### Step 1: Identifying the source layer to change
 
 First, go to `optimum/bettertransformer/__init__.py` and you'll see the dictionary `BETTER_TRANFORMER_LAYERS_MAPPING_DICT`. This should contain the mapping between the Module that can be converted to its `BetterTransformer` equivalent.
 Let us try to do it step by step for `Bert`, first we need to identify the layers that needs to be replaced:
@@ -72,7 +72,7 @@ Let us try to do it step by step for `Bert`, first we need to identify the layer
   )
 )
 ```
-You can clearly see that the layers that needs to be replaced are the `BertLayer` modules. 
+You can clearly see that the layers that needs to be replaced are the `BertLayer` modules since it contains the whole encoder layer module.
 
 ### Step 2: Building the `xxxLayerBetterTransformer` module
 
@@ -112,11 +112,10 @@ Make sure also to add the lines:
 ```python
 self.is_last_layer = False
 self.validate_bettertransformer()
-```
 
 ### Step 3: Building the forward pass
 
-First of all, start with the line `super().forward_checker()`, this is needed so that the parent class can check all the safety checkers before.
+First of all, start with the line `super().forward_checker()`, this is needed so that the parent class can run all the safety checkers before.
 
 After the first forward pass, the hidden states needs to be *nested* using the attention mask. Once they are nested, the attention mask is not needed anymore, therefore can be set to `None`. This is how the forward pass is built for `Bert`, these lines should remain pretty much similar accross models, but sometimes the shapes of the attention masks are different across models. 
 ```python
