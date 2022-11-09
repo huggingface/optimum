@@ -1,0 +1,83 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+# How to use `optimum` and `BetterTransformer`?
+
+## Install dependencies
+
+You can easily une the `BetterTransformer` API using HuggingFace `optimum`, first install the dependencies as follows:
+
+```bash
+pip install transformers accelerate optimum
+```
+
+Also, make sure to install the latest version of PyTorch by following the guidelines on the [PyTorch official website](https://pytorch.org/get-started/locally/). Note that `BetterTransformer` API is only compatible with `torch>=1.13`, so make sure to have this version installed on your environement before starting.
+
+## Step 1: Load yout HuggingFace model
+
+First, load your HuggingFace model using `transformers`. Make sure to download one of the models that is supported by the `BetterTransformer` API:
+
+```python
+>>> from transformers import AutoModel
+
+>>> model_id = "roberta-base"
+>>> model = AutoModel.from_pretrained(model_id)
+```
+(Sometimes you can directly load your model on your GPU devices using `accelerate` library, therefore you can optionally try out the following command:)
+
+```python
+>>> from transformers import AutoModel
+
+>>> model_id = "roberta-base"
+>>> model = AutoModel.from_pretrained(model_id, device_map="auto")
+```
+
+## Step 2: Set your model on your preferred device
+
+If you did not used `device_map="auto"` to load your model (or if your model does not support `device_map="auto"`), you can manually set your model to a GPU:
+```python
+>>> model = model.to(0) # or model.to("cuda:0")
+```
+
+## Step 3: Convert your model!
+
+Now time to convert your model using `BetterTransformer` API! You can run the commands below:
+
+```python
+>>> from optimum.bettertransformer import BetterTransformer
+
+>>> model = BetterTransformer.transform(model)
+```
+By default, `.transform` will overwrite your model, which means that your previous native model cannot be used anymore. If you want to keep it for some reasons, just add the flag `keep_original_model=True`!
+```python
+>>> from optimum.bettertransformer import BetterTransformer
+
+>>> model_bt = BetterTransformer.transform(model, keep_original_model=True)
+```
+If your model does not support `BetterTransformer` API, this will displayed on an error trace. Note also that decoder-based models (OPT, BLOOM, etc.) are not supported yet but this is in the roadmap of PyTorch for the future.
+
+## `pipeline` compatibility
+
+`transformers` `pipeline` is also compatible with this integration and you can use `BetterTransformer` as an accelerator for your pipelines. Follow the snippet below for running a pipeline using the snippet below:
+```python
+>>> from optimum.pipelines import pipeline
+
+>>> pipe = pipeline("fill-mask", "distilbert-base-uncased", accelerator="bettertransformer")
+>>> pipe("I am a student at [MASK] University.")
+```
+If you want to run `pipeline` on a GPU device, run:
+```python
+>>> from optimum.pipelines import pipeline
+
+>>> pipe = pipeline("fill-mask", "distilbert-base-uncased", accelerator="bettertransformer", device=0)
+>>> ...
+```
+Please refer to the [official documentation of `pipeline`](https://huggingface.co/docs/transformers/main_classes/pipelines) for further usage. If you face into any issue, do not hesitate to open an isse on GitHub!

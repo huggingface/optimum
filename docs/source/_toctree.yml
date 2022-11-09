@@ -79,6 +79,16 @@
     title: Reference
   title: Torch FX
 - sections:
+  - local: bettertransformer/overview
+    title: Overview
   - local: bettertransformer/quickstart
     title: Quickstart
+  - sections:
+    - local: bettertransformer/tutorials/content
+      title: Content
+    title: Tutorials
+  - sections:
+    - local: bettertransformer/contribution/content
+      title: Content
+    title: Contribute
   title: BetterTransformer integration

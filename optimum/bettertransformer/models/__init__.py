@@ -28,8 +28,6 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "ErnieLayer": bert.BertLayerBetterTransformer,
     "LayoutLMLayer": bert.BertLayerBetterTransformer,
     "BertGenerationLayer": bert.BertLayerBetterTransformer,
-    "RobertaLayer": bert.BertLayerBetterTransformer,
-    "Data2VecTextLayer": bert.BertLayerBetterTransformer,
     "XLMRobertaLayer": bert.BertLayerBetterTransformer,
     # Albert Family
     "AlbertLayer": albert.AlbertLayerBetterTransformer,

@@ -117,6 +117,7 @@ def load_bettertransformer(
     feature_extractor=None,
     load_feature_extractor=None,
     SUPPORTED_TASKS=None,
+    *model_kwargs,
     **kwargs
 ):
     from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
@@ -125,10 +126,10 @@ def load_bettertransformer(
 
     if model is None:
         model_id = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["default"]
-        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, **kwargs)
+        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, *model_kwargs)
     elif isinstance(model, str):
         model_id = model
-        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, **kwargs)
+        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, *model_kwargs)
     else:
         raise ValueError(
             f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
@@ -148,7 +149,8 @@ def load_ort_pipeline(
     feature_extractor,
     load_feature_extractor,
     SUPPORTED_TASKS,
-    **kwargs
+    *model_kwargs,
+    **kwargs,
 ):
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
@@ -184,6 +186,7 @@ def pipeline(
     use_fast: bool = True,
     use_auth_token: Optional[Union[str, bool]] = None,
     accelerator: Optional[str] = "ort",
+    *model_kwargs,
     **kwargs,
 ) -> Pipeline:
     targeted_task = "translation" if task.startswith("translation") else task
@@ -221,6 +224,7 @@ def pipeline(
         feature_extractor,
         load_feature_extractor,
         SUPPORTED_TASKS,
+        *model_kwargs,
         **kwargs,
     )
 
