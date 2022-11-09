@@ -112,7 +112,8 @@ def export_pytorch(
             model.to(device)
             dummy_inputs = tree_map(lambda value: value.to(device), dummy_inputs)
         check_dummy_inputs_are_allowed(model, dummy_inputs)
-        inputs = config.ordered_inputs(model)
+        # inputs = config.ordered_inputs(model)
+        inputs = config.inputs
         input_names = list(inputs.keys())
         output_names = list(config.outputs.keys())
 
@@ -125,6 +126,7 @@ def export_pytorch(
         else:
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
+
             onnx_export(
                 model,
                 (dummy_inputs,),

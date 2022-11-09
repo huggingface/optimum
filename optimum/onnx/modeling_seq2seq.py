@@ -64,27 +64,15 @@ class _DecoderWithLMhead(PreTrainedModel):
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
     ):
-
-        if type(encoder_attention_mask) == torch.LongTensor:
-            decoder_outputs = self.decoder(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                encoder_attention_mask=encoder_attention_mask,
-                encoder_hidden_states=encoder_hidden_states,
-                past_key_values=past_key_values,
-                return_dict=True,
-                use_cache=True,
-            )
-        else:
-            decoder_outputs = self.decoder(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                encoder_hidden_states=encoder_hidden_states,
-                past_key_values=past_key_values,
-                return_dict=True,
-                use_cache=True,
-            )
-
+        decoder_outputs = self.decoder(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            encoder_attention_mask=encoder_attention_mask,
+            encoder_hidden_states=encoder_hidden_states,
+            past_key_values=past_key_values,
+            return_dict=True,
+            use_cache=True,
+        )
         last_hidden_state = decoder_outputs.last_hidden_state
 
         if self.config.model_type == "t5" and self.config.tie_word_embeddings:

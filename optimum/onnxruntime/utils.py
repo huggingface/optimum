@@ -58,6 +58,9 @@ T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
     hidden_size="d_model",
 )
+WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
+    hidden_size="d_model",
+)
 
 
 class ORTConfigManager:
@@ -91,6 +94,7 @@ class ORTConfigManager:
         "m2m_100": (BartLikeNormalizedTextConfig, "bart"),
         "roberta": (NormalizedTextConfig, "bert"),
         "t5": (T5LikeNormalizedTextConfig, "t5"),
+        "whisper": (WhisperLikeNormalizedTextConfig, "whisper"),
         "xlm-roberta": (NormalizedTextConfig, "bert"),
     }
 

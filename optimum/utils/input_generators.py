@@ -97,6 +97,10 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+class NormalizedAudioConfig(NormalizedConfig):
+    pass
+
+
 def check_framework_is_available(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -409,3 +413,31 @@ class DummyVisionInputGenerator(DummyInputGenerator):
             return self.random_int_tensor(shape, max_value=1, framework=framework)
         shape = [self.batch_size, self.num_channels, self.height, self.width]
         return self.random_float_tensor(shape, framework=framework)
+
+
+class DummyAudioInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("input_features", "input_values")
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedAudioConfig,
+        batch_size: int = 2,
+        feature_size: int = 80,
+        nb_max_frames: int = 3000,
+        sequence_length: int = 16000,
+    ):
+        self.task = task
+
+        self.feature_size = feature_size
+        self.nb_max_frames = nb_max_frames
+        self.batch_size = batch_size
+        self.sequence_length = sequence_length
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.sequence_length]
+        if input_name == "input_values":
+            self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+
+        shape = [self.batch_size, self.feature_size, self.nb_max_frames]
+        return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
