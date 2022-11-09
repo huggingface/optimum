@@ -78,7 +78,7 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         https://github.com/huggingface/transformers/pull/19553
         """
         super().forward_checker()
-        attention_mask = None  # attention mask seems to be always None
+        attention_mask = None  # attention mask seems to be always None: https://github.com/huggingface/transformers/blob/94b3f544a1f5e04b78d87a2ae32a7ac252e22e31/src/transformers/models/whisper/modeling_whisper.py#L690
 
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
