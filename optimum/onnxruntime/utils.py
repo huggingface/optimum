@@ -82,10 +82,13 @@ class ORTConfigManager:
 
     @classmethod
     def get_num_heads_name(cls, model_type: str) -> str:
+        # TODO: refactor with optimum.utils.input_generators.NormalizedConfig?
         num_heads = "num_attention_heads"
         try:
             num_heads = cls._conf[model_type][0]
         except KeyError:
+            # TODO: we accept not to fail here?
+            # This seems inconsistent with the rest of the implementation.
             logger.warning(
                 f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported. The default value to "
                 f"access the number of heads defined in the config is set to `{num_heads}`."
@@ -94,10 +97,13 @@ class ORTConfigManager:
 
     @classmethod
     def get_hidden_size_name(cls, model_type: str) -> str:
+        # TODO: refactor with optimum.utils.input_generators.NormalizedConfig?
         hidden_size = "hidden_size"
         try:
             hidden_size = cls._conf[model_type][1]
         except KeyError:
+            # TODO: we accept not to fail here?
+            # This seems inconsistent with the rest of the implementation.
             logger.warning(
                 f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported. The default value to "
                 f"access the hidden size defined in the config is set to `{hidden_size}`."
@@ -106,22 +112,20 @@ class ORTConfigManager:
 
     @classmethod
     def get_model_ort_type(cls, model_type: str) -> str:
-        try:
-            model_type = cls._conf[model_type][2]
-        except KeyError:
-            logger.warning(f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported.")
-        return model_type
+        cls.check_supported_model(model_type)
+        return cls._conf[model_type][2]
 
     @classmethod
-    def check_supported_model_or_raise(cls, model_type: str) -> bool:
+    def check_supported_model(cls, model_type: str):
         if model_type not in cls._conf:
+            model_types = ", ".join(cls._conf.keys())
             raise KeyError(
-                f"{model_type} model type is not supported yet. Only {list(cls._conf.keys())} are supported. "
+                f"{model_type} model type is not supported yet. Only {model_types} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
 
     @classmethod
-    def check_optimization_supported_model_or_raise(cls, model_type: str) -> bool:
+    def check_optimization_supported_model(cls, model_type: str):
         supported_model_types_for_optimization = ["bert", "gpt2", "bart"]
         if (model_type not in cls._conf) or (cls._conf[model_type][2] not in supported_model_types_for_optimization):
             raise KeyError(
@@ -134,6 +138,7 @@ def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
 
 
+# TODO: shouldn't it be in optimum/onnx/graph_transformations.py?
 def fix_atenops_to_gather(model_path):
     # Fix broken ATenOp nodes back to Gather nodes.
     model = onnx.load(model_path)
@@ -187,8 +192,7 @@ def get_provider_for_device(device: torch.device) -> str:
 
 
 def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, Dict]:
-    """Get the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
-
+    """Gets the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
     if device == -1:
         device = torch.device("cpu")
     else:
