@@ -22,9 +22,9 @@ from datasets import Dataset
 from packaging.version import Version, parse
 
 from onnxruntime import __version__ as ort_version
-from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator
+from onnxruntime.transformers.fusion_options import FusionOptions
 
 from ..configuration_utils import BaseConfig
 
@@ -617,11 +617,11 @@ class OptimizationConfig:
         onnxruntime_general_tool_optimization_level (`int`, defaults to 1):
             Optimization level performed by ONNX Runtime of the loaded graph.
             Supported optimization level are 0, 1, 2 and 99.
-                - 0 will disable all optimizations
-                - 1 will enable basic optimizations
-                - 2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
+                - 0: will disable all optimizations
+                - 1: will enable basic optimizations
+                - 2: will enable basic and extended optimizations, including complex node fusions applied to the nodes
                 assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent
-                - 99 will enable all available optimizations including layout optimizations
+                - 99: will enable all available optimizations including layout optimizations
         onnxruntime_general_tool_optimize_for_gpu (`bool`, defaults to `False`):
             Whether to optimize the model for GPU inference.
             The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
@@ -694,7 +694,6 @@ class OptimizationConfig:
     disable_shape_inference: bool = False
 
     def __post_init__(self):
-
         def deprecate_renamed_attribute(old_name, new_name):
             if getattr(self, old_name, None) is not None:
                 warnings.warn(
@@ -716,7 +715,10 @@ class OptimizationConfig:
         deprecate_renamed_attribute("disable_embed_layer_norm", "disable_embed_layer_norm_fusion")
 
     def create_fusion_options(self, model_type: str) -> FusionOptions:
-        args = object()
+        class Box:
+            pass
+
+        args = Box()
         args.model_type = model_type
         attribute_map = {
             "disable_gelu_fusion": "disable_gelu",
@@ -730,12 +732,85 @@ class OptimizationConfig:
         for attr_name, fusion_attr_name in attribute_map.items():
             setattr(args, fusion_attr_name, getattr(self, attr_name))
 
-        for attr, value in self.__dict__:
+        for attr, value in self.__dict__.items():
             if hasattr(args, attr):
                 continue
             setattr(args, attr, value)
 
         return FusionOptions.parse(args)
+
+
+class AutoOptimizationConfig:
+    _LEVELS = [
+        {
+            "onnxruntime_general_tool_optimization_level": 1,
+            "optimize_with_onnxruntime_general_tool_only": True,
+        },
+        {
+            "onnxruntime_general_tool_optimization_level": 2,
+            "optimize_with_onnxruntime_general_tool_only": True,
+        },
+        # TODO: should we keep this one?
+        {
+            "onnxruntime_general_tool_optimization_level": 99,
+            "optimize_with_onnxruntime_general_tool_only": True,
+        },
+        {
+            "onnxruntime_general_tool_optimization_level": 2,
+            "optimize_with_onnxruntime_general_tool_only": False,
+        },
+        {
+            "onnxruntime_general_tool_optimization_level": 2,
+            "optimize_with_onnxruntime_general_tool_only": False,
+            "enable_gelu_approximation": True,
+        },
+        {
+            "onnxruntime_general_tool_optimization_level": 2,
+            "optimize_with_onnxruntime_general_tool_only": False,
+            "enable_gelu_approximation": True,
+            "fp16": True,
+        },
+        # TODO: should we keep this one?
+        {
+            "onnxruntime_general_tool_optimization_level": 2,
+            "optimize_with_onnxruntime_general_tool_only": False,
+            "enable_gelu_approximation": True,
+            "fp16": True,
+            "disable_embed_layer_norm_fusion": False,
+        },
+    ]
+
+    @classmethod
+    def with_optimization_level(cls, optimization_level: int, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an [`~OptimizationConfig`] with pre-defined arguments according to an optimization level.
+
+        Args:
+            optimization_level (`int`):
+                The optimization level, the following values are allowed:
+                - 0: Basic general optimizations
+                - 1: Basic and extended general optimizations
+                - 2: Same as 1, with data layout optimization
+                - 3: Basic and extended general optimizations, and transformers specific fusions (Gelu, LayerNorm,
+                Attention, LayerNorm + Residual, etc)
+                - 4: Same as 3 but with Gelu approximation
+                - 5: Same as 4, but with weights converted to float16
+                - 6: Same as 5, but with Embedding + LayerNorm fusion (which is incompatible with ONNX Runtime
+                quantization)
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the requested optimization level.
+        """
+        if optimization_level < 0 or optimization_level >= len(cls._LEVELS):
+            raise ValueError(f"optimization_level must be in [0, {len(cls._LEVELS)}")
+        return OptimizationConfig(
+            onnxruntime_general_tool_optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs
+        )
 
 
 class ORTConfig(BaseConfig):

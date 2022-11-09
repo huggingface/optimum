@@ -28,6 +28,7 @@ from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
@@ -53,7 +54,9 @@ class ORTOptimizer:
         self.config = config
 
     @classmethod
-    def from_pretrained(cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None) -> "ORTOptimizer":
+    def from_pretrained(
+        cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None
+    ) -> "ORTOptimizer":
         """
         Args:
             model_or_path (`Union[str, os.PathLike, ORTModel]`):
@@ -137,10 +140,10 @@ class ORTOptimizer:
                 model_type,
                 num_heads,
                 hidden_size,
-                opt_level=optimization_config.optimization_level,
+                opt_level=optimization_config.onnxruntime_general_tool_optimization_level,
                 optimization_options=optimization_options,
-                use_gpu=optimization_config.optimize_for_gpu,
-                only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
+                use_gpu=optimization_config.onnxruntime_general_tool_optimize_for_gpu,
+                only_onnxruntime=optimization_config.optimize_with_onnxruntime_general_tool_only,
             )
 
             if optimization_config.fp16:

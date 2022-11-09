@@ -23,7 +23,8 @@ _import_structure = {
         "QuantizationMode",
         "AutoQuantizationConfig",
         "OptimizationConfig",
-        "ORTConfig"
+        "AutoOptimizationConfig",
+        "ORTConfig",
     ],
     "model": ["ORTModel"],
     "modeling_ort": [
