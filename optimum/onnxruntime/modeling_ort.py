@@ -519,7 +519,7 @@ class ORTModelForFeatureExtraction(ORTModel):
                 token_type_ids.data_ptr(),
             )
 
-        # bind logits
+        # bind last_hidden_state
         output_shape, output_buffer = self.prepare_output_buffer(
             batch_size=input_ids.size(0),
             sequence_length=input_ids.size(1),
@@ -690,7 +690,7 @@ class ORTModelForQuestionAnswering(ORTModel):
                 token_type_ids.data_ptr(),
             )
 
-        # bind logits
+        # bind start_logits and end_logits
         start_logits_shape, start_logits_buffer = self.prepare_logits_buffer(
             batch_size=input_ids.size(0), sequence_length=input_ids.size(1), output_name="start_logits"
         )

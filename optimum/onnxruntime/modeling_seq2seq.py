@@ -605,7 +605,7 @@ class ORTEncoder:
                 attention_mask.data_ptr(),
             )
 
-        # bind logits
+        # bind last_hidden_state
         output_shape, output_buffer = self.prepare_output_buffer(
             batch_size=input_ids.size(0),
             sequence_length=input_ids.size(1),
