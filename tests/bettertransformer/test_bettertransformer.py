@@ -51,6 +51,10 @@ ALL_ENCODER_MODELS_TO_TEST = [
     "ybelkada/random-tiny-BertGenerationModel",
 ]
 
+ALL_AUDIO_MODELS_TO_TEST = [
+    "hf-internal-testing/tiny-random-WhisperModel",
+]
+
 
 class BetterTransformersTest(unittest.TestCase):
     r"""
@@ -90,7 +94,10 @@ class BetterTransformersTest(unittest.TestCase):
 
         ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
         self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()))
-        self.assertEqual(len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()), len(ALL_ENCODER_MODELS_TO_TEST))
+        self.assertEqual(
+            len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()),
+            len(ALL_ENCODER_MODELS_TO_TEST) + len(ALL_AUDIO_MODELS_TO_TEST),
+        )
 
     @unittest.skipIf(not is_accelerate_available(), "Skipping the test since `accelerate` is not available...")
     @init_empty_weights()

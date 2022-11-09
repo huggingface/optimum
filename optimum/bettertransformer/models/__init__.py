@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 
-from . import albert, bart, bert, distilbert
+from . import albert, bart, bert, distilbert, whisper
 
 
 BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
@@ -43,6 +43,8 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # "QDQBertLayer": bert.BertLayerBetterTransformer, --> needs torch quantization
     # "RealmLayer": bert.BertLayerBetterTransformer, --> not mapped in AutoModel
     "TransformerBlock": distilbert.DistilBertLayerBetterTransformer,
+    # WhisperModel
+    "WhisperEncoderLayer": whisper.WhisperEncoderLayerBetterTransformer,
 }
 
 
