@@ -538,6 +538,8 @@ class ORTModelForConditionalGeneration(ORTModel):
         if self.decoder_with_past is not None:
             self.decoder_with_past._device = device
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
+        self.providers = self.encoder.session.get_providers()
+
         return self
 
 

@@ -195,7 +195,11 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
         device = torch._C._nn._parse_to(device)[0]
 
     provider_options = {}
-    if device.type == "cuda" and device.index:
+
+    if device.type == "cuda":
+        if device.index == None:
+            device = torch.device("cuda:0")
+
         provider_options["device_id"] = device.index
 
     return device, provider_options
