@@ -17,6 +17,7 @@ import torch.nn as nn
 
 KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation_function"]
 KNOWN_POS_EMB_ATTRIBUTES = ["position_embedding_type"]
+KNOWN_NUM_LAYERS = ["num_hidden_layers", "num_layers", "encoder_layers", "n_layers"]
 
 SUPPORTED_ACTIVATION_FUNCTIONS = ["gelu", "relu", "gelu_new"]
 
@@ -30,6 +31,7 @@ class BetterTransformerBaseLayer(nn.Module):
         self.pos_emb_type = None
         self.num_heads = None
         self.embed_dim = None
+        self.num_layers = None
 
         # Get activation function
         for attr in KNOWN_ACTIVATION_ATTRIBUTES:
@@ -41,6 +43,12 @@ class BetterTransformerBaseLayer(nn.Module):
         for attr in KNOWN_POS_EMB_ATTRIBUTES:
             if hasattr(config, attr):
                 self.pos_emb_type = getattr(config, attr)
+                break
+
+        # Get num_layers
+        for attr in KNOWN_NUM_LAYERS:
+            if hasattr(config, attr):
+                self.num_layers = getattr(config, attr)
                 break
 
     def validate_bettertransformer(self):

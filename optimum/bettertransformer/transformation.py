@@ -51,7 +51,7 @@ def init_accelerate_hook(module):
     return module
 
 
-def replace_to_bettertransformer(model, config):
+def replace_to_bettertransformer(model, config, layer_index=None):
     r"""
     Replaces the current model to its `BetterTransformer` implementation. Loops recursively into the model and replaces the
     `Layer` modules with its `BetterTransformer` correspondant model
@@ -71,6 +71,7 @@ def replace_to_bettertransformer(model, config):
     Returns:
         The converted model
     """
+
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
             replace_to_bettertransformer(module, config)
@@ -109,13 +110,31 @@ def set_last_layer(model):
     dict_named_module = dict(model.named_modules())
     sort_fn = lambda list_modules: [module.__class__.__name__ for module in list_modules]  # noqa: E731
 
+    modulelist_lengths = []
+
     for key in dict_named_module.keys():
-        if isinstance(dict_named_module[key], torch.nn.ModuleList) and all(
-            "LayerBetterTransformer" in module_name for module_name in sort_fn(dict_named_module[key])
-        ):
-            setattr(dict_named_module[key][-1], "is_last_layer", True)
-            return True
-    return False
+        if isinstance(dict_named_module[key], torch.nn.ModuleList) and "encoder" in key:
+            modulelist_lengths.append((len(dict_named_module[key]), key))
+
+    # For Albert, each transformer layer is wrapped
+    # inside a ModuleList
+    if len(modulelist_lengths) > 1:
+        max_length, key = max(modulelist_lengths, key=lambda item: item[0])
+        largest_module_list = dict_named_module[key]
+
+        for module in largest_module_list[-1].modules():
+            if "LayerBetterTransformer" in module.__class__.__name__:
+                setattr(module, "is_last_layer", True)
+                return True
+        return False
+    else:
+        for key in dict_named_module.keys():
+            if isinstance(dict_named_module[key], torch.nn.ModuleList) and all(
+                "LayerBetterTransformer" in module_name for module_name in sort_fn(dict_named_module[key])
+            ):
+                setattr(dict_named_module[key][-1], "is_last_layer", True)
+                return True
+        return False
 
 
 @check_if_pytorch_greater_112()

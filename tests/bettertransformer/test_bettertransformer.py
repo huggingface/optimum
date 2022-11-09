@@ -34,6 +34,23 @@ from optimum.utils.testing_utils import (
 if is_accelerate_available():
     from accelerate import init_empty_weights
 
+ALL_ENCODER_MODELS_TO_TEST = [
+    "hf-internal-testing/tiny-random-DistilBertModel",
+    "hf-internal-testing/tiny-random-BartModel",
+    "hf-internal-testing/tiny-random-AlbertModel",
+    "hf-internal-testing/tiny-random-RobertaModel",
+    "hf-internal-testing/tiny-xlm-roberta",
+    "hf-internal-testing/tiny-random-SplinterModel",
+    "hf-internal-testing/tiny-random-ErnieModel",
+    "hf-internal-testing/tiny-random-camembert",
+    "hf-internal-testing/tiny-random-ElectraModel",
+    "hf-internal-testing/tiny-random-LayoutLMModel",
+    "hf-internal-testing/tiny-random-Data2VecTextModel",
+    "hf-internal-testing/tiny-random-MarkupLMModel",
+    "hf-internal-testing/tiny-random-BertModel",
+    "ybelkada/random-tiny-BertGenerationModel",
+]
+
 
 class BetterTransformersTest(unittest.TestCase):
     r"""
@@ -62,16 +79,18 @@ class BetterTransformersTest(unittest.TestCase):
             random_config = getattr(transformers, class_name + "Config")
             yield random_config()
 
-    def test_dict_consistency(self):
+    def test_dict_class_consistency(self):
         r"""
         A test to check if the modified dictionnary is consistent (same number of keys + successfully import
-        the correct `PreTrainedModel` module).
+        the correct `PreTrainedModel` module). This also checks if the list of models to test has the same
+        number of classes than the list of convertable models.
         """
         for keys in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
             self.assertTrue(("Layer" in keys) or ("Block" in keys))
 
         ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
         self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()))
+        self.assertEqual(len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()), len(ALL_ENCODER_MODELS_TO_TEST))
 
     @unittest.skipIf(not is_accelerate_available(), "Skipping the test since `accelerate` is not available...")
     @init_empty_weights()
@@ -117,17 +136,12 @@ class BetterTransformersTest(unittest.TestCase):
         inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
         attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
 
-        for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
-            if layer_class == "TransformerBlock":
-                # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-                class_name = "DistilBert"
-            elif "EncoderLayer" in layer_class:
-                class_name = layer_class[:-12]
-            else:
-                class_name = layer_class[:-5]
-            random_config = getattr(transformers, class_name + "Config")
+        for model_to_test in ALL_ENCODER_MODELS_TO_TEST:
 
-            hf_random_model = AutoModel.from_config(random_config()).eval()
+            # hf_random_model = AutoModel.from_config(random_config()).eval()
+            hf_random_model = AutoModel.from_pretrained(model_to_test).eval()
+            random_config = hf_random_model.config
+
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
             self.assertFalse(
@@ -143,7 +157,7 @@ class BetterTransformersTest(unittest.TestCase):
                 hf_hidden_states = hf_random_model(inputs_ids, attention_mask=attention_mask)[0]
                 bt_hidden_states = converted_model(inputs_ids, attention_mask=attention_mask)[0]
 
-                if "gelu_new" in vars(random_config()).values():
+                if "gelu_new" in vars(random_config).values():
                     # Since `gelu_new` is a slightly modified version of `GeLU` we expect a small
                     # discrepency.
                     tol = 4e-2
@@ -173,16 +187,16 @@ class BetterTransformersTest(unittest.TestCase):
         r"""
         Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
         """
-        for hf_random_config in self._loop_all_classes():
+        for model_id in ALL_ENCODER_MODELS_TO_TEST:
             with self.assertWarns(UserWarning), tempfile.TemporaryDirectory() as tmpdirname:
-                hf_model = AutoModel.from_config(hf_random_config).eval()
+                hf_model = AutoModel.from_pretrained(model_id).eval()
                 bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
                 bt_model.save_pretrained(tmpdirname)
 
     def test_raise_activation_fun(self):
         r"""
         A tests that checks if the conversion raises an error if the model contains an activation function
-        that is not supported by `BetterTransformer`.
+        that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
         for hf_random_config in self._loop_all_classes():
             hf_random_config.hidden_act = "silu"
@@ -191,7 +205,7 @@ class BetterTransformersTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
-    def test_raise_autocast_and_train(self):
+    def test_raise_autocast(self):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
         `torch.cuda.amp.autocast`.
@@ -199,14 +213,24 @@ class BetterTransformersTest(unittest.TestCase):
         inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
         attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
 
-        for hf_random_config in self._loop_all_classes():
-            hf_random_model = AutoModel.from_config(hf_random_config).eval()
+        for model_id in ALL_ENCODER_MODELS_TO_TEST:
+            hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
             # Check for the autocast on CPU
             with self.assertRaises(ValueError), torch.amp.autocast("cpu"):
                 bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
                 _ = bt_model(inputs_ids, attention_mask=attention_mask)
 
+    def test_raise_train(self):
+        r"""
+        A tests that checks if the conversion raises an error if the model is run under
+        `model.train()`.
+        """
+        inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
+        attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
+
+        for model_id in ALL_ENCODER_MODELS_TO_TEST:
+            hf_random_model = AutoModel.from_pretrained(model_id).eval()
             # Check for training mode
             with self.assertRaises(ValueError):
                 bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
@@ -252,6 +276,7 @@ class BetterTransformersTest(unittest.TestCase):
         mean_bt_time /= N_REPEAT
 
         self.assertLess(mean_bt_time, mean_hf_time, "The converted model is slower than the original model.")
+        gc.collect()
 
     def test_pipeline(self):
         r"""
@@ -265,6 +290,7 @@ class BetterTransformersTest(unittest.TestCase):
         out = unmasker("Hello I'm a [MASK] model.")
 
         self.assertEqual(out[0]["token_str"], "role")
+        gc.collect()
 
     @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
     @require_torch_gpu
@@ -308,6 +334,7 @@ class BetterTransformersTest(unittest.TestCase):
         # Check that the padding has been taken into account correctly - this checks also if the hooks
         # have been correctly set.
         self.assertTrue(torch.allclose(output_bt[0][1, 3:], torch.zeros_like(output_bt[0][1, 3:])))
+        gc.collect()
 
     def test_accelerate_compatibility_cpu_gpu(self):
         r"""
