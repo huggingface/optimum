@@ -21,18 +21,11 @@ from typing import Dict, Mapping, Optional, Tuple, Union
 import numpy as np
 import torch
 import transformers
-from transformers import (
-    AutoConfig,
-    AutoFeatureExtractor,
-    AutoModelForSeq2SeqLM,
-    AutoModelForSpeechSeq2Seq,
-    AutoTokenizer,
-    PretrainedConfig,
-)
+from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoTokenizer, PretrainedConfig
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
-from transformers.onnx import FeaturesManager, OnnxConfig, OnnxSeq2SeqConfigWithPast, export
+from transformers.onnx import FeaturesManager, export
 
 import onnx
 import onnxruntime
@@ -48,7 +41,6 @@ from .utils import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
     ORTConfigManager,
-    _is_gpu_available,
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
