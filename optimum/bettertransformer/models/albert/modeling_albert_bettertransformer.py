@@ -20,7 +20,7 @@ from ..base import BetterTransformerBaseLayer
 class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, albert_layer, config):
         r"""
-        A simple conversion of the BERT layer to its `BetterTransformer` implementation.
+        A simple conversion of the ALBERT layer to its `BetterTransformer` implementation.
 
         Args:
             albert_layer (`torch.nn.Module`):
