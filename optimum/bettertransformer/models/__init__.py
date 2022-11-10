@@ -13,38 +13,46 @@
 # limitations under the License.
 import warnings
 
-from . import albert, bart, bert, distilbert, whisper
+from .encoder_models import (
+    AlbertLayerBetterTransformer,
+    BartEncoderLayerBetterTransformer,
+    BertLayerBetterTransformer,
+    DistilBertLayerBetterTransformer,
+    WhisperEncoderLayerBetterTransformer,
+)
 
 
 BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # Bert Family
-    "BertLayer": bert.BertLayerBetterTransformer,
-    "ElectraLayer": bert.BertLayerBetterTransformer,
-    "Data2VecTextLayer": bert.BertLayerBetterTransformer,
-    "CamembertLayer": bert.BertLayerBetterTransformer,
-    "MarkupLMLayer": bert.BertLayerBetterTransformer,
-    "RobertaLayer": bert.BertLayerBetterTransformer,
-    "SplinterLayer": bert.BertLayerBetterTransformer,
-    "ErnieLayer": bert.BertLayerBetterTransformer,
-    "LayoutLMLayer": bert.BertLayerBetterTransformer,
-    "BertGenerationLayer": bert.BertLayerBetterTransformer,
-    "XLMRobertaLayer": bert.BertLayerBetterTransformer,
+    "BertLayer": BertLayerBetterTransformer,
+    "ElectraLayer": BertLayerBetterTransformer,
+    "Data2VecTextLayer": BertLayerBetterTransformer,
+    "CamembertLayer": BertLayerBetterTransformer,
+    "MarkupLMLayer": BertLayerBetterTransformer,
+    "RobertaLayer": BertLayerBetterTransformer,
+    "SplinterLayer": BertLayerBetterTransformer,
+    "ErnieLayer": BertLayerBetterTransformer,
+    "LayoutLMLayer": BertLayerBetterTransformer,
+    "BertGenerationLayer": BertLayerBetterTransformer,
+    "XLMRobertaLayer": BertLayerBetterTransformer,
     # Albert Family
-    "AlbertLayer": albert.AlbertLayerBetterTransformer,
-    # Bart family - need to tweak the tests a bit
-    "BartEncoderLayer": bart.BartLayerBetterTransformer,
-    # "PLBartEncoderLayer": bart.BartLayerBetterTransformer,
-    # "MarianEncoderLayer": bart.BartLayerBetterTransformer,
-    # "TimeSeriesTransformerEncoderLayer": bart.BartLayerBetterTransformer,
-    # "BlenderbotSmallEncoderLayer": bart.BartLayerBetterTransformer,
+    "AlbertLayer": AlbertLayerBetterTransformer,
+    # Bart family
+    "BartEncoderLayer": BartEncoderLayerBetterTransformer,
+    # "PLBartEncoderLayer": bart.BartEncoderLayerBetterTransformer,
+    # "MarianEncoderLayer": bart.BartEncoderLayerBetterTransformer,
+    # "TimeSeriesTransformerEncoderLayer": bart.BartEncoderLayerBetterTransformer,
+    # "BlenderbotSmallEncoderLayer": bart.BartEncoderLayerBetterTransformer,
     # T5 family - needs to check compatibility first
     # "T5Block": t5.T5LayerBetterTransformer,
     # Some models cannot be tested such as:
-    # "QDQBertLayer": bert.BertLayerBetterTransformer, --> needs torch quantization
-    # "RealmLayer": bert.BertLayerBetterTransformer, --> not mapped in AutoModel
-    "TransformerBlock": distilbert.DistilBertLayerBetterTransformer,
+    # "QDQBertLayer": BertLayerBetterTransformer, --> needs torch quantization
+    # "RealmLayer": BertLayerBetterTransformer, --> not mapped in AutoModel
+    # DistilBert:
+    "TransformerBlock": DistilBertLayerBetterTransformer,
     # WhisperModel
-    "WhisperEncoderLayer": whisper.WhisperEncoderLayerBetterTransformer,
+    "WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer,
+    # TODO: add Wav2vec2
 }
 
 
