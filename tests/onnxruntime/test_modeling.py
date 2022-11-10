@@ -1095,7 +1095,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live"
         outputs = pipe(text)
         # check model device
@@ -1218,7 +1218,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
         # check model device
@@ -1380,7 +1380,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live"
         outputs = pipe(text)
         # check model device

@@ -471,9 +471,9 @@ class ORTModelForFeatureExtraction(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
-    def prepare_output_buffer(self, batch_size, sequence_length, hidden_size):
-        """Prepare the buffer of output(`last_hidden_state`) with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
+    def prepare_output_buffer(self, batch_size, sequence_length, hidden_size, output_name: str):
+        """Prepare the buffer of output_name with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
+        ort_type = TypeHelper.get_output_type(self.model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         output_shape = (batch_size, sequence_length, hidden_size)
@@ -519,11 +519,12 @@ class ORTModelForFeatureExtraction(ORTModel):
                 token_type_ids.data_ptr(),
             )
 
-        # bind logits
+        # bind last_hidden_state
         output_shape, output_buffer = self.prepare_output_buffer(
             batch_size=input_ids.size(0),
             sequence_length=input_ids.size(1),
             hidden_size=self.config.hidden_size,
+            output_name="last_hidden_state",
         )
         io_binding.bind_output(
             "last_hidden_state",
@@ -641,9 +642,9 @@ class ORTModelForQuestionAnswering(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
-    def prepare_logits_buffer(self, batch_size, sequence_length):
+    def prepare_logits_buffer(self, batch_size, sequence_length, output_name: str):
         """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        ort_type = TypeHelper.get_output_type(self.model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, sequence_length)
@@ -689,18 +690,18 @@ class ORTModelForQuestionAnswering(ORTModel):
                 token_type_ids.data_ptr(),
             )
 
-        # bind logits
+        # bind start_logits and end_logits
         start_logits_shape, start_logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1)
+            batch_size=input_ids.size(0), sequence_length=input_ids.size(1), output_name="start_logits"
         )
         end_logits_shape, end_logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1)
+            batch_size=input_ids.size(0), sequence_length=input_ids.size(1), output_name="end_logits"
         )
         io_binding.bind_output(
             "start_logits",
             start_logits_buffer.device.type,
             self.device.index,
-            self.name_to_np_type["logits"],
+            self.name_to_np_type["start_logits"],
             start_logits_shape,
             start_logits_buffer.data_ptr(),
         )
@@ -708,7 +709,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             "end_logits",
             end_logits_buffer.device.type,
             self.device.index,
-            self.name_to_np_type["logits"],
+            self.name_to_np_type["end_logits"],
             end_logits_shape,
             end_logits_buffer.data_ptr(),
         )
