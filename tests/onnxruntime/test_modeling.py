@@ -1539,7 +1539,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
             model=onnx_model,
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
-            device=0,
         )
 
         ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
@@ -1566,6 +1565,58 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         print(outputs_model_with_pkv, outputs_model_without_pkv)
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        set_seed(SEED)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+
+        processor = get_preprocessor(model_id)
+
+        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
+        data = ds[0]["audio"]["array"]
+        features = processor.feature_extractor(data, return_tensors="pt")
+
+        decoder_start_token_id = onnx_model.config.decoder_start_token_id
+        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+
+        onnx_outputs = onnx_model(**features, **decoder_inputs)
+        io_outputs = io_model(**features, **decoder_inputs)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_compare_generation_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        set_seed(SEED)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+
+        processor = get_preprocessor(model_id)
+
+        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
+        data = ds[0]["audio"]["array"]
+        features = processor.feature_extractor(data, return_tensors="pt")
+
+        onnx_outputs = onnx_model.generate(**features)
+        io_outputs = io_model.generate(**features)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+
+        gc.collect()
 
 
 class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
