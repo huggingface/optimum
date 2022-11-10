@@ -24,34 +24,9 @@ from .models import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, warn_uncompatible_sav
 if is_accelerate_available():
     from accelerate import dispatch_model, infer_auto_device_map
     from accelerate.hooks import remove_hook_from_module
-    from accelerate.utils import named_module_tensors, set_module_tensor_to_device
 
 
-def init_accelerate_hook(module):
-    r"""
-    This function initializes `accelerate` hooks by setting the
-    parameters of the module on the `cpu` if there is any offloading involved
-
-    Args:
-        `module` (`torch.nn.Module`, **required**):
-            The input module to initialize
-    Returns:
-        The initialized module
-    """
-    for name, child in module.named_children():
-        if hasattr(child, "_hf_hook"):
-            if child._hf_hook.weights_map is not None:
-                hook = child._hf_hook
-                if child._hf_hook.offload:
-                    for name, _ in named_module_tensors(
-                        child, include_buffers=hook.offload_buffers, recurse=hook.place_submodules
-                    ):
-                        set_module_tensor_to_device(child, name, "cpu", value=hook.weights_map[name])
-        init_accelerate_hook(child)
-    return module
-
-
-def replace_to_bettertransformer(model, config, layer_index=None):
+def replace_to_bettertransformer(model, config):
     r"""
     Replaces the current model to its `BetterTransformer` implementation. Loops recursively into the model and replaces the
     `Layer` modules with its `BetterTransformer` correspondant model
@@ -87,12 +62,6 @@ def replace_to_bettertransformer(model, config, layer_index=None):
         if is_bt_compatible:
             fast_module = BETTER_TRANFORMER_LAYERS_MAPPING_DICT[class_name](module, config)
             model._modules[name] = fast_module
-        elif hasattr(module, "_hf_hook"):
-            # If the module has `accelerate` hooks, manually
-            # set the parameters on the `CPU` if there is
-            # any offload involved.
-            module = init_accelerate_hook(module)
-            model._modules[name] = module
     return model
 
 
@@ -119,7 +88,7 @@ def set_last_layer(model):
     # For Albert, each transformer layer is wrapped
     # inside a ModuleList
     if len(modulelist_lengths) > 1:
-        max_length, key = max(modulelist_lengths, key=lambda item: item[0])
+        _, key = max(modulelist_lengths, key=lambda item: item[0])
         largest_module_list = dict_named_module[key]
 
         for module in largest_module_list[-1].modules():
@@ -175,16 +144,22 @@ class BetterTransformer(object):
 
         hf_config = model.config
 
+        if load_accelerate:
+            # remove the hooks from the original model to
+            # avoid weights being on `meta` device.
+            remove_hook_from_module(model, recurse=True)
+
         if keep_original_model:
             model_fast = deepcopy(model)
             model_fast = replace_to_bettertransformer(model_fast, hf_config).eval()
         else:
             model_fast = replace_to_bettertransformer(model, hf_config).eval()
+            model = None
 
         successfully_converted_model = set_last_layer(model_fast)
         if not successfully_converted_model:
             raise NotImplementedError(
-                f"The Better Transformers implementation for the model {model.__class__.__name__} has not been"
+                f"The Better Transformers implementation for the model {model_fast.__class__.__name__} has not been"
                 f"implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer`"
                 f"implementation."
             )
@@ -200,6 +175,11 @@ class BetterTransformer(object):
             remove_hook_from_module(model_fast, recurse=True)
 
             model_fast = dispatch_model(model_fast, device_map_bt)
+
+            if keep_original_model:
+                # It is not recommended to have `keep_original_model=True` with a model
+                # that is loaded with accelerate but just in case ..
+                model = dispatch_model(model, model.hf_device_map)
 
         # Step 8: overwrite the `save_pretrained` method
         # by adding a context manager
