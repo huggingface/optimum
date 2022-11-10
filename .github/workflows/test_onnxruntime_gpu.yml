@@ -55,6 +55,7 @@ jobs:
         run: |
           sudo apt -y update && sudo pip install --upgrade pip
           pip install .[onnxruntime-gpu,tests]
+          alias python=python3
       - name: Test with unittest
         working-directory: tests
         run: |
