@@ -11,8 +11,10 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Utility functions, classes and constants for ONNX Runtime."""
+
 from enum import Enum
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Type, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -22,6 +24,7 @@ import onnx
 import onnxruntime as ort
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
+from ..utils import NormalizedTextConfig
 
 
 logger = logging.get_logger(__name__)
@@ -46,6 +49,17 @@ def _is_gpu_available():
         return False
 
 
+BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="encoder_attention_heads",
+    hidden_size="d_model",
+)
+GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="n_head", hidden_size="n_embd")
+T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="num_heads",
+    hidden_size="d_model",
+)
+
+
 class ORTConfigManager:
     """
     A class that contains all the information needed by ONNX Runtime optimization for a given model type.
@@ -58,57 +72,32 @@ class ORTConfigManager:
 
     # Contribution note: Please add new models in alphabetical order
     _conf = {
-        "albert": ("num_attention_heads", "hidden_size", "bert"),
-        "bart": ("encoder_attention_heads", "d_model", "bart"),
-        "bert": ("num_attention_heads", "hidden_size", "bert"),
-        "big_bird": ("num_attention_heads", "hidden_size", "bert"),
-        "bigbird_pegasus": ("encoder_attention_heads", "d_model", None),  # bug in `fusion_skiplayernorm.py`
-        "camembert": ("num_attention_heads", "hidden_size", "bert"),
-        "codegen": ("n_head", "n_embd", "gpt2"),
-        "deberta": ("num_attention_heads", "hidden_size", "bert"),
-        "deberta-v2": ("num_attention_heads", "hidden_size", "bert"),
-        "distilbert": ("n_heads", "dim", "bert"),
-        "electra": ("num_attention_heads", "hidden_size", "bert"),
-        "gpt2": ("n_head", "n_embd", "gpt2"),
-        "gpt_neo": ("num_heads", "hidden_size", "gpt2"),
-        "marian": ("encoder_attention_heads", "d_model", "bart"),
-        "mbart": ("encoder_attention_heads", "d_model", "bart"),
-        "mt5": ("num_heads", "d_model", "bart"),
-        "m2m_100": ("encoder_attention_heads", "d_model", "bart"),
-        "roberta": ("num_attention_heads", "hidden_size", "bert"),
-        "t5": ("num_heads", "d_model", "t5"),
-        "xlm-roberta": ("num_attention_heads", "hidden_size", "bert"),
+        "albert": (NormalizedTextConfig, "bert"),
+        "bart": (BartLikeNormalizedTextConfig, "bart"),
+        "bert": (NormalizedTextConfig, "bert"),
+        "big_bird": (NormalizedTextConfig, "bert"),
+        "bigbird_pegasus": (BartLikeNormalizedTextConfig, None),  # bug in `fusion_skiplayernorm.py`
+        "camembert": (NormalizedTextConfig, "bert"),
+        "codegen": (GPT2LikeNormalizedTextConfig, "gpt2"),
+        "deberta": (NormalizedTextConfig, "bert"),
+        "deberta-v2": (NormalizedTextConfig, "bert"),
+        "distilbert": (NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"), "bert"),
+        "electra": (NormalizedTextConfig, "bert"),
+        "gpt2": (GPT2LikeNormalizedTextConfig, "gpt2"),
+        "gpt_neo": (NormalizedTextConfig.with_args(num_attention_heads="num_heads"), "gpt2"),
+        "marian": (BartLikeNormalizedTextConfig, "bart"),
+        "mbart": (BartLikeNormalizedTextConfig, "bart"),
+        "mt5": (T5LikeNormalizedTextConfig, "t5"),
+        "m2m_100": (BartLikeNormalizedTextConfig, "bart"),
+        "roberta": (NormalizedTextConfig, "bert"),
+        "t5": (T5LikeNormalizedTextConfig, "t5"),
+        "xlm-roberta": (NormalizedTextConfig, "bert"),
     }
 
     @classmethod
-    def get_num_heads_name(cls, model_type: str) -> str:
-        # TODO: refactor with optimum.utils.input_generators.NormalizedConfig?
-        num_heads = "num_attention_heads"
-        try:
-            num_heads = cls._conf[model_type][0]
-        except KeyError:
-            # TODO: we accept not to fail here?
-            # This seems inconsistent with the rest of the implementation.
-            logger.warning(
-                f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported. The default value to "
-                f"access the number of heads defined in the config is set to `{num_heads}`."
-            )
-        return num_heads
-
-    @classmethod
-    def get_hidden_size_name(cls, model_type: str) -> str:
-        # TODO: refactor with optimum.utils.input_generators.NormalizedConfig?
-        hidden_size = "hidden_size"
-        try:
-            hidden_size = cls._conf[model_type][1]
-        except KeyError:
-            # TODO: we accept not to fail here?
-            # This seems inconsistent with the rest of the implementation.
-            logger.warning(
-                f"{model_type} is not supported yet. Only {list(cls._conf.keys())} are supported. The default value to "
-                f"access the hidden size defined in the config is set to `{hidden_size}`."
-            )
-        return hidden_size
+    def get_normalized_config_class(cls, model_type: str) -> Type:
+        cls.check_supported_model(model_type)
+        return cls._conf[model_type][0]
 
     @classmethod
     def get_model_ort_type(cls, model_type: str) -> str:

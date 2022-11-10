@@ -11,6 +11,8 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Main class for performing graph optimization with ONNX Runtime."""
+
 import logging
 import os
 from pathlib import Path
@@ -52,6 +54,8 @@ class ORTOptimizer:
         super().__init__()
         self.onnx_model_path = onnx_model_path
         self.config = config
+        self.model_type = self.config.model_type
+        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.model_type)(self.config)
 
     @classmethod
     def from_pretrained(
@@ -116,8 +120,7 @@ class ORTOptimizer:
         """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
-        model_type = self.config.model_type
-        ORTConfigManager.check_optimization_supported_model(model_type)
+        ORTConfigManager.check_optimization_supported_model(self.model_type)
 
         # Save the model configuration
         self.config.save_pretrained(save_dir)
@@ -126,10 +129,7 @@ class ORTOptimizer:
         ort_config = ORTConfig(optimization=optimization_config)
         ort_config.save_pretrained(save_dir)
 
-        # TODO: use NormalizedConfig.
-        num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(model_type))
-        hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(model_type))
-        model_type = ORTConfigManager.get_model_ort_type(model_type)
+        model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
         optimization_options = optimization_config.create_fusion_options(model_type)
 
         LOGGER.info("Optimizing model...")
@@ -138,8 +138,8 @@ class ORTOptimizer:
             optimizer = optimize_model(
                 model_path.as_posix(),
                 model_type,
-                num_heads,
-                hidden_size,
+                self.normalized_config.num_attention_heads,
+                self.normalized_config.hidden_size,
                 opt_level=optimization_config.onnxruntime_general_tool_optimization_level,
                 optimization_options=optimization_options,
                 use_gpu=optimization_config.onnxruntime_general_tool_optimize_for_gpu,
