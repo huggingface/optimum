@@ -1139,8 +1139,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model.generate(**tokens, num_beams=5)
-        io_outputs = io_model.generate(**tokens, num_beams=5)
+        onnx_outputs = onnx_model.generate(**tokens)
+        io_outputs = io_model.generate(**tokens)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
@@ -1412,7 +1412,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
 
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
         io_outputs = io_model(**tokens, **decoder_inputs)
