@@ -24,7 +24,7 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
 
         Args:
             albert_layer (`torch.nn.Module`):
-                The original BERT Layer where the weights needs to be retrieved.
+                The original ALBERT Layer where the weights needs to be retrieved.
         """
         super().__init__(config)
         # In_proj layer
