@@ -576,7 +576,7 @@ class ORTEncoder:
 
         hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
         output_shape = (batch_size, sequence_length, hidden_size)
-        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device)
+        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
 
         return output_shape, output_buffer
 
@@ -588,6 +588,7 @@ class ORTEncoder:
         io_binding = self.session.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -598,6 +599,7 @@ class ORTEncoder:
         )
         if "attention_mask" in self.input_names:
             # bind attention mask
+            attention_mask = attention_mask.contiguous()
             io_binding.bind_input(
                 "attention_mask",
                 attention_mask.device.type,
@@ -707,10 +709,10 @@ class ORTDecoder:
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
         if output_name == "loss":
             output_shape = (1,)
-            output_buffer = torch.empty(1, dtype=torch_type, device=self._device)
+            output_buffer = torch.empty(1, dtype=torch_type, device=self._device).contiguous()
         elif output_name == "logits":
             output_shape = (batch_size, sequence_length, self.config.vocab_size)
-            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device)
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
         elif "key_values" in output_name:
             num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(self.config.model_type))
             hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
@@ -722,7 +724,7 @@ class ORTDecoder:
             else:
                 output_shape = (batch_size, num_heads, encoder_sequence_length, embed_size_per_head)
 
-            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device)
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
 
         return output_shape, output_buffer
 
@@ -737,6 +739,7 @@ class ORTDecoder:
         io_binding = self.session.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -747,6 +750,7 @@ class ORTDecoder:
         )
 
         # bind encoder attention mask
+        encoder_attention_mask = encoder_attention_mask.contiguous()
         io_binding.bind_input(
             "encoder_attention_mask",
             encoder_attention_mask.device.type,
@@ -758,6 +762,7 @@ class ORTDecoder:
 
         # bind encoder hidden states
         if "encoder_hidden_states" in self.session_input_names:
+            encoder_hidden_states = encoder_hidden_states.contiguous()
             io_binding.bind_input(
                 "encoder_hidden_states",
                 encoder_hidden_states.device.type,
@@ -770,6 +775,7 @@ class ORTDecoder:
         # bind past key values
         if past_key_values is not None:
             for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
+                past_key_value = past_key_value.contiguous()
                 io_binding.bind_input(
                     input_name,
                     past_key_value.device.type,
@@ -781,6 +787,7 @@ class ORTDecoder:
 
         # bind labels
         if "labels" in self.session_input_names:
+            labels = labels.contiguous()
             io_binding.bind_input(
                 "labels",
                 labels.device.type,

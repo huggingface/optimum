@@ -566,7 +566,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         io_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -700,7 +700,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         )
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -809,7 +809,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         )
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -913,7 +913,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         io_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1116,7 +1116,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         io_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1246,7 +1246,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=image, return_tensors="pt")
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
 
@@ -1410,9 +1410,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         io_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
 
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
         io_outputs = io_model(**tokens, **decoder_inputs)
@@ -1436,8 +1436,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model.generate(**tokens)
-        io_outputs = io_model.generate(**tokens)
+        onnx_outputs = onnx_model.generate(**tokens, num_beams=5)
+        io_outputs = io_model.generate(**tokens, num_beams=5)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
