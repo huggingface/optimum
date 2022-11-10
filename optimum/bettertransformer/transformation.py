@@ -56,6 +56,13 @@ def replace_to_bettertransformer(model, config):
             if module.is_decoder:
                 continue
 
+        if hasattr(module, "SCB"):
+            # 8-bit modules are not supported
+            raise ValueError(
+                "`load_in_8bit` and `BetterTransformers` are mutually exclusive",
+                " please pass a model that is not loaded in 8-bit.",
+            )
+
         class_name = module.__class__.__name__
         is_bt_compatible = class_name in BETTER_TRANFORMER_LAYERS_MAPPING_DICT
 
