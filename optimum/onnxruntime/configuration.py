@@ -612,11 +612,8 @@ class OptimizationConfig:
         1. The ONNX Runtime general-purpose optimization tool: it can work on any ONNX model.
         2. The ONNX Runtime transformers optimization tool: it can only work on a subset of transformers models.
 
-    Attributes that tune the general-purpose tool contain "onnxruntime_general_tool" in their name to distinguish them
-    from the others.
-
     Attributes:
-        onnxruntime_general_tool_optimization_level (`int`, defaults to 1):
+        general_optimization_level (`int`, defaults to 1):
             Optimization level performed by ONNX Runtime of the loaded graph.
             Supported optimization level are 0, 1, 2 and 99.
                 - 0: will disable all optimizations
@@ -624,13 +621,13 @@ class OptimizationConfig:
                 - 2: will enable basic and extended optimizations, including complex node fusions applied to the nodes
                 assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent
                 - 99: will enable all available optimizations including layout optimizations
-        onnxruntime_general_tool_optimize_for_gpu (`bool`, defaults to `False`):
+        optimize_for_gpu (`bool`, defaults to `False`):
             Whether to optimize the model for GPU inference.
             The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
         fp16 (`bool`, defaults to `False`):
             Whether all weights and nodes should be converted from float32 to float16.
-        optimize_with_onnxruntime_general_tool_only (`bool`, defaults to `False`):
-            Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python.
+        enable_transformers_specific_optimizations (`bool`, defaults to `True`):
+            Whether to only use `transformers` specific optimizations on top of ONNX Runtime general optimizations.
         disable_gelu_fusion (`bool`, defaults to `False`):
             Whether to disable the Gelu fusion.
         disable_layer_norm_fusion (`bool`, defaults to `False`):
@@ -659,15 +656,14 @@ class OptimizationConfig:
     """
 
     optimization_level: Optional[int] = None
-    onnxruntime_general_tool_optimization_level: int = 1
+    general_optimization_level: int = 1
 
-    optimize_for_gpu: Optional[bool] = None
-    onnxruntime_general_tool_optimize_for_gpu: bool = False
+    optimize_for_gpu: bool = False
 
     fp16: bool = False
 
     optimize_with_onnxruntime_only: Optional[bool] = None
-    optimize_with_onnxruntime_general_tool_only: bool = False
+    enable_transformers_specific_optimizations: bool = True
 
     disable_gelu: Optional[bool] = None
     disable_gelu_fusion: bool = False
@@ -696,17 +692,26 @@ class OptimizationConfig:
     disable_shape_inference: bool = False
 
     def __post_init__(self):
-        def deprecate_renamed_attribute(old_name, new_name):
+        def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
             if getattr(self, old_name, None) is not None:
                 warnings.warn(
                     f"{old_name} will be deprecated soon, use {new_name} instead.",
                     FutureWarning,
                 )
-                setattr(self, new_name, getattr(self, old_name))
+                if mapping_func is None:
 
-        deprecate_renamed_attribute("optimization_level", "onnxruntime_general_tool_optimization_level")
-        deprecate_renamed_attribute("optimize_for_gpu", "onnxruntime_general_tool_optimize_for_gpu")
-        deprecate_renamed_attribute("optimize_with_onnxruntime_only", "optimize_with_onnxruntime_general_tool_only")
+                    def identity(x):
+                        return x
+
+                    mapping_func = identity
+                setattr(self, new_name, mapping_func(getattr(self, old_name)))
+
+        deprecate_renamed_attribute("optimization_level", "general_optimization_level")
+        deprecate_renamed_attribute(
+            "optimize_with_onnxruntime_only",
+            "enable_transformers_specific_optimizations",
+            mapping_func=lambda x: not x,
+        )
 
         deprecate_renamed_attribute("disable_gelu", "disable_bias_gelu_fusion")
         deprecate_renamed_attribute("disable_layer_norm", "disable_layer_norm_fusion")
@@ -745,37 +750,37 @@ class OptimizationConfig:
 class AutoOptimizationConfig:
     _LEVELS = [
         {
-            "onnxruntime_general_tool_optimization_level": 1,
-            "optimize_with_onnxruntime_general_tool_only": True,
+            "general_optimization_level": 1,
+            "enable_transformers_specific_optimizations": False,
         },
         {
-            "onnxruntime_general_tool_optimization_level": 2,
-            "optimize_with_onnxruntime_general_tool_only": True,
+            "general_optimization_level": 2,
+            "enable_transformers_specific_optimizations": False,
         },
         # TODO: should we keep this one?
         {
-            "onnxruntime_general_tool_optimization_level": 99,
-            "optimize_with_onnxruntime_general_tool_only": True,
+            "general_optimization_level": 99,
+            "enable_transformers_specific_optimizations": False,
         },
         {
-            "onnxruntime_general_tool_optimization_level": 2,
-            "optimize_with_onnxruntime_general_tool_only": False,
+            "general_optimization_level": 2,
+            "enable_transformers_specific_optimizations": True,
         },
         {
-            "onnxruntime_general_tool_optimization_level": 2,
-            "optimize_with_onnxruntime_general_tool_only": False,
+            "general_optimization_level": 2,
+            "enable_transformers_specific_optimizations": True,
             "enable_gelu_approximation": True,
         },
         {
-            "onnxruntime_general_tool_optimization_level": 2,
-            "optimize_with_onnxruntime_general_tool_only": False,
+            "general_optimization_level": 2,
+            "enable_transformers_specific_optimizations": True,
             "enable_gelu_approximation": True,
             "fp16": True,
         },
         # TODO: should we keep this one?
         {
-            "onnxruntime_general_tool_optimization_level": 2,
-            "optimize_with_onnxruntime_general_tool_only": False,
+            "general_optimization_level": 2,
+            "enable_transformers_specific_optimizations": True,
             "enable_gelu_approximation": True,
             "fp16": True,
             "disable_embed_layer_norm_fusion": False,
@@ -810,9 +815,7 @@ class AutoOptimizationConfig:
         """
         if optimization_level < 0 or optimization_level >= len(cls._LEVELS):
             raise ValueError(f"optimization_level must be in [0, {len(cls._LEVELS)}")
-        return OptimizationConfig(
-            onnxruntime_general_tool_optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs
-        )
+        return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
 
 
 class ORTConfig(BaseConfig):

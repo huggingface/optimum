@@ -108,3 +108,27 @@ Below you will find an easy end-to-end example on how to optimize a Seq2Seq mode
 >>> outputs = optimized_model.generate(**tokens)
 ```
 
+
+## Optimization Configuration
+
+# TODO: edit this before merging, once the names have been chosen.
+
+In the optimization configuration, there are 4 possible optimization levels:
+- `general_optimization_level=0` to disable all optimizations,
+- `general_optimization_level=1` to enable basic optimizations such as constant folding or redundant node eliminations,
+- `general_optimization_level=2` to enable extended graph optimizations such as node fusions,
+- `general_optimization_level=99` to enable data layout optimizations.
+
+Choosing a level enables the optimizations of that level, as well as the optimizations of all preceding levels.
+More information [here](https://onnxruntime.ai/docs/performance/graph-optimizations.html).
+
+`fuse_operators=True` means that graph fusion is performed in addition to ONNX Runtime optimizations described above.
+Here is the list of all the operator fusions you can enable:
+- Gelu fusion with `disable_gelu_fusion=False`,
+- Layer Normalization fusion with `disable_layer_norm_fusion=False`,
+- Attention fusion with `disable_attention_fusion=False`,
+- SkipLayerNormalization fusion with `disable_skip_layer_norm_fusion=False`,
+- Add Bias and SkipLayerNormalization fusion with `disable_bias_skip_layer_norm_fusion=False`,
+- Add Bias and Gelu / FastGelu fusion with `disable_bias_gelu_fusion=False`.
+
+All other optimization configuration options are detailed in [`~onnxruntime.configuration.OptimizationConfig`].

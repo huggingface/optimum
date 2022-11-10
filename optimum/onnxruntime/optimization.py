@@ -140,10 +140,10 @@ class ORTOptimizer:
                 model_type,
                 self.normalized_config.num_attention_heads,
                 self.normalized_config.hidden_size,
-                opt_level=optimization_config.onnxruntime_general_tool_optimization_level,
+                opt_level=optimization_config.general_optimization_level,
                 optimization_options=optimization_options,
-                use_gpu=optimization_config.onnxruntime_general_tool_optimize_for_gpu,
-                only_onnxruntime=optimization_config.optimize_with_onnxruntime_general_tool_only,
+                use_gpu=optimization_config.optimize_for_gpu,
+                only_onnxruntime=not optimization_config.enable_transformers_specific_optimizations,
             )
 
             if optimization_config.fp16:
