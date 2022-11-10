@@ -197,7 +197,7 @@ def pipeline(
                 f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}"
             )
 
-    if accelerator not in ["ort", "bettertransformer"]:
+    if accelerator not in MAPPING_LOADING_FUNC:
         raise ValueError(
             f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
         )
