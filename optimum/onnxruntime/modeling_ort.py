@@ -477,7 +477,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         output_shape = (batch_size, sequence_length, hidden_size)
-        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device)
+        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
 
         return output_shape, output_buffer
 
@@ -490,6 +490,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -499,6 +500,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -510,6 +512,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -648,7 +651,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, sequence_length)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -661,6 +664,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -670,6 +674,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -681,6 +686,7 @@ class ORTModelForQuestionAnswering(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -848,7 +854,7 @@ class ORTModelForSequenceClassification(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -861,6 +867,7 @@ class ORTModelForSequenceClassification(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -870,6 +877,7 @@ class ORTModelForSequenceClassification(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -881,6 +889,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -1017,7 +1026,7 @@ class ORTModelForTokenClassification(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, sequence_length, num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1030,6 +1039,7 @@ class ORTModelForTokenClassification(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -1039,6 +1049,7 @@ class ORTModelForTokenClassification(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -1050,6 +1061,7 @@ class ORTModelForTokenClassification(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -1181,7 +1193,7 @@ class ORTModelForMultipleChoice(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, num_choices)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1194,6 +1206,7 @@ class ORTModelForMultipleChoice(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -1203,6 +1216,7 @@ class ORTModelForMultipleChoice(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -1214,6 +1228,7 @@ class ORTModelForMultipleChoice(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -1355,7 +1370,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, sequence_length, self.config.vocab_size)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1367,6 +1382,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         io_binding = self.model.io_binding()
 
         # bind input_ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -1376,6 +1392,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -1530,7 +1547,7 @@ class ORTModelForImageClassification(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, self.config.num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1541,6 +1558,7 @@ class ORTModelForImageClassification(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind pixel values
+        pixel_values = pixel_values.contiguous()
         io_binding.bind_input(
             "pixel_values",
             pixel_values.device.type,
