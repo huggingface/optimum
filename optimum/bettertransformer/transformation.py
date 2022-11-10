@@ -18,7 +18,7 @@ import torch
 
 from optimum.utils import check_if_pytorch_greater_112, is_accelerate_available
 
-from .models import is_supporting_bettertransformer, warn_uncompatible_save
+from .models import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, warn_uncompatible_save
 
 
 if is_accelerate_available():
@@ -82,10 +82,10 @@ def replace_to_bettertransformer(model, config, layer_index=None):
                 continue
 
         class_name = module.__class__.__name__
-        maybe_fast_module = is_supporting_bettertransformer(class_name)
+        is_bt_compatible = class_name in BETTER_TRANFORMER_LAYERS_MAPPING_DICT
 
-        if maybe_fast_module is not None:
-            fast_module = maybe_fast_module(module, config)
+        if is_bt_compatible:
+            fast_module = BETTER_TRANFORMER_LAYERS_MAPPING_DICT[class_name](module, config)
             model._modules[name] = fast_module
         elif hasattr(module, "_hf_hook"):
             # If the module has `accelerate` hooks, manually
