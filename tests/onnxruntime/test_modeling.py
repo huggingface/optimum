@@ -1563,7 +1563,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=False)
         outputs_model_without_pkv = model_without_pkv.generate(**features)
 
-        print(outputs_model_with_pkv, outputs_model_without_pkv)
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
