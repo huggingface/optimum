@@ -112,8 +112,7 @@ def export_pytorch(
             model.to(device)
             dummy_inputs = tree_map(lambda value: value.to(device), dummy_inputs)
         check_dummy_inputs_are_allowed(model, dummy_inputs)
-        # inputs = config.ordered_inputs(model)
-        inputs = config.inputs
+        inputs = config.ordered_inputs(model)
         input_names = list(inputs.keys())
         output_names = list(config.outputs.keys())
 

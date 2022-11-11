@@ -97,10 +97,6 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
-class NormalizedAudioConfig(NormalizedConfig):
-    pass
-
-
 def check_framework_is_available(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -215,6 +211,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
+        self.hidden_size = normalized_config.hidden_size
         if random_batch_size_range:
             low, high = random_batch_size_range
             self.batch_size = random.randint(low, high)
@@ -245,6 +242,45 @@ class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
         "decoder_input_ids",
         "decoder_attention_mask",
     )
+
+
+class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "decoder_input_ids",
+        "decoder_attention_mask",
+        "encoder_outputs",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = 2,
+        sequence_length: int = 16,
+        num_choices: int = 4,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        random_num_choices_range: Optional[Tuple[int, int]] = None,
+    ):
+        super().__init__(
+            task,
+            normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            num_choices=num_choices,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            random_num_choices_range=random_num_choices_range,
+        )
+
+        self.hidden_size = normalized_config.hidden_size
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        if input_name == "encoder_outputs":
+            shape = (self.batch_size, self.sequence_length, self.hidden_size)
+            return (self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework), None, None)
+
+        return super().generate(input_name, framework=framework)
 
 
 class DummyPastKeyValuesGenerator(DummyInputGenerator):
@@ -421,7 +457,7 @@ class DummyAudioInputGenerator(DummyInputGenerator):
     def __init__(
         self,
         task: str,
-        normalized_config: NormalizedAudioConfig,
+        normalized_config: NormalizedConfig,
         batch_size: int = 2,
         feature_size: int = 80,
         nb_max_frames: int = 3000,

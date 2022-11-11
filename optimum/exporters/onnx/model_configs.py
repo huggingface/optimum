@@ -21,10 +21,11 @@ from packaging import version
 from ...utils import (
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
-    NormalizedAudioConfig,
+    NormalizedConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
@@ -657,49 +658,8 @@ class WhisperOnnxConfig(TextAndAudioOnnxConfig):
         return common_inputs
 
 
-class Seq2SeqDecoderTextInputGenerator(DummyTextInputGenerator):
-    SUPPORTED_INPUT_NAMES = (
-        "input_ids",
-        "encoder_attention_mask",
-        "encoder_hidden_states",
-    )
-
-    def __init__(
-        self,
-        task: str,
-        normalized_config: NormalizedTextConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
-        num_choices: int = 4,
-        random_batch_size_range: Optional[Tuple[int, int]] = None,
-        random_sequence_length_range: Optional[Tuple[int, int]] = None,
-        random_num_choices_range: Optional[Tuple[int, int]] = None,
-    ):
-        super().__init__(
-            task,
-            normalized_config,
-            batch_size=batch_size,
-            sequence_length=sequence_length,
-            num_choices=num_choices,
-            random_batch_size_range=random_batch_size_range,
-            random_sequence_length_range=random_sequence_length_range,
-            random_num_choices_range=random_num_choices_range,
-        )
-
-        self.hidden_size = normalized_config.hidden_size
-
-    def generate(self, input_name: str, framework: str = "pt"):
-        if input_name != "encoder_hidden_states":
-            dummy_input = super().generate(input_name, framework=framework)
-        else:
-            shape = (self.batch_size, self.sequence_length, self.hidden_size)
-            dummy_input = (self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework), None, None)
-
-        return dummy_input
-
-
 class SpeechSeq2SeqEncoderOnnxConfig(AudioOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedAudioConfig
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -712,18 +672,16 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        Seq2SeqDecoderTextInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
         DummyDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
     )
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        from collections import OrderedDict
-
         common_inputs = {
-            "input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
-            "encoder_hidden_states": {0: "batch_size", 1: "encoder_sequence_length"},
+            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
+            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
         }
 
         if self.use_past:
@@ -732,22 +690,14 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqOnnxConfig):
         return common_inputs
 
     @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        return {"decoder_input_ids": "input_ids", "encoder_outputs": "encoder_hidden_states"}
+
+    @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = super(OnnxConfigWithPast, self).outputs
+        common_outputs = super().outputs
         self.add_past_key_values(common_outputs, direction="outputs")
         return common_outputs
-
-    def generate_dummy_inputs(self, framework: str = "pt"):
-        dummy_input = super().generate_dummy_inputs(framework)
-
-        common_inputs = {}
-        common_inputs["decoder_input_ids"] = dummy_input.pop("input_ids")
-        common_inputs["encoder_outputs"] = dummy_input.pop("encoder_hidden_states")
-
-        if "past_key_values" in dummy_input:
-            common_inputs["past_key_values"] = dummy_input.pop("past_key_values")
-
-        return common_inputs
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
