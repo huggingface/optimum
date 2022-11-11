@@ -29,7 +29,8 @@ jobs:
       run: |
         pip install .[tests]
         pip3 install --upgrade torch torchvision torchaudio
-        pip install accelerate transformers
+        pip install accelerate transformers datasets
+        pip install soundfile
     - name: Test with unittest
       working-directory: tests
       run: |
