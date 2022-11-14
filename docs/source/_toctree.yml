@@ -81,10 +81,14 @@
 - sections:
   - local: bettertransformer/overview
     title: Overview
+  - local: bettertransformer/quickstart
+    title: Quickstart
   - sections:
-    - local: bettertransformer/tutorials/convert
-      title: Convert Transformers models to use BetterTransformer
-    - local: bettertransformer/tutorials/contribute
-      title: How to add support for new architectures?
+    - local: bettertransformer/tutorials/content
+      title: Content
     title: Tutorials
+  - sections:
+    - local: bettertransformer/contribution/content
+      title: Content
+    title: Contribute
   title: BetterTransformer integration
