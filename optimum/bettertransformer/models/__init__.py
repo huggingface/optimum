@@ -19,6 +19,7 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     ViTLayerBetterTransformer,
+    Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
 )
 
@@ -53,7 +54,9 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "TransformerBlock": DistilBertLayerBetterTransformer,
     # WhisperModel
     "WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer,
-    # TODO: add Wav2vec2
+    # Wav2vec2 family:
+    "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
+    # ViT Family:
     "ViTLayer": ViTLayerBetterTransformer,
     "DeiTLayer": ViTLayerBetterTransformer,
     "ViTMAELayer": ViTLayerBetterTransformer,
