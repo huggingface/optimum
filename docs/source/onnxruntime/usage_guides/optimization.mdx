@@ -64,9 +64,10 @@ Here is a list of the possible optimizations you can enable:
 - Gelu approximation with `enable_gelu_approximation=True`.
 
 While [`~onnxruntime.configuration.OptimizationConfig`] gives you full control on how to do optimization, it can be hard to know what to enable / disable. Instead, you can use [`~onnxruntime.configuration.AutoOptimizationConfig`] which provides 3 common optimizations levels:
-- O1: basic general optimizations
-- O2: basic and extended general optimizations, `transformers`-specific fusions, and Gelu approximation
-- O3: same as O2, but adds mixed precision.
+- O1: basic general optimizations.
+- O2: basic and extended general optimizations, `transformers`-specific fusions.
+- O3: same as O2 with Gelu approximation.
+- O4: same as O3 with mixed precision.
 
 Example: Loading a O2 [`~onnxruntime.configuration.OptimizationConfig`]
 
