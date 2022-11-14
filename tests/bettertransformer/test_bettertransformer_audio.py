@@ -17,6 +17,7 @@ import tempfile
 import timeit
 import unittest
 
+import numpy as np
 import torch
 import transformers
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, pipeline
@@ -24,14 +25,6 @@ from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, pipelin
 from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
 from optimum.utils import is_accelerate_available, is_datasets_available
 from optimum.utils.testing_utils import require_datasets
-
-
-if is_datasets_available():
-    from datasets import load_dataset
-
-if is_accelerate_available():
-    from accelerate import init_empty_weights
-
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -40,17 +33,21 @@ ALL_AUDIO_MODELS_TO_TEST = [
 ]
 
 
-@require_datasets
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
     r""" """
     all_models_to_test = ALL_AUDIO_MODELS_TO_TEST
 
+    def _generate_random_audio_data(self):
+        np.random.seed(10)
+        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        # generate pure sine wave at 220 Hz
+        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+        return audio_data
+
     def prepare_inputs_for_class(self, model_id):
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        input_audio = ds[0]["audio"]["array"]
+        input_audio = self._generate_random_audio_data()
 
         feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
-        input_features = feature_extractor(input_audio, return_tensors="pt").input_features
 
-        input_dict = {"input_features": input_features, "attention_mask": None}
+        input_dict = feature_extractor(input_audio, return_tensors="pt")
         return input_dict
