@@ -746,6 +746,10 @@ class OptimizationConfig:
 
 
 class AutoOptimizationConfig:
+    """
+    Factory to create common `OptimizationConfig`.
+    """
+
     _LEVELS = {
         "O1": {
             "optimization_level": 1,
@@ -774,7 +778,7 @@ class AutoOptimizationConfig:
                 The optimization level, the following values are allowed:
                 - O1: Basic general optimizations
                 - O2: Basic and extended general optimizations, transformers-specific fusions, and Gelu approximation.
-                - O3: Same as O2, with weights in fp16
+                - O3: Same as O2, with mixed precision.
             for_gpu (`bool`, *optional*, defaults to `False`):
                 Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
                 will run on. Only needed for optimization_level > 1.
@@ -787,6 +791,57 @@ class AutoOptimizationConfig:
         if optimization_level not in cls._LEVELS:
             raise ValueError(f"optimization_level must be in {', '.join(cls._LEVELS.keys())}")
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
+
+    @classmethod
+    def O1(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an O1 [`~OptimizationConfig`].
+
+        Args:
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the O1 optimization level.
+        """
+        return cls.with_optimization_level("O1", for_gpu=for_gpu, **kwargs)
+
+    @classmethod
+    def O2(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an O2 [`~OptimizationConfig`].
+
+        Args:
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the O2 optimization level.
+        """
+        return cls.with_optimization_level("O2", for_gpu=for_gpu, **kwargs)
+
+    @classmethod
+    def O3(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an O3 [`~OptimizationConfig`].
+
+        Args:
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the O3 optimization level.
+        """
+        return cls.with_optimization_level("O3", for_gpu=for_gpu, **kwargs)
 
 
 class ORTConfig(BaseConfig):
