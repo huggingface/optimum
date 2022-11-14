@@ -25,6 +25,7 @@ from testing_bettertransformer_utils import BetterTransformersTestMixin
 ALL_AUDIO_MODELS_TO_TEST = [
     "openai/whisper-tiny",
     "patrickvonplaten/wav2vec2_tiny_random",
+    "facebook/hubert-base-ls960",
 ]
 
 
@@ -52,7 +53,6 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
 
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
-    r""" """
     all_models_to_test = ALL_AUDIO_MODELS_TO_TEST[1:]
 
     def prepare_inputs_for_class(self, model_id):

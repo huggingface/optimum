@@ -56,6 +56,9 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer,
     # Wav2vec2 family:
     "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
+    "HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
+    # "UniSpeechEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
+    # "Data2VecAudioEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # ViT Family:
     "ViTLayer": ViTLayerBetterTransformer,
     "DeiTLayer": ViTLayerBetterTransformer,
