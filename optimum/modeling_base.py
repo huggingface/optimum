@@ -212,6 +212,7 @@ class OptimizedModel(ABC):
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
 
+        config = None
         if os.path.isdir(os.path.join(model_id, subfolder)):
             if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
                 config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
