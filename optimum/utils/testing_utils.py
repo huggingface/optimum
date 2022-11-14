@@ -31,6 +31,13 @@ def require_torch_gpu(test_case):
     return unittest.skipUnless(torch_device == "cuda", "test requires CUDA")(test_case)
 
 
+def require_datasets(test_case):
+    """
+    Decorator marking a test that requires datasets. These tests are skipped when datasets isn't installed.
+    """
+    return unittest.skipUnless(importlib.util.find_spec("datasets") is not None, "test requires datasets")(test_case)
+
+
 def require_hf_token(test_case):
     """
     Decorator marking a test that requires huggingface hub token.

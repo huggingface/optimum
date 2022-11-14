@@ -28,8 +28,9 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[tests]
+        pip install accelerate transformers datasets
+        pip install soundfile
         pip3 install --upgrade torch torchvision torchaudio
-        pip install accelerate transformers
     - name: Test with unittest
       working-directory: tests
       run: |
