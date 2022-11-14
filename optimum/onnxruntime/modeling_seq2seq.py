@@ -574,7 +574,7 @@ class ORTEncoder:
         ort_type = TypeHelper.get_output_type(self.session, "last_hidden_state")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
-        hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
+        hidden_size = self.normalized_config.hidden_size
         output_shape = (batch_size, sequence_length, hidden_size)
         output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
 
@@ -683,6 +683,7 @@ class ORTDecoder:
     ):
         self.session = session
         self.config = config
+        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
         self._device = device
         self.use_io_binding = use_io_binding
         self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}
@@ -711,18 +712,18 @@ class ORTDecoder:
             output_shape = (1,)
             output_buffer = torch.empty(1, dtype=torch_type, device=self._device).contiguous()
         elif output_name == "logits":
-            output_shape = (batch_size, sequence_length, self.config.vocab_size)
+            output_shape = (batch_size, sequence_length, self.normalized_config.vocab_size)
             output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
         elif "key_values" in output_name:
-            num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(self.config.model_type))
-            hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(self.config.model_type))
-            embed_size_per_head = hidden_size // num_heads
+            num_attention_heads = self.normalized_config.num_attention_heads
+            hidden_size = self.normalized_config.hidden_size
+            embed_size_per_head = hidden_size // num_attention_heads
             if is_self_attn:
                 if past_sequence_length is not None:
                     sequence_length += past_sequence_length
-                output_shape = (batch_size, num_heads, sequence_length, embed_size_per_head)
+                output_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
             else:
-                output_shape = (batch_size, num_heads, encoder_sequence_length, embed_size_per_head)
+                output_shape = (batch_size, num_attention_heads, encoder_sequence_length, embed_size_per_head)
 
             output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
 

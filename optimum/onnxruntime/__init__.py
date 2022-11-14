@@ -17,7 +17,15 @@ from transformers.utils import _LazyModule
 
 
 _import_structure = {
-    "configuration": ["ORTConfig"],
+    "configuration": [
+        "CalibrationConfig",
+        "AutoCalibrationConfig",
+        "QuantizationMode",
+        "AutoQuantizationConfig",
+        "OptimizationConfig",
+        "AutoOptimizationConfig",
+        "ORTConfig",
+    ],
     "model": ["ORTModel"],
     "modeling_ort": [
         "ORTModelForCausalLM",

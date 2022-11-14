@@ -11,24 +11,28 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Main class for performing graph optimization with ONNX Runtime."""
+
 import logging
 import os
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-import transformers
 from transformers.models.auto.configuration_auto import AutoConfig
 
 from onnx import load_model
-from onnxruntime.transformers.fusion_options import FusionOptions
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
-from onnxruntime.transformers.optimizer import get_fusion_statistics, optimize_model
+from onnxruntime.transformers.optimizer import optimize_model
 
 from ..utils import CONFIG_NAME
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
+
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
 
 
 LOGGER = logging.getLogger(__name__)
@@ -39,20 +43,24 @@ class ORTOptimizer:
     Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
     """
 
-    def __init__(self, onnx_model_path: List[os.PathLike], config: transformers.PretrainedConfig):
+    def __init__(self, onnx_model_path: List[os.PathLike], config: "PretrainedConfig"):
         """
         Args:
             onnx_model_path (`List[os.PathLike]`):
                 The paths of the onnx models to optimize.
-            config (`transformers.PretrainedConfig`):
+            config ([`~PretrainedConfig`]):
                 An instance of the configuration associated to the model to optimize.
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
         self.config = config
+        self.model_type = self.config.model_type
+        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.model_type)(self.config)
 
     @classmethod
-    def from_pretrained(cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None):
+    def from_pretrained(
+        cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None
+    ) -> "ORTOptimizer":
         """
         Args:
             model_or_path (`Union[str, os.PathLike, ORTModel]`):
@@ -63,6 +71,8 @@ class ORTOptimizer:
             file_names(`List[str]`, *optional*):
                 The list of file names of the models to optimize.
         """
+        onnx_model_path = []
+        config = None
         if isinstance(model_or_path, ORTModel):
             if isinstance(model_or_path, ORTModelForSeq2SeqLM):
                 model_save_dir = model_or_path.model_save_dir
@@ -75,19 +85,18 @@ class ORTOptimizer:
                     onnx_model_path.append(model_save_dir.joinpath(model_or_path.decoder_file_with_past_name))
             else:
                 onnx_model_path = [model_or_path.model_save_dir.joinpath(model_or_path.latest_model_name)]
-            return cls(onnx_model_path, config=model_or_path.config)
+            config = model_or_path.config
         elif os.path.isdir(model_or_path):
             file_names = [ONNX_WEIGHTS_NAME] if file_names is None else file_names
             model_or_path = Path(model_or_path)
             if CONFIG_NAME not in os.listdir(model_or_path):
                 raise ValueError(f"The local directory does not contain the configuration file {CONFIG_NAME}.")
             config = AutoConfig.from_pretrained(model_or_path)
-            onnx_model_path = []
             for file_name in file_names:
                 onnx_model_path.append(model_or_path.joinpath(file_name))
-            return cls(onnx_model_path, config=config)
         else:
             raise ValueError(f"Unable to load the model from {model_or_path}.")
+        return cls(onnx_model_path, config=config)
 
     def optimize(
         self,
@@ -97,7 +106,7 @@ class ORTOptimizer:
         use_external_data_format: bool = False,
     ):
         """
-        Optimize a model given the optimization specifications defined in `optimization_config`.
+        Optimizes a model given the optimization specifications defined in `optimization_config`.
 
         Args:
             optimization_config (`OptimizationConfig`):
@@ -111,8 +120,7 @@ class ORTOptimizer:
         """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
-        model_type = self.config.model_type
-        ORTConfigManager.check_optimization_supported_model_or_raise(model_type)
+        ORTConfigManager.check_optimization_supported_model(self.model_type)
 
         # Save the model configuration
         self.config.save_pretrained(save_dir)
@@ -121,23 +129,21 @@ class ORTOptimizer:
         ort_config = ORTConfig(optimization=optimization_config)
         ort_config.save_pretrained(save_dir)
 
-        num_heads = getattr(self.config, ORTConfigManager.get_num_heads_name(model_type))
-        hidden_size = getattr(self.config, ORTConfigManager.get_hidden_size_name(model_type))
-        model_type = ORTConfigManager.get_model_ort_type(model_type)
-        optimization_config.model_type = model_type
-        optimization_options = FusionOptions.parse(optimization_config)
+        model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
+        optimization_options = optimization_config.create_fusion_options(model_type)
+
         LOGGER.info("Optimizing model...")
 
         for model_path in self.onnx_model_path:
             optimizer = optimize_model(
                 model_path.as_posix(),
                 model_type,
-                num_heads,
-                hidden_size,
+                self.normalized_config.num_attention_heads,
+                self.normalized_config.hidden_size,
                 opt_level=optimization_config.optimization_level,
                 optimization_options=optimization_options,
                 use_gpu=optimization_config.optimize_for_gpu,
-                only_onnxruntime=optimization_config.optimize_with_onnxruntime_only,
+                only_onnxruntime=not optimization_config.enable_transformers_specific_optimizations,
             )
 
             if optimization_config.fp16:
@@ -155,7 +161,7 @@ class ORTOptimizer:
     @staticmethod
     def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> Dict[str, int]:
         """
-        Compute the dictionary mapping the name of the fused operators to their number of apparition in the model.
+        Computes the dictionary mapping the name of the fused operators to their number of apparition in the model.
 
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
