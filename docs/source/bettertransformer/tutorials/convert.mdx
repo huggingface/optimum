@@ -82,4 +82,13 @@ If you want to run a pipeline on a GPU device, run:
 >>> pipe = pipeline("fill-mask", "distilbert-base-uncased", accelerator="bettertransformer", device=0)
 >>> ...
 ```
+
+You can also use `transformers.pipeline` as usual and pass the convertede model directly:
+```python
+>>> from transformers import pipeline
+
+>>> pipe = pipeline("fill-mask", model=model_bt, tokenizer=tokenizer, device=0)
+>>> ...
+```
+
 Please refer to the [official documentation of `pipeline`](https://huggingface.co/docs/transformers/main_classes/pipelines) for further usage. If you face into any issue, do not hesitate to open an isse on GitHub!
