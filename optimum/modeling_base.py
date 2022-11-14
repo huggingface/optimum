@@ -212,10 +212,16 @@ class OptimizedModel(ABC):
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
 
-        if os.path.isdir(os.path.join(model_id, subfolder)) and CONFIG_NAME in os.listdir(
-            os.path.join(model_id, subfolder)
-        ):
-            config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
+        if os.path.isdir(os.path.join(model_id, subfolder)):
+            if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
+                config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
+            elif CONFIG_NAME in os.listdir(model_id):
+                config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
+                logger.info(
+                    f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
+                )
+            else:
+                raise OSError(f"config.json not found in {model_id} local folder")
         else:
             try:
                 config = AutoConfig.from_pretrained(
@@ -226,7 +232,7 @@ class OptimizedModel(ABC):
                     use_auth_token=use_auth_token,
                     subfolder=subfolder,
                 )
-            except OSError:
+            except OSError as e:
                 # if config not found in subfolder, search for it at the top level
                 if subfolder != "":
                     config = AutoConfig.from_pretrained(
@@ -239,9 +245,8 @@ class OptimizedModel(ABC):
                     logger.info(
                         f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
                     )
-            except requests.exceptions.RequestException:
-                logger.warning("config.json NOT FOUND in HuggingFace Hub")
-                config = None
+                else:
+                    raise OSError(e)
 
         if config is not None:
             model_kwargs.update({"config": config})
