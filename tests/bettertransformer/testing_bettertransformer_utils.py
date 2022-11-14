@@ -88,7 +88,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
 
     def test_raise_on_save(self):
         r"""
-        Tests if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
+        Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
         """
         for model_id in self.all_models_to_test:
             with self.assertWarns(UserWarning), tempfile.TemporaryDirectory() as tmpdirname:
@@ -98,7 +98,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
 
     def test_raise_autocast(self):
         r"""
-        A test that checks if the conversion raises an error if the model is run under
+        A tests that checks if the conversion raises an error if the model is run under
         `torch.cuda.amp.autocast`.
         """
 
@@ -113,7 +113,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
 
     def test_raise_train(self):
         r"""
-        A test that checks if the conversion raises an error if the model is run under
+        A tests that checks if the conversion raises an error if the model is run under
         `model.train()`.
         """
         for model_id in self.all_models_to_test:

@@ -30,6 +30,7 @@ def require_torch_gpu(test_case):
 
     return unittest.skipUnless(torch_device == "cuda", "test requires CUDA")(test_case)
 
+<<<<<<< HEAD
 
 def require_datasets(test_case):
     """
@@ -37,6 +38,8 @@ def require_datasets(test_case):
     """
     return unittest.skipUnless(importlib.util.find_spec("datasets") is not None, "test requires datasets")(test_case)
 
+=======
+>>>>>>> origin/add_vision_and_audio
 
 def require_hf_token(test_case):
     """
