@@ -109,6 +109,75 @@ for task, values in SUPPORTED_TASKS.items():
         raise ValueError(f"Supported types are 'text' and 'image', got {values['type']}")
 
 
+def load_bettertransformer(
+    model,
+    targeted_task,
+    load_tokenizer=None,
+    tokenizer=None,
+    feature_extractor=None,
+    load_feature_extractor=None,
+    SUPPORTED_TASKS=None,
+    *model_kwargs,
+    **kwargs
+):
+    from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
+
+    from optimum.bettertransformer import BetterTransformer
+
+    if model is None:
+        model_id = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["default"]
+        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, *model_kwargs)
+    elif isinstance(model, str):
+        model_id = model
+        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, *model_kwargs)
+    else:
+        raise ValueError(
+            f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
+            You can also provide non model then a default one will be used"""
+        )
+
+    model = BetterTransformer.transform(model, **kwargs)
+
+    return model, model_id
+
+
+def load_ort_pipeline(
+    model,
+    targeted_task,
+    load_tokenizer,
+    tokenizer,
+    feature_extractor,
+    load_feature_extractor,
+    SUPPORTED_TASKS,
+    *model_kwargs,
+    **kwargs,
+):
+    if model is None:
+        model_id = SUPPORTED_TASKS[targeted_task]["default"]
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
+    elif isinstance(model, str):
+        model_id = model
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model, from_transformers=True)
+    elif isinstance(model, ORTModel):
+        if tokenizer is None and load_tokenizer:
+            raise ValueError("If you pass a model as a ORTModel, you must pass a tokenizer as well")
+        if feature_extractor is None and load_feature_extractor:
+            raise ValueError("If you pass a model as a ORTModel, you must pass a feature extractor as well")
+        model_id = None
+    else:
+        raise ValueError(
+            f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
+            You can also provide non model then a default one will be used"""
+        )
+    return model, model_id
+
+
+MAPPING_LOADING_FUNC = {
+    "ort": load_ort_pipeline,
+    "bettertransformer": load_bettertransformer,
+}
+
+
 def pipeline(
     task: str = None,
     model: Optional[Any] = None,
@@ -117,16 +186,21 @@ def pipeline(
     use_fast: bool = True,
     use_auth_token: Optional[Union[str, bool]] = None,
     accelerator: Optional[str] = "ort",
+    *model_kwargs,
     **kwargs,
 ) -> Pipeline:
-
     targeted_task = "translation" if task.startswith("translation") else task
 
-    if targeted_task not in list(SUPPORTED_TASKS.keys()):
-        raise ValueError(f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}")
+    if accelerator == "ort":
+        if targeted_task not in list(SUPPORTED_TASKS.keys()):
+            raise ValueError(
+                f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}"
+            )
 
-    if accelerator != "ort":
-        raise ValueError(f"Accelerator {accelerator} is not supported. Supported accelerators are ort")
+    if accelerator not in MAPPING_LOADING_FUNC:
+        raise ValueError(
+            f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
+        )
 
     # copied from transformers.pipelines.__init__.py l.609
     if targeted_task in NO_TOKENIZER_TASKS:
@@ -142,22 +216,17 @@ def pipeline(
     else:
         load_feature_extractor = True
 
-    if model is None:
-        model_id = SUPPORTED_TASKS[targeted_task]["default"]
-        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
-    elif isinstance(model, str):
-        model_id = model
-        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model, from_transformers=True)
-    elif isinstance(model, ORTModel):
-        if tokenizer is None and load_tokenizer:
-            raise ValueError("If you pass a model as a ORTModel, you must pass a tokenizer as well")
-        if feature_extractor is None and load_feature_extractor:
-            raise ValueError("If you pass a model as a ORTModel, you must pass a feature extractor as well")
-    else:
-        raise ValueError(
-            f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
-            You can also provide non model then a default one will be used"""
-        )
+    model, model_id = MAPPING_LOADING_FUNC[accelerator](
+        model,
+        targeted_task,
+        load_tokenizer,
+        tokenizer,
+        feature_extractor,
+        load_feature_extractor,
+        SUPPORTED_TASKS,
+        *model_kwargs,
+        **kwargs,
+    )
 
     if tokenizer is None and load_tokenizer:
         tokenizer = get_preprocessor(model_id)
