@@ -16,13 +16,6 @@ def require_accelerate(test_case):
     return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
 
 
-def require_datasets(test_case):
-    """
-    Decorator marking a test that requires datasets. These tests are skipped when datasets isn't installed.
-    """
-    return unittest.skipUnless(importlib.util.find_spec("datasets") is not None, "test requires datasets")(test_case)
-
-
 def is_torch_greater_than_113():
     import torch
 

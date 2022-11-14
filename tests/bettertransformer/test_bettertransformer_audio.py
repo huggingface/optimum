@@ -12,24 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import gc
-import tempfile
-import timeit
 import unittest
 
 import numpy as np
 import torch
-import transformers
-from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, pipeline
+from transformers import AutoFeatureExtractor
 
-from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
-from optimum.utils import is_accelerate_available, is_datasets_available
-from optimum.utils.testing_utils import require_datasets
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-WhisperModel",
+    "openai/whisper-tiny",
 ]
 
 
@@ -49,5 +42,8 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
 
         feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
 
-        input_dict = feature_extractor(input_audio, return_tensors="pt")
+        input_dict = {
+            "input_features": feature_extractor(input_audio, return_tensors="pt").input_features,
+            "decoder_input_ids": torch.LongTensor([0]),
+        }
         return input_dict
