@@ -81,23 +81,10 @@
 - sections:
   - local: bettertransformer/overview
     title: Overview
-<<<<<<< HEAD
   - sections:
     - local: bettertransformer/tutorials/convert
       title: Convert Transformers models to use BetterTransformer
     - local: bettertransformer/tutorials/contribute
       title: How to add support for new architectures?
     title: Tutorials
-=======
-  - local: bettertransformer/quickstart
-    title: Quickstart
-  - sections:
-    - local: bettertransformer/tutorials/content
-      title: Content
-    title: Tutorials
-  - sections:
-    - local: bettertransformer/contribution/content
-      title: Content
-    title: Contribute
->>>>>>> origin/add_vision_and_audio
   title: BetterTransformer integration
