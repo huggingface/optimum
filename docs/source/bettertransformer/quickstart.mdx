@@ -42,8 +42,6 @@ In order to use the `BetterTransformer` API just run the following commands:
 ```python
 >>> from transformers import AutoModelForSequenceClassification
 >>> from optimum.bettertransformer import BetterTransformer
-
-
 >>> model_hf = AutoModelForSequenceClassification.from_pretrained("bert-base-cased")
 >>> model = BetterTransformer.transform(model_hf, keep_original_model=True)
 ```
