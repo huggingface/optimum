@@ -21,7 +21,7 @@ from transformers import AutoModel
 from optimum.bettertransformer import BetterTransformer
 
 
-class BetterTransformersTestMixin(unittest.TestCase):
+class BetterTransformersTestMixin:
     r"""
     `BetterTransformersTestMixin` to wrap necessary functions for testing `BetterTransformer`
     integration. This includes the following tests:
