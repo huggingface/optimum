@@ -98,7 +98,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
 
     def test_raise_autocast(self):
         r"""
-        A tests that checks if the conversion raises an error if the model is run under
+        A test that checks if the conversion raises an error if the model is run under
         `torch.cuda.amp.autocast`.
         """
 
