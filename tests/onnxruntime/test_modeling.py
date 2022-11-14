@@ -18,9 +18,9 @@ import shutil
 import tempfile
 import unittest
 
+import numpy as np
 import pytest
 import torch
-from datasets import load_dataset
 from PIL import Image
 from transformers import (
     AutoModel,
@@ -1452,6 +1452,13 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = ("whisper",)
 
+    def _generate_random_audio_data(self):
+        np.random.seed(10)
+        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        # generate pure sine wave at 220 Hz
+        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+        return audio_data
+
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
@@ -1464,8 +1471,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
         processor = get_preprocessor(model_id)
 
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        data = ds[0]["audio"]["array"]
+        data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt")
 
         outputs = model.generate(inputs=features["input_features"])
@@ -1489,8 +1495,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         transformers_model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
         processor = get_preprocessor(model_id)
 
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        data = ds[0]["audio"]["array"]
+        data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt")
 
         decoder_start_token_id = transformers_model.config.decoder_start_token_id
@@ -1520,8 +1525,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
         )
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        data = ds[0]["audio"]["array"]
+        data = self._generate_random_audio_data()
         outputs = pipe(data)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs["text"], str)
@@ -1541,8 +1545,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
             feature_extractor=processor.feature_extractor,
         )
 
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        data = ds[0]["audio"]["array"]
+        data = self._generate_random_audio_data()
         outputs = pipe(data)
 
         # check model device
@@ -1554,8 +1557,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         model_id = MODEL_NAMES["whisper"]
         processor = get_preprocessor(model_id)
 
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        data = ds[0]["audio"]["array"]
+        data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt")
 
         model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=True)
@@ -1576,8 +1578,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         processor = get_preprocessor(model_id)
 
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        data = ds[0]["audio"]["array"]
+        data = self._generate_random_audio_data()
         features = processor.feature_extractor([data] * 2, return_tensors="pt")
 
         decoder_start_token_id = onnx_model.config.decoder_start_token_id
@@ -1605,8 +1606,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         processor = get_preprocessor(model_id)
 
-        ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-        data = ds[0]["audio"]["array"]
+        data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=5)
