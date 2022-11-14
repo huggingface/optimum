@@ -789,7 +789,7 @@ class AutoOptimizationConfig:
             `OptimizationConfig`: The `OptimizationConfig` corresponding to the requested optimization level.
         """
         if optimization_level not in cls._LEVELS:
-            raise ValueError(f"optimization_level must be in {', '.join(cls._LEVELS.keys())}")
+            raise ValueError(f"optimization_level must be in {', '.join(cls._LEVELS.keys())}, got {optimization_level}")
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
 
     @classmethod
