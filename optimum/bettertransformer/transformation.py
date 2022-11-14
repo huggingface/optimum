@@ -165,7 +165,7 @@ class BetterTransformer(object):
                     f"The model {model.__class__.__name__} does not support `deepcopy` operation that is "
                     " internally used to create a copy of the original model when using"
                     " `keep_original_model=True`. Please run the conversion with "
-                    " `keep_original_model=Fale` and create a new copy of the original"
+                    " `keep_original_model=False` and create a new copy of the original"
                     " model somewhere else."
                 )
             model_fast = replace_to_bettertransformer(model_fast, hf_config).eval()
