@@ -267,6 +267,8 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         # This inserts EOS_TOKEN_ID at random locations along the sequence length dimension.
         if self.force_eos_token_id_presence and "input_ids" in input_name and self.task == "sequence-classification":
             for idx in range(self.batch_size):
+                if self.eos_token_id in int_tensor[idx]:
+                    continue
                 random_idx = random.randint(1, self.sequence_length - 1)
                 int_tensor[idx][random_idx] = self.eos_token_id
 
