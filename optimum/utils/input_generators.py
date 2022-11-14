@@ -211,7 +211,6 @@ class DummyTextInputGenerator(DummyInputGenerator):
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
-        self.hidden_size = normalized_config.hidden_size
         if random_batch_size_range:
             low, high = random_batch_size_range
             self.batch_size = random.randint(low, high)
