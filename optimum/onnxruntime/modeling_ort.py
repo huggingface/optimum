@@ -1424,7 +1424,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         + TEXT_GENERATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForCausalLM",
-            checkpoint="optimum/gpt2",
+            checkpoint="gpt2",
         )
     )
     def forward(
