@@ -715,7 +715,7 @@ class ORTDecoder:
             output_shape = (batch_size, sequence_length, self.normalized_config.vocab_size)
             output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
         elif "key_values" in output_name:
-            num_attention_heads = self.normalized_confi.num_attention_heads
+            num_attention_heads = self.normalized_config.num_attention_heads
             hidden_size = self.normalized_config.hidden_size
             embed_size_per_head = hidden_size // num_attention_heads
             if is_self_attn:

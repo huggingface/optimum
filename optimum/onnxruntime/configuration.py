@@ -613,7 +613,7 @@ class OptimizationConfig:
         2. The ONNX Runtime transformers optimization tool: it can only work on a subset of transformers models.
 
     Attributes:
-        general_optimization_level (`int`, defaults to 1):
+        optimization_level (`int`, defaults to 1):
             Optimization level performed by ONNX Runtime of the loaded graph.
             Supported optimization level are 0, 1, 2 and 99.
                 - 0: will disable all optimizations
@@ -655,9 +655,7 @@ class OptimizationConfig:
             The default value is set to `False` but symbolic shape inference might cause issues sometimes.
     """
 
-    optimization_level: Optional[int] = None
-    general_optimization_level: int = 1
-
+    optimization_level: int = 1
     optimize_for_gpu: bool = False
 
     fp16: bool = False
@@ -694,10 +692,6 @@ class OptimizationConfig:
     def __post_init__(self):
         def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
             if getattr(self, old_name, None) is not None:
-                warnings.warn(
-                    f"{old_name} will be deprecated soon, use {new_name} instead.",
-                    FutureWarning,
-                )
                 if mapping_func is None:
 
                     def identity(x):
@@ -705,8 +699,12 @@ class OptimizationConfig:
 
                     mapping_func = identity
                 setattr(self, new_name, mapping_func(getattr(self, old_name)))
+                warnings.warn(
+                    f"{old_name} will be deprecated soon, use {new_name} instead, {new_name} is set to "
+                    f"{getattr(self, new_name)}.",
+                    FutureWarning,
+                )
 
-        deprecate_renamed_attribute("optimization_level", "general_optimization_level")
         deprecate_renamed_attribute(
             "optimize_with_onnxruntime_only",
             "enable_transformers_specific_optimizations",
@@ -748,62 +746,35 @@ class OptimizationConfig:
 
 
 class AutoOptimizationConfig:
-    _LEVELS = [
-        {
-            "general_optimization_level": 1,
+    _LEVELS = {
+        "O1": {
+            "optimization_level": 1,
             "enable_transformers_specific_optimizations": False,
         },
-        {
-            "general_optimization_level": 2,
-            "enable_transformers_specific_optimizations": False,
-        },
-        # TODO: should we keep this one?
-        {
-            "general_optimization_level": 99,
-            "enable_transformers_specific_optimizations": False,
-        },
-        {
-            "general_optimization_level": 2,
-            "enable_transformers_specific_optimizations": True,
-        },
-        {
-            "general_optimization_level": 2,
+        "O2": {
+            "optimization_level": 2,
             "enable_transformers_specific_optimizations": True,
             "enable_gelu_approximation": True,
         },
-        {
-            "general_optimization_level": 2,
+        "O3": {
+            "optimization_level": 2,
             "enable_transformers_specific_optimizations": True,
             "enable_gelu_approximation": True,
             "fp16": True,
         },
-        # TODO: should we keep this one?
-        {
-            "general_optimization_level": 2,
-            "enable_transformers_specific_optimizations": True,
-            "enable_gelu_approximation": True,
-            "fp16": True,
-            "disable_embed_layer_norm_fusion": False,
-        },
-    ]
+    }
 
     @classmethod
-    def with_optimization_level(cls, optimization_level: int, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+    def with_optimization_level(cls, optimization_level: str, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
         """
         Creates an [`~OptimizationConfig`] with pre-defined arguments according to an optimization level.
 
         Args:
-            optimization_level (`int`):
+            optimization_level (`str`):
                 The optimization level, the following values are allowed:
-                - 0: Basic general optimizations
-                - 1: Basic and extended general optimizations
-                - 2: Same as 1, with data layout optimization
-                - 3: Basic and extended general optimizations, and transformers specific fusions (Gelu, LayerNorm,
-                Attention, LayerNorm + Residual, etc)
-                - 4: Same as 3 but with Gelu approximation
-                - 5: Same as 4, but with weights converted to float16
-                - 6: Same as 5, but with Embedding + LayerNorm fusion (which is incompatible with ONNX Runtime
-                quantization)
+                - O1: Basic general optimizations
+                - O2: Basic and extended general optimizations, transformers-specific fusions, and Gelu approximation.
+                - O3: Same as O2, with weights in fp16
             for_gpu (`bool`, *optional*, defaults to `False`):
                 Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
                 will run on. Only needed for optimization_level > 1.
@@ -813,8 +784,8 @@ class AutoOptimizationConfig:
         Returns:
             `OptimizationConfig`: The `OptimizationConfig` corresponding to the requested optimization level.
         """
-        if optimization_level < 0 or optimization_level >= len(cls._LEVELS):
-            raise ValueError(f"optimization_level must be in [0, {len(cls._LEVELS)}")
+        if optimization_level not in cls._LEVELS:
+            raise ValueError(f"optimization_level must be in {', '.join(cls._LEVELS.keys())}")
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
 
 

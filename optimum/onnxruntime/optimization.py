@@ -102,7 +102,7 @@ class ORTOptimizer:
         self,
         optimization_config: OptimizationConfig,
         save_dir: Union[str, os.PathLike],
-        file_suffix: str = "optimized",
+        file_suffix: Optional[str] = "optimized",
         use_external_data_format: bool = False,
     ):
         """
@@ -140,7 +140,7 @@ class ORTOptimizer:
                 model_type,
                 self.normalized_config.num_attention_heads,
                 self.normalized_config.hidden_size,
-                opt_level=optimization_config.general_optimization_level,
+                opt_level=optimization_config.optimization_level,
                 optimization_options=optimization_options,
                 use_gpu=optimization_config.optimize_for_gpu,
                 only_onnxruntime=not optimization_config.enable_transformers_specific_optimizations,
