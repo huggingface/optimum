@@ -1323,7 +1323,7 @@ TEXT_GENERATION_EXAMPLE = r"""
     >>> from optimum.onnxruntime import {model_class}
 
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
     >>> onnx_gen = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
     >>> text = "My name is Philipp and I live in Germany."
@@ -1424,7 +1424,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         + TEXT_GENERATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForCausalLM",
-            checkpoint="optimum/gpt2",
+            checkpoint="gpt2",
         )
     )
     def forward(
