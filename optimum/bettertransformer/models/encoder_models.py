@@ -453,15 +453,14 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
 
 
 class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
-    r"""
-    A simple conversion of the WhisperEncoderLayer to its `BetterTransformer` implementation.
-
-    Args:
-        whisper_layer (`torch.nn.Module`):
-            The original `WhisperEncoderLayer` where the weights needs to be retrieved.
-    """
-
     def __init__(self, whisper_layer, config):
+        r"""
+        A simple conversion of the WhisperEncoderLayer to its `BetterTransformer` implementation.
+
+        Args:
+            whisper_layer (`torch.nn.Module`):
+                The original `WhisperEncoderLayer` where the weights needs to be retrieved.
+        """
         super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
@@ -550,15 +549,14 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
 
 class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
-    r"""
-    A simple conversion of the ViTLayer to its `BetterTransformer` implementation.
-
-    Args:
-        vit_layer (`torch.nn.Module`):
-            The original `ViTLayer` where the weights needs to be retrieved.
-    """
-
     def __init__(self, vit_layer, config):
+        r"""
+        A simple conversion of the ViTLayer to its `BetterTransformer` implementation.
+
+        Args:
+            vit_layer (`torch.nn.Module`):
+                The original `ViTLayer` where the weights needs to be retrieved.
+        """
         super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
@@ -618,7 +616,6 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
         https://github.com/huggingface/transformers/pull/19553
         """
         super().forward_checker()
-        # attention mask seems to be always None: https://github.com/huggingface/transformers/blob/94b3f544a1f5e04b78d87a2ae32a7ac252e22e31/src/transformers/models/whisper/modeling_whisper.py#L690
         attention_mask = None
 
         hidden_states = torch._transformer_encoder_layer_fwd(
@@ -648,15 +645,14 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
 
 
 class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
-    r"""
-    A simple conversion of the Wav2Vec2EncoderLayer to its `BetterTransformer` implementation.
-
-    Args:
-        vit_layer (`torch.nn.Module`):
-            The original `Wav2Vec2EncoderLayer` where the weights needs to be retrieved.
-    """
-
     def __init__(self, wav2vec2_layer, config):
+        r"""
+        A simple conversion of the Wav2Vec2EncoderLayer to its `BetterTransformer` implementation.
+
+        Args:
+            wav2vec2_layer (`torch.nn.Module`):
+                The original `Wav2Vec2EncoderLayer` where the weights needs to be retrieved.
+        """
         super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(

@@ -21,18 +21,12 @@ import transformers
 from transformers import AutoModel
 
 from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
-from optimum.utils import is_accelerate_available
 from optimum.utils.testing_utils import (
     convert_to_hf_classes,
     is_torch_greater_than_113,
     require_accelerate,
     require_torch_gpu,
 )
-
-
-if is_accelerate_available():
-    from accelerate import init_empty_weights
-
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -51,10 +45,6 @@ ALL_ENCODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-BertModel",
     "ybelkada/random-tiny-BertGenerationModel",
-]
-
-ALL_AUDIO_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-WhisperModel",
 ]
 
 
@@ -108,41 +98,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
         self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()))
-
-    @unittest.skipIf(not is_accelerate_available(), "Skipping the test since `accelerate` is not available...")
-    @init_empty_weights()
-    def test_conversion(self):
-        r"""
-        This tests if the conversion of a slow model to its BetterTransformer version using fastpath
-        has been successfull.
-        """
-        # Step 0: for each model_class that support the `Fast` version,
-        # Step 1: convert the model, ie if it contains the attribute `use_bettertransformer`
-        # Step 2: check also that some class attributes still remains in the model
-        # (for eg, `generate`)
-
-        ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
-
-        for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
-            if layer_class == "TransformerBlock":
-                # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-                class_name = "DistilBert"
-            elif "EncoderLayer" in layer_class:
-                class_name = layer_class[:-12]
-            else:
-                class_name = layer_class[:-5]
-            random_config = getattr(transformers, class_name + "Config")
-
-            hf_random_model = AutoModel.from_config(random_config())
-            converted_model = BetterTransformer.transform(hf_random_model)
-
-            self.assertTrue(
-                hasattr(converted_model, "use_bettertransformer"),
-                f"The model {converted_model.__class__.__name__} is not a fast model.",
-            )
-
-            self.assertTrue(isinstance(converted_model, ALL_SUPPORTED_HF_CLASSES[layer_class]))
-            self.assertTrue(hasattr(converted_model, "generate"))
 
     def test_raise_pos_emb(self):
         r"""

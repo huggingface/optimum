@@ -124,6 +124,24 @@ class BetterTransformersTestMixin(unittest.TestCase):
                 bt_model.train()
                 _ = bt_model(**inputs)
 
+    def test_conversion(self):
+        r"""
+        This tests if the conversion of a slow model to its BetterTransformer version using fastpath
+        has been successfull.
+        """
+
+        for model_id in self.all_models_to_test:
+            hf_random_model = AutoModel.from_pretrained(model_id)
+            converted_model = BetterTransformer.transform(hf_random_model)
+
+            self.assertTrue(
+                hasattr(converted_model, "use_bettertransformer"),
+                f"The model {converted_model.__class__.__name__} is not a fast model.",
+            )
+
+            self.assertTrue(isinstance(converted_model, hf_random_model.__class__))
+            self.assertTrue(hasattr(converted_model, "generate"))
+
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
     r"""
