@@ -1578,10 +1578,10 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
         data = ds[0]["audio"]["array"]
-        features = processor.feature_extractor(data, return_tensors="pt")
+        features = processor.feature_extractor([data] * 2, return_tensors="pt")
 
         decoder_start_token_id = onnx_model.config.decoder_start_token_id
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
 
         onnx_outputs = onnx_model(**features, **decoder_inputs)
         io_outputs = io_model(**features, **decoder_inputs)
@@ -1609,8 +1609,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         data = ds[0]["audio"]["array"]
         features = processor.feature_extractor(data, return_tensors="pt")
 
-        onnx_outputs = onnx_model.generate(**features)
-        io_outputs = io_model.generate(**features)
+        onnx_outputs = onnx_model.generate(**features, num_beams=5)
+        io_outputs = io_model.generate(**features, num_beams=5)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
