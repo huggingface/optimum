@@ -551,15 +551,15 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
 class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
     r"""
-<<<<<<< HEAD
-    A simple conversion of the ViTLayer to its `BetterTransformer` implementation.
-=======
-    A simple conversion of the WhisperEncoderLayer to its `BetterTransformer` implementation.
->>>>>>> origin/add_vision_and_audio
+    <<<<<<< HEAD
+        A simple conversion of the ViTLayer to its `BetterTransformer` implementation.
+    =======
+        A simple conversion of the WhisperEncoderLayer to its `BetterTransformer` implementation.
+    >>>>>>> origin/add_vision_and_audio
 
-    Args:
-        vit_layer (`torch.nn.Module`):
-            The original `ViTLayer` where the weights needs to be retrieved.
+        Args:
+            vit_layer (`torch.nn.Module`):
+                The original `ViTLayer` where the weights needs to be retrieved.
     """
 
     def __init__(self, vit_layer, config):

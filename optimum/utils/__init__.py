@@ -23,10 +23,6 @@ CONFIG_NAME = "config.json"
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
 _pydantic_available = importlib.util.find_spec("pydantic") is not None
 _accelerate_available = importlib.util.find_spec("accelerate") is not None
-<<<<<<< HEAD
-_datasets_available = importlib.util.find_spec("datasets") is not None
-=======
->>>>>>> origin/add_vision_and_audio
 
 
 def is_onnxruntime_available():
@@ -49,13 +45,6 @@ def is_accelerate_available():
     return _accelerate_available
 
 
-<<<<<<< HEAD
-def is_datasets_available():
-    return _datasets_available
-
-
-=======
->>>>>>> origin/add_vision_and_audio
 def is_pytorch_greater_112():
     import torch
 
