@@ -26,11 +26,14 @@ ALL_AUDIO_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-YolosModel",
     "hf-internal-testing/tiny-random-ViTMAEModel",
     "hf-internal-testing/tiny-random-ViTMSNModel",
+    "hf-internal-testing/tiny-random-deit",
 ]
 
 
 class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCase):
-    r""" """
+    r"""
+    Testing suite for Vision Models - tests all the tests defined in `BetterTransformersTestMixin`
+    """
     all_models_to_test = ALL_AUDIO_MODELS_TO_TEST
 
     def prepare_inputs_for_class(self, model_id=None):

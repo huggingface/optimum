@@ -30,7 +30,11 @@ ALL_AUDIO_MODELS_TO_TEST = [
 
 
 class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCase):
-    r""" """
+    r"""
+    Testing suite for Whisper - tests all the tests defined in `BetterTransformersTestMixin`
+    Since `Whisper` uses slightly different inputs than other audio models, it is preferrable
+    to define its own testing class.
+    """
     all_models_to_test = [ALL_AUDIO_MODELS_TO_TEST[0]]
 
     def _generate_random_audio_data(self):
@@ -53,6 +57,9 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
 
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for Audio models - tests all the tests defined in `BetterTransformersTestMixin`
+    """
     all_models_to_test = ALL_AUDIO_MODELS_TO_TEST[1:]
 
     def prepare_inputs_for_class(self, model_id):
@@ -119,13 +126,6 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
                         hf_random_model.__class__.__name__
                     ),
                 )
-
-    def test_raise_autocast(self):
-        r"""
-        Autocast seems to be incompatible with `Wav2Vec2` and `cpu`, let's skip this
-        test. The test below should be fine to test if the `forward_checker` has been run correctly.
-        """
-        pass
 
     def test_raise_train(self):
         r"""
