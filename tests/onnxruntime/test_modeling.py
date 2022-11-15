@@ -59,7 +59,7 @@ from optimum.onnxruntime import (
     ORTModelForTokenClassification,
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTDecoder, ORTEncoder, ORTEncoderForSpeechSeq2Seq
+from optimum.onnxruntime.modeling_seq2seq import ORTDecoder, ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
@@ -1486,7 +1486,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
 
-        self.assertIsInstance(onnx_model.encoder, ORTEncoderForSpeechSeq2Seq)
+        self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTDecoder)
         self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
