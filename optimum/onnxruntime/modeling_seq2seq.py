@@ -565,6 +565,7 @@ class ORTEncoder:
         self._device = device
         self.use_io_binding = use_io_binding
         self.main_input_name = "input_ids"
+        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
