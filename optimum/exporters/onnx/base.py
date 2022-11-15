@@ -211,10 +211,10 @@ class OnnxConfig(ExportConfig, ABC):
     def torch_to_onnx_input_map(self) -> Mapping[str, str]:
         """
         Dictionary of keys to update the ONNX input name for export. Override the function when
-        the torch input names and the ONNX input names need to be different.
+        the dummy input names and the exported ONNX input names need to be different.
 
         Returns:
-            `Mapping[str, str]`: A dictionary specifying the torch to ONNX input name map.
+            `Mapping[str, str]`: A dictionary specifying the dummy input name to exported ONNX input name map.
         """
         return {}
 
@@ -230,7 +230,6 @@ class OnnxConfig(ExportConfig, ABC):
             `Mapping[str, Mappingp[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
-        torch_to_onnx_input_map = self.torch_to_onnx_input_map
 
         ordered_inputs = {}
         sig = inspect.signature(model.forward)
@@ -243,7 +242,7 @@ class OnnxConfig(ExportConfig, ABC):
             # TODO: figure out a smart way of re-ordering potential nested structures.
             # to_insert = sorted(to_insert, key=lambda t: t[0])
             for name, dynamic_axes in to_insert:
-                name = torch_to_onnx_input_map[name] if name in torch_to_onnx_input_map else name
+                name = self.torch_to_onnx_input_map.get(name, name)
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
 

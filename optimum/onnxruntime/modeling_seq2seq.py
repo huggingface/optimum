@@ -84,7 +84,7 @@ SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
             `(batch_size, encoder_sequence_length)`. Mask values selected in `[0, 1]`.
 """
 
-SPEECH_SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
+WHISPER_ENCODER_INPUTS_DOCSTRING = r"""
     Arguments:
         input_features (`torch.FloatTensor`):
             Mel features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
@@ -761,9 +761,9 @@ class ORTEncoder:
         return self.forward(*args, **kwargs)
 
 
-class ORTEncoderForSpeechSeq2Seq(ORTEncoder):
+class ORTEncoderForWhisper(ORTEncoder):
     """
-    Encoder model for ONNX Runtime inference for SpeechSeq2Seq models.
+    Encoder model for ONNX Runtime inference for Whisper model.
 
     Arguments:
         session (`onnxruntime.InferenceSession`):
@@ -804,7 +804,7 @@ class ORTEncoderForSpeechSeq2Seq(ORTEncoder):
 
         return io_binding, output_shapes, output_buffers
 
-    @add_start_docstrings_to_model_forward(SPEECH_SEQ2SEQ_ENCODER_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(WHISPER_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
         input_features: torch.FloatTensor,
@@ -1273,6 +1273,10 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
 
+    _MODEL_TYPE_TO_ORTENCODER = {
+        "whisper": ORTEncoderForWhisper,
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -1282,8 +1286,14 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         config: transformers.PretrainedConfig,
         device: torch.device,
         use_io_binding: bool = True,
-    ) -> ORTEncoderForSpeechSeq2Seq:
-        return ORTEncoderForSpeechSeq2Seq(
+    ) -> ORTEncoder:
+        if config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
+            raise KeyError(
+                f"{config.model_type} is not supported yet. "
+                f"Only {list(self._MODEL_TYPE_TO_ORTENCODER.keys())} are supported. "
+                f"If you want to support {config.model_type} please propose a PR or open up an issue."
+            )
+        return self._MODEL_TYPE_TO_ORTENCODER[config.model_type](
             session=session,
             config=config,
             device=device,
@@ -1364,7 +1374,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             "use_cache": use_cache,
         }
 
-    def get_encoder(self) -> ORTEncoderForSpeechSeq2Seq:
+    def get_encoder(self) -> ORTEncoder:
         return self.encoder
 
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
