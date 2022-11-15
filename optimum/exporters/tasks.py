@@ -106,6 +106,10 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
 
 
 class TasksManager:
+    """
+    Handles the task name -> model class and architecture -> configuration mappings.
+    """
+
     _TASKS_TO_AUTOMODELS = {}
     _TASKS_TO_TF_AUTOMODELS = {}
     if is_torch_available():
