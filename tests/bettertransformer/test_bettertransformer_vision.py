@@ -21,7 +21,7 @@ import requests
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
-ALL_AUDIO_MODELS_TO_TEST = [
+ALL_VISION_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-ViTModel",
     "hf-internal-testing/tiny-random-YolosModel",
     "hf-internal-testing/tiny-random-ViTMAEModel",
@@ -34,7 +34,7 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
     r"""
     Testing suite for Vision Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    all_models_to_test = ALL_AUDIO_MODELS_TO_TEST
+    all_models_to_test = ALL_VISION_MODELS_TO_TEST
 
     def prepare_inputs_for_class(self, model_id=None):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
