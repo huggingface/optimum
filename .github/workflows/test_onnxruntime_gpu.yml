@@ -2,6 +2,9 @@ name: ONNX Runtime / Test GPU
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   schedule:
     - cron: 0 7 * * * # every day at 7am
 
@@ -51,14 +54,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Install dependencies
+      - name: Build image
         run: |
-          sudo apt -y update && sudo pip install --upgrade pip
-          pip install .[onnxruntime-gpu,tests]
-      - name: Test with unittest
-        working-directory: tests
+          docker build -f tests/onnxruntime/Dockerfile_onnxruntime_gpu -t onnxruntime-gpu .
+      - name: Test with unittest within docker container
         run: |
-          python3 -m unittest discover -s onnxruntime -p 'test_*.py'
+          docker run --gpus all --workdir=/workspace/optimum/tests onnxruntime-gpu:latest
 
   stop-runner:
     name: Stop self-hosted EC2 runner
