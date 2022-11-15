@@ -61,6 +61,119 @@ def check_dummy_inputs_are_allowed(
         )
 
 
+def validate_model_outputs(
+    config: OnnxConfig,
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    onnx_model: Path,
+    onnx_named_outputs: List[str],
+    atol: float,
+):
+    """
+    Validates the export by checking that the outputs from both the reference and the exported model match.
+
+    Args:
+        config ([`~OnnxConfig`]:
+            The configuration used to export the model.
+        reference_model ([`~PreTrainedModel`] or [`~TFPreTrainedModel`]):
+            The model used for the export.
+        onnx_model (`Path`):
+            The path to the exported model.
+        onnx_named_outputs (`List[str]`):
+            The names of the outputs to check.
+        atol (`float`):
+            The absolute tolerance in terms of outputs difference between the reference and the exported model.
+
+    Raises:
+        ValueError: If the outputs shapes or values do not match between the reference and the exported model.
+    """
+    from onnxruntime import InferenceSession, SessionOptions
+
+    logger.info("Validating ONNX model...")
+
+    framework = "pt" if is_torch_available() and issubclass(type(reference_model), PreTrainedModel) else "tf"
+    reference_model_inputs = config.generate_dummy_inputs(framework=framework)
+
+    # Create ONNX Runtime session
+    options = SessionOptions()
+    session = InferenceSession(onnx_model.as_posix(), options, providers=["CPUExecutionProvider"])
+
+    # Compute outputs from the reference model
+    if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
+        reference_model.to("cpu")
+    ref_outputs = reference_model(**reference_model_inputs)
+    ref_outputs_dict = {}
+
+    # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
+    for name, value in ref_outputs.items():
+        # Overwriting the output name as "present" since it is the name used for the ONNX outputs
+        # ("past_key_values" being taken for the ONNX inputs)
+        if name == "past_key_values":
+            name = "present"
+        if isinstance(value, (list, tuple)):
+            value = config.flatten_output_collection_property(name, value)
+            ref_outputs_dict.update(value)
+        else:
+            ref_outputs_dict[name] = value
+
+    # We flatten potential collection of inputs (i.e. past_keys)
+    onnx_inputs = {}
+    for name, value in reference_model_inputs.items():
+        if isinstance(value, (list, tuple)):
+            value = config.flatten_output_collection_property(name, value)
+            onnx_inputs.update({tensor_name: pt_tensor.numpy() for tensor_name, pt_tensor in value.items()})
+        else:
+            onnx_inputs[name] = value.numpy()
+
+    # Compute outputs from the ONNX model
+    onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
+
+    # Check we have a subset of the keys into onnx_outputs against ref_outputs
+    ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
+    if not onnx_outputs_set.issubset(ref_outputs_set):
+        raise ValueError(
+            "ONNX model output names do not match reference model output names.\n"
+            f"Reference model output names: {ref_outputs_set}\n"
+            f"ONNX model output names: {onnx_outputs_set}"
+            f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
+        )
+    else:
+        onnx_output_names = ", ".join(onnx_outputs_set)
+        logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
+
+    # Check the shape and values match
+    shape_failures = []
+    value_failures = []
+    for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
+        if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
+            ref_value = ref_outputs_dict[name].detach().numpy()
+        else:
+            ref_value = ref_outputs_dict[name].numpy()
+        logger.info(f'\t- Validating ONNX Model output "{name}":')
+
+        # Shape
+        if not ort_value.shape == ref_value.shape:
+            logger.error(f"\t\t-[x] shape {ort_value.shape} doesn't match {ref_value.shape}")
+            shape_failures.append((name, ref_value.shape, ort_value.shape))
+        else:
+            logger.info(f"\t\t-[✓] {ort_value.shape} matches {ref_value.shape}")
+
+        # Values
+        if not np.allclose(ref_value, ort_value, atol=atol):
+            max_diff = np.amax(np.abs(ref_value - ort_value))
+            logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
+            value_failures.append((name, max_diff))
+        else:
+            logger.info(f"\t\t-[✓] all values close (atol: {atol})")
+
+    if shape_failures:
+        msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
+        raise ValueError(f"Output shapes do not match between reference model and ONNX exported model:\n{msg}")
+
+    if value_failures:
+        msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
+        raise ValueError(f"Output values do not match between reference model and ONNX exported model:\n{msg}")
+
+
 def export_pytorch(
     model: "PreTrainedModel",
     config: OnnxConfig,
@@ -265,98 +378,3 @@ def export(
         raise RuntimeError(
             "You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed."
         )
-
-
-def validate_model_outputs(
-    config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    onnx_model: Path,
-    onnx_named_outputs: List[str],
-    atol: float,
-):
-    from onnxruntime import InferenceSession, SessionOptions
-
-    logger.info("Validating ONNX model...")
-
-    framework = "pt" if is_torch_available() and issubclass(type(reference_model), PreTrainedModel) else "tf"
-    reference_model_inputs = config.generate_dummy_inputs(framework=framework)
-
-    # Create ONNX Runtime session
-    options = SessionOptions()
-    session = InferenceSession(onnx_model.as_posix(), options, providers=["CPUExecutionProvider"])
-
-    # Compute outputs from the reference model
-    if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
-        reference_model.to("cpu")
-    ref_outputs = reference_model(**reference_model_inputs)
-    ref_outputs_dict = {}
-
-    # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
-    for name, value in ref_outputs.items():
-        # Overwriting the output name as "present" since it is the name used for the ONNX outputs
-        # ("past_key_values" being taken for the ONNX inputs)
-        if name == "past_key_values":
-            name = "present"
-        if isinstance(value, (list, tuple)):
-            value = config.flatten_output_collection_property(name, value)
-            ref_outputs_dict.update(value)
-        else:
-            ref_outputs_dict[name] = value
-
-    # We flatten potential collection of inputs (i.e. past_keys)
-    onnx_inputs = {}
-    for name, value in reference_model_inputs.items():
-        if isinstance(value, (list, tuple)):
-            value = config.flatten_output_collection_property(name, value)
-            onnx_inputs.update({tensor_name: pt_tensor.numpy() for tensor_name, pt_tensor in value.items()})
-        else:
-            onnx_inputs[name] = value.numpy()
-
-    # Compute outputs from the ONNX model
-    onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
-
-    # Check we have a subset of the keys into onnx_outputs against ref_outputs
-    ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
-    if not onnx_outputs_set.issubset(ref_outputs_set):
-        raise ValueError(
-            "ONNX model output names do not match reference model output names.\n"
-            f"Reference model output names: {ref_outputs_set}\n"
-            f"ONNX model output names: {onnx_outputs_set}"
-            f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
-        )
-    else:
-        onnx_output_names = ", ".join(onnx_outputs_set)
-        logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
-
-    # Check the shape and values match
-    shape_failures = []
-    value_failures = []
-    for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
-        if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
-            ref_value = ref_outputs_dict[name].detach().numpy()
-        else:
-            ref_value = ref_outputs_dict[name].numpy()
-        logger.info(f'\t- Validating ONNX Model output "{name}":')
-
-        # Shape
-        if not ort_value.shape == ref_value.shape:
-            logger.error(f"\t\t-[x] shape {ort_value.shape} doesn't match {ref_value.shape}")
-            shape_failures.append((name, ref_value.shape, ort_value.shape))
-        else:
-            logger.info(f"\t\t-[✓] {ort_value.shape} matches {ref_value.shape}")
-
-        # Values
-        if not np.allclose(ref_value, ort_value, atol=atol):
-            max_diff = np.amax(np.abs(ref_value - ort_value))
-            logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
-            value_failures.append((name, max_diff))
-        else:
-            logger.info(f"\t\t-[✓] all values close (atol: {atol})")
-
-    if shape_failures:
-        msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
-        raise ValueError(f"Output shapes do not match between reference model and ONNX exported model:\n{msg}")
-
-    if value_failures:
-        msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
-        raise ValueError(f"Output values do not match between reference model and ONNX exported model:\n{msg}")

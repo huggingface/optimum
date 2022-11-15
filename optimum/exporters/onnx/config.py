@@ -32,6 +32,7 @@ class TextEncoderOnnxConfig(OnnxConfig):
     """
     Handles encoder-based text architectures.
     """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
 
@@ -39,6 +40,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     """
     Handles decoder-based text architectures.
     """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
 
     @property
@@ -57,6 +59,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     """
     Handles encoder-decoder-based text architectures.
     """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
         DummyDecoderTextInputGenerator,
@@ -107,6 +110,7 @@ class VisionOnnxConfig(OnnxConfig):
     """
     Handles vision architectures.
     """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
 
@@ -114,6 +118,7 @@ class TextAndVisionOnnxConfig(OnnxConfig):
     """
     Handles multi-modal text and vision architectures.
     """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator, DummyBboxInputGenerator)
 
 

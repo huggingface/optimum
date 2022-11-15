@@ -32,7 +32,14 @@ from ...utils import (
     NormalizedVisionConfig,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import AudioOnnxConfig, TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig, TextAndVisionOnnxConfig, VisionOnnxConfig
+from .config import (
+    AudioOnnxConfig,
+    TextAndVisionOnnxConfig,
+    TextDecoderOnnxConfig,
+    TextEncoderOnnxConfig,
+    TextSeq2SeqOnnxConfig,
+    VisionOnnxConfig,
+)
 
 
 if TYPE_CHECKING:
