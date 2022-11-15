@@ -17,7 +17,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
-from transformers import AutoTokenizer, AutoFeatureExtractor
+from transformers import AutoFeatureExtractor, AutoTokenizer
 
 from ...utils import logging
 from ..tasks import TasksManager
