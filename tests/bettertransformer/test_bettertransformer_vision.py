@@ -26,6 +26,7 @@ ALL_AUDIO_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-YolosModel",
     "hf-internal-testing/tiny-random-ViTMAEModel",
     "hf-internal-testing/tiny-random-ViTMSNModel",
+    "hf-internal-testing/tiny-random-deit",
 ]
 
 
