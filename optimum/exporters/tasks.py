@@ -47,6 +47,7 @@ if is_torch_available():
         AutoModelForSemanticSegmentation,
         AutoModelForSeq2SeqLM,
         AutoModelForSequenceClassification,
+        AutoModelForSpeechSeq2Seq,
         AutoModelForTokenClassification,
     )
 if is_tf_available():
@@ -122,6 +123,7 @@ class TasksManager:
             "image-segmentation": AutoModelForImageSegmentation,
             "masked-im": AutoModelForMaskedImageModeling,
             "semantic-segmentation": AutoModelForSemanticSegmentation,
+            "speech2seq-lm": AutoModelForSpeechSeq2Seq,
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -506,6 +508,13 @@ class TasksManager:
             onnx="T5OnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
+        "whisper": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "speech2seq-lm",
+            "speech2seq-lm-with-past",
+            onnx="WhisperOnnxConfig",
+        ),
         "xlm": supported_tasks_mapping(
             "default",
             "masked-lm",

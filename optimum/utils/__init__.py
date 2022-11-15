@@ -69,9 +69,11 @@ def check_if_pytorch_greater_112():
 
 
 from .input_generators import (  # noqa
+    DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,

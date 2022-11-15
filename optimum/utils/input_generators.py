@@ -243,6 +243,45 @@ class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
     )
 
 
+class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "decoder_input_ids",
+        "decoder_attention_mask",
+        "encoder_outputs",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = 2,
+        sequence_length: int = 16,
+        num_choices: int = 4,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        random_num_choices_range: Optional[Tuple[int, int]] = None,
+    ):
+        super().__init__(
+            task,
+            normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            num_choices=num_choices,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            random_num_choices_range=random_num_choices_range,
+        )
+
+        self.hidden_size = normalized_config.hidden_size
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        if input_name == "encoder_outputs":
+            shape = (self.batch_size, self.sequence_length, self.hidden_size)
+            return (self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework), None, None)
+
+        return super().generate(input_name, framework=framework)
+
+
 class DummyPastKeyValuesGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = ("past_key_values",)
 
@@ -409,3 +448,31 @@ class DummyVisionInputGenerator(DummyInputGenerator):
             return self.random_int_tensor(shape, max_value=1, framework=framework)
         shape = [self.batch_size, self.num_channels, self.height, self.width]
         return self.random_float_tensor(shape, framework=framework)
+
+
+class DummyAudioInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("input_features", "input_values")
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = 2,
+        feature_size: int = 80,
+        nb_max_frames: int = 3000,
+        sequence_length: int = 16000,
+    ):
+        self.task = task
+
+        self.feature_size = feature_size
+        self.nb_max_frames = nb_max_frames
+        self.batch_size = batch_size
+        self.sequence_length = sequence_length
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.sequence_length]
+        if input_name == "input_values":
+            self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+
+        shape = [self.batch_size, self.feature_size, self.nb_max_frames]
+        return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)

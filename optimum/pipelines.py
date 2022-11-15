@@ -1,6 +1,7 @@
 from typing import Any, Optional, Union
 
 from transformers import (
+    AutomaticSpeechRecognitionPipeline,
     FeatureExtractionPipeline,
     ImageClassificationPipeline,
     Pipeline,
@@ -31,6 +32,7 @@ if is_onnxruntime_available():
         ORTModelForQuestionAnswering,
         ORTModelForSeq2SeqLM,
         ORTModelForSequenceClassification,
+        ORTModelForSpeechSeq2Seq,
         ORTModelForTokenClassification,
     )
     from .onnxruntime.modeling_ort import ORTModel
@@ -96,6 +98,12 @@ if is_onnxruntime_available():
             "default": "t5-small",
             "type": "text",
         },
+        "automatic-speech-recognition": {
+            "impl": AutomaticSpeechRecognitionPipeline,
+            "class": (ORTModelForSpeechSeq2Seq,) if is_onnxruntime_available() else (),
+            "default": "openai/whisper-tiny.en",
+            "type": "multimodal",
+        },
     }
 
 NO_FEATURE_EXTRACTOR_TASKS = set()
@@ -105,8 +113,8 @@ for task, values in SUPPORTED_TASKS.items():
         NO_FEATURE_EXTRACTOR_TASKS.add(task)
     elif values["type"] == "image":
         NO_TOKENIZER_TASKS.add(task)
-    else:
-        raise ValueError(f"Supported types are 'text' and 'image', got {values['type']}")
+    elif values["type"] != "multimodal":
+        raise ValueError(f"SUPPORTED_TASK {task} contains invalid type {values['type']}")
 
 
 def load_bettertransformer(

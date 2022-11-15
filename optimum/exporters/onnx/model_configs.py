@@ -21,16 +21,26 @@ from packaging import version
 from ...utils import (
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+    NormalizedConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, TextAndVisionOnnxConfig, VisionOnnxConfig
+from .config import (
+    AudioOnnxConfig,
+    DecoderOnnxConfig,
+    EncoderOnnxConfig,
+    Seq2SeqOnnxConfig,
+    TextAndAudioOnnxConfig,
+    TextAndVisionOnnxConfig,
+    VisionOnnxConfig,
+)
 
 
 if TYPE_CHECKING:
@@ -626,3 +636,72 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         self.is_generating_dummy_inputs = True
         dummy_inputs[self.inputs_name] = dummy_inputs.pop(specialized_inputs_name)
         return dummy_inputs
+
+
+class WhisperOnnxConfig(TextAndAudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+    ATOL_FOR_VALIDATION = 1e-3
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {
+            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
+        }
+        if self.use_past:
+            common_inputs["decoder_input_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+        if self.use_past:
+            self.add_past_key_values(common_inputs, direction="inputs")
+
+        return common_inputs
+
+
+class SpeechSeq2SeqEncoderOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
+        }
+
+
+class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummySeq2SeqDecoderTextInputGenerator,
+        DummyDecoderTextInputGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {
+            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
+            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
+        }
+
+        if self.use_past:
+            self.add_past_key_values(common_inputs, direction="inputs")
+
+        return common_inputs
+
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        return {"decoder_input_ids": "input_ids", "encoder_outputs": "encoder_hidden_states"}
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        self.add_past_key_values(common_outputs, direction="outputs")
+        return common_outputs
+
+    @property
+    def values_override(self) -> Optional[Mapping[str, Any]]:
+        if hasattr(self._config, "use_cache"):
+            return {"use_cache": True}
+
+        return None

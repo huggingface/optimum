@@ -17,6 +17,7 @@
 from typing import Mapping
 
 from ...utils import (
+    DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
@@ -99,3 +100,15 @@ class VisionOnnxConfig(OnnxConfig):
 
 class TextAndVisionOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator, DummyBboxInputGenerator)
+
+
+class AudioOnnxConfig(OnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
+
+
+class TextAndAudioOnnxConfig(Seq2SeqOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyAudioInputGenerator,
+        DummyDecoderTextInputGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
+    )

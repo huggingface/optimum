@@ -120,6 +120,7 @@ class OnnxConfig(ExportConfig, ABC):
         "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "speech2seq-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
     }
 
     def __init__(
@@ -206,6 +207,17 @@ class OnnxConfig(ExportConfig, ABC):
             return TORCH_VERSION >= self.MIN_TORCH_VERSION
         return False
 
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        """
+        Dictionary of keys to update the ONNX input name for export. Override the function when
+        the dummy input names and the exported ONNX input names need to be different.
+
+        Returns:
+            `Mapping[str, str]`: A dictionary specifying the dummy input name to exported ONNX input name map.
+        """
+        return {}
+
     def ordered_inputs(self, model: "PreTrainedModel") -> Mapping[str, Mapping[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
@@ -218,6 +230,7 @@ class OnnxConfig(ExportConfig, ABC):
             `Mapping[str, Mappingp[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
+
         ordered_inputs = {}
         sig = inspect.signature(model.forward)
         for param in sig.parameters:
@@ -229,6 +242,7 @@ class OnnxConfig(ExportConfig, ABC):
             # TODO: figure out a smart way of re-ordering potential nested structures.
             # to_insert = sorted(to_insert, key=lambda t: t[0])
             for name, dynamic_axes in to_insert:
+                name = self.torch_to_onnx_input_map.get(name, name)
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
 
