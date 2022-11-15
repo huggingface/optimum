@@ -25,7 +25,7 @@ from testing_bettertransformer_utils import BetterTransformersTestMixin
 ALL_AUDIO_MODELS_TO_TEST = [
     "openai/whisper-tiny",
     "patrickvonplaten/wav2vec2_tiny_random",
-    "facebook/hubert-base-ls960",
+    "ybelkada/hubert-tiny-random",
 ]
 
 
