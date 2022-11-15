@@ -32,15 +32,7 @@ from ...utils import (
     NormalizedVisionConfig,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import (
-    AudioOnnxConfig,
-    DecoderOnnxConfig,
-    EncoderOnnxConfig,
-    Seq2SeqOnnxConfig,
-    TextAndAudioOnnxConfig,
-    TextAndVisionOnnxConfig,
-    VisionOnnxConfig,
-)
+from .config import AudioOnnxConfig, TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig, TextAndVisionOnnxConfig, VisionOnnxConfig
 
 
 if TYPE_CHECKING:
@@ -49,7 +41,7 @@ if TYPE_CHECKING:
     from .base import PatchingSpec
 
 
-class BertOnnxConfig(EncoderOnnxConfig):
+class BertOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
     @property
@@ -142,7 +134,7 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
-class GPT2OnnxConfig(DecoderOnnxConfig):
+class GPT2OnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
@@ -165,7 +157,7 @@ class CodeGenOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-class GPTNeoOnnxConfig(DecoderOnnxConfig):
+class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
@@ -191,10 +183,10 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         ]
 
 
-class BloomOnnxConfig(DecoderOnnxConfig):
+class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
-    ) + DecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
@@ -223,9 +215,9 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
         ]
 
 
-class T5OnnxConfig(Seq2SeqOnnxConfig):
+class T5OnnxConfig(TextSeq2SeqOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    DUMMY_INPUT_GENERATOR_CLASSES = Seq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
+    DUMMY_INPUT_GENERATOR_CLASSES = TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
@@ -285,7 +277,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         return int_tensor
 
 
-class BartOnnxConfig(Seq2SeqOnnxConfig):
+class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
