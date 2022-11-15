@@ -1,0 +1,188 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Export a model to ONNX with optimum.exporters.onnx
+
+If you need to deploy 🤗 Transformers models in production environments, we recommend
+exporting them to a serialized format that can be loaded and executed on specialized
+runtimes and hardware. In this guide, we'll show you how to export 🤗 Transformers
+models to [ONNX (Open Neural Network eXchange)](http://onnx.ai).
+
+ONNX is an open standard that defines a common set of operators and a common file format
+to represent deep learning models in a wide variety of frameworks, including PyTorch and
+TensorFlow. When a model is exported to the ONNX format, these operators are used to
+construct a computational graph (often called an _intermediate representation_) which
+represents the flow of data through the neural network.
+
+By exposing a graph with standardized operators and data types, ONNX makes it easy to
+switch between frameworks. For example, a model trained in PyTorch can be exported to
+ONNX format and then imported in TensorRT or OpenVino.
+
+<Tip>
+
+Once exported, a model can be optimized for inference via techniques such as
+graph optimization and quantization. Check the [`optimum.onnxruntime`] subpackage to optimize and run ONNX models!
+
+</Tip>
+
+
+🤗 Optimum provides support for the ONNX export by leveraging configuration objects.
+These configuration objects come ready made for a number of model architectures, and are
+designed to be easily extendable to other architectures.
+
+[TODO: how to add the link?]
+To check the supported architectures, go to the (configuration reference page)[../package_reference/configuration#Supported Architectures].
+
+## Exporting a model to ONNX using the CLI
+
+To export a 🤗 Transformers model to ONNX, you'll first need to install some extra
+dependencies:
+
+```bash
+pip install optimum[exporters]
+```
+
+The `optimum.exporters.onnx` package can then be used as a Python module:
+
+```bash
+python -m optimum.exporters.onnx --help
+
+usage: Hugging Face Optimum ONNX exporter [-h] -m MODEL [--task TASK] [--opset OPSET] [--atol ATOL] [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] output
+
+positional arguments:
+  output                Path indicating the directory where to store generated ONNX model.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -m MODEL, --model MODEL
+                        Model ID on huggingface.co or path on disk to load model from.
+  --task TASK           The type of task to export the model with.
+  --opset OPSET         ONNX opset version to export the model with.
+  --atol ATOL           Absolute difference tolerance when validating the model.
+  --framework {pt,tf}   The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is available in the environment.
+  --pad_token_id PAD_TOKEN_ID
+                        This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
+  --cache_dir CACHE_DIR
+                        Path indicating where to store cache.
+```
+
+Exporting a checkpoint can be done as follows:
+
+```bash
+python -m optimum.exporters.onnx --model distilbert-base-uncased-distilled-squad distilbert_base_uncased_squad_onnx/
+```
+
+You should see the following logs (along with potential logs from PyTorch / TensorFlow that were hidden here for clarity):
+
+```bash
+Automatic task detection to question-answering.
+Framework not specified. Using pt to export to ONNX.
+Using framework PyTorch: 1.12.1
+
+Validating ONNX model...
+        -[✓] ONNX model output names match reference model (start_logits, end_logits)
+        - Validating ONNX Model output "start_logits":
+                -[✓] (2, 16) matches (2, 16)
+                -[✓] all values close (atol: 0.0001)
+        - Validating ONNX Model output "end_logits":
+                -[✓] (2, 16) matches (2, 16)
+                -[✓] all values close (atol: 0.0001)
+All good, model saved at: distilbert_base_uncased_squad_onnx/model.onnx
+```
+
+This exports an ONNX graph of the checkpoint defined by the `--model` argument.
+As you can see, the task was automatically detected. This was possible because the model was on the Hub.
+
+For local models, providing the `--task` argument is needed or it will default to the model architecture without any task specific head:
+
+```bash
+python -m optimum.exporters.onnx --model local_path --task question-answering distilbert_base_uncased_squad_onnx/
+```
+
+Note that providing a task argument for a model on the Hub will disable the automatic task detection.
+
+The resulting `model.onnx` file can then be run on one of the [many
+accelerators](https://onnx.ai/supported-tools.html#deployModel) that support the ONNX
+standard. For example, we can load and run the model with [ONNX
+Runtime](https://onnxruntime.ai/) using the `optimum.onnxruntime` package as follows:
+
+```python
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForQuestionAnswering
+
+>>> tokenizer = AutoTokenizer.from_pretrained("distilbert_base_uncased_squad_onnx")
+>>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert_base_uncased_squad_onnx")
+
+>>> inputs = tok("What am I using?", "Using DistilBERT with ONNX Runtime!", return_tensors="pt")
+>>> outputs = model(**inputs)
+```
+
+Printing the outputs would give that:
+
+```bash
+QuestionAnsweringModelOutput(loss=None, start_logits=tensor([[-4.7652, -1.0452, -7.0409, -4.6864, -4.0277, -6.2021, -4.9473,  2.6287,
+          7.6111, -1.2488, -2.0551, -0.9350,  4.9758, -0.7707,  2.1493, -2.0703,
+         -4.3232, -4.9472]]), end_logits=tensor([[ 0.4382, -1.6502, -6.3654, -6.0661, -4.1482, -3.5779, -0.0774, -3.6168,
+         -1.8750, -2.8910,  6.2582,  0.5425, -3.7699,  3.8232, -1.5073,  6.2311,
+          3.3604, -0.0772]]), hidden_states=None, attentions=None)
+```
+
+As you can see, converting a model to ONNX does not mean leaving the Hugging Face ecosystem. You end up with a similar API as regular 🤗 Transformers models.
+
+<Tip>
+
+It is also possible to export the model to ONNX directly from the `ORTModelForQuestionAnswering` class by doing the following:
+
+```python
+>>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert-base-uncased-distilled-squad", from_transformers=True)
+```
+
+TODO: how to create a proper link?
+For more information, check the `optimum.onnxrutime` documentation (page on this topic)[onnxruntime/usage_guides/models.mdx].
+
+</Tip>
+
+The process is identical for TensorFlow checkpoints on the Hub. For example, we can export a pure TensorFlow checkpoint from the [Keras
+organization](https://huggingface.co/keras-io) as follows:
+
+```bash
+python -m optimum.exporters.onnx --model keras-io/transformers-qa distilbert_base_cased_squad_onnx/
+```
+
+## Selecting features for different model tasks
+
+Each configuration comes with a set of _features_ that enable you to export
+models for different types of tasks. As shown in the table below, each feature is
+associated with a different `AutoClass`:
+
+| Feature                              | Auto Class                           |
+| ------------------------------------ | ------------------------------------ |
+| `causal-lm`, `causal-lm-with-past`   | `AutoModelForCausalLM`               |
+| `default`, `default-with-past`       | `AutoModel`                          |
+| `masked-lm`                          | `AutoModelForMaskedLM`               |
+| `question-answering`                 | `AutoModelForQuestionAnswering`      |
+| `seq2seq-lm`, `seq2seq-lm-with-past` | `AutoModelForSeq2SeqLM`              |
+| `sequence-classification`            | `AutoModelForSequenceClassification` |
+| `token-classification`               | `AutoModelForTokenClassification`    |
+
+For each configuration, you can find the list of supported features via the
+[`~exporters.tasks.TasksManager`]. For example, for DistilBERT, for the ONNX export, we have:
+
+```python
+>>> from optimum.exporters.tasks import TasksManager
+
+>>> distilbert_tasks = list(TasksManager.get_supported_tasks_for_model_type("distilbert", "onnx").keys())
+>>> print(distilbert_tasks)
+["default", "masked-lm", "causal-lm", "sequence-classification", "token-classification", "question-answering"]
+```
+
+You can then pass one of these tasks to the `--task` argument in the `optimum.exporters.onnx` package CLI, as mentioned above.

@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
 class BertOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
