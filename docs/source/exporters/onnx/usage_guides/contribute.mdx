@@ -50,10 +50,15 @@ In `optimum/exporters/onnx/model_configs.py`:
 ```python
 # This class is actually in optimum/exporters/onnx/config.py
 class TextEncoderOnnxConfig(OnnxConfig):
+    # Describes how to generate the dummy inputs.
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
 class BertOnnxConfig(TextEncoderOnnxConfig):
+    # Specifies how to normalize the BertConfig, this is needed to access common attributes
+    # during dummy input generation.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    # Sets the absolute tolerance to when validating the exported ONNX model against the
+    # reference model.
     ATOL_FOR_VALIDATION = 1e-4
 
     @property
@@ -108,7 +113,7 @@ You can also view the outputs associated with the model as follows:
 
 ```python
 >>> print(onnx_config.outputs)
-OrderedDict([("last_hidden_state", {0: "batch", 1: "sequence"})])
+OrderedDict([("last_hidden_state", {0: "batch_size", 1: "sequence_length"})])
 ```
 
 Notice that the outputs property follows the same structure as the inputs; it returns an
@@ -126,7 +131,7 @@ classification head, we could use:
 >>> config = AutoConfig.from_pretrained("bert-base-uncased")
 >>> onnx_config_for_seq_clf = BertOnnxConfig(config, task="sequence-classification")
 >>> print(onnx_config_for_seq_clf.outputs)
-OrderedDict([('logits', {0: 'batch'})])
+OrderedDict([('logits', {0: 'batch_size'})])
 ```
 
 <Tip>

@@ -12,7 +12,7 @@ specific language governing permissions and limitations under the License.
 
 # Normalized Configurations
 
-Model configuration classes in 🤗 Transformers are not standardized. Altough they provide an `attribute_map` attribute
+Model configuration classes in 🤗 Transformers are not standardized. Although they provide an `attribute_map` attribute
 that enables to aleviate that, it does not make it easy to reason on common configuration attributes in the code.
 [`~optimum.utils.normalized_config.NormalizedConfig`] classes try to fix that by allowing access to the configuration
 attribute they wrap in a standardized way.
@@ -20,7 +20,12 @@ attribute they wrap in a standardized way.
 
 ## Base class
 
-TODO: it can be used as is wwith with_args
+<Tip>
+
+While it is possible to create `NormalizedConfig` subclasses for common use-cases, it is also possible to overwrite
+the `original attribute name -> normalized attribute name` mapping directly using the `.with_args` class method.
+</Tip>
+
 [[autodoc]] optimum.utils.normalized_config.NormalizedConfig
 
 
