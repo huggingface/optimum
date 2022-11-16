@@ -10,7 +10,7 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-## Adding support for an unsupported architecture
+# Adding support for an unsupported architecture
 
 If you wish to export a model whose architecture is not already supported by the library, there are three main steps to follow:
 
@@ -21,7 +21,7 @@ If you wish to export a model whose architecture is not already supported by the
 
 In this section, we'll look at how BERT was implemented to show what's involved with each step.
 
-### Implementing a custom ONNX configuration
+## Implementing a custom ONNX configuration
 
 Let's start with the ONNX configuration object. We provide a 3-level (class hierarchy)[package_reference/configuration],
 and to add support for a model, inheriting from the right middle-end class will be the way to go most of the time. You might have to
@@ -42,7 +42,7 @@ might work.
 When inheriting from a middle-end class, look for the one handling the same modality / category of model as the one you
 are trying to support.
 
-#### Example: Adding support for BERT
+### Example: Adding support for BERT
 
 Since BERT is an encoder-based model for text, its configuration inherits from the middle-end class [`~optimum.exporters.onnx.config.TextEncoderOnnxConfig`].
 In `optimum/exporters/onnx/model_configs.py`:
@@ -141,7 +141,7 @@ Check out [`BartOnnxConfig`] for an advanced example.
 </Tip>
 
 
-### Registering the ONNX configuration in the TasksManager
+## Registering the ONNX configuration in the TasksManager
 
 The [`~optimum.exporters.tasks.TasksManager`] is the main entry-point to load a model given a name and a task,
 and to get the proper configuration for a given (architecture, backend) couple. When adding support for the export to ONNX,
@@ -167,7 +167,7 @@ For BERT, it looks as follows:
     )
 ```
 
-### Exporting the model
+## Exporting the model
 
 Once you have implemented the ONNX configuration, the next step is to export the model.
 Here we can use the `export()` function provided by the `optimum.exporters.onnx` package.
@@ -208,7 +208,7 @@ for instructions on how to load models with external data.
 
 </Tip>
 
-### Validating the model outputs
+## Validating the model outputs
 
 The final step is to validate that the outputs from the base and exported model agree within some absolute tolerance.
 Here we can use the `validate_model_outputs()` function provided by the `optimum.exporters.onnx` package as follows:
