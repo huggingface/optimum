@@ -15,21 +15,22 @@ specific language governing permissions and limitations under the License.
 If you wish to export a model whose architecture is not already supported by the library, there are three main steps to follow:
 
 1. Implement a custom ONNX configuration.
+2. Register the ONNX configuration in the [`~optimum.exporters.TasksManager`]
 2. Export the model to ONNX.
-3. Validate the outputs of the PyTorch and exported models.
+3. Validate the outputs of the original and exported models.
 
-In this section, we'll look at how DistilBERT was implemented to show what's involved with each step.
+In this section, we'll look at how BERT was implemented to show what's involved with each step.
 
 ### Implementing a custom ONNX configuration
 
 Let's start with the ONNX configuration object. We provide a 3-level (class hierarchy)[package_reference/configuration],
-and to add support for a model, inheriting from the middle-end class will be the way most of the time. You might have to
+and to add support for a model, inheriting from the right middle-end class will be the way to go most of the time. You might have to
 implement a middle-end class yourself if you are adding an architecture handling a modality and/or case never seen before.
 
 <Tip>
 
-A good way to implement a custom ONNX configuration is to look at the existing
-implementation in the `optimum/exporters/onnx/model_configs.py` file.
+A good way to implement a custom ONNX configuration is to look at the existing configuration implementation in the
+`optimum/exporters/onnx/model_configs.py` file.
 
 Also, if the architecture you are trying to add is (very) similar to an architecture that is already supported
 (for instance adding support for ALBERT when BERT is already supported), trying to simply inheriting from this class
@@ -43,9 +44,11 @@ are trying to support.
 
 #### Example: Adding support for BERT
 
-Since BERT is an encoder-based model for text, its configuration inherits from [`~optimum.exporters.onnx.config.TextEncoderOnnxConfig`]:
+Since BERT is an encoder-based model for text, its configuration inherits from the middle-end class [`~optimum.exporters.onnx.config.TextEncoderOnnxConfig`].
+In `optimum/exporters/onnx/model_configs.py`:
 
 ```python
+# This class is actually in optimum/exporters/onnx/config.py
 class TextEncoderOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
@@ -66,8 +69,20 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
         }
 ```
 
+First let's explain what `TextEncoderOnnxConfig` is all about. While most of the features are already implemented in `OnnxConfig`,
+this class is modality-agnostic, meaning that it does not know what kind of inputs it should handle. The way input generation is
+handled is via the `DUMMY_INPUT_GENERATOR_CLASSES` attribute, which is a tuple of [`~optimum.utils.input_generators.DummyInputGenerator`]s.
+Here we are making a modality-aware configuration inheriting from `OnnxConfig` by specifying
+`DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)`.
+
+Then comes the model-specific class, `BertOnnxConfig`. Two class attributes are specified here:
+- `NORMALIZED_CONFIG_CLASS`: this must be a [`~optimum.utils.normalized_config.NormalizedConfig`], it basically allows
+the input generator to the model config attributes in a generic way.
+- `ATOL_FOR_VALIDATION`: it is used when validating the exported model against the original one, this is the absolute
+acceptable tolerance for the output values difference.
+
 Every configuration object must implement the `inputs` property and return a mapping, where each key corresponds to an
-input name, and each value indicates the axes in that are dynamic.
+input name, and each value indicates the axes in input that are dynamic.
 For BERT, we can see that three inputs are required: `input_ids`, `attention_mask` and `token_type_ids`.
 These inputs have the same shape of `(batch_size, sequence_length)` (except for the `multiple-choice` task) which is
 why we see the same axes used in the configuration.
@@ -98,10 +113,10 @@ OrderedDict([("last_hidden_state", {0: "batch", 1: "sequence"})])
 
 Notice that the outputs property follows the same structure as the inputs; it returns an
 `OrderedDict` of named outputs and their shapes. The output structure is linked to the
-choice of feature that the configuration is initialised with. By default, the ONNX
-configuration is initialized with the `default` feature that corresponds to exporting a
+choice of task that the configuration is initialised with. By default, the ONNX
+configuration is initialized with the `default` task that corresponds to exporting a
 model loaded with the `AutoModel` class. If you want to export a model for another task,
-just provide a different feature to the `task` argument when you initialize the ONNX
+just provide a different task to the `task` argument when you initialize the ONNX
 configuration. For example, if we wished to export BERT with a sequence
 classification head, we could use:
 
@@ -120,29 +135,57 @@ Check out [`BartOnnxConfig`] for an advanced example.
 
 </Tip>
 
+
+### Registering the ONNX configuration in the TasksManager
+
+The [`~optimum.exporters.tasks.TasksManager`] is the main entry-point to load a model given a name and a task,
+and to get the proper configuration for a given (architecture, backend) couple. When adding support for the export to ONNX,
+registering the configuration to the `TasksManager` will make the export available in the command line tool.
+
+To do that, add an entry in the `_SUPPORTED_MODEL_TYPE` attribute:
+- If the model is already supported for other backends than ONNX, it will already have an entry, so you will only need to
+add an `onnx` key specifying the name of the configuration class.
+- Otherwise, you will have to add the whole entry.
+
+For BERT, it looks as follows:
+
+```python
+    "bert": supported_tasks_mapping(
+        "default",
+        "masked-lm",
+        "causal-lm",
+        "sequence-classification",
+        "multiple-choice",
+        "token-classification",
+        "question-answering",
+        onnx="BertOnnxConfig",
+    )
+```
+
 ### Exporting the model
 
 Once you have implemented the ONNX configuration, the next step is to export the model.
-Here we can use the `export()` function provided by the `transformers.onnx` package.
+Here we can use the `export()` function provided by the `optimum.exporters.onnx` package.
 This function expects the ONNX configuration, along with the base model and tokenizer,
 and the path to save the exported file:
 
 ```python
 >>> from pathlib import Path
->>> from transformers.onnx import export
->>> from transformers import AutoTokenizer, AutoModel
+>>> from optimum.exporters import TasksManager
+>>> from optimum.exporters.onnx import export
+>>> from transformers import AutoModel
+
+>>> base_model = AutoModel.from_pretrained("bert-base-uncased")
 
 >>> onnx_path = Path("model.onnx")
->>> model_ckpt = "distilbert-base-uncased"
->>> base_model = AutoModel.from_pretrained(model_ckpt)
->>> tokenizer = AutoTokenizer.from_pretrained(model_ckpt)
+>>> onnx_config_constructor = TasksManager.get_exporter_config_constructor(base_model.config.model_type, "onnx")
+>>> onnx_config = onnx_config_constructor(base_model.config)
 
->>> onnx_inputs, onnx_outputs = export(tokenizer, base_model, onnx_config, onnx_config.default_onnx_opset, onnx_path)
+>>> onnx_inputs, onnx_outputs = export(base_model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, onnx_path)
 ```
 
-The `onnx_inputs` and `onnx_outputs` returned by the `export()` function are lists of
-the keys defined in the `inputs` and `outputs` properties of the configuration. Once the
-model is exported, you can test that the model is well formed as follows:
+The `onnx_inputs` and `onnx_outputs` returned by the `export()` function are lists of the keys defined in the `inputs`
+and `outputs` properties of the configuration. Once the model is exported, you can test that the model is well formed as follows:
 
 ```python
 >>> import onnx
@@ -153,46 +196,30 @@ model is exported, you can test that the model is well formed as follows:
 
 <Tip>
 
-If your model is larger than 2GB, you will see that many additional files are created
-during the export. This is _expected_ because ONNX uses [Protocol
-Buffers](https://developers.google.com/protocol-buffers/) to store the model and these
-have a size limit of 2GB. See the [ONNX
-documentation](https://github.com/onnx/onnx/blob/master/docs/ExternalData.md) for
-instructions on how to load models with external data.
+If your model is larger than 2GB, you will see that many additional files are created during the export. This is
+_expected_ because ONNX uses [Protocol Buffers](https://developers.google.com/protocol-buffers/) to store the model
+and these have a size limit of 2GB. See the [ONNX documentation](https://github.com/onnx/onnx/blob/master/docs/ExternalData.md)
+for instructions on how to load models with external data.
 
 </Tip>
 
 ### Validating the model outputs
 
-The final step is to validate that the outputs from the base and exported model agree
-within some absolute tolerance. Here we can use the `validate_model_outputs()` function
-provided by the `transformers.onnx` package as follows:
+The final step is to validate that the outputs from the base and exported model agree within some absolute tolerance.
+Here we can use the `validate_model_outputs()` function provided by the `optimum.exporters.onnx` package as follows:
 
 ```python
->>> from transformers.onnx import validate_model_outputs
+>>> from optimum.exporters.onnx import validate_model_outputs
 
 >>> validate_model_outputs(
-...     onnx_config, tokenizer, base_model, onnx_path, onnx_outputs, onnx_config.atol_for_validation
+...     onnx_config, base_model, onnx_path, onnx_outputs, onnx_config.ATOL_FOR_VALIDATION
 ... )
 ```
 
-This function uses the [`~transformers.onnx.OnnxConfig.generate_dummy_inputs`] method to
-generate inputs for the base and exported model, and the absolute tolerance can be
-defined in the configuration. We generally find numerical agreement in the 1e-6 to 1e-4
-range, although anything smaller than 1e-3 is likely to be OK.
+## Contributing the new configuration to 🤗 Optimum
 
-## Contributing a new configuration to 🤗 Transformers
+Now that the support for the architectures has been implemented, and validated, there are two things left:
+1. Add your model architecture to the tests in `tests/exporters/test_onnx_export.py`
+2. Create a PR on the (`optimum` repo)[https://github.com/huggingface/optimum]
 
-We are looking to expand the set of ready-made configurations and welcome contributions
-from the community! If you would like to contribute your addition to the library, you
-will need to:
-
-* Implement the ONNX configuration in the corresponding `configuration_<model_name>.py`
-file
-* Include the model architecture and corresponding features in
-  [`~onnx.features.FeatureManager`]
-* Add your model architecture to the tests in `test_onnx_v2.py`
-
-Check out how the configuration for [IBERT was
-contributed](https://github.com/huggingface/transformers/pull/14868/files) to get an
-idea of what's involved.
+Thanks for you contribution!

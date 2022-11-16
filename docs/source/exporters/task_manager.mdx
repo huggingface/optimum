@@ -16,6 +16,6 @@ Exporting a model from one framework to some format (also called backend here) i
 - Configuration classes containing the information for each model to perform the export.
 - Exporting functions using the proper configuration for the model to export.
 
-The role of the `TasksManager` is to be the main entry-point to load a model given a name and a task, and to get the proper configuration for a given (architecture, backend) couple. That way, there is a centralized place to register the task -> model class and (architecture, backend) -> configuration mappings. This allows the export functions to use this, and to rely on the various checks it provides.
+The role of the [`~optimum.exporters.tasks.TasksManager`] is to be the main entry-point to load a model given a name and a task, and to get the proper configuration for a given (architecture, backend) couple. That way, there is a centralized place to register the task -> model class and (architecture, backend) -> configuration mappings. This allows the export functions to use this, and to rely on the various checks it provides.
 
 [[autodoc]] exporters.tasks.TasksManager

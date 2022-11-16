@@ -18,12 +18,14 @@ Exporting a model to ONNX involves specifying:
 3. The dynamic axes: basically which dimensions in the inputs will be dynamic (the other will be considered static)
 4. Dummy inputs used for tracing the model, which is needed in PyTorch to records the graph and convert it to ONNX
 
-This data being model and task dependent, it is represented as configuration classes, each architecture being associated with aconfiguration following the naming convention `ArchitectureNameOnnConfig`. For instance the configuration handling the ONNX export of BERT models is `BertOnnxConfig`.
+This data being model and task dependent, it is represented as configuration classes, each architecture being associated with
+a configuration following the naming convention `ArchitectureNameOnnConfig`. For instance the configuration handling the ONNX
+export of BERT models is `BertOnnxConfig`.
 
 As a lot of the work can be shared accross the different configurations, we chose to have a 3-level class hierarchy:
-1. First, there are the abstract and very generic base classes, handling all the needed features while being agnostic to the modality.
+1. First, there are the abstract and very generic base classes, handling all the fundamental features while being agnostic to the modality.
 2. Then, there are the middle-end classes, aware of the modality and specifying which input generators should be used for the dummy inputs, but still model-agnostic.
-3. Finally, there are the model-specific classes mentioned above, that are actually used to export models.
+3. Finally, there are the model-specific classes mentioned above. Those are the ones actually used to export models.
 
 
 ## Base classes
@@ -56,4 +58,54 @@ As a lot of the work can be shared accross the different configurations, we chos
 [[autodoc]] exporters.onnx.config.TextAndVisionOnnxConfig
 
 ## Supported architectures
-TODO: insert the list of currently supported architectures
+
+- Albert
+- Bart
+- Beit
+- Bert
+- BigBird
+- BigBirdPegasus
+- BigBirdSmall
+- BlenderBot
+- Bloom
+- CLIP
+- Camembert
+- CodeGen
+- ConvBert
+- ConvNext
+- Data2VecText
+- Data2VecVision
+- Deberta
+- Deberta-v2
+- Deit
+- Detr
+- DistilBert
+- Electra
+- Flaubert
+- GPT-2
+- GPT-J
+- GPT-Neo
+- GroupVit
+- IBert
+- LayoutLM
+- LayoutLM-v3
+- Levit
+- LongT5
+- M2-M100
+- MBart
+- MT5
+- Marian
+- MobileBert
+- MobileVit
+- OwlVit
+- Perceiver
+- ResNet
+- Roberta
+- Roformer
+- Segformer
+- SqueezeBert
+- T5
+- Vit
+- XLM
+- XLM-Roberta
+- Yolos
