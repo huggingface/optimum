@@ -702,9 +702,8 @@ class SpeechSeq2SeqDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
-        # TODO: do we always need to use cache?
-        # If so: I will hardcode the use cache in the constructor instead.
-        # This way we will not have use_past = False and use_cache = True which can be misleading.
+        # Needed here because the configuration will actually be used with both use_past = True and use_past = False,
+        # but the cache must always be used regardless.
         if hasattr(self._config, "use_cache"):
             return {"use_cache": True}
 

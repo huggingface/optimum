@@ -126,6 +126,7 @@ class AudioOnnxConfig(OnnxConfig):
     """
     Handles audio architectures.
     """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
 
 
