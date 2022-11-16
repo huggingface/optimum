@@ -123,10 +123,13 @@ class TextAndVisionOnnxConfig(OnnxConfig):
 
 
 class AudioOnnxConfig(OnnxConfig):
+    """
+    Handles audio architectures.
+    """
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
 
 
-class TextAndAudioOnnxConfig(Seq2SeqOnnxConfig):
+class TextAndAudioOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyAudioInputGenerator,
         DummyDecoderTextInputGenerator,

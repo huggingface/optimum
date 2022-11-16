@@ -34,6 +34,7 @@ from ...utils import (
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
     AudioOnnxConfig,
+    TextAndAudioOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
     TextEncoderOnnxConfig,
@@ -668,7 +669,7 @@ class SpeechSeq2SeqEncoderOnnxConfig(AudioOnnxConfig):
         }
 
 
-class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqOnnxConfig):
+class SpeechSeq2SeqDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
@@ -701,6 +702,9 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqOnnxConfig):
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
+        # TODO: do we always need to use cache?
+        # If so: I will hardcode the use cache in the constructor instead.
+        # This way we will not have use_past = False and use_cache = True which can be misleading.
         if hasattr(self._config, "use_cache"):
             return {"use_cache": True}
 
