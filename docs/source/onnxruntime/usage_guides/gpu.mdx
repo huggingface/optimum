@@ -121,14 +121,14 @@ Due to current limitations in ONNX Runtime, it is not possible to use quantized 
 
 * When using [static quantization](quantization#static-quantization-example), the ONNX computation graph will contain matrix multiplications and convolutions in floating-point arithmetic, along with Quantize + Dequantize operations to simulate quantization. In this case, although the costly matrix multiplications and convolutions will be run on the GPU, they will use floating-point arithmetic as the `CUDAExecutionProvider` can not consume the Quantize + Dequantize nodes to replace them by the operations using integer arithmetic.
 
-### Reduce memory footprint
+### Reduce memory footprint with IOBinding
 
-IOBinding is an efficient way to avoid expensive data copying when using GPUs. By default, ONNX Runtime will copy the input from the CPU(even if the tensors are already copied to the targeted device), and assume that outputs also need to be copied back to the CPU from GPUs after the run. These data copying overheads between the host and devices are expensive, and can lead to worse inference latency than vanilla PyTorch especially for decoding.
+[IOBinding](https://onnxruntime.ai/docs/api/python/api_summary.html#iobinding) is an efficient way to avoid expensive data copying when using GPUs. By default, ONNX Runtime will copy the input from the CPU(even if the tensors are already copied to the targeted device), and assume that outputs also need to be copied back to the CPU from GPUs after the run. These data copying overheads between the host and devices are expensive, and __can lead to worse inference latency than vanilla PyTorch__ especially for decoding.
 
-To avoid the slowdown, Optimum adopts the IOBinding to copy inputs onto GPUs and pre-allocate memory for outputs prior the inference.  When instanciating the `ORTModel`, set the value of the argument `use_io_binding` to choose whether to turn on or not the IOBinding during the inference.`use_io_binding`issetto`True`by default, if you choose CUDA as execution provider.
+To avoid the slowdown, Optimum adopts the IOBinding to copy inputs onto GPUs and pre-allocate memory for outputs prior the inference.  When instanciating the `ORTModel`, set the value of the argument `use_io_binding` to choose whether to turn on the IOBinding during the inference. `use_io_binding`is set to `True` by default, if you choose CUDA as execution provider.
 
 And if you want to turn off IOBinding:
-```
+```python
 >>> from transformers import AutoTokenizer, pipeline
 >>> from optimum.onnxruntime import ORTModelForSeq2SeqLM
 
@@ -139,6 +139,8 @@ And if you want to turn off IOBinding:
 # Create a pipeline
 >>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
 ```
+
+For the time being, IOBinding is supported for task-defined ORT models, if you want us to add support for custom models, file us an issue on the Optimum's repository.
 
 ### Observed time gains
 
