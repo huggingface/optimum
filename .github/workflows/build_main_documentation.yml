@@ -74,7 +74,7 @@ jobs:
         run: |
           mkdir -p build_dir/optimum
           cd build_dir/optimum
-          wget https://huggingface.co/datasets/hf-doc-build/doc-build/raw/main/${{ env.package_name }}/_versions.yml
+          wget https://huggingface.co/datasets/hf-doc-build/doc-build/raw/main/optimum/_versions.yml
 
       - name: Make Graphcore documentation
         run: |
