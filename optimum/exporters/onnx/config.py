@@ -28,11 +28,19 @@ from ...utils import (
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
-class EncoderOnnxConfig(OnnxConfig):
+class TextEncoderOnnxConfig(OnnxConfig):
+    """
+    Handles encoder-based text architectures.
+    """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
 
-class DecoderOnnxConfig(OnnxConfigWithPast):
+class TextDecoderOnnxConfig(OnnxConfigWithPast):
+    """
+    Handles decoder-based text architectures.
+    """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
 
     @property
@@ -47,7 +55,11 @@ class DecoderOnnxConfig(OnnxConfigWithPast):
         return common_inputs
 
 
-class Seq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
+class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    """
+    Handles encoder-decoder-based text architectures.
+    """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
         DummyDecoderTextInputGenerator,
@@ -95,18 +107,30 @@ class Seq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 
 class VisionOnnxConfig(OnnxConfig):
+    """
+    Handles vision architectures.
+    """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
 
 class TextAndVisionOnnxConfig(OnnxConfig):
+    """
+    Handles multi-modal text and vision architectures.
+    """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator, DummyBboxInputGenerator)
 
 
 class AudioOnnxConfig(OnnxConfig):
+    """
+    Handles audio architectures.
+    """
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
 
 
-class TextAndAudioOnnxConfig(Seq2SeqOnnxConfig):
+class TextAndAudioOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyAudioInputGenerator,
         DummyDecoderTextInputGenerator,
