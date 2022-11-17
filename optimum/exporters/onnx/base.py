@@ -32,7 +32,7 @@ from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedModel
+    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
 logger = logging.get_logger(__name__)
 
@@ -218,12 +218,12 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {}
 
-    def ordered_inputs(self, model: "PreTrainedModel") -> Mapping[str, Mapping[int, str]]:
+    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Mapping[str, Mapping[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
 
         Args:
-            model ([`transformers.PreTrainedModel`]):
+            model ([`transformers.PreTrainedModel`] or [`transformers.TFPreTrainedModel`]):
                 The model for which we will use the OnnxConfig.
 
         Returns:
@@ -232,7 +232,10 @@ class OnnxConfig(ExportConfig, ABC):
         inputs = self.inputs
 
         ordered_inputs = {}
-        sig = inspect.signature(model.forward)
+        if hasattr(model, "forward"):
+            sig = inspect.signature(model.forward)
+        else:
+            sig = inspect.signature(model.call)
         for param in sig.parameters:
             param_regex = re.compile(rf"{param}(\.\d*)?")
             to_insert = []

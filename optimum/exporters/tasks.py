@@ -106,6 +106,10 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
 
 
 class TasksManager:
+    """
+    Handles the `task name -> model class` and `architecture -> configuration` mappings.
+    """
+
     _TASKS_TO_AUTOMODELS = {}
     _TASKS_TO_TF_AUTOMODELS = {}
     if is_torch_available():
@@ -547,7 +551,7 @@ class TasksManager:
         model_type: str, exporter: str, model_name: Optional[str] = None
     ) -> TaskNameToExportConfigDict:
         """
-        Retrieves the task -> exporter backend config constructors map from the model type.
+        Retrieves the `task -> exporter backend config constructors` map from the model type.
 
         Args:
             model_type (`str`):
@@ -629,7 +633,8 @@ class TasksManager:
         The priority is in the following order:
             1. User input via `framework`.
             2. If local checkpoint is provided, use the same framework as the checkpoint.
-            3. Available framework in environment, with priority given to PyTorch
+            3. If model repo, try to infer the framework from the Hub.
+            4. If could not infer, use available framework in environment, with priority given to PyTorch.
 
         Args:
             model (`str`):
@@ -659,12 +664,26 @@ class TasksManager:
                 )
             logger.info(f"Local {framework_map[framework]} model found.")
         else:
-            if is_torch_available():
+            try:
+                AutoModel.from_pretrained(model)
                 framework = "pt"
-            elif is_tf_available():
-                framework = "tf"
-            else:
-                raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
+            except Exception:
+                pass
+
+            if framework is None:
+                try:
+                    TFAutoModel.from_pretrained(model)
+                    framework = "tf"
+                except Exception:
+                    pass
+
+            if framework is None:
+                if is_torch_available():
+                    framework = "pt"
+                elif is_tf_available():
+                    framework = "tf"
+                else:
+                    raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
         logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
 
