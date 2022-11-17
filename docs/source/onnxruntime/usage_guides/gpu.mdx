@@ -123,7 +123,7 @@ Due to current limitations in ONNX Runtime, it is not possible to use quantized 
 
 ### Reduce memory footprint with IOBinding
 
-[IOBinding](https://onnxruntime.ai/docs/api/python/api_summary.html#iobinding) is an efficient way to avoid expensive data copying when using GPUs. By default, ONNX Runtime will copy the input from the CPU(even if the tensors are already copied to the targeted device), and assume that outputs also need to be copied back to the CPU from GPUs after the run. These data copying overheads between the host and devices are expensive, and __can lead to worse inference latency than vanilla PyTorch__ especially for decoding.
+[IOBinding](https://onnxruntime.ai/docs/api/python/api_summary.html#iobinding) is an efficient way to avoid expensive data copying when using GPUs. By default, ONNX Runtime will copy the input from the CPU (even if the tensors are already copied to the targeted device), and assume that outputs also need to be copied back to the CPU from GPUs after the run. These data copying overheads between the host and devices are expensive, and __can lead to worse inference latency than vanilla PyTorch__ especially for decoding.
 
 To avoid the slowdown, 🤗 Optimum adopts the IOBinding to copy inputs onto GPUs and pre-allocate memory for outputs prior the inference.  When instanciating the `ORTModel`, set the value of the argument `use_io_binding` to choose whether to turn on the IOBinding during the inference. `use_io_binding`is set to `True` by default, if you choose CUDA as execution provider.
 
