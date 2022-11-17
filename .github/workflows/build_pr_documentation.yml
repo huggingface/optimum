@@ -94,7 +94,7 @@ jobs:
         run: |
           cd optimum-doc-build
           sudo chmod ugo+rwx optimum
-          doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build-dev" --token "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" --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
+          sudo doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build-dev" --token "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" --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
         shell: bash
 
       - name: Find doc comment
