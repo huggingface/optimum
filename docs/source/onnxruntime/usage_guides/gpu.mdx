@@ -4,12 +4,12 @@ By default, ONNX Runtime runs inference on CPU devices. However, it is possible 
 
 This guide will show you how to run inference on two execution providers that ONNX Runtime supports for NVIDIA GPUs:
 
-* `CUDAExecutionProvider`: Generic acceleration on NVIDIA CUDA-enabled GPUs. 
+* `CUDAExecutionProvider`: Generic acceleration on NVIDIA CUDA-enabled GPUs.
 * `TensorrtExecutionProvider`: Uses NVIDIA’s [TensorRT](https://developer.nvidia.com/tensorrt) inference engine and generally provides the best runtime performance.
 
 <Tip warning={true}>
 
-Due to a limitation of ONNX Runtime, it is not possible to run quantized models on `CUDAExecutionProvider` and only models with static quantization can be run on `TensorrtExecutionProvider`. 
+Due to a limitation of ONNX Runtime, it is not possible to run quantized models on `CUDAExecutionProvider` and only models with static quantization can be run on `TensorrtExecutionProvider`.
 
 </Tip>
 
@@ -120,6 +120,25 @@ Due to current limitations in ONNX Runtime, it is not possible to use quantized 
 * When using [🤗 Optimum dynamic quantization](quantization#dynamic-quantization-example), nodes as [`MatMulInteger`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#MatMulInteger), [`DynamicQuantizeLinear`](https://github.com/onnx/onnx/blob/v1.12.0/docs/Operators.md#DynamicQuantizeLinear) may be inserted in the ONNX graph, that cannot be consumed by the CUDA execution provider.
 
 * When using [static quantization](quantization#static-quantization-example), the ONNX computation graph will contain matrix multiplications and convolutions in floating-point arithmetic, along with Quantize + Dequantize operations to simulate quantization. In this case, although the costly matrix multiplications and convolutions will be run on the GPU, they will use floating-point arithmetic as the `CUDAExecutionProvider` can not consume the Quantize + Dequantize nodes to replace them by the operations using integer arithmetic.
+
+### Reduce memory footprint
+
+IOBinding is an efficient way to avoid expensive data copying when using GPUs. By default, ONNX Runtime will copy the input from the CPU(even if the tensors are already copied to the targeted device), and assume that outputs also need to be copied back to the CPU from GPUs after the run. These data copying overheads between the host and devices are expensive, and can lead to worse inference latency than vanilla PyTorch especially for decoding.
+
+To avoid the slowdown, Optimum adopts the IOBinding to copy inputs onto GPUs and pre-allocate memory for outputs prior the inference.  When instanciating the `ORTModel`, set the value of the argument `use_io_binding` to choose whether to turn on or not the IOBinding during the inference.`use_io_binding`issetto`True`by default, if you choose CUDA as execution provider.
+
+And if you want to turn off IOBinding:
+```
+>>> from transformers import AutoTokenizer, pipeline
+>>> from optimum.onnxruntime import ORTModelForSeq2SeqLM
+
+# Load the model from the hub and export it to the ONNX format
+>>> model = ORTModelForSeq2SeqLM.from_pretrained("t5-small", from_transformers=True, use_io_binding=False)
+>>> tokenizer = AutoTokenizer.from_pretrained("t5-small")
+
+# Create a pipeline
+>>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
+```
 
 ### Observed time gains
 
