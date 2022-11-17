@@ -61,11 +61,11 @@
 - sections:
   - local: exporters/overview
     title: Overview
+  - local: exporters/task_manager
+    title: The TasksManager
   - sections:
     - local: exporters/onnx/overview
       title: Overview
-    - local: exporters/task_manager
-      title: The TasksManager
     - sections:
       - local: exporters/onnx/usage_guides/export_a_model
         title: Export a model to ONNX
