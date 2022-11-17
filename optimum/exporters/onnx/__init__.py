@@ -14,5 +14,5 @@
 # limitations under the License.
 
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
-from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig  # noqa
+from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig  # noqa
 from .convert import export, validate_model_outputs  # noqa

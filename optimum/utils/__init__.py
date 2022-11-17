@@ -77,6 +77,8 @@ from .input_generators import (  # noqa
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+)
+from .normalized_config import (  # noqa
     NormalizedConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,

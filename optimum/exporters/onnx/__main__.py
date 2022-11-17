@@ -17,7 +17,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
-from transformers import AutoTokenizer
+from transformers import AutoFeatureExtractor, AutoTokenizer
 
 from ...utils import logging
 from ..tasks import TasksManager
@@ -124,6 +124,19 @@ def main():
 
     # Saving the model config as this is needed sometimes.
     model.config.save_pretrained(args.output.parent)
+
+    # Saving the tokenizer / feature extractor as well.
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
+        tokenizer.save_pretrained(args.output.parent)
+    except Exception:
+        pass
+
+    try:
+        feature_extractor = AutoFeatureExtractor.from_pretrained(args.model)
+        feature_extractor.save_pretrained(args.output.parent)
+    except Exception:
+        pass
 
     if args.atol is None:
         args.atol = onnx_config.ATOL_FOR_VALIDATION

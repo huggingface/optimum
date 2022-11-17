@@ -34,11 +34,11 @@ from ...utils import (
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
     AudioOnnxConfig,
-    DecoderOnnxConfig,
-    EncoderOnnxConfig,
-    Seq2SeqOnnxConfig,
     TextAndAudioOnnxConfig,
     TextAndVisionOnnxConfig,
+    TextDecoderOnnxConfig,
+    TextEncoderOnnxConfig,
+    TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
 
@@ -49,8 +49,9 @@ if TYPE_CHECKING:
     from .base import PatchingSpec
 
 
-class BertOnnxConfig(EncoderOnnxConfig):
+class BertOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -142,7 +143,7 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
-class GPT2OnnxConfig(DecoderOnnxConfig):
+class GPT2OnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
@@ -165,7 +166,7 @@ class CodeGenOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-class GPTNeoOnnxConfig(DecoderOnnxConfig):
+class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
@@ -191,10 +192,10 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         ]
 
 
-class BloomOnnxConfig(DecoderOnnxConfig):
+class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
-    ) + DecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
@@ -223,9 +224,9 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
         ]
 
 
-class T5OnnxConfig(Seq2SeqOnnxConfig):
+class T5OnnxConfig(TextSeq2SeqOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    DUMMY_INPUT_GENERATOR_CLASSES = Seq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
+    DUMMY_INPUT_GENERATOR_CLASSES = TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
@@ -285,7 +286,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         return int_tensor
 
 
-class BartOnnxConfig(Seq2SeqOnnxConfig):
+class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -668,7 +669,7 @@ class SpeechSeq2SeqEncoderOnnxConfig(AudioOnnxConfig):
         }
 
 
-class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqOnnxConfig):
+class SpeechSeq2SeqDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
@@ -701,6 +702,8 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqOnnxConfig):
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
+        # Needed here because the configuration will actually be used with both use_past = True and use_past = False,
+        # but the cache must always be used regardless.
         if hasattr(self._config, "use_cache"):
             return {"use_cache": True}
 
