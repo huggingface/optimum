@@ -76,24 +76,29 @@ of Transformers. You can easily adapt the codes by replacing `Trainer` of transf
 empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compared with `Trainer`:
 
 ```diff
--from transformers import Trainer
-+from optimum.onnxruntime import ORTTrainer
+-from transformers import Trainer, TrainingArguments
++from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
-# Step 1: Create your ONNX Runtime Trainer
+# Step 1: Define training arguments
+-training_args = TrainingArguments(
++training_args = ORTTrainingArguments(
+    output_dir="path/to/save/folder/",
+    optim-"adamw_ort_fused",
+    ...
+)
+
+# Step 2: Create your ONNX Runtime Trainer
 -trainer = Trainer(
 +trainer = ORTTrainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
-    eval_dataset=eval_dataset,
-    compute_metrics=compute_metrics,
-    tokenizer=tokenizer,
-    data_collator=default_data_collator,
 +   feature="sequence-classification",
+    ...
 )
 
-# Step 2: Use ONNX Runtime for training!🤗
-train_result = trainer.train()
+# Step 3: Use ONNX Runtime for training!🤗
+trainer.train()
 ```
 
 Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
@@ -106,24 +111,29 @@ of Transformers. You can easily adapt the codes by replacing `Seq2SeqTrainer` of
 empowered by ONNX Runtime. Here is an example of how to use `ORTSeq2SeqTrainer` compared with `Seq2SeqTrainer`:
 
 ```diff
--from transformers import Seq2SeqTrainer
-+from optimum.onnxruntime import ORTSeq2SeqTrainer
+-from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
++from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTSeq2SeqTrainingArguments
 
-# Step 1: Create your ONNX Runtime Seq2SeqTrainer
+# Step 1: Define training arguments
+-training_args = Seq2SeqTrainingArguments(
++training_args = ORTSeq2SeqTrainingArguments(
+    output_dir="path/to/save/folder/",
+    optim-"adamw_ort_fused",
+    ...
+)
+
+# Step 2: Create your ONNX Runtime Seq2SeqTrainer
 -trainer = Seq2SeqTrainer(
-trainer = ORTSeq2SeqTrainer(
++trainer = ORTSeq2SeqTrainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
-    eval_dataset=valid_dataset,
-    compute_metrics=compute_metrics if training_args.predict_with_generate else None,
-    tokenizer=tokenizer,
-    data_collator=data_collator,
 +   feature="seq2seq-lm",
+    ...
 )
 
-# Step 2: Use ONNX Runtime for training!🤗
-train_result = trainer.train()
+# Step 3: Use ONNX Runtime for training!🤗
+trainer.train()
 ```
 
 Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
