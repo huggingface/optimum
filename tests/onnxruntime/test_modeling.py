@@ -1543,6 +1543,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
             model=onnx_model,
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
+            device=0,
         )
 
         data = self._generate_random_audio_data()
