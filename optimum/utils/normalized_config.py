@@ -24,10 +24,10 @@ if TYPE_CHECKING:
 
 class NormalizedConfig:
     """
-    Handles the normalization of [`~PretrainedConfig`] attribute names, allowing to access attributes in a general way.
+    Handles the normalization of [`PretrainedConfig`] attribute names, allowing to access attributes in a general way.
 
     Attributes:
-        config ([`~PretrainedConfig`]):
+        config ([`PretrainedConfig`]):
             The config to normalize.
     """
 

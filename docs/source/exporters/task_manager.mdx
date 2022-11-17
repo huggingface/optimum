@@ -16,6 +16,64 @@ Exporting a model from one framework to some format (also called backend here) i
 - Configuration classes containing the information for each model to perform the export.
 - Exporting functions using the proper configuration for the model to export.
 
-The role of the [`~optimum.exporters.tasks.TasksManager`] is to be the main entry-point to load a model given a name and a task, and to get the proper configuration for a given (architecture, backend) couple. That way, there is a centralized place to register the task -> model class and (architecture, backend) -> configuration mappings. This allows the export functions to use this, and to rely on the various checks it provides.
+The role of the [`~optimum.exporters.tasks.TasksManager`] is to be the main entry-point to load a model given a name and a task, and to get the proper configuration for a given (architecture, backend) couple. That way, there is a centralized place to register the `task -> model class` and `(architecture, backend) -> configuration` mappings. This allows the export functions to use this, and to rely on the various checks it provides.
+
+## Task names
+
+The tasks supported might depend on the backend, but here are the mappings between a task name and the auto class for both PyTorch and TensorFlow.
+
+<Tip>
+
+It is possible to know which tasks are supported for a model for a given backend, by doing:
+
+```python
+>>> from optimum.exporters.tasks import TasksManager
+
+>>> model_type = "distilbert"
+>>> # For instance, for the ONNX export.
+>>> backend = "onnx"
+>>> distilbert_tasks = list(TasksManager.get_supported_tasks_for_model_type(model_type, backend).keys())
+
+>>> print(distilbert_tasks)
+["default", "masked-lm", "causal-lm", "sequence-classification", "token-classification", "question-answering"]
+```
+
+</Tip>
+
+### PyTorch
+
+| Task                                 | Auto Class                           |
+|--------------------------------------|--------------------------------------|
+| `causal-lm`, `causal-lm-with-past`   | `AutoModelForCausalLM`               |
+| `default`, `default-with-past`       | `AutoModel`                          |
+| `masked-lm`                          | `AutoModelForMaskedLM`               |
+| `question-answering`                 | `AutoModelForQuestionAnswering`      |
+| `seq2seq-lm`, `seq2seq-lm-with-past` | `AutoModelForSeq2SeqLM`              |
+| `sequence-classification`            | `AutoModelForSequenceClassification` |
+| `token-classification`               | `AutoModelForTokenClassification`    |
+| `multiple-choice`                    | `AutoModelForMultipleChoice`         |
+| `image-classification`               | `AutoModelForImageClassification`    |
+| `object-detection`                   | `AutoModelForObjectDetection`        |
+| `image-segmentation`                 | `AutoModelForImageSegmentation`      |
+| `masked-im`                          | `AutoModelForMaskedImageModeling`    |
+| `semantic-segmentation`              | `AutoModelForSemanticSegmentation`   |
+| `speech2seq-lm`                      | `AutoModelForSpeechSeq2Seq`          |
+
+### TensorFlow
+
+| Task                                 | Auto Class                             |
+|--------------------------------------|----------------------------------------|
+| `causal-lm`, `causal-lm-with-past`   | `TFAutoModelForCausalLM`               |
+| `default`, `default-with-past`       | `TFAutoModel`                          |
+| `masked-lm`                          | `TFAutoModelForMaskedLM`               |
+| `question-answering`                 | `TFAutoModelForQuestionAnswering`      |
+| `seq2seq-lm`, `seq2seq-lm-with-past` | `TFAutoModelForSeq2SeqLM`              |
+| `sequence-classification`            | `TFAutoModelForSequenceClassification` |
+| `token-classification`               | `TFAutoModelForTokenClassification`    |
+| `multiple-choice`                    | `TFAutoModelForMultipleChoice`         |
+| `semantic-segmentation`              | `TFAutoModelForSemanticSegmentation`   |
+
+
+## Reference
 
 [[autodoc]] exporters.tasks.TasksManager

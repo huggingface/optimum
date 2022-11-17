@@ -30,7 +30,7 @@ ONNX format and then imported in TensorRT or OpenVino.
 <Tip>
 
 Once exported, a model can be optimized for inference via techniques such as
-graph optimization and quantization. Check the [`optimum.onnxruntime`] subpackage to optimize and run ONNX models!
+graph optimization and quantization. Check the `optimum.onnxruntime` subpackage to optimize and run ONNX models!
 
 </Tip>
 
@@ -39,8 +39,7 @@ graph optimization and quantization. Check the [`optimum.onnxruntime`] subpackag
 These configuration objects come ready made for a number of model architectures, and are
 designed to be easily extendable to other architectures.
 
-[TODO: how to add the link?]
-To check the supported architectures, go to the (configuration reference page)[../package_reference/configuration#Supported Architectures].
+**To check the supported architectures, go to the [configuration reference page](../package_reference/configuration#supported-architectures).**
 
 ## Exporting a model to ONNX using the CLI
 
@@ -108,7 +107,7 @@ For local models, providing the `--task` argument is needed or it will default t
 python -m optimum.exporters.onnx --model local_path --task question-answering distilbert_base_uncased_squad_onnx/
 ```
 
-Note that providing a task argument for a model on the Hub will disable the automatic task detection.
+Note that providing the `--task` argument for a model on the Hub will disable the automatic task detection.
 
 The resulting `model.onnx` file can then be run on one of the [many
 accelerators](https://onnx.ai/supported-tools.html#deployModel) that support the ONNX
@@ -122,7 +121,7 @@ Runtime](https://onnxruntime.ai/) using the `optimum.onnxruntime` package as fol
 >>> tokenizer = AutoTokenizer.from_pretrained("distilbert_base_uncased_squad_onnx")
 >>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert_base_uncased_squad_onnx")
 
->>> inputs = tok("What am I using?", "Using DistilBERT with ONNX Runtime!", return_tensors="pt")
+>>> inputs = tokenizer("What am I using?", "Using DistilBERT with ONNX Runtime!", return_tensors="pt")
 >>> outputs = model(**inputs)
 ```
 
@@ -136,7 +135,7 @@ QuestionAnsweringModelOutput(loss=None, start_logits=tensor([[-4.7652, -1.0452, 
           3.3604, -0.0772]]), hidden_states=None, attentions=None)
 ```
 
-As you can see, converting a model to ONNX does not mean leaving the Hugging Face ecosystem. You end up with a similar API as regular 🤗 Transformers models.
+As you can see, converting a model to ONNX does not mean leaving the Hugging Face ecosystem. You end up with a similar API as regular 🤗 Transformers models!
 
 <Tip>
 
@@ -146,8 +145,7 @@ It is also possible to export the model to ONNX directly from the `ORTModelForQu
 >>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert-base-uncased-distilled-squad", from_transformers=True)
 ```
 
-TODO: how to create a proper link?
-For more information, check the `optimum.onnxrutime` documentation (page on this topic)[onnxruntime/usage_guides/models.mdx].
+For more information, check the `optimum.onnxrutime` documentation [page on this topic](/onnxruntime/overview).
 
 </Tip>
 
@@ -158,23 +156,12 @@ organization](https://huggingface.co/keras-io) as follows:
 python -m optimum.exporters.onnx --model keras-io/transformers-qa distilbert_base_cased_squad_onnx/
 ```
 
-## Selecting features for different model tasks
+## Selecting a task
 
-Each configuration comes with a set of _features_ that enable you to export
-models for different types of tasks. As shown in the table below, each feature is
-associated with a different `AutoClass`:
+Each configuration comes with a set of _tasks_ that enable you to export models for different types of tasks. You can
+check the list of supported tasks for both PyTorch and TensorFlow [here](/exporters/task_manager).
 
-| Feature                              | Auto Class                           |
-| ------------------------------------ | ------------------------------------ |
-| `causal-lm`, `causal-lm-with-past`   | `AutoModelForCausalLM`               |
-| `default`, `default-with-past`       | `AutoModel`                          |
-| `masked-lm`                          | `AutoModelForMaskedLM`               |
-| `question-answering`                 | `AutoModelForQuestionAnswering`      |
-| `seq2seq-lm`, `seq2seq-lm-with-past` | `AutoModelForSeq2SeqLM`              |
-| `sequence-classification`            | `AutoModelForSequenceClassification` |
-| `token-classification`               | `AutoModelForTokenClassification`    |
-
-For each configuration, you can find the list of supported features via the
+For each configuration, you can find the list of supported tasks via the
 [`~exporters.tasks.TasksManager`]. For example, for DistilBERT, for the ONNX export, we have:
 
 ```python

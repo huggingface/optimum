@@ -15,16 +15,18 @@ specific language governing permissions and limitations under the License.
 Exporting a model to ONNX involves specifying:
 1. The input names.
 2. The output names.
-3. The dynamic axes. These refer to the inputs can be changed dynamically at runtime (e.g. a batch size or sequence length). All other axes will be treated as static, and hence fixed at runtime.
+3. The dynamic axes. These refer to the input dimensions can be changed dynamically at runtime (e.g. a batch size or sequence length).
+All other axes will be treated as static, and hence fixed at runtime.
 4. Dummy inputs to trace the model. This is needed in PyTorch to record the computational graph and convert it to ONNX.
 
 Since this data depends on the choice of model and task, we represent it in terms of _configuration classes_. Each configuration class is associated with
-a specific model architecture, and follows the naming convention `ArchitectureNameOnnConfig`. For instance, the configuration which specifies the ONNX
+a specific model architecture, and follows the naming convention `ArchitectureNameOnnxConfig`. For instance, the configuration which specifies the ONNX
 export of BERT models is `BertOnnxConfig`.
 
 Since many architectures share similar properties for their ONNX configuration, 🤗 Optimum adopts a 3-level class hierarchy:
 1. Abstract and generic base classes. These handle all the fundamental features, while being agnostic to the modality (text, image, audio, etc).
-2. Middle-end classes. These are aware of the modality, but multiple can exist for the same modality, depending on the inputs they support. They specify which input generators should be used for the dummy inputs, but remain model-agnostic.
+2. Middle-end classes. These are aware of the modality, but multiple can exist for the same modality depending on the inputs they support.
+They specify which input generators should be used for the dummy inputs, but remain model-agnostic.
 3. Model-specific classes like the `BertOnnxConfig` mentioned above. These are the ones actually used to export models.
 
 

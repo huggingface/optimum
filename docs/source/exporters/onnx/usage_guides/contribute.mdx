@@ -12,10 +12,10 @@ specific language governing permissions and limitations under the License.
 
 # Adding support for an unsupported architecture
 
-If you wish to export a model whose architecture is not already supported by the library, there are three main steps to follow:
+If you wish to export a model whose architecture is not already supported by the library, these are the main steps to follow:
 
 1. Implement a custom ONNX configuration.
-2. Register the ONNX configuration in the [`~optimum.exporters.TasksManager`]
+2. Register the ONNX configuration in the [`~optimum.exporters.TasksManager`].
 2. Export the model to ONNX.
 3. Validate the outputs of the original and exported models.
 
@@ -23,13 +23,13 @@ In this section, we'll look at how BERT was implemented to show what's involved 
 
 ## Implementing a custom ONNX configuration
 
-Let's start with the ONNX configuration object. We provide a 3-level (class hierarchy)[package_reference/configuration],
+Let's start with the ONNX configuration object. We provide a 3-level [class hierarchy](/exporters/onnx/package_reference/configuration),
 and to add support for a model, inheriting from the right middle-end class will be the way to go most of the time. You might have to
 implement a middle-end class yourself if you are adding an architecture handling a modality and/or case never seen before.
 
 <Tip>
 
-A good way to implement a custom ONNX configuration is to look at the existing configuration implementation in the
+A good way to implement a custom ONNX configuration is to look at the existing configuration implementations in the
 `optimum/exporters/onnx/model_configs.py` file.
 
 Also, if the architecture you are trying to add is (very) similar to an architecture that is already supported
@@ -39,7 +39,7 @@ might work.
 </Tip>
 
 
-When inheriting from a middle-end class, look for the one handling the same modality / category of model as the one you
+When inheriting from a middle-end class, look for the one handling the same modality / category of models as the one you
 are trying to support.
 
 ### Example: Adding support for BERT
@@ -82,12 +82,12 @@ Here we are making a modality-aware configuration inheriting from `OnnxConfig` b
 
 Then comes the model-specific class, `BertOnnxConfig`. Two class attributes are specified here:
 - `NORMALIZED_CONFIG_CLASS`: this must be a [`~optimum.utils.normalized_config.NormalizedConfig`], it basically allows
-the input generator to the model config attributes in a generic way.
+the input generator to access the model config attributes in a generic way.
 - `ATOL_FOR_VALIDATION`: it is used when validating the exported model against the original one, this is the absolute
 acceptable tolerance for the output values difference.
 
-Every configuration object must implement the `inputs` property and return a mapping, where each key corresponds to an
-input name, and each value indicates the axes in input that are dynamic.
+Every configuration object must implement the [`~optimum.exporters.onnx.OnnxConfig.inputs`] property and return a mapping, where each key corresponds to an
+input name, and each value indicates the axes in that input that are dynamic.
 For BERT, we can see that three inputs are required: `input_ids`, `attention_mask` and `token_type_ids`.
 These inputs have the same shape of `(batch_size, sequence_length)` (except for the `multiple-choice` task) which is
 why we see the same axes used in the configuration.
@@ -171,8 +171,7 @@ For BERT, it looks as follows:
 
 Once you have implemented the ONNX configuration, the next step is to export the model.
 Here we can use the `export()` function provided by the `optimum.exporters.onnx` package.
-This function expects the ONNX configuration, along with the base model and tokenizer,
-and the path to save the exported file:
+This function expects the ONNX configuration, along with the base model, and the path to save the exported file:
 
 ```python
 >>> from pathlib import Path
@@ -189,8 +188,8 @@ and the path to save the exported file:
 >>> onnx_inputs, onnx_outputs = export(base_model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, onnx_path)
 ```
 
-The `onnx_inputs` and `onnx_outputs` returned by the `export()` function are lists of the keys defined in the `inputs`
-and `outputs` properties of the configuration. Once the model is exported, you can test that the model is well formed as follows:
+The `onnx_inputs` and `onnx_outputs` returned by the `export()` function are lists of the keys defined in the [`~optimum.exporters.onnx.OnnxConfig.inputs`]
+and [`~optimum.exporters.onnx.OnnxConfig.inputs`] properties of the configuration. Once the model is exported, you can test that the model is well formed as follows:
 
 ```python
 >>> import onnx
@@ -211,7 +210,7 @@ for instructions on how to load models with external data.
 ## Validating the model outputs
 
 The final step is to validate that the outputs from the base and exported model agree within some absolute tolerance.
-Here we can use the `validate_model_outputs()` function provided by the `optimum.exporters.onnx` package as follows:
+Here we can use the `validate_model_outputs()` function provided by the `optimum.exporters.onnx` package:
 
 ```python
 >>> from optimum.exporters.onnx import validate_model_outputs
@@ -225,6 +224,6 @@ Here we can use the `validate_model_outputs()` function provided by the `optimum
 
 Now that the support for the architectures has been implemented, and validated, there are two things left:
 1. Add your model architecture to the tests in `tests/exporters/test_onnx_export.py`
-2. Create a PR on the (`optimum` repo)[https://github.com/huggingface/optimum]
+2. Create a PR on the [`optimum` repo](https://github.com/huggingface/optimum)
 
 Thanks for you contribution!

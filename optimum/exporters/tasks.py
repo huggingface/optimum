@@ -107,7 +107,7 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
 
 class TasksManager:
     """
-    Handles the task name -> model class and architecture -> configuration mappings.
+    Handles the `task name -> model class` and `architecture -> configuration` mappings.
     """
 
     _TASKS_TO_AUTOMODELS = {}
@@ -551,7 +551,7 @@ class TasksManager:
         model_type: str, exporter: str, model_name: Optional[str] = None
     ) -> TaskNameToExportConfigDict:
         """
-        Retrieves the task -> exporter backend config constructors map from the model type.
+        Retrieves the `task -> exporter backend config constructors` map from the model type.
 
         Args:
             model_type (`str`):
