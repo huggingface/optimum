@@ -16,7 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
@@ -43,12 +43,12 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
-from transformers.onnx import FeaturesManager, export
-from transformers.onnx.utils import get_preprocessor
 
 import onnxruntime as ort
-from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub import hf_hub_download
 
+from ..exporters import TasksManager
+from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from .io_binding import TypeHelper
 from .utils import (
@@ -288,8 +288,8 @@ class ORTModel(OptimizedModel):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
-        use_auth_token: Optional[Union[bool, str, None]] = None,
-        revision: Optional[Union[str, None]] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: Optional[str] = None,
@@ -300,26 +300,29 @@ class ORTModel(OptimizedModel):
         Loads a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
         Arguments:
-            model_id (`str` or `Path`):
+            model_id (`Union[str, Path]`):
                 Directory from which to load
-            use_auth_token (`str` or `bool`):
+            use_auth_token (`Union[bool, str]`):
                 Is needed to load models from a private repository
-            revision (`str`):
+            revision (`Optional[str]`, *optional*):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id
-            cache_dir (`Union[str, Path]`, *optional*):
-                Path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
             force_download (`bool`, *optional*, defaults to `False`):
                 Whether or not to force the (re-)download of the model weights and configuration files, overriding the
                 cached versions if they exist.
-            file_name(`str`):
-                Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load different model files from the same
-                repository or directory.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model configuration should be cached if the
+                standard cache should not be used.
+            file_name(`Optional[str]`, *optional*):
+                Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load
+                different model files from the same repository or directory.
+            subfolder (`str`, *optional*, defaults to `""`):
+                The subfolder where the model is stored.
             local_files_only(`bool`, *optional*, defaults to `False`):
                 Whether or not to only look at local files (i.e., do not try to download the model).
             kwargs (`Dict`, *optional*):
                 kwargs will be passed to the model during initialization
         """
+        # TODO: why not make this as a keyword argument.
         local_files_only = kwargs.pop("local_files_only", False)
         config = kwargs.pop("config", {})
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
@@ -352,71 +355,76 @@ class ORTModel(OptimizedModel):
         cls,
         model_id: str,
         save_dir: Union[str, Path] = default_cache_path,
-        use_auth_token: Optional[Union[bool, str, None]] = None,
-        revision: Optional[Union[str, None]] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
-        subfolder: Optional[str] = "",
+        subfolder: str = "",
         **kwargs,
-    ):
+    ) -> "ORTModel":
         """
-        Converts a vanilla Transformers model into an optimized model using `transformers.onnx.export_onnx`.
-        Arguments:
-            model_id (`str` or `Path`):
+        Converts a vanilla Transformers model into an optimized model using `optimum.exporters.onnx`.
+
+        Args:
+            model_id (`Union[str, Path]`):
                 Directory from which to load
-            save_dir (`str` or `Path`):
-                Directory where the onnx model should be saved, default to `transformers.file_utils.default_cache_path`, which is the cache dir for
-                transformers.
-            use_auth_token (`str` or `bool`):
-                Is needed to load models from a private repository
-            revision (`str`):
-                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id
-            cache_dir (`Union[str, Path]`, *optional*):
-                Path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
+            save_dir (`Union[str, Path]`, *optional*, defaults to `transformers.file_utils.default_cache_path`):
+                Directory where the onnx model should be saved.
+            use_auth_token (`Union[bool, str]`, *optional*):
+                Is needed to load models from a private repository.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
             force_download (`bool`, *optional*, defaults to `False`):
                 Whether or not to force the (re-)download of the model weights and configuration files, overriding the
                 cached versions if they exist.
-            kwargs (`Dict`, *optional*):
-                kwargs will be passed to the model during initialization
+            cache_dir (`Union[str, Path]`, *optional*):
+                Path to a directory in which a downloaded pretrained model configuration should be cached if the
+                standard cache should not be used.
+            subfolder (`str`, *optional*, defaults to `""`):
+                The subfolder where the model is stored.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Keyword arguments to pass to the ORTModel during initialization.
         """
-        # create local save dir in cache dir
+        # Create local save dir in cache dir
         save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
 
-        config = kwargs.get("config", {})
-
-        # reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
+        # Reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
         if cls.export_feature is not None:
             task = cls.export_feature
         else:
-            task = HfApi().model_info(model_id, revision=revision).pipeline_tag  # FIXME: load from subfolder?
+            # TODO: Do we want to actually support that?
+            # TODO: load from subfolder?
+            task = TasksManager.infer_task_from_model(model_id, revision=revision)
+            # TODO: is it still needed?
             if task in ["sentiment-analysis", "text-classification", "zero-shot-classification"]:
                 task = "sequence-classification"
             elif task in ["feature-extraction", "fill-mask"]:
                 task = "default"
-        # 2. convert to temp dir
-        # FIXME: transformers.onnx conversion doesn't support private models
-        preprocessor = get_preprocessor(model_id)
 
-        framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
-        model_class = FeaturesManager.get_model_class_for_feature(task, framework)
-        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
+        kwargs_to_get_model = {
+            "subfolder": subfolder,
+            "revision": revision,
+        }
+        if "config" in kwargs:
+            kwargs_to_get_model["config"] = kwargs["config"]
 
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
-        onnx_config = model_onnx_config(model.config)
+        model = TasksManager.get_model_from_task(task, model_id, **kwargs_to_get_model)
+        model_type = model.config.model_type.replace("_", "-")
+        onnx_config_class = TasksManager.get_exporter_config_constructor(
+            model_type, "onnx", task=task, model_name=model_id
+        )
 
-        # export model
+        onnx_config = onnx_config_class(model.config)
+
         export(
-            preprocessor=preprocessor,
             model=model,
             config=onnx_config,
-            opset=onnx_config.default_onnx_opset,
+            opset=onnx_config.DEFAULT_ONNX_OPSET,
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
 
-        # 3. load normal model
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
 

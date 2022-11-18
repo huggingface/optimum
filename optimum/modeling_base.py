@@ -252,26 +252,16 @@ class OptimizedModel(ABC):
         if config is not None:
             model_kwargs.update({"config": config})
 
-        if from_transformers:
-            return cls._from_transformers(
-                model_id=model_id,
-                revision=revision,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                use_auth_token=use_auth_token,
-                subfolder=subfolder,
-                **model_kwargs,
-            )
-        else:
-            return cls._from_pretrained(
-                model_id=model_id,
-                revision=revision,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                use_auth_token=use_auth_token,
-                subfolder=subfolder,
-                **model_kwargs,
-            )
+        from_pretrained_method = cls._from_transformers if from_transformers else cls._from_pretrained
+        return from_pretrained_method(
+            model_id=model_id,
+            revision=revision,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            use_auth_token=use_auth_token,
+            subfolder=subfolder,
+            **model_kwargs,
+        )
 
     @classmethod
     def _from_transformers(
