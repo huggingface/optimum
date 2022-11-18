@@ -11,8 +11,6 @@ concurrency:
 jobs:
   build_documentation:
     runs-on: ubuntu-latest
-    container:
-      huggingface/transformers-doc-builder
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
