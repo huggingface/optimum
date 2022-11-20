@@ -13,4 +13,3 @@
 # limitations under the License.
 from .models import BETTER_TRANFORMER_LAYERS_MAPPING_DICT
 from .transformation import BetterTransformer
-
