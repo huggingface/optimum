@@ -40,6 +40,9 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
             standard cache should not be used.
         local_files_only(`bool`, *optional*, defaults to `False`):
             Whether or not to only look at local files (i.e., do not try to download the model).
+        subfolder (`str`, *optional*, defaults to `""`):
+            In case the relevant files are located inside a subfolder of the model repo either locally or on huggingface.co, you can
+            specify the folder name here.
 """
 
 
@@ -183,6 +186,7 @@ class OptimizedModel(ABC):
         revision: Optional[Union[str, None]] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from pretrained"""
@@ -197,6 +201,7 @@ class OptimizedModel(ABC):
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **model_kwargs,
     ):
         """
@@ -207,8 +212,17 @@ class OptimizedModel(ABC):
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
 
-        if os.path.isdir(model_id) and CONFIG_NAME in os.listdir(model_id):
-            config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
+        config = None
+        if os.path.isdir(os.path.join(model_id, subfolder)):
+            if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
+                config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
+            elif CONFIG_NAME in os.listdir(model_id):
+                config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
+                logger.info(
+                    f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
+                )
+            else:
+                raise OSError(f"config.json not found in {model_id} local folder")
         else:
             try:
                 config = AutoConfig.from_pretrained(
@@ -217,10 +231,23 @@ class OptimizedModel(ABC):
                     cache_dir=cache_dir,
                     force_download=force_download,
                     use_auth_token=use_auth_token,
+                    subfolder=subfolder,
                 )
-            except requests.exceptions.RequestException:
-                logger.warning("config.json NOT FOUND in HuggingFace Hub")
-                config = None
+            except OSError as e:
+                # if config not found in subfolder, search for it at the top level
+                if subfolder != "":
+                    config = AutoConfig.from_pretrained(
+                        pretrained_model_name_or_path=model_id,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        use_auth_token=use_auth_token,
+                    )
+                    logger.info(
+                        f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
+                    )
+                else:
+                    raise OSError(e)
 
         if config is not None:
             model_kwargs.update({"config": config})
@@ -232,6 +259,7 @@ class OptimizedModel(ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 use_auth_token=use_auth_token,
+                subfolder=subfolder,
                 **model_kwargs,
             )
         else:
@@ -241,6 +269,7 @@ class OptimizedModel(ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 use_auth_token=use_auth_token,
+                subfolder=subfolder,
                 **model_kwargs,
             )
 
@@ -252,6 +281,7 @@ class OptimizedModel(ABC):
         revision: Optional[Union[str, None]] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""

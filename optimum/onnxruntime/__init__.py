@@ -17,7 +17,15 @@ from transformers.utils import _LazyModule
 
 
 _import_structure = {
-    "configuration": ["ORTConfig"],
+    "configuration": [
+        "CalibrationConfig",
+        "AutoCalibrationConfig",
+        "QuantizationMode",
+        "AutoQuantizationConfig",
+        "OptimizationConfig",
+        "AutoOptimizationConfig",
+        "ORTConfig",
+    ],
     "model": ["ORTModel"],
     "modeling_ort": [
         "ORTModelForCausalLM",
@@ -29,7 +37,7 @@ _import_structure = {
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
     ],
-    "modeling_seq2seq": ["ORTModelForSeq2SeqLM"],
+    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq"],
     "optimization": ["ORTOptimizer"],
     "quantization": ["ORTQuantizer"],
     "trainer": ["ORTTrainer"],
@@ -60,7 +68,7 @@ if TYPE_CHECKING:
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
-    from .modeling_seq2seq import ORTModelForSeq2SeqLM
+    from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
     from .optimization import ORTOptimizer
     from .quantization import ORTQuantizer
     from .trainer import ORTTrainer

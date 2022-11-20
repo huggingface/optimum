@@ -17,7 +17,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
-from transformers import AutoTokenizer
+from transformers import AutoFeatureExtractor, AutoTokenizer
 
 from ...utils import logging
 from ..tasks import TasksManager
@@ -64,11 +64,11 @@ def main():
         ),
     )
     parser.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
-    parser.add_argument("output", type=Path, help="Path indicating where to store generated ONNX model.")
+    parser.add_argument("output", type=Path, help="Path indicating the directory where to store generated ONNX model.")
 
     # Retrieve CLI arguments
     args = parser.parse_args()
-    args.output = args.output if args.output.is_file() else args.output.joinpath("model.onnx")
+    args.output = args.output.joinpath("model.onnx")
 
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
@@ -121,6 +121,22 @@ def main():
         args.opset,
         args.output,
     )
+
+    # Saving the model config as this is needed sometimes.
+    model.config.save_pretrained(args.output.parent)
+
+    # Saving the tokenizer / feature extractor as well.
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
+        tokenizer.save_pretrained(args.output.parent)
+    except Exception:
+        pass
+
+    try:
+        feature_extractor = AutoFeatureExtractor.from_pretrained(args.model)
+        feature_extractor.save_pretrained(args.output.parent)
+    except Exception:
+        pass
 
     if args.atol is None:
         args.atol = onnx_config.ATOL_FOR_VALIDATION

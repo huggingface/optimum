@@ -146,11 +146,19 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
 To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
 ```diff
-- from transformers import Trainer
-+ from optimum.onnxruntime import ORTTrainer
+- from transformers import Trainer, TrainingArguments
++ from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
   # Download a pretrained model from the Hub
   model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
+
+  # Define the training arguments
+- training_args = TrainingArguments(
++ training_args = ORTTrainingArguments(
+      output_dir="path/to/save/folder/",
+      optim="adamw_ort_fused",
+      ...
+  )
 
   # Create a ONNX Runtime Trainer
 - trainer = Trainer(

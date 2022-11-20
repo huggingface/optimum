@@ -48,7 +48,7 @@ class ORTOptimizerTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_model_with_optimized_model(self, model_cls, model_name):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             model = model_cls.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(tmp_dir)
@@ -88,7 +88,7 @@ class ORTOptimizerTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_seq2seq_model_with_optimized_model(self, model_cls, model_name, use_cache):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             model = model_cls.from_pretrained(model_name, from_transformers=True, use_cache=use_cache)
             model.save_pretrained(tmp_dir)
@@ -118,7 +118,9 @@ class ORTOptimizerTest(unittest.TestCase):
 
     def test_optimization_details(self):
         model_name = "hf-internal-testing/tiny-random-distilbert"
-        optimization_config = OptimizationConfig(optimization_level=0, optimize_with_onnxruntime_only=True)
+        optimization_config = OptimizationConfig(
+            optimization_level=0, enable_transformers_specific_optimizations=False
+        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)

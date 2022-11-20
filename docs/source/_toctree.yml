@@ -59,6 +59,28 @@
     title: Reference
   title: ONNX Runtime
 - sections:
+  - local: exporters/overview
+    title: Overview
+  - local: exporters/task_manager
+    title: The TasksManager
+  - sections:
+    - local: exporters/onnx/overview
+      title: Overview
+    - sections:
+      - local: exporters/onnx/usage_guides/export_a_model
+        title: Export a model to ONNX
+      - local: exporters/onnx/usage_guides/contribute
+        title: Add support for exporting an architecture to ONNX
+      title: How-to guides
+    - sections:
+      - local: exporters/onnx/package_reference/configuration
+        title: ONNX configurations
+      - local: exporters/onnx/package_reference/export
+        title: Export functions
+      title: Reference
+    title: "ONNX"
+  title: Exporters
+- sections:
   - local: torch_fx/overview
     title: Overview
   - sections:
@@ -78,3 +100,19 @@
       title: Optimization
     title: Reference
   title: Torch FX
+- sections:
+  - local: bettertransformer/overview
+    title: Overview
+  - sections:
+    - local: bettertransformer/tutorials/convert
+      title: Convert Transformers models to use BetterTransformer
+    - local: bettertransformer/tutorials/contribute
+      title: How to add support for new architectures?
+    title: Tutorials
+  title: BetterTransformer integration
+- sections:
+  - local: utils/dummy_input_generators
+    title: Dummy input generators
+  - local: utils/normalized_config
+    title: Normalized configurations
+  title: Utilities

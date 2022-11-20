@@ -191,7 +191,7 @@ class ORTModel(OptimizedModel):
 
         Arguments:
             path (`str` or `Path`):
-                Directory from which to load the model.
+                Path of the ONNX model.
             provider (`str`, *optional*):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers. Defaults to `CPUExecutionProvider`.
@@ -246,6 +246,7 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         provider: Optional[str] = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict] = None,
@@ -271,6 +272,7 @@ class ORTModel(OptimizedModel):
             force_download,
             use_auth_token,
             cache_dir,
+            subfolder,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -287,6 +289,7 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """
@@ -317,9 +320,9 @@ class ORTModel(OptimizedModel):
         config = kwargs.pop("config", {})
         model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
         # load model from local directory
-        if os.path.isdir(model_id):
-            model = ORTModel.load_model(os.path.join(model_id, model_file_name), **kwargs)
-            kwargs["model_save_dir"] = Path(model_id)
+        if os.path.isdir(os.path.join(model_id, subfolder)):
+            model = ORTModel.load_model(os.path.join(model_id, subfolder, model_file_name), **kwargs)
+            kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
             kwargs["latest_model_name"] = model_file_name
         # load model from hub
         else:
@@ -327,6 +330,7 @@ class ORTModel(OptimizedModel):
             model_cache_path = hf_hub_download(
                 repo_id=model_id,
                 filename=model_file_name,
+                subfolder=subfolder,
                 use_auth_token=use_auth_token,
                 revision=revision,
                 cache_dir=cache_dir,
@@ -348,6 +352,7 @@ class ORTModel(OptimizedModel):
         revision: Optional[Union[str, None]] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
+        subfolder: Optional[str] = "",
         **kwargs,
     ):
         """
@@ -372,15 +377,17 @@ class ORTModel(OptimizedModel):
                 kwargs will be passed to the model during initialization
         """
         # create local save dir in cache dir
-        save_dir = Path(save_dir).joinpath(model_id)
+        save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
+
+        config = kwargs.get("config", {})
 
         # reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
         if cls.export_feature is not None:
             task = cls.export_feature
         else:
-            task = HfApi().model_info(model_id, revision=revision).pipeline_tag
+            task = HfApi().model_info(model_id, revision=revision).pipeline_tag  # FIXME: load from subfolder?
             if task in ["sentiment-analysis", "text-classification", "zero-shot-classification"]:
                 task = "sequence-classification"
             elif task in ["feature-extraction", "fill-mask"]:
@@ -388,7 +395,11 @@ class ORTModel(OptimizedModel):
         # 2. convert to temp dir
         # FIXME: transformers.onnx conversion doesn't support private models
         preprocessor = get_preprocessor(model_id)
-        model = FeaturesManager.get_model_from_feature(task, model_id)
+
+        framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
+        model_class = FeaturesManager.get_model_class_for_feature(task, framework)
+        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
+
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=task)
         onnx_config = model_onnx_config(model.config)
 
@@ -400,7 +411,7 @@ class ORTModel(OptimizedModel):
             opset=onnx_config.default_onnx_opset,
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
-        kwargs["config"] = model.config
+
         # 3. load normal model
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
 
@@ -460,13 +471,13 @@ class ORTModelForFeatureExtraction(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
-    def prepare_output_buffer(self, batch_size, sequence_length, hidden_size):
-        """Prepare the buffer of output(`last_hidden_state`) with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
+    def prepare_output_buffer(self, batch_size, sequence_length, hidden_size, output_name: str):
+        """Prepare the buffer of output_name with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
+        ort_type = TypeHelper.get_output_type(self.model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         output_shape = (batch_size, sequence_length, hidden_size)
-        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device)
+        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
 
         return output_shape, output_buffer
 
@@ -479,6 +490,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -488,6 +500,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -499,6 +512,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -508,11 +522,12 @@ class ORTModelForFeatureExtraction(ORTModel):
                 token_type_ids.data_ptr(),
             )
 
-        # bind logits
+        # bind last_hidden_state
         output_shape, output_buffer = self.prepare_output_buffer(
             batch_size=input_ids.size(0),
             sequence_length=input_ids.size(1),
             hidden_size=self.config.hidden_size,
+            output_name="last_hidden_state",
         )
         io_binding.bind_output(
             "last_hidden_state",
@@ -630,13 +645,13 @@ class ORTModelForQuestionAnswering(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
-    def prepare_logits_buffer(self, batch_size, sequence_length):
+    def prepare_logits_buffer(self, batch_size, sequence_length, output_name: str):
         """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        ort_type = TypeHelper.get_output_type(self.model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, sequence_length)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -649,6 +664,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -658,6 +674,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -669,6 +686,7 @@ class ORTModelForQuestionAnswering(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -678,18 +696,18 @@ class ORTModelForQuestionAnswering(ORTModel):
                 token_type_ids.data_ptr(),
             )
 
-        # bind logits
+        # bind start_logits and end_logits
         start_logits_shape, start_logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1)
+            batch_size=input_ids.size(0), sequence_length=input_ids.size(1), output_name="start_logits"
         )
         end_logits_shape, end_logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1)
+            batch_size=input_ids.size(0), sequence_length=input_ids.size(1), output_name="end_logits"
         )
         io_binding.bind_output(
             "start_logits",
             start_logits_buffer.device.type,
             self.device.index,
-            self.name_to_np_type["logits"],
+            self.name_to_np_type["start_logits"],
             start_logits_shape,
             start_logits_buffer.data_ptr(),
         )
@@ -697,7 +715,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             "end_logits",
             end_logits_buffer.device.type,
             self.device.index,
-            self.name_to_np_type["logits"],
+            self.name_to_np_type["end_logits"],
             end_logits_shape,
             end_logits_buffer.data_ptr(),
         )
@@ -836,7 +854,7 @@ class ORTModelForSequenceClassification(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -849,6 +867,7 @@ class ORTModelForSequenceClassification(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -858,6 +877,7 @@ class ORTModelForSequenceClassification(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -869,6 +889,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -1005,7 +1026,7 @@ class ORTModelForTokenClassification(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, sequence_length, num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1018,6 +1039,7 @@ class ORTModelForTokenClassification(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -1027,6 +1049,7 @@ class ORTModelForTokenClassification(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -1038,6 +1061,7 @@ class ORTModelForTokenClassification(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -1169,7 +1193,7 @@ class ORTModelForMultipleChoice(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, num_choices)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1182,6 +1206,7 @@ class ORTModelForMultipleChoice(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind input ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -1191,6 +1216,7 @@ class ORTModelForMultipleChoice(ORTModel):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -1202,6 +1228,7 @@ class ORTModelForMultipleChoice(ORTModel):
 
         if token_type_ids is not None:
             # bind token type ids
+            token_type_ids = token_type_ids.contiguous()
             io_binding.bind_input(
                 "token_type_ids",
                 token_type_ids.device.type,
@@ -1296,7 +1323,7 @@ TEXT_GENERATION_EXAMPLE = r"""
     >>> from optimum.onnxruntime import {model_class}
 
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
     >>> onnx_gen = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
     >>> text = "My name is Philipp and I live in Germany."
@@ -1343,7 +1370,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, sequence_length, self.config.vocab_size)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1355,6 +1382,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         io_binding = self.model.io_binding()
 
         # bind input_ids
+        input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
             input_ids.device.type,
@@ -1364,6 +1392,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             input_ids.data_ptr(),
         )
         # bind attention mask
+        attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
             attention_mask.device.type,
@@ -1395,7 +1424,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         + TEXT_GENERATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForCausalLM",
-            checkpoint="optimum/gpt2",
+            checkpoint="gpt2",
         )
     )
     def forward(
@@ -1518,7 +1547,7 @@ class ORTModelForImageClassification(ORTModel):
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
         logits_shape = (batch_size, self.config.num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
 
         return logits_shape, logits_buffer
 
@@ -1529,6 +1558,7 @@ class ORTModelForImageClassification(ORTModel):
         io_binding = self.model.io_binding()
 
         # bind pixel values
+        pixel_values = pixel_values.contiguous()
         io_binding.bind_input(
             "pixel_values",
             pixel_values.device.type,

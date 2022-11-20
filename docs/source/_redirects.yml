@@ -1,0 +1,25 @@
+# Optimum Graphcore
+graphcore_index: graphcore/index
+graphcore_quickstart: graphcore/quickstart
+graphcore_ipu_config: graphcore/ipu_config
+graphcore_trainer: graphcore/trainer
+graphcore_add_support_for_new_model: graphcore/add_support_for_new_model
+
+# Optimum Habana
+habana_index: habana/index
+habana_quickstart: habana/quickstart
+habana_single_hpu: habana/usage_guides/single_hpu
+habana_distributed: habana/usage_guides/distributed
+habana_deepspeed: habana/usage_guides/deepspeed
+habana_accelerate_training: habana/tutorials/accelerate_training
+habana_trainer: habana/package_reference/trainer
+habana_gaudi_config: habana/package_reference/gaudi_config
+
+# Optimum Intel
+intel_index: intel/index
+intel_quickstart: intel/optimization_inc
+intel_configuration: intel/reference_inc
+intel_optimization: intel/optimization_inc
+intel_quantization: intel/optimization_inc
+intel_pruning: intel/optimization_inc
+intel_trainer: intel/reference_inc

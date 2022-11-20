@@ -21,16 +21,26 @@ from packaging import version
 from ...utils import (
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+    NormalizedConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import DecoderOnnxConfig, EncoderOnnxConfig, Seq2SeqOnnxConfig, TextAndVisionOnnxConfig, VisionOnnxConfig
+from .config import (
+    AudioOnnxConfig,
+    TextAndAudioOnnxConfig,
+    TextAndVisionOnnxConfig,
+    TextDecoderOnnxConfig,
+    TextEncoderOnnxConfig,
+    TextSeq2SeqOnnxConfig,
+    VisionOnnxConfig,
+)
 
 
 if TYPE_CHECKING:
@@ -39,8 +49,9 @@ if TYPE_CHECKING:
     from .base import PatchingSpec
 
 
-class BertOnnxConfig(EncoderOnnxConfig):
+class BertOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -132,7 +143,7 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
-class GPT2OnnxConfig(DecoderOnnxConfig):
+class GPT2OnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
@@ -155,7 +166,7 @@ class CodeGenOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-class GPTNeoOnnxConfig(DecoderOnnxConfig):
+class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
@@ -181,10 +192,10 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         ]
 
 
-class BloomOnnxConfig(DecoderOnnxConfig):
+class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
-    ) + DecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
@@ -213,9 +224,9 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
         ]
 
 
-class T5OnnxConfig(Seq2SeqOnnxConfig):
+class T5OnnxConfig(TextSeq2SeqOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    DUMMY_INPUT_GENERATOR_CLASSES = Seq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
+    DUMMY_INPUT_GENERATOR_CLASSES = TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
@@ -267,13 +278,15 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         # This inserts EOS_TOKEN_ID at random locations along the sequence length dimension.
         if self.force_eos_token_id_presence and "input_ids" in input_name and self.task == "sequence-classification":
             for idx in range(self.batch_size):
+                if self.eos_token_id in int_tensor[idx]:
+                    continue
                 random_idx = random.randint(1, self.sequence_length - 1)
                 int_tensor[idx][random_idx] = self.eos_token_id
 
         return int_tensor
 
 
-class BartOnnxConfig(Seq2SeqOnnxConfig):
+class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -624,3 +637,74 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         self.is_generating_dummy_inputs = True
         dummy_inputs[self.inputs_name] = dummy_inputs.pop(specialized_inputs_name)
         return dummy_inputs
+
+
+class WhisperOnnxConfig(TextAndAudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+    ATOL_FOR_VALIDATION = 1e-3
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {
+            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
+        }
+        if self.use_past:
+            common_inputs["decoder_input_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+        if self.use_past:
+            self.add_past_key_values(common_inputs, direction="inputs")
+
+        return common_inputs
+
+
+class SpeechSeq2SeqEncoderOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
+        }
+
+
+class SpeechSeq2SeqDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummySeq2SeqDecoderTextInputGenerator,
+        DummyDecoderTextInputGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {
+            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
+            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
+        }
+
+        if self.use_past:
+            self.add_past_key_values(common_inputs, direction="inputs")
+
+        return common_inputs
+
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        return {"decoder_input_ids": "input_ids", "encoder_outputs": "encoder_hidden_states"}
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        self.add_past_key_values(common_outputs, direction="outputs")
+        return common_outputs
+
+    @property
+    def values_override(self) -> Optional[Mapping[str, Any]]:
+        # Needed here because the configuration will actually be used with both use_past = True and use_past = False,
+        # but the cache must always be used regardless.
+        if hasattr(self._config, "use_cache"):
+            return {"use_cache": True}
+
+        return None

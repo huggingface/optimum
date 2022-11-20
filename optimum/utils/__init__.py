@@ -12,15 +12,28 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import importlib.util
+import inspect
+from contextlib import contextmanager
+
+from packaging import version
 
 
 CONFIG_NAME = "config.json"
 
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
 _pydantic_available = importlib.util.find_spec("pydantic") is not None
+_accelerate_available = importlib.util.find_spec("accelerate") is not None
 
 
 def is_onnxruntime_available():
+    try:
+        # Try to import the source file of onnxruntime - if you run the tests from `tests` the function gets
+        # confused since there a folder named `onnxruntime` in `tests`. Therefore, `_onnxruntime_available`
+        # will be set to `True` even if not installed.
+        mod = importlib.import_module("onnxruntime")
+        inspect.getsourcefile(mod)
+    except:
+        return False
     return _onnxruntime_available
 
 
@@ -28,13 +41,44 @@ def is_pydantic_available():
     return _pydantic_available
 
 
+def is_accelerate_available():
+    return _accelerate_available
+
+
+def is_pytorch_greater_112():
+    import torch
+
+    return version.parse(torch.__version__) >= version.parse("1.12.0")
+
+
+@contextmanager
+def check_if_pytorch_greater_112():
+    r"""
+    A context manager that does nothing except checking if the PyTorch version is greater than 1.12.0.
+    """
+    import torch
+
+    if not is_pytorch_greater_112():
+        raise ImportError(
+            f"Found an incompatible version of PyTorch. Found version {torch.__version__}, but only 1.12.0 and above are supported."
+        )
+    try:
+        yield
+    finally:
+        pass
+
+
 from .input_generators import (  # noqa
+    DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+)
+from .normalized_config import (  # noqa
     NormalizedConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
