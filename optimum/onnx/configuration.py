@@ -343,14 +343,12 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 class DecoderOnnxConfigWithPast(OnnxConfigWithPast):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict(
-            [
-                ("input_ids", {0: "batch", 1: "sequence"}),
-                ("attention_mask", {0: "batch", 1: "sequence"}),
-            ]
-        )
+        common_inputs = OrderedDict([("input_ids", {0: "batch", 1: "sequence"})])
         if self.use_past:
             self.fill_with_past_key_values_(common_inputs, direction="inputs")
+            common_inputs["attention_mask"] = {0: "batch", 1: "past_sequence + sequence"}
+        else:
+            common_inputs["attention_mask"] = {0: "batch", 1: "sequence"}
 
         return common_inputs
 
@@ -371,6 +369,18 @@ class DecoderOnnxConfigWithPast(OnnxConfigWithPast):
             "Could not find the number of decoder layers attributes in the model configuration, override the "
             "num_layers property to solve this"
         )
+
+    @property
+    def num_attention_heads(self) -> int:
+        num_heads_names = {"num_attention_head", "n_head", "num_heads"}
+        for num_heads_name in num_heads_names:
+            if hasattr(self._config, num_heads_name):
+                return getattr(self._config, num_heads_name)
+        raise AttributeError(
+            "Could not find the number of decoder attention heads attributes in the model configuration, override the "
+            "num_heads property to solve this"
+        )
+        return self._config.n_head
 
     def fill_with_past_key_values_(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         num_pkv_per_layer = 2
