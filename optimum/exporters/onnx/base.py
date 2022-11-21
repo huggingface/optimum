@@ -479,7 +479,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         Returns:
             `OnnxConfig`: An instance of the ONNX configuration object.
         """
-        raise NotImplementedError(f"Implement the method to export encoder for {config.model_type}")
+        raise NotImplementedError(
+            f"{config.model_type} encoder export is not supported yet. ",
+            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
+        )
 
     def get_decoder_onnx_config(
         self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
@@ -499,4 +502,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         Returns:
             `OnnxConfig`: An instance of the ONNX configuration object.
         """
-        raise NotImplementedError(f"Implement the method to export decoder for {config.model_type}")
+        raise NotImplementedError(
+            f"{config.model_type} decoder export is not supported yet. ",
+            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
+        )
