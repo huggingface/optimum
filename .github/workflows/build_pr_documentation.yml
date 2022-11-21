@@ -87,12 +87,12 @@ jobs:
         run: |
           cd optimum
           sudo python docs/combine_docs.py --subpackages graphcore habana intel --version pr_$PR_NUMBER
-          sudo cp -r optimum-doc-build ../
+          sudo mv optimum-doc-build ../
           cd ..
 
       - name: Push to repositories
         run: |
-          chmod ugo+rwx optimum-doc-build
+          sudo chmod -R ugo+rwx optimum-doc-build
           cd optimum-doc-build
           doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build-dev" --token "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" --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
         shell: bash
