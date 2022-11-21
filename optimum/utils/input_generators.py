@@ -27,8 +27,12 @@ from .normalized_config import NormalizedConfig, NormalizedSeq2SeqConfig, Normal
 if is_torch_available():
     import torch
 
+    torch.manual_seed(0)
+
 if is_tf_available():
     import tensorflow as tf
+
+    tf.random.set_seed(0)
 
 
 def check_framework_is_available(func):

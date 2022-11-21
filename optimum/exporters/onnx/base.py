@@ -303,6 +303,18 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
 
+    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        """
+        Generate inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
+        models which have the encoder and decoder exported as separate ONNX files.
+        Args:
+            reference_model_inputs ([`Mapping[str, Tensor]`):
+                Reference inputs for the model.
+        Returns:
+            `Mapping[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
+        """
+        return reference_model_inputs
+
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
@@ -454,3 +466,37 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
         flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+
+    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> OnnxConfig:
+        """
+        Returns ONNX encoder config for `Seq2Seq` models. Implement the method to export the encoder
+        of the model separately.
+
+        Args:
+            config (`PretrainedConfig`):
+                The encoder model's configuration to use when exporting to ONNX.
+
+        Returns:
+            `OnnxConfig`: An instance of the ONNX configuration object.
+        """
+        raise NotImplementedError(f"Implement the method to export encoder for {config.model_type}")
+
+    def get_decoder_onnx_config(
+        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
+    ) -> OnnxConfig:
+        """
+        Returns ONNX decoder config for `Seq2Seq` model. Implement the method to export the encoder
+        of the model separately.
+
+        Args:
+            config (`PretrainedConfig`):
+                The decoder model's configuration to use when exporting to ONNX.
+            task (`str`, defaults to `"default"`):
+                The task the model should be exported for.
+            use_past (`bool`, defaults to `False`):
+                Whether to export the model with past_key_values.
+
+        Returns:
+            `OnnxConfig`: An instance of the ONNX configuration object.
+        """
+        raise NotImplementedError(f"Implement the method to export decoder for {config.model_type}")

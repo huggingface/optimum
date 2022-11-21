@@ -639,26 +639,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
-class WhisperOnnxConfig(TextAndAudioOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
-    ATOL_FOR_VALIDATION = 1e-3
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
-        }
-        if self.use_past:
-            common_inputs["decoder_input_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-        if self.use_past:
-            self.add_past_key_values(common_inputs, direction="inputs")
-
-        return common_inputs
-
-
 class SpeechSeq2SeqEncoderOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
@@ -708,3 +688,37 @@ class SpeechSeq2SeqDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             return {"use_cache": True}
 
         return None
+
+    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs
+
+
+class WhisperOnnxConfig(TextAndAudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+    ATOL_FOR_VALIDATION = 1e-3
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {
+            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
+        }
+        if self.use_past:
+            common_inputs["decoder_input_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+        if self.use_past:
+            self.add_past_key_values(common_inputs, direction="inputs")
+
+        return common_inputs
+
+    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> SpeechSeq2SeqEncoderOnnxConfig:
+        return SpeechSeq2SeqEncoderOnnxConfig(config, task="default")
+
+    def get_decoder_onnx_config(
+        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
+    ) -> SpeechSeq2SeqDecoderOnnxConfig:
+        return SpeechSeq2SeqDecoderOnnxConfig(config, task, use_past=use_past)
