@@ -1111,6 +1111,18 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_with_and_without_past_key_values_model_outputs(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        tokenizer = get_preprocessor(model_id)
+        text = "My Name is Philipp and i live"
+        tokens = tokenizer(text, return_tensors="pt")
+        model_with_pkv = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=True)
+        outputs_model_with_pkv = model_with_pkv.generate(**tokens)
+        model_without_pkv = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=False)
+        outputs_model_without_pkv = model_without_pkv.generate(**tokens)
+        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
     def test_compare_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
