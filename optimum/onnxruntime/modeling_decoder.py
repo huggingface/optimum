@@ -63,6 +63,9 @@ ONNX_INPUTS_DOCSTRING = r"""
         decoder_with_past_file_name(`str`, *optional*):
             The decoder with past key values model file name overwriting the default file name, allowing to save
             the decoder model with a different name.
+        use_io_binding (`bool`, *optional*):
+            Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
+            if the device is CUDA, otherwise defaults to `False`.
 """
 
 DECODER_INPUTS_DOCSTRING = r"""
