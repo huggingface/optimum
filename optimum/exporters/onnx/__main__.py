@@ -68,8 +68,8 @@ def main():
         "--for-ort",
         action="store_true",
         help=(
-            "This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess"
-            " it."
+            "This generates ONNX models to run inference with ONNX Runtime ORTModelXXX for encoder-decoder models."
+            " If enabled the encoder and decoder of the model are exported separately."
         ),
     )
     parser.add_argument("output", type=Path, help="Path indicating the directory where to store generated ONNX model.")
@@ -145,7 +145,7 @@ def main():
             decoder_onnx_config_with_past = onnx_config.get_decoder_onnx_config(
                 decoder_model.config, task.replace("-with-past", ""), use_past=True
             )
-            models_for_export.extend([(model, decoder_onnx_config_with_past, "decoder_with_past_model.onnx")])
+            models_for_export.append((model, decoder_onnx_config_with_past, "decoder_with_past_model.onnx"))
     else:
         models_for_export = [(model, onnx_config, "model.onnx")]
 
