@@ -133,3 +133,5 @@ dmypy.json
 *.onnx
 # include small test model for tests
 !tests/assets/onnx/model.onnx
+
+.vscode
