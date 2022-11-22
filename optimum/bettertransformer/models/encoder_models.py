@@ -767,18 +767,18 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         self.in_proj_weight = nn.Parameter(
             torch.cat(
                 [
-                    fsmt_layer.self_attn.self.q_proj.weight,
-                    fsmt_layer.self_attn.self.k_proj.weight,
-                    fsmt_layer.self_attn.self.v_proj.weight,
+                    fsmt_layer.self_attn.q_proj.weight,
+                    fsmt_layer.self_attn.k_proj.weight,
+                    fsmt_layer.self_attn.v_proj.weight,
                 ]
             )
         )
         self.in_proj_bias = nn.Parameter(
             torch.cat(
                 [
-                    fsmt_layer.self_attn.self.q_proj.bias,
-                    fsmt_layer.self_attn.self.k_proj.bias,
-                    fsmt_layer.self_attn.self.v_proj.bias,
+                    fsmt_layer.self_attn.q_proj.bias,
+                    fsmt_layer.self_attn.k_proj.bias,
+                    fsmt_layer.self_attn.v_proj.bias,
                 ]
             )
         )
