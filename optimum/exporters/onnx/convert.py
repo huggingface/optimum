@@ -226,7 +226,9 @@ def export_pytorch(
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
-            dummy_inputs = tree_map(lambda value: value.to(device), dummy_inputs)
+            dummy_inputs = tree_map(
+                lambda value: value.to(device) if isinstance(value, torch.Tensor) else None, dummy_inputs
+            )
         check_dummy_inputs_are_allowed(model, dummy_inputs)
         inputs = config.ordered_inputs(model)
         input_names = list(inputs.keys())
