@@ -415,13 +415,10 @@ class ORTModelDecoder(ORTModel):
         model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
         model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
 
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
-        onnx_config = model_onnx_config(model.config)
-        onnx_opset = onnx_config.default_onnx_opset
-
         # Export the decoder without the past key values
 
         onnx_config = DecoderOnnxConfigWithPast(model.config, task=cls.export_feature, use_past=False)
+        onnx_opset = onnx_config.default_onnx_opset
         export(
             preprocessor=preprocessor,
             model=model,
