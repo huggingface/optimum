@@ -37,7 +37,9 @@ class NormalizedConfig:
             if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
             else:
-                raise AttributeError(f"{self.__class__} has not attribute {key}.")
+                raise AttributeError(
+                    f"{self.__class__} has not attribute {key}. Set allow_new=True to add a new attribute."
+                )
 
     @classmethod
     def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
