@@ -1,5 +1,5 @@
+from ..modeling_decoder import ORTModelForCausalLM
 from ..modeling_ort import (
-    ORTModelForCausalLM,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
     ORTModelForQuestionAnswering,
