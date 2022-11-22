@@ -18,6 +18,7 @@ import shutil
 from pathlib import Path
 from typing import Any, DefaultDict, Dict, Mapping, Optional, Set, Tuple, Union
 
+import numpy as np
 import torch
 import transformers
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, PretrainedConfig
@@ -498,7 +499,120 @@ class ORTDecoder:
         self.key_value_output_names = [key for key in self.session_output_names if "key_values" in key]
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
 
-    # TODO: Add function `prepare_io_binding` and `prepare_output_buffer`
+    def prepare_output_buffer(
+        self,
+        output_name,
+        batch_size=None,
+        sequence_length=None,
+        past_sequence_length=None,
+    ):
+        """
+        Prepare the buffer of outputs(`logits`/`key_values`/`loss`) with 1D tensors.
+        """
+        ort_type = TypeHelper.get_output_type(self.session, output_name)
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+        if output_name == "logits":
+            output_shape = (batch_size, sequence_length, self.normalized_config.vocab_size)
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
+        elif "key_values" in output_name:
+            num_attention_heads = self.normalized_config.num_attention_heads
+            hidden_size = self.normalized_config.hidden_size
+            embed_size_per_head = hidden_size // num_attention_heads
+
+            if past_sequence_length is not None:
+                sequence_length += past_sequence_length
+            output_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
+
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
+
+        return output_shape, output_buffer
+
+    def prepare_io_binding(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+    ):
+        io_binding = self.session.io_binding()
+
+        # bind inputs
+        # bind input ids
+        input_ids = input_ids.contiguous()
+        io_binding.bind_input(
+            "input_ids",
+            input_ids.device.type,
+            self._device.index,
+            self.name_to_np_type["input_ids"],
+            tuple(input_ids.shape),
+            input_ids.data_ptr(),
+        )
+
+        # bind attention mask
+        attention_mask = attention_mask.contiguous()
+        io_binding.bind_input(
+            "attention_mask",
+            attention_mask.device.type,
+            self._device.index,
+            self.name_to_np_type["attention_mask"],
+            tuple(attention_mask.shape),
+            attention_mask.data_ptr(),
+        )
+
+        # bind past key values
+        if past_key_values is not None:
+            for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
+                past_key_value = past_key_value.contiguous()
+                io_binding.bind_input(
+                    input_name,
+                    past_key_value.device.type,
+                    self._device.index,
+                    self.name_to_np_type[input_name],
+                    tuple(past_key_value.shape),
+                    past_key_value.data_ptr(),
+                )
+
+        # bind outputs
+        # bind logits
+        logits_shape, logits_buffer = self.prepare_output_buffer(
+            output_name="logits",
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
+        )
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self._device.index,
+            self.name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
+
+        # bind past keys values
+        for key_value_output_name in self.key_value_output_names:
+            self_pkv_shape, self_pkv_buffer = self.prepare_output_buffer(
+                output_name=key_value_output_name,
+                batch_size=input_ids.size(0),
+                sequence_length=input_ids.size(1),
+                past_sequence_length=past_key_values[0].size(2)
+                if past_key_values
+                else None,  # sequence length of self-attention key for layer.0
+            )
+            io_binding.bind_output(
+                key_value_output_name,
+                self_pkv_buffer.device.type,
+                self._device.index,
+                self.name_to_np_type[key_value_output_name],
+                self_pkv_shape,
+                self_pkv_buffer.data_ptr(),
+            )
+            # set -1 for sequence_length as it could be larger than the real sequence_length for creating buffer
+            self_pkv_shape = self_pkv_shape[:2] + (-1,) + self_pkv_shape[3:]
+            output_shapes[key_value_output_name] = self_pkv_shape
+            output_buffers[key_value_output_name] = self_pkv_buffer
+
+        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
     def forward(
@@ -511,32 +625,51 @@ class ORTDecoder:
         if past_key_values is not None:
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
-        # TODO: Add IOBinding support
+        if self._device.type == "cuda" and self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_ids, attention_mask, past_key_values
+            )
 
-        onnx_inputs = {
-            "input_ids": input_ids.cpu().detach().numpy(),
-            "attention_mask": attention_mask.cpu().detach().numpy(),
-        }
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.session.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
 
-        if past_key_values is not None:
-            # Add the past_key_values to the decoder inputs
-            for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
+            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
+            past_key_values = tuple()
+            for name in self.key_value_output_names:
+                past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
-        # Run inference
-        outputs = self.session.run(None, onnx_inputs)
+            # Tuple of tuple of length `n_layers`, with each tuple of length equal to 2 (self-attention key and value per decoder layer)
+            num_pkv = 2
+            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
 
-        # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
-        past_key_values = tuple(
-            torch.from_numpy(outputs[self.session_outputs[key]]).to(self._device)
-            for key in self.key_value_output_names
-        )
+            logits = output_buffers["logits"].view(output_shapes["logits"])
+        else:
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
 
-        # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-        # per decoder layer
-        num_pkv = 2
-        past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-        logits = torch.from_numpy(outputs[self.session_outputs["logits"]]).to(self._device)
+            if past_key_values is not None:
+                # Add the past_key_values to the decoder inputs
+                for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
+                    onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
+
+            # Run inference
+            outputs = self.session.run(None, onnx_inputs)
+
+            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
+            past_key_values = tuple(
+                torch.from_numpy(outputs[self.session_outputs[key]]).to(self._device)
+                for key in self.key_value_output_names
+            )
+
+            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
+            # per decoder layer
+            num_pkv = 2
+            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
+            logits = torch.from_numpy(outputs[self.session_outputs["logits"]]).to(self._device)
 
         return CausalLMOutputWithCrossAttentions(logits=logits, past_key_values=past_key_values)
 
@@ -607,27 +740,3 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
             tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
             for layer_past in past
         )
-
-    # Is it necessary? It is exactly the same as the function in `GenerationMixin`
-    # Adapted from https://github.com/huggingface/transformers/blob/99289c08a1b16a805dd4ee46de029e9fd23cba3d/src/transformers/generation_utils.py#L490
-    def _prepare_attention_mask_for_generation(
-        self,
-        inputs: torch.Tensor,
-        pad_token_id: int,
-        eos_token_id: int,
-    ) -> torch.LongTensor:
-        """
-        Overrides the base method of `GenerationMixin` to ensure input IDs and
-        attention mask are on the same device.
-        """
-        is_input_ids = len(inputs.shape) == 2 and inputs.dtype in [torch.int, torch.long]
-        is_pad_token_in_inputs = (pad_token_id is not None) and (pad_token_id in inputs)
-        is_pad_token_not_equal_to_eos_token_id = (eos_token_id is None) or (
-            (eos_token_id is not None) and (pad_token_id != eos_token_id)
-        )
-        # Check if input is input_ids and padded -> only then is attention_mask defined
-        if is_input_ids and is_pad_token_in_inputs and is_pad_token_not_equal_to_eos_token_id:
-            return inputs.ne(pad_token_id).long()
-        else:
-            # Ensure attention mask is on the same device as the input IDs
-            return torch.ones(inputs.shape[:2], dtype=torch.long, device=inputs.device)
