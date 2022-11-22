@@ -14,7 +14,7 @@ GPU_DEVICES=${2:-"all"}
 # Install dependencies
 pip install git+https://github.com/huggingface/transformers
 pip install datasets accelerate evaluate
-pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk sklearn parameterized sentencepiece
+pip install coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk scikit-learn parameterized sentencepiece
 pip install fairscale deepspeed mpi4py
 # pip install optuna ray sigopt wandb # Hyper parameter search
 
