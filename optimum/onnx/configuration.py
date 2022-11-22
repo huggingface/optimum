@@ -380,7 +380,6 @@ class DecoderOnnxConfigWithPast(OnnxConfigWithPast):
             "Could not find the number of decoder attention heads attributes in the model configuration, override the "
             "num_heads property to solve this"
         )
-        return self._config.n_head
 
     def fill_with_past_key_values_(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         num_pkv_per_layer = 2
