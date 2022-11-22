@@ -58,8 +58,10 @@ from optimum.onnxruntime import (
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
 )
+from optimum.onnxruntime.modeling_decoder import ORTDecoder
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTDecoder, ORTEncoder
+from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
+from optimum.onnxruntime.modeling_seq2seq import ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
@@ -128,14 +130,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
             "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", from_transformers=True
         )
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
         model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-onnx-subfolder", subfolder="my_folder")
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_cache(self):
@@ -160,8 +162,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_empty_cache(self):
@@ -193,14 +195,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_without_past_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
         self.assertTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
 
@@ -490,7 +492,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.decoder, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1048,7 +1050,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
+        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1318,8 +1321,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1499,8 +1502,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
