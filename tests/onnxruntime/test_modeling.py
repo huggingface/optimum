@@ -492,7 +492,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True)
 
-        self.assertIsInstance(onnx_model.decoder, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
