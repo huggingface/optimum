@@ -776,7 +776,8 @@ class ORTEncoderForWhisper(ORTEncoder):
     ):
         io_binding = self.session.io_binding()
 
-        # bind input ids
+        # bind input features
+        input_features = input_features.contiguous()
         io_binding.bind_input(
             "input_features",
             input_features.device.type,
