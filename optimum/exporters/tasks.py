@@ -725,7 +725,9 @@ class TasksManager:
             raise RuntimeError("Cannot infer the task from a local directory yet, please specify the task manually.")
         else:
             if subfolder:
-                raise RuntimeError("Cannot infer the task from a model repo with a subfolder yet, please specify the task manually.")
+                raise RuntimeError(
+                    "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
+                )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             transformers_info = model_info.transformersInfo
             if transformers_info is None or transformers_info.get("auto_model") is None:
@@ -744,7 +746,13 @@ class TasksManager:
 
     @staticmethod
     def get_model_from_task(
-        task: str, model: str, subfolder: str = "", revision: Optional[str] = None, framework: Optional[str] = None, cache_dir: Optional[str] = None, **model_kwargs
+        task: str,
+        model: str,
+        subfolder: str = "",
+        revision: Optional[str] = None,
+        framework: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        **model_kwargs
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
         Retrieves a model from its name and the task to be enabled.
@@ -775,12 +783,7 @@ class TasksManager:
             task = TasksManager.infer_task_from_model(model, subfolder=subfolder, revision=revision)
         model_class = TasksManager.get_model_class_for_task(task, framework)
         try:
-            kwargs = {
-                "subfolder": subfolder,
-                "revision": revision,
-                "cache_dir": cache_dir,
-                **model_kwargs
-            }
+            kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
             model = model_class.from_pretrained(model, **kwargs)
         except OSError:
             if framework == "pt":

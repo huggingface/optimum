@@ -11,12 +11,13 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import numpy as np
 import torch
@@ -29,7 +30,6 @@ from transformers import (
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
-    PretrainedConfig,
 )
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
@@ -58,6 +58,10 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
+
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
 
 
 logger = logging.getLogger(__name__)
@@ -113,41 +117,63 @@ ONNX_IMAGE_INPUTS_DOCSTRING = r"""
     """,
 )
 class ORTModel(OptimizedModel):
-    base_model_prefix = "onnx_model"
+    """
+    Class attributes:
+        - model_type (`str`, *optional*, defaults to `"onnx_model"`) -- The name of the model type to use when
+        registering the ORTModel classes.
+        - auto_model_class (`Type`, *optional*, defaults to `AutoModel`) -- The "AutoModel" class to represented by the
+        current ORTModel class.
+
+    Common attributes:
+        - model (`ort.InferenceSession`) -- The ONNX Runtime InferenceSession that is running the model.
+        - config ([`~transformers.PretrainedConfig`] -- The configuration of the model.
+        - use_io_binding (`bool`, *optional*, defaults to `True`) -- Whether to use I/O bindings with ONNX Runtime, this
+        can significantly speedup inference depending on the task.
+        - model_save_dir (`Optional[str]`, *optional*) -- The directory where the model exported to ONNX will be saved.
+        By defaults, if the loaded model is local, the directory where the original model will be used. Otherwise, the
+        cache directory is used.
+        - latest_model_name (`str`, *optional*, defaults to `"model.onnx"` -- The name of the last ONNX model file.
+        - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
+    """
+
+    model_type = "onnx_model"
     auto_model_class = AutoModel
 
     def __init__(
         self,
-        model: ort.InferenceSession = None,
-        config: PretrainedConfig = None,
+        model: ort.InferenceSession,
+        config: "PretrainedConfig",
         use_io_binding: bool = True,
-        **kwargs
+        model_save_dir: Optional[str] = None,
+        latest_model_name: str = "model.onnx",
     ):
         self.model = model
         self.config = config
         self.use_io_binding = use_io_binding
-        self.model_save_dir = kwargs.get("model_save_dir", None)
-        self.latest_model_name = kwargs.get("latest_model_name", "model.onnx")
+        self.model_save_dir = model_save_dir
+        self.latest_model_name = latest_model_name
         self.providers = model.get_providers()
         self._device = get_device_for_provider(self.providers[0])
 
-        if self._device == None:
+        if self._device is None:
             logger.warning(
                 f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
         if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
+            # TODO: is it an actual check? Like let's say I have multiple providers, how do I know TensorRT is going to be used?
             logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` will be set to False."
+                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
             )
             self.use_io_binding = False
 
-        # registers the ORTModelForXXX classes into the transformers AutoModel classes
-        # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
-        AutoConfig.register(self.base_model_prefix, AutoConfig)
+        # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
+        # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
+        AutoConfig.register(self.model_type, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
 
+    # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
     @property
     def device(self) -> torch.device:
         """
@@ -164,7 +190,7 @@ class ORTModel(OptimizedModel):
         """
         Changes the ONNX Runtime provider according to the device.
 
-        Arguments:
+        Args:
             device (`torch.device` or `str` or `int`):
                 Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
                 the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
@@ -189,31 +215,31 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def load_model(
         path: Union[str, Path],
-        provider: Optional[str] = "CPUExecutionProvider",
+        provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict] = None,
-        **kwargs
-    ):
+        provider_options: Optional[Dict[str, Any]] = None,
+    ) -> ort.InferenceSession:
         """
-        Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
+        Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the
+        default behaviour in PyTorch/TensorFlow/JAX.
 
-        Arguments:
-            path (`str` or `Path`):
+        Args:
+            path (`Union[str, Path]`):
                 Path of the ONNX model.
-            provider (`str`, *optional*):
+            provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
-                for possible providers. Defaults to `CPUExecutionProvider`.
+                for possible providers.
             session_options (`onnxruntime.SessionOptions`, *optional*):
-                ONNX Runtime session options to use for loading the model. Defaults to `None`.
-            provider_options (`Dict`, **optional**):
+                ONNX Runtime session options to use for loading the model.
+            provider_options (`Dict[str, Any]`, *optional*):
                 Provider option dictionary corresponding to the provider used. See available options
-                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
+                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
         """
         validate_provider_availability(provider)  # raise error if the provider is not available
 
         providers = [provider]
         if provider == "TensorrtExecutionProvider":
-            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
+            # Follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
 
         # `providers` list must of be of the same length as `provider_options` list
@@ -224,21 +250,20 @@ class ORTModel(OptimizedModel):
             provider_options=None if provider_options is None else [provider_options],
         )
 
-    def _save_pretrained(self, save_directory: Union[str, Path], file_name: Optional[str] = None, **kwargs):
+    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
-        [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the latest_model_name.
-        Arguments:
-            save_directory (`str` or `Path`):
-                Directory where to save the model file.
-            file_name(`str`, *optional*):
-                Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to save the model with
-                a different name.
-        """
-        model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
+        [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
+        file under model_save_dir/latest_model_name.
 
+        Args:
+            save_directory (`Union[str, Path]`):
+                Directory where to save the model file.
+            file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
+                The filename to use when saving the model.
+        """
         src_path = self.model_save_dir.joinpath(self.latest_model_name)
-        dst_path = Path(save_directory).joinpath(model_file_name)
+        dst_path = Path(save_directory).joinpath(file_name)
         shutil.copyfile(src_path, dst_path)
 
     @classmethod
@@ -250,33 +275,37 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
-        subfolder: Optional[str] = "",
-        provider: Optional[str] = "CPUExecutionProvider",
+        subfolder: str = "",
+        provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """
-        provider (`str`, *optional*):
-            ONNX Runtime providers to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
-            possible providers. Defaults to `CPUExecutionProvider`.
+        provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
+            ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
+            possible providers.
         session_options (`onnxruntime.SessionOptions`, *optional*),:
-            ONNX Runtime session options to use for loading the model. Defaults to `None`.
-        provider_options (`Dict`, **optional**):
+            ONNX Runtime session options to use for loading the model.
+        provider_options (`Dict[str, Any]`, *optional*):
             Provider option dictionaries corresponding to the provider used. See available options
-            for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
+            for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
+        args (`Tuple[Any]`):
+            Will be passed to the underlying model loading methods.
+        kwargs (`Dict[str, Any]`):
+            Will be passed to the underlying model loading methods.
 
         Returns:
             `ORTModel`: The loaded ORTModel model.
         """
         return super().from_pretrained(
             model_id,
-            from_transformers,
-            force_download,
-            use_auth_token,
-            cache_dir,
-            subfolder,
+            from_transformers=from_transformers,
+            force_download=force_download,
+            use_auth_token=use_auth_token,
+            cache_dir=cache_dir,
+            subfolder=subfolder,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -288,22 +317,27 @@ class ORTModel(OptimizedModel):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
+        config: Optional["PretrainedConfig"] = None,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
-        file_name: Optional[str] = None,
-        subfolder: Optional[str] = "",
+        file_name: str = ONNX_WEIGHTS_NAME,
+        subfolder: str = "",
+        local_files_only: bool = False,
         **kwargs,
     ):
         """
         Loads a model and its configuration file from a directory or the HF Hub.
         Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
-        Arguments:
+
+        Args:
             model_id (`Union[str, Path]`):
-                Directory from which to load
-            use_auth_token (`Union[bool, str]`):
-                Is needed to load models from a private repository
+                Directory from which to load.
+            config (`Optional[PretrainedConfig]`, *optional*):
+                The model config to use when loading the model.
+            use_auth_token (`Optional[Union[bool, str]]`, *optional*):
+                Is needed to load models from a private repository.
             revision (`Optional[str]`, *optional*):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id
             force_download (`bool`, *optional*, defaults to `False`):
@@ -312,31 +346,23 @@ class ORTModel(OptimizedModel):
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model configuration should be cached if the
                 standard cache should not be used.
-            file_name(`Optional[str]`, *optional*):
-                Overwrites the default model file name from `"model.onnx"` to `file_name`. This allows you to load
-                different model files from the same repository or directory.
+            file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
+                The filename to use when saving the model.
             subfolder (`str`, *optional*, defaults to `""`):
                 The subfolder where the model is stored.
             local_files_only(`bool`, *optional*, defaults to `False`):
                 Whether or not to only look at local files (i.e., do not try to download the model).
-            kwargs (`Dict`, *optional*):
-                kwargs will be passed to the model during initialization
+            kwargs (`Dict[str, Any]`):
+                Keyword arguments passed to the ORTModel during initialization.
         """
-        # TODO: why not make this as a keyword argument.
-        local_files_only = kwargs.pop("local_files_only", False)
-        config = kwargs.pop("config", {})
-        model_file_name = file_name if file_name is not None else ONNX_WEIGHTS_NAME
-        # load model from local directory
         if os.path.isdir(os.path.join(model_id, subfolder)):
-            model = ORTModel.load_model(os.path.join(model_id, subfolder, model_file_name), **kwargs)
+            model = ORTModel.load_model(os.path.join(model_id, subfolder, file_name), **kwargs)
             kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
-            kwargs["latest_model_name"] = model_file_name
-        # load model from hub
+            kwargs["latest_model_name"] = file_name
         else:
-            # download model
             model_cache_path = hf_hub_download(
                 repo_id=model_id,
-                filename=model_file_name,
+                filename=file_name,
                 subfolder=subfolder,
                 use_auth_token=use_auth_token,
                 revision=revision,
@@ -383,7 +409,7 @@ class ORTModel(OptimizedModel):
             subfolder (`str`, *optional*, defaults to `""`):
                 The subfolder where the model is stored.
             kwargs (`Dict[str, Any]`, *optional*):
-                Keyword arguments to pass to the ORTModel during initialization.
+                Keyword arguments passed to the ORTModel during initialization.
         """
         # Create local save dir in cache dir
         save_dir = Path(save_dir).joinpath(model_id, subfolder)
@@ -479,12 +505,11 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
-        # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_output_buffer(self, batch_size, sequence_length, hidden_size, output_name: str):
-        """Prepare the buffer of output_name with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
+        """Prepares the buffer of output_name with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
         ort_type = TypeHelper.get_output_type(self.model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
@@ -647,18 +672,16 @@ class ORTModelForQuestionAnswering(ORTModel):
     Question Answering model for ONNX.
     """
 
-    # used in from_transformers to export model to onnx
     export_feature = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
-        # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, sequence_length, output_name: str):
-        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
+        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
         ort_type = TypeHelper.get_output_type(self.model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
@@ -849,19 +872,17 @@ class ORTModelForSequenceClassification(ORTModel):
     Sequence Classification model for ONNX.
     """
 
-    # used in from_transformers to export model to onnx
     export_feature = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
-        # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, num_labels):
-        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
+        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
         ort_type = TypeHelper.get_output_type(self.model, "logits")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
@@ -1022,18 +1043,16 @@ class ORTModelForTokenClassification(ORTModel):
     Token Classification model for ONNX.
     """
 
-    # used in from_transformers to export model to onnx
     export_feature = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
-        # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, sequence_length, num_labels):
-        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length, config.num_labels)."""
+        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length, config.num_labels)."""
         ort_type = TypeHelper.get_output_type(self.model, "logits")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
@@ -1190,7 +1209,6 @@ class ORTModelForMultipleChoice(ORTModel):
     Multiple choice model for ONNX.
     """
 
-    # used in from_transformers to export model to onnx
     export_feature = "multiple-choice"
     auto_model_class = AutoModelForMultipleChoice
 
@@ -1200,7 +1218,7 @@ class ORTModelForMultipleChoice(ORTModel):
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, num_choices):
-        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
+        """Preparesthe buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
         ort_type = TypeHelper.get_output_type(self.model, "logits")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
@@ -1361,18 +1379,16 @@ class ORTModelForImageClassification(ORTModel):
     Image Classification model for ONNX.
     """
 
-    # used in from_transformers to export model to onnx
     export_feature = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
-        # create {name:idx} dict for model outputs
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size):
-        """Prepare the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
+        """Preparesthe buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
         ort_type = TypeHelper.get_output_type(self.model, "logits")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
