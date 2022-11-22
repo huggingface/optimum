@@ -308,7 +308,7 @@ class OnnxExportTestCase(TestCase):
             decoder_onnx_config_with_past = onnx_config.get_decoder_onnx_config(
                 decoder_model.config, task.replace("-with-past", ""), use_past=True
             )
-            models_for_export.extend([(model, decoder_onnx_config_with_past)])
+            models_for_export.append((model, decoder_onnx_config_with_past))
 
         for model_to_export, model_onnx_config in models_for_export:
             with NamedTemporaryFile("w") as output:

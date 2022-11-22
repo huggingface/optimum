@@ -334,7 +334,7 @@ class OnnxConfig(ExportConfig, ABC):
 
     def get_decoder_onnx_config(self, config: "PretrainedConfig", task: str = "default", use_past: bool = False):
         """
-        Returns ONNX decoder config for `Seq2Seq` model. Implement the method to export the encoder
+        Returns ONNX decoder config for `Seq2Seq` models. Implement the method to export the decoder
         of the model separately.
 
         Args:
