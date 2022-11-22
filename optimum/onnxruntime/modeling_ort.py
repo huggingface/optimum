@@ -284,7 +284,12 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ) -> "ORTModel":
         if os.path.isdir(os.path.join(model_id, subfolder)):
-            model = ORTModel.load_model(os.path.join(model_id, subfolder, file_name), **kwargs)
+            model = ORTModel.load_model(
+                os.path.join(model_id, subfolder, file_name),
+                provider=provider,
+                session_options=session_options,
+                provider_options=provider_options,
+            )
             kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
             kwargs["latest_model_name"] = file_name
         else:
@@ -298,7 +303,9 @@ class ORTModel(OptimizedModel):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
-            model = ORTModel.load_model(model_cache_path, **kwargs)
+            model = ORTModel.load_model(
+                model_cache_path, provider=provider, session_options=session_options, provider_options=provider_options
+            )
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
 

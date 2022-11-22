@@ -27,6 +27,7 @@ from huggingface_hub import HfApi, HfFolder
 
 from .utils import CONFIG_NAME
 
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
@@ -234,7 +235,7 @@ class OptimizedModel(ABC):
     @classmethod
     def _from_pretrained(
         cls,
-        model_id: Union[str, os.PathLike],
+        model_id: Union[str, Path],
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -243,14 +244,14 @@ class OptimizedModel(ABC):
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         **kwargs,
-    ):
+    ) -> "OptimizedModel":
         """Overwrite this method in subclass to define how to load your model from pretrained"""
         raise NotImplementedError("Overwrite this method in subclass to define how to load your model from pretrained")
 
     @classmethod
     def _from_transformers(
         cls,
-        model_id: Union[str, os.PathLike],
+        model_id: Union[str, Path],
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -259,7 +260,7 @@ class OptimizedModel(ABC):
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         **kwargs,
-    ):
+    ) -> "OptimizedModel":
         """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
         raise NotImplementedError(
             "Overwrite this method in subclass to define how to load your model from vanilla transformers model"
@@ -278,7 +279,7 @@ class OptimizedModel(ABC):
         config: Union["PretrainedConfig"] = None,
         local_files_only: bool = False,
         **kwargs,
-    ):
+    ) -> "OptimizedModel":
         """
         Returns:
             `OptimizedModel`: The loaded optimized model.
@@ -299,9 +300,23 @@ class OptimizedModel(ABC):
                 else:
                     raise OSError(f"config.json not found in {model_id} local folder")
             else:
-                config = cls._load_config(model_id, revision=revision, cache_dir=cache_dir, use_auth_token=use_auth_token, force_download=force_download, subfolder=subfolder)
+                config = cls._load_config(
+                    model_id,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    use_auth_token=use_auth_token,
+                    force_download=force_download,
+                    subfolder=subfolder,
+                )
         elif isinstance(config, (str, os.PathLike)):
-            config = cls._load_config(config, revision=revision, cache_dir=cache_dir, use_auth_token=use_auth_token, force_download=force_download, subfolder=subfolder)
+            config = cls._load_config(
+                config,
+                revision=revision,
+                cache_dir=cache_dir,
+                use_auth_token=use_auth_token,
+                force_download=force_download,
+                subfolder=subfolder,
+            )
 
         from_pretrained_method = cls._from_transformers if from_transformers else cls._from_pretrained
         return from_pretrained_method(
@@ -312,5 +327,6 @@ class OptimizedModel(ABC):
             use_auth_token=use_auth_token,
             subfolder=subfolder,
             config=config,
+            local_files_only=local_files_only,
             **kwargs,
         )
