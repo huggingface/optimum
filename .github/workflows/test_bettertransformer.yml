@@ -29,7 +29,8 @@ jobs:
       run: |
         pip install .[tests]
         pip3 install --upgrade torch torchvision torchaudio
-        pip install accelerate transformers
+        pip install accelerate
+        pip install git+https://github.com/huggingface/transformers@main#egg=transformers
     - name: Test with unittest
       working-directory: tests
       run: |
