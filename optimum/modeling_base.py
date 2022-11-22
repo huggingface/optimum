@@ -19,13 +19,16 @@ import os
 import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from transformers import AutoConfig, add_start_docstrings
 
 from huggingface_hub import HfApi, HfFolder
 
 from .utils import CONFIG_NAME
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
 
 
 logger = logging.getLogger(__name__)
@@ -55,6 +58,8 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
         subfolder (`str`, *optional*, defaults to `""`):
             In case the relevant files are located inside a subfolder of the model repo either locally or on huggingface.co, you can
             specify the folder name here.
+        config (`Optional[transformers.PretrainedConfig]`, *optional*):
+            The model configuration.
         local_files_only(`bool`, *optional*, defaults to `False`):
             Whether or not to only look at local files (i.e., do not try to download the model).
 """
@@ -191,6 +196,42 @@ class OptimizedModel(ABC):
             raise EnvironmentError(exc.stderr)
 
     @classmethod
+    def _load_config(
+        cls,
+        config_name_or_path: Union[str, os.PathLike],
+        revision: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        use_auth_token: Optional[Union[bool, str]] = False,
+        force_download: bool = False,
+        subfolder: str = "",
+    ) -> "PretrainedConfig":
+        try:
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name_or_path=config_name_or_path,
+                revision=revision,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                use_auth_token=use_auth_token,
+                subfoler=subfolder,
+            )
+        except OSError as e:
+            # if config not found in subfolder, search for it at the top level
+            if subfolder != "":
+                config = AutoConfig.from_pretrained(
+                    pretrained_model_name_or_path=config_name_or_path,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    use_auth_token=use_auth_token,
+                )
+                logger.info(
+                    f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
+                )
+            else:
+                raise OSError(e)
+        return config
+
+    @classmethod
     def _from_pretrained(
         cls,
         model_id: Union[str, os.PathLike],
@@ -199,10 +240,30 @@ class OptimizedModel(ABC):
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
+        config: Optional["PretrainedConfig"] = None,
+        local_files_only: bool = False,
         **kwargs,
     ):
         """Overwrite this method in subclass to define how to load your model from pretrained"""
         raise NotImplementedError("Overwrite this method in subclass to define how to load your model from pretrained")
+
+    @classmethod
+    def _from_transformers(
+        cls,
+        model_id: Union[str, os.PathLike],
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: Optional[str] = None,
+        subfolder: str = "",
+        config: Optional["PretrainedConfig"] = None,
+        local_files_only: bool = False,
+        **kwargs,
+    ):
+        """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
+        raise NotImplementedError(
+            "Overwrite this method in subclass to define how to load your model from vanilla transformers model"
+        )
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
@@ -214,6 +275,8 @@ class OptimizedModel(ABC):
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
+        config: Union["PretrainedConfig"] = None,
+        local_files_only: bool = False,
         **kwargs,
     ):
         """
@@ -224,45 +287,21 @@ class OptimizedModel(ABC):
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
 
-        config = None
-        if os.path.isdir(os.path.join(model_id, subfolder)):
-            if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
-                config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
-            elif CONFIG_NAME in os.listdir(model_id):
-                config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
-                logger.info(
-                    f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
-                )
-            else:
-                raise OSError(f"config.json not found in {model_id} local folder")
-        else:
-            try:
-                config = AutoConfig.from_pretrained(
-                    pretrained_model_name_or_path=model_id,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    use_auth_token=use_auth_token,
-                    subfoler=subfolder,
-                )
-            except OSError as e:
-                # if config not found in subfolder, search for it at the top level
-                if subfolder != "":
-                    config = AutoConfig.from_pretrained(
-                        pretrained_model_name_or_path=model_id,
-                        revision=revision,
-                        cache_dir=cache_dir,
-                        force_download=force_download,
-                        use_auth_token=use_auth_token,
-                    )
+        if config is None:
+            if os.path.isdir(os.path.join(model_id, subfolder)):
+                if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
+                    config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
+                elif CONFIG_NAME in os.listdir(model_id):
+                    config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
                     logger.info(
                         f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
                     )
                 else:
-                    raise OSError(e)
-
-        if config is not None:
-            kwargs["config"] = config
+                    raise OSError(f"config.json not found in {model_id} local folder")
+            else:
+                config = cls._load_config(model_id, revision=revision, cache_dir=cache_dir, use_auth_token=use_auth_token, force_download=force_download, subfolder=subfolder)
+        elif isinstance(config, (str, os.PathLike)):
+            config = cls._load_config(config, revision=revision, cache_dir=cache_dir, use_auth_token=use_auth_token, force_download=force_download, subfolder=subfolder)
 
         from_pretrained_method = cls._from_transformers if from_transformers else cls._from_pretrained
         return from_pretrained_method(
@@ -272,21 +311,6 @@ class OptimizedModel(ABC):
             force_download=force_download,
             use_auth_token=use_auth_token,
             subfolder=subfolder,
+            config=config,
             **kwargs,
-        )
-
-    @classmethod
-    def _from_transformers(
-        cls,
-        model_id: Union[str, os.PathLike],
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: Optional[str] = None,
-        subfolder: str = "",
-        **kwargs,
-    ):
-        """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
-        raise NotImplementedError(
-            "Overwrite this method in subclass to define how to load your model from vanilla transformers model"
         )

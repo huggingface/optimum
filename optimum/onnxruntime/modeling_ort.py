@@ -267,94 +267,22 @@ class ORTModel(OptimizedModel):
         shutil.copyfile(src_path, dst_path)
 
     @classmethod
-    @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
-    def from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        from_transformers: bool = False,
-        force_download: bool = False,
-        use_auth_token: Optional[str] = None,
-        cache_dir: Optional[str] = None,
-        subfolder: str = "",
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        *args,
-        **kwargs,
-    ):
-        """
-        provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
-            ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
-            possible providers.
-        session_options (`onnxruntime.SessionOptions`, *optional*),:
-            ONNX Runtime session options to use for loading the model.
-        provider_options (`Dict[str, Any]`, *optional*):
-            Provider option dictionaries corresponding to the provider used. See available options
-            for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
-        args (`Tuple[Any]`):
-            Will be passed to the underlying model loading methods.
-        kwargs (`Dict[str, Any]`):
-            Will be passed to the underlying model loading methods.
-
-        Returns:
-            `ORTModel`: The loaded ORTModel model.
-        """
-        return super().from_pretrained(
-            model_id,
-            from_transformers=from_transformers,
-            force_download=force_download,
-            use_auth_token=use_auth_token,
-            cache_dir=cache_dir,
-            subfolder=subfolder,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-            *args,
-            **kwargs,
-        )
-
-    @classmethod
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
-        config: Optional["PretrainedConfig"] = None,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: str = ONNX_WEIGHTS_NAME,
         subfolder: str = "",
+        config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
         **kwargs,
-    ):
-        """
-        Loads a model and its configuration file from a directory or the HF Hub.
-        Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
-
-        Args:
-            model_id (`Union[str, Path]`):
-                Directory from which to load.
-            config (`Optional[PretrainedConfig]`, *optional*):
-                The model config to use when loading the model.
-            use_auth_token (`Optional[Union[bool, str]]`, *optional*):
-                Is needed to load models from a private repository.
-            revision (`Optional[str]`, *optional*):
-                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id
-            force_download (`bool`, *optional*, defaults to `False`):
-                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
-                cached versions if they exist.
-            cache_dir (`Optional[str]`, *optional*):
-                Path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
-            file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
-                The filename to use when saving the model.
-            subfolder (`str`, *optional*, defaults to `""`):
-                The subfolder where the model is stored.
-            local_files_only(`bool`, *optional*, defaults to `False`):
-                Whether or not to only look at local files (i.e., do not try to download the model).
-            kwargs (`Dict[str, Any]`):
-                Keyword arguments passed to the ORTModel during initialization.
-        """
+    ) -> "ORTModel":
         if os.path.isdir(os.path.join(model_id, subfolder)):
             model = ORTModel.load_model(os.path.join(model_id, subfolder, file_name), **kwargs)
             kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
@@ -370,9 +298,9 @@ class ORTModel(OptimizedModel):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
+            model = ORTModel.load_model(model_cache_path, **kwargs)
             kwargs["model_save_dir"] = Path(model_cache_path).parent
             kwargs["latest_model_name"] = Path(model_cache_path).name
-            model = ORTModel.load_model(model_cache_path, **kwargs)
 
         return cls(model=model, config=config, **kwargs)
 
@@ -386,32 +314,13 @@ class ORTModel(OptimizedModel):
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
+        config: Optional["PretrainedConfig"] = None,
+        local_files_only: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> "ORTModel":
-        """
-        Converts a vanilla Transformers model into an optimized model using `optimum.exporters.onnx`.
-
-        Args:
-            model_id (`Union[str, Path]`):
-                Directory from which to load
-            save_dir (`Union[str, Path]`, *optional*, defaults to `transformers.file_utils.default_cache_path`):
-                Directory where the onnx model should be saved.
-            use_auth_token (`Union[bool, str]`, *optional*):
-                Is needed to load models from a private repository.
-            revision (`Optional[str]`, *optional*):
-                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
-            force_download (`bool`, *optional*, defaults to `False`):
-                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
-                cached versions if they exist.
-            cache_dir (`Union[str, Path]`, *optional*):
-                Path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
-            subfolder (`str`, *optional*, defaults to `""`):
-                The subfolder where the model is stored.
-            kwargs (`Dict[str, Any]`, *optional*):
-                Keyword arguments passed to the ORTModel during initialization.
-        """
-        # Create local save dir in cache dir
         save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
         kwargs["model_save_dir"] = save_dir
@@ -452,6 +361,53 @@ class ORTModel(OptimizedModel):
         )
 
         return cls._from_pretrained(save_dir.as_posix(), **kwargs)
+
+    @classmethod
+    @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
+    def from_pretrained(
+        cls,
+        model_id: Union[str, Path],
+        from_transformers: bool = False,
+        force_download: bool = False,
+        use_auth_token: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        subfolder: str = "",
+        config: Optional["PretrainedConfig"] = None,
+        local_files_only: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):
+        """
+        provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
+            ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
+            possible providers.
+        session_options (`onnxruntime.SessionOptions`, *optional*),:
+            ONNX Runtime session options to use for loading the model.
+        provider_options (`Dict[str, Any]`, *optional*):
+            Provider option dictionaries corresponding to the provider used. See available options
+            for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
+        kwargs (`Dict[str, Any]`):
+            Will be passed to the underlying model loading methods.
+
+        Returns:
+            `ORTModel`: The loaded ORTModel model.
+        """
+        return super().from_pretrained(
+            model_id,
+            from_transformers=from_transformers,
+            force_download=force_download,
+            use_auth_token=use_auth_token,
+            cache_dir=cache_dir,
+            subfolder=subfolder,
+            config=config,
+            local_files_only=local_files_only,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+            **kwargs,
+        )
 
 
 FEATURE_EXTRACTION_EXAMPLE = r"""
@@ -1218,7 +1174,7 @@ class ORTModelForMultipleChoice(ORTModel):
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, num_choices):
-        """Preparesthe buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
+        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
         ort_type = TypeHelper.get_output_type(self.model, "logits")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
@@ -1388,7 +1344,7 @@ class ORTModelForImageClassification(ORTModel):
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size):
-        """Preparesthe buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
+        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
         ort_type = TypeHelper.get_output_type(self.model, "logits")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
