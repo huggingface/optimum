@@ -270,13 +270,13 @@ class ORTModel(OptimizedModel):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
+        config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         file_name: str = ONNX_WEIGHTS_NAME,
         subfolder: str = "",
-        config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
@@ -315,13 +315,13 @@ class ORTModel(OptimizedModel):
     def _from_transformers(
         cls,
         model_id: str,
+        config: "PretrainedConfig",
         save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
-        config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
@@ -349,8 +349,6 @@ class ORTModel(OptimizedModel):
             "subfolder": subfolder,
             "revision": revision,
         }
-        if "config" in kwargs:
-            kwargs_to_get_model["config"] = kwargs["config"]
 
         model = TasksManager.get_model_from_task(task, model_id, **kwargs_to_get_model)
         model_type = model.config.model_type.replace("_", "-")

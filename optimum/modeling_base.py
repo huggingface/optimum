@@ -236,12 +236,12 @@ class OptimizedModel(ABC):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
+        config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
-        config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         **kwargs,
     ) -> "OptimizedModel":
@@ -252,12 +252,12 @@ class OptimizedModel(ABC):
     def _from_transformers(
         cls,
         model_id: Union[str, Path],
+        config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
-        config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         **kwargs,
     ) -> "OptimizedModel":
