@@ -141,16 +141,19 @@ class ORTModelDecoder(ORTModel):
 
     def __init__(
         self,
-        decoder_session: onnxruntime.InferenceSession = None,
+        decoder_session: onnxruntime.InferenceSession,
         decoder_with_past_session: onnxruntime.InferenceSession = None,
         config: transformers.PretrainedConfig = None,
         use_io_binding: bool = True,
-        **kwargs
+        model_save_dir: Optional[str] = None,
+        last_decoder_model_name: str = ONNX_DECODER_NAME,
+        last_decoder_with_past_model_name: str = ONNX_DECODER_WITH_PAST_NAME,
     ):
         self.config = config
         self.use_io_binding = use_io_binding
-        self.model_save_dir = kwargs.get("model_save_dir", None)
-
+        self.model_save_dir = model_save_dir
+        self.decoder_file_name = last_decoder_model_name
+        self.decoder_file_with_past_name = last_decoder_with_past_model_name
         self.providers = decoder_session.get_providers()
         self._device = get_device_for_provider(decoder_session.get_providers()[0])
 
@@ -176,8 +179,6 @@ class ORTModelDecoder(ORTModel):
             if self.use_cache
             else None
         )
-        self.decoder_file_name = kwargs.get("last_decoder_model_name", ONNX_DECODER_NAME)
-        self.decoder_file_with_past_name = kwargs.get("last_decoder_with_past_model_name", ONNX_DECODER_WITH_PAST_NAME)
         # registers the ORTModelForXXX classes into the transformers AutoModel classes
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.base_model_prefix, AutoConfig)
@@ -186,11 +187,10 @@ class ORTModelDecoder(ORTModel):
     @staticmethod
     def load_model(
         decoder_path: Union[str, Path],
-        decoder_with_past_path: Union[str, Path] = None,
+        decoder_with_past_path: Optional[Union[str, Path]] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict] = None,
-        **kwargs
     ):
         """
         Creates an instance of [`~optimum.onnxruntime.modeling_causal.ORTModelForCausalLM`].
@@ -244,7 +244,7 @@ class ORTModelDecoder(ORTModel):
         save_directory: Union[str, Path],
         decoder_file_name: Optional[str] = None,
         decoder_with_past_file_name: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Saves the model decoder and decoder with past key values as well as its configuration file to a
@@ -276,13 +276,20 @@ class ORTModelDecoder(ORTModel):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
-        use_auth_token: Optional[Union[bool, str, None]] = None,
-        revision: Optional[Union[str, None]] = None,
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
         force_download: bool = True,
         cache_dir: Optional[str] = None,
         decoder_file_name: Optional[str] = None,
         decoder_with_past_file_name: Optional[str] = None,
-        subfolder: Optional[str] = "",
+        subfolder: str = "",
+        local_files_only: bool = False,
+        use_cache: bool = True,
+        use_io_binding: bool = True,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[onnxruntime.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """
@@ -316,9 +323,6 @@ class ORTModelDecoder(ORTModel):
             local_files_only(`bool`, *optional*, defaults to `False`):
                 Whether or not to only look at local files (i.e., do not try to download the model).
         """
-        use_cache = kwargs.pop("use_cache", True)
-        local_files_only = kwargs.pop("local_files_only", False)
-        config = kwargs.pop("config", {})
         decoder_file_name = decoder_file_name or ONNX_DECODER_NAME
         decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
 
@@ -330,9 +334,11 @@ class ORTModelDecoder(ORTModel):
             model = cls.load_model(
                 decoder_path=os.path.join(model_id, subfolder, decoder_file_name),
                 decoder_with_past_path=decoder_with_past_path,
-                **kwargs,
+                provider=provider,
+                session_options=session_options,
+                provider_options=provider_options,
             )
-            kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
+            model_save_dir = Path(model_id).joinpath(subfolder)
             kwargs["last_decoder_name"] = decoder_file_name
             kwargs["last_decoder_with_past_name"] = decoder_with_past_file_name
         # Load model from hub
@@ -355,7 +361,7 @@ class ORTModelDecoder(ORTModel):
                     local_files_only=local_files_only,
                 )
                 kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
-            kwargs["model_save_dir"] = Path(model_cache_path).parent
+            model_save_dir = Path(model_cache_path).parent
 
             last_decoder_with_past_name = kwargs.get("last_decoder_with_past_model_name", None)
             if last_decoder_with_past_name is not None:
@@ -363,10 +369,19 @@ class ORTModelDecoder(ORTModel):
             model = cls.load_model(
                 decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
                 decoder_with_past_path=last_decoder_with_past_name,
-                **kwargs,
+                provider=provider,
+                session_options=session_options,
+                provider_options=provider_options,
             )
 
-        return cls(*model, config=config, **kwargs)
+        return cls(
+            *model,
+            config=config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            last_decoder_model_name=kwargs["last_decoder_model_name"],
+            last_decoder_with_past_model_name=kwargs.get("last_decoder_with_past_model_name", None),
+        )
 
     @classmethod
     def _from_transformers(
@@ -411,15 +426,12 @@ class ORTModelDecoder(ORTModel):
         kwargs["model_save_dir"] = save_dir
         config = kwargs.get("config", {})
         use_cache = kwargs.get("use_cache", True)
-
         preprocessor = get_preprocessor(model_id)
-
         framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
         model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
         model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
 
         # Export the decoder without the past key values
-
         onnx_config = DecoderOnnxConfigWithPast(model.config, task=cls.export_feature, use_past=False)
         onnx_opset = onnx_config.default_onnx_opset
         export(
@@ -484,7 +496,6 @@ class ORTDecoder:
         config: transformers.PretrainedConfig,
         device: torch.device,
         use_io_binding: bool = True,
-        **kwargs
     ):
         self.session = session
         self.config = config
@@ -535,8 +546,9 @@ class ORTDecoder:
     ):
         io_binding = self.session.io_binding()
 
-        # bind inputs
-        # bind input ids
+        # Bind the inputs
+
+        # Bind input ids
         input_ids = input_ids.contiguous()
         io_binding.bind_input(
             "input_ids",
@@ -547,7 +559,7 @@ class ORTDecoder:
             input_ids.data_ptr(),
         )
 
-        # bind attention mask
+        # Bind the attention mask
         attention_mask = attention_mask.contiguous()
         io_binding.bind_input(
             "attention_mask",
@@ -558,7 +570,7 @@ class ORTDecoder:
             attention_mask.data_ptr(),
         )
 
-        # bind past key values
+        # Bind the past key values
         if past_key_values is not None:
             for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                 past_key_value = past_key_value.contiguous()
@@ -571,8 +583,9 @@ class ORTDecoder:
                     past_key_value.data_ptr(),
                 )
 
-        # bind outputs
-        # bind logits
+        # Bind the outputs
+
+        # Bind the logits
         logits_shape, logits_buffer = self.prepare_output_buffer(
             output_name="logits",
             batch_size=input_ids.size(0),
@@ -589,7 +602,7 @@ class ORTDecoder:
         output_shapes = {"logits": logits_shape}
         output_buffers = {"logits": logits_buffer}
 
-        # bind past keys values
+        # Bind the past keys values
         for key_value_output_name in self.key_value_output_names:
             self_pkv_shape, self_pkv_buffer = self.prepare_output_buffer(
                 output_name=key_value_output_name,
@@ -682,7 +695,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     ONNX model with a causal language modeling head for ONNX Runtime inference.
     """
 
-    # used in from_transformers to export model to onnx
+    # Used to export the model to ONNX
     export_feature = "causal-lm"
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
