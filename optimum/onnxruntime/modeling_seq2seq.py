@@ -375,7 +375,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         src_file_names = [self.encoder_file_name, self.decoder_file_name]
         dst_file_names = [encoder_file_name or ONNX_ENCODER_NAME, decoder_file_name or ONNX_DECODER_NAME]
         if self.use_cache:
-            src_file_names.append(self.last_decoder_with_past_model_name)
+            src_file_names.append(self.decoder_file_with_past_name)
             dst_file_names.append(decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME)
 
         for src_file_name, dst_file_name in zip(src_file_names, dst_file_names):
