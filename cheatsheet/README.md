@@ -12,7 +12,10 @@ Here we present a set of tools to reduce the size of your models, termed as mode
 
 ### DeepSpeed inference
 
-![image](https://github.com/microsoft/DeepSpeed/blob/master/docs/assets/images/deepspeed-logo-uppercase-white.svg)
+![image]()
+[<img src="[image]([https://huggingface.co/blog/assets/96_hf_bitsandbytes_integration/Thumbnail_blue.png](https://github.com/microsoft/DeepSpeed/blob/master/docs/assets/images/deepspeed-logo-uppercase-white.svg))" width="512"/>]
+
+
 
 DeepSpeed provides a set of optimization tools for training and inference, and proposes ligther inference tools using int8 and int4 quantization. 
 
@@ -23,7 +26,7 @@ DeepSpeed provides a set of optimization tools for training and inference, and p
 
 ### int8 `bitsandbytes` quantization
 
-![image](https://huggingface.co/blog/assets/96_hf_bitsandbytes_integration/Thumbnail_blue.png)
+[<img src="[image](https://huggingface.co/blog/assets/96_hf_bitsandbytes_integration/Thumbnail_blue.png)" width="512"/>]
 
 `bitandbytes` integrates the 2-stages quantization method proposed in [LLM.int8(): matrix multiplication at scale](https://arxiv.org/abs/2208.07339). A 🤗 integration is also available for most of the models (text, audio, vision).
 
