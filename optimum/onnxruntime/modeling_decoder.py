@@ -290,7 +290,6 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        **kwargs,
     ):
         """
         Loads a model and its configuration file from a directory or the HF Hub.
@@ -316,8 +315,6 @@ class ORTModelDecoder(ORTModel):
             decoder_with_past_file_name(`str`, *optional*):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
-            kwargs (`Dict`, *optional*):
-                kwargs will be passed to the model during initialization.
             use_cache (`bool`, *optional*, defaults to `True`):
                 Whether or not use the pre-computed key/values hidden-states in order to speed up sequential decoding.
             local_files_only(`bool`, *optional*, defaults to `False`):
@@ -325,7 +322,7 @@ class ORTModelDecoder(ORTModel):
         """
         decoder_file_name = decoder_file_name or ONNX_DECODER_NAME
         decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
-
+        file_names = {}
         # Load model from a local directory
         if os.path.isdir(os.path.join(model_id, subfolder)):
             decoder_with_past_path = (
@@ -339,8 +336,8 @@ class ORTModelDecoder(ORTModel):
                 provider_options=provider_options,
             )
             model_save_dir = Path(model_id).joinpath(subfolder)
-            kwargs["last_decoder_name"] = decoder_file_name
-            kwargs["last_decoder_with_past_name"] = decoder_with_past_file_name
+            file_names["last_decoder_name"] = decoder_file_name
+            file_names["last_decoder_with_past_name"] = decoder_with_past_file_name
         # Load model from hub
         else:
             default_file_names = [ONNX_DECODER_NAME]
@@ -360,14 +357,14 @@ class ORTModelDecoder(ORTModel):
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
-                kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
+                file_names[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
             model_save_dir = Path(model_cache_path).parent
 
-            last_decoder_with_past_name = kwargs.get("last_decoder_with_past_model_name", None)
+            last_decoder_with_past_name = file_names.get("last_decoder_with_past_model_name", None)
             if last_decoder_with_past_name is not None:
-                last_decoder_with_past_name = kwargs["model_save_dir"].joinpath(last_decoder_with_past_name)
+                last_decoder_with_past_name = file_names["model_save_dir"].joinpath(last_decoder_with_past_name)
             model = cls.load_model(
-                decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
+                decoder_path=file_names["model_save_dir"].joinpath(file_names["last_decoder_model_name"]),
                 decoder_with_past_path=last_decoder_with_past_name,
                 provider=provider,
                 session_options=session_options,
@@ -379,8 +376,8 @@ class ORTModelDecoder(ORTModel):
             config=config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            last_decoder_model_name=kwargs["last_decoder_model_name"],
-            last_decoder_with_past_model_name=kwargs.get("last_decoder_with_past_model_name", None),
+            last_decoder_model_name=file_names["last_decoder_model_name"],
+            last_decoder_with_past_model_name=file_names.get("last_decoder_with_past_model_name", None),
         )
 
     @classmethod
