@@ -63,6 +63,6 @@ class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase)
         text = "How many cats are there?"
 
         # Model takes image and text as input
-        processor = AutoProcessor.from_pretrained("hf-internal-testing/tiny-random-ViltModel")
+        processor = AutoProcessor.from_pretrained(model_id)
         inputs = processor(image, text, return_tensors="pt")
         return inputs
