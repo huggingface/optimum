@@ -626,7 +626,7 @@ class TasksManager:
         return task_to_automodel[task]
 
     @staticmethod
-    def determine_framework(model: str, subfolder: str = "", framework: Optional[str] = None) -> str:
+    def determine_framework(model_name: str, subfolder: str = "", framework: Optional[str] = None) -> str:
         """
         Determines the framework to use for the export.
 
@@ -637,7 +637,7 @@ class TasksManager:
             4. If could not infer, use available framework in environment, with priority given to PyTorch.
 
         Args:
-            model (`str`):
+            model_name (`str`):
                 The name of the model to export.
             subfolder (`str`, *optional*, defaults to `""`):
                 The subfolder where the model is stored.
@@ -653,7 +653,7 @@ class TasksManager:
 
         framework_map = {"pt": "PyTorch", "tf": "TensorFlow"}
 
-        full_model_path = os.path.join(model, subfolder)
+        full_model_path = os.path.join(model_name, subfolder)
         if os.path.isdir(full_model_path):
             if os.path.isfile(os.path.join(full_model_path, WEIGHTS_NAME)):
                 framework = "pt"
@@ -668,25 +668,26 @@ class TasksManager:
             logger.info(f"Local {framework_map[framework]} model found.")
         else:
             try:
-                AutoModel.from_pretrained(model, subfolder=subfolder)
+                url = huggingface_hub.hf_hub_url(model_name, WEIGHTS_NAME, subfolder=subfolder)
+                huggingface_hub.get_hf_file_metadata(url)
                 framework = "pt"
             except Exception:
                 pass
 
             if framework is None:
                 try:
-                    TFAutoModel.from_pretrained(model, subfolder=subfolder)
+                    url = huggingface_hub.hf_hub_url(model_name, TF2_WEIGHTS_NAME, subfolder=subfolder)
+                    huggingface_hub.get_hf_file_metadata(url)
                     framework = "tf"
                 except Exception:
                     pass
 
-            if framework is None:
-                if is_torch_available():
-                    framework = "pt"
-                elif is_tf_available():
-                    framework = "tf"
-                else:
-                    raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
+        if is_torch_available():
+            framework = framework or "pt"
+        elif is_tf_available():
+            framework = framework or "tf"
+        else:
+            raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
         logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
 
@@ -747,7 +748,7 @@ class TasksManager:
     @staticmethod
     def get_model_from_task(
         task: str,
-        model: str,
+        model_name: str,
         subfolder: str = "",
         revision: Optional[str] = None,
         framework: Optional[str] = None,
@@ -760,7 +761,7 @@ class TasksManager:
         Args:
             task (`str`):
                 The task required.
-            model (`str`):
+            model_name (`str`):
                 The name of the model to export.
             subfolder (`str`, *optional*, defaults to `""`):
                 The subfolder where the model is stored.
@@ -778,22 +779,22 @@ class TasksManager:
             The instance of the model.
 
         """
-        framework = TasksManager.determine_framework(model, subfolder=subfolder, framework=framework)
+        framework = TasksManager.determine_framework(model_name, subfolder=subfolder, framework=framework)
         if task == "auto":
-            task = TasksManager.infer_task_from_model(model, subfolder=subfolder, revision=revision)
+            task = TasksManager.infer_task_from_model(model_name, subfolder=subfolder, revision=revision)
         model_class = TasksManager.get_model_class_for_task(task, framework)
+        kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
-            kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
-            model = model_class.from_pretrained(model, **kwargs)
+            model = model_class.from_pretrained(model_name, **kwargs)
         except OSError:
             if framework == "pt":
                 logger.info("Loading TensorFlow model in PyTorch before exporting.")
                 kwargs["from_tf"] = True
-                model = model_class.from_pretrained(model, **model_kwargs)
+                model = model_class.from_pretrained(model_name, **kwargs)
             else:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 kwargs["from_pt"] = True
-                model = model_class.from_pretrained(model, **kwargs)
+                model = model_class.from_pretrained(model_name, **kwargs)
         return model
 
     @staticmethod
