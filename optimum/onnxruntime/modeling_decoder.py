@@ -360,9 +360,9 @@ class ORTModelDecoder(ORTModel):
 
             last_decoder_with_past_name = file_names.get("last_decoder_with_past_model_name", None)
             if last_decoder_with_past_name is not None:
-                last_decoder_with_past_name = file_names["model_save_dir"].joinpath(last_decoder_with_past_name)
+                last_decoder_with_past_name = model_save_dir.joinpath(last_decoder_with_past_name)
             model = cls.load_model(
-                decoder_path=file_names["model_save_dir"].joinpath(file_names["last_decoder_model_name"]),
+                decoder_path=model_save_dir.joinpath(file_names["last_decoder_model_name"]),
                 decoder_with_past_path=last_decoder_with_past_name,
                 provider=provider,
                 session_options=session_options,
