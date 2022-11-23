@@ -384,12 +384,14 @@ class ORTModelDecoder(ORTModel):
     def _from_transformers(
         cls,
         model_id: str,
+        config: "PretrainedConfig",
         subfolder: Optional[str] = "",
         save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str, None]] = None,
         revision: Optional[Union[str, None]] = None,
         force_download: bool = True,
         cache_dir: Optional[str] = None,
+        use_cache: bool = True,
         **kwargs,
     ):
         """
@@ -420,9 +422,6 @@ class ORTModelDecoder(ORTModel):
         # Create local save dir in cache dir
         save_dir = Path(save_dir).joinpath(model_id)
         save_dir.mkdir(parents=True, exist_ok=True)
-        kwargs["model_save_dir"] = save_dir
-        config = kwargs.get("config", {})
-        use_cache = kwargs.get("use_cache", True)
         preprocessor = get_preprocessor(model_id)
         framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
         model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
@@ -450,8 +449,7 @@ class ORTModelDecoder(ORTModel):
                 output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
             )
 
-        kwargs["config"] = model.config
-        return cls._from_pretrained(save_dir, **kwargs)
+        return cls._from_pretrained(save_dir, config=config, model_save_dir=save_dir, use_cache=use_cache, **kwargs)
 
     def to(self, device: Union[torch.device, str, int]):
         """
