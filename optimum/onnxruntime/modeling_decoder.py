@@ -334,8 +334,8 @@ class ORTModelDecoder(ORTModel):
                 provider_options=provider_options,
             )
             model_save_dir = Path(model_id).joinpath(subfolder)
-            file_names["last_decoder_name"] = decoder_file_name
-            file_names["last_decoder_with_past_name"] = decoder_with_past_file_name
+            file_names["last_decoder_model_name"] = decoder_file_name
+            file_names["last_decoder_with_past_model_name"] = decoder_with_past_file_name
         # Load model from hub
         else:
             default_file_names = [ONNX_DECODER_NAME]
@@ -447,7 +447,7 @@ class ORTModelDecoder(ORTModel):
                 output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
             )
 
-        return cls._from_pretrained(save_dir, config=config, model_save_dir=save_dir, use_cache=use_cache, **kwargs)
+        return cls._from_pretrained(save_dir, config=config, use_cache=use_cache, **kwargs)
 
     def to(self, device: Union[torch.device, str, int]):
         """
