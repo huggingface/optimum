@@ -29,7 +29,7 @@ from .utils import CONFIG_NAME
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig
+    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class OptimizedModel(ABC):
     load_tf_weights = None
     base_model_prefix = "optimized_model"
 
-    def __init__(self, model=None, config=None):
+    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "PretrainedConfig"):
         super().__init__()
         self.model = model
         self.config = config
@@ -321,12 +321,12 @@ class OptimizedModel(ABC):
         from_pretrained_method = cls._from_transformers if from_transformers else cls._from_pretrained
         return from_pretrained_method(
             model_id=model_id,
+            config=config,
             revision=revision,
             cache_dir=cache_dir,
             force_download=force_download,
             use_auth_token=use_auth_token,
             subfolder=subfolder,
-            config=config,
             local_files_only=local_files_only,
             **kwargs,
         )

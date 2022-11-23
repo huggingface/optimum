@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
-import transformers
 from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoTokenizer
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
@@ -293,23 +292,23 @@ class ORTModelForConditionalGeneration(ORTModel):
         provider_options: Optional[Dict] = None,
     ):
         """
-        Creates an instance of [`~optimum.ort.modeling_seq2seq.ORTModelForConditionalGeneration`].
+        Creates an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
         Three inference sessions will be created for respectively the encoder, decoder and decoder with past key values
         models. The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
 
         Args:
-            encoder_path (`str` or `Path`):
+            encoder_path (`Union[str, Path]`):
                 The path of the encoder ONNX model.
-            decoder_path (`str` or `Path`):
+            decoder_path (`Union[str, Path]`):
                 The path of the decoder ONNX model.
-            decoder_with_past_path (`str` or `Path`, *optional*):
+            decoder_with_past_path (`Optional[Union[str, Path]]`, *optional*):
                 The path of the decoder with past key values ONNX model.
             provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
                 ONNX Runtime provider to use for loading the model. See https://ort.ai/docs/execution-providers/
                 for possible providers.
-            session_options (`ort.SessionOptions`, *optional*),:
+            session_options (`Optional[ort.SessionOptions]`, *optional*),:
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
-            provider_options (`Dict`, **optional**):
+            provider_options (`Optional[Dict]`, *optional*):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://ort.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
@@ -317,7 +316,7 @@ class ORTModelForConditionalGeneration(ORTModel):
 
         providers = [provider]
         if provider == "TensorrtExecutionProvider":
-            # follow advice in https://ort.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
+            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
 
         encoder_session = ort.InferenceSession(
@@ -357,7 +356,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         """
         Saves the model encoder, decoder and decoder with past key values as well as its configuration file to a
         directory, so that it can be re-loaded using the
-        [`~optimum.ort.modeling_seq2seq.ORTModelForSeq2SeqLM.from_pretrained`] class method.
+        [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForSeq2SeqLM.from_pretrained`] class method.
 
         Args:
             save_directory (`Union[str, Path`]):

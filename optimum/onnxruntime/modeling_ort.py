@@ -229,9 +229,9 @@ class ORTModel(OptimizedModel):
             provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers.
-            session_options (`onnxruntime.SessionOptions`, *optional*):
+            session_options (`Optional[onnxruntime.SessionOptions]`, *optional*):
                 ONNX Runtime session options to use for loading the model.
-            provider_options (`Dict[str, Any]`, *optional*):
+            provider_options (`Optional[Dict[str, Any]]`, *optional*):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
         """
@@ -330,7 +330,6 @@ class ORTModel(OptimizedModel):
     ) -> "ORTModel":
         save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
-        kwargs["model_save_dir"] = save_dir
 
         # Reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
         if cls.export_feature is not None:
@@ -365,7 +364,7 @@ class ORTModel(OptimizedModel):
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
 
-        return cls._from_pretrained(save_dir.as_posix(), **kwargs)
+        return cls._from_pretrained(save_dir.as_posix(), config, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
@@ -388,9 +387,9 @@ class ORTModel(OptimizedModel):
         provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
             ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
             possible providers.
-        session_options (`onnxruntime.SessionOptions`, *optional*),:
+        session_options (`Optional[onnxruntime.SessionOptions]`, *optional*),:
             ONNX Runtime session options to use for loading the model.
-        provider_options (`Dict[str, Any]`, *optional*):
+        provider_options (`Optional[Dict[str, Any]]`, *optional*):
             Provider option dictionaries corresponding to the provider used. See available options
             for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
         kwargs (`Dict[str, Any]`):
