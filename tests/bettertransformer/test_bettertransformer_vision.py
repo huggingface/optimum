@@ -31,7 +31,7 @@ ALL_VISION_MODELS_TO_TEST = [
 
 
 ALL_VISION_TEXT_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-ViltModel",
+    "hf-internal-testing/tiny-vilt-random-vqa",
 ]
 
 
