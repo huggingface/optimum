@@ -1380,16 +1380,19 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer, device=0)
+        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=False, device=0)
         text = "My Name is Philipp and i live"
-        outputs = pipe(text, min_length=len(text) + 1)
+        outputs = pipe(text, max_length=2 * len(text) + 1)
         # check model device
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
         self.assertTrue(isinstance(outputs[0]["translation_text"], str))
 
-        # does not pass with hf-internal-testing/tiny-random-t5 , but OK with t5-base
-        self.assertTrue(len(outputs[0]["translation_text"]) > len(text))
+        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=True, device=0)
+
+        outputs = pipe(text, min_length=len(text) + 1, max_length=2 * len(text) + 1)
+        self.assertTrue(isinstance(outputs[0]["translation_token_ids"], torch.Tensor))
+        self.assertTrue(len(outputs[0]["translation_token_ids"]) > len(text))
 
     def test_compare_with_and_without_past_key_values_model_outputs(self):
         model_id = MODEL_NAMES["t5"]
