@@ -242,8 +242,8 @@ class ORTModelDecoder(ORTModel):
     def _save_pretrained(
         self,
         save_directory: Union[str, Path],
-        decoder_file_name: Optional[str] = None,
-        decoder_with_past_file_name: Optional[str] = None,
+        decoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
         **kwargs,
     ):
         """
@@ -262,10 +262,10 @@ class ORTModelDecoder(ORTModel):
                 the decoder model with a different name.
         """
         src_file_names = [self.decoder_file_name]
-        dst_file_names = [decoder_file_name or ONNX_DECODER_NAME]
+        dst_file_names = [decoder_file_name]
         if self.use_cache:
             src_file_names.append(self.decoder_file_with_past_name)
-            dst_file_names.append(decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME)
+            dst_file_names.append(decoder_with_past_file_name)
 
         for src_file_name, dst_file_name in zip(src_file_names, dst_file_names):
             src_path = self.model_save_dir.joinpath(src_file_name)
@@ -281,8 +281,8 @@ class ORTModelDecoder(ORTModel):
         revision: Optional[str] = None,
         force_download: bool = True,
         cache_dir: Optional[str] = None,
-        decoder_file_name: Optional[str] = None,
-        decoder_with_past_file_name: Optional[str] = None,
+        decoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
         subfolder: str = "",
         local_files_only: bool = False,
         use_cache: bool = True,
@@ -320,8 +320,6 @@ class ORTModelDecoder(ORTModel):
             local_files_only(`bool`, *optional*, defaults to `False`):
                 Whether or not to only look at local files (i.e., do not try to download the model).
         """
-        decoder_file_name = decoder_file_name or ONNX_DECODER_NAME
-        decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
         file_names = {}
         # Load model from a local directory
         if os.path.isdir(os.path.join(model_id, subfolder)):
