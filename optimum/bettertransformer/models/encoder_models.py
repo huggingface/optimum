@@ -784,8 +784,8 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         )
 
         # Out proj layer
-        self.out_proj_weight = fsmt_layer.self_attn.out_proj.dense.weight
-        self.out_proj_bias = fsmt_layer.self_attn.out_proj.dense.bias
+        self.out_proj_weight = fsmt_layer.self_attn.out_proj.weight
+        self.out_proj_bias = fsmt_layer.self_attn.out_proj.bias
 
         # Linear layer 1
         self.linear1_weight = fsmt_layer.fc1.weight
