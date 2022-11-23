@@ -753,7 +753,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class MobileBertLayer(BetterTransformerBaseLayer):
+class MobileBertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, mobilebert_layer, config):
         r"""
         A simple conversion of the MobileBERT layer to its `BetterTransformer` implementation.
