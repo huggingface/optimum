@@ -287,7 +287,7 @@ class ORTModelForConditionalGeneration(ORTModel):
     def load_model(
         encoder_path: Union[str, Path],
         decoder_path: Union[str, Path],
-        decoder_with_past_path: Union[str, Path] = None,
+        decoder_with_past_path: Optional[Union[str, Path]] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict] = None,
@@ -622,7 +622,6 @@ class ORTEncoder:
         device: torch.device,
         use_io_binding: bool = True,
         main_input_name: str = "input_ids",
-        **kwargs
     ):
         self.session = session
         self.config = config
@@ -816,7 +815,6 @@ class ORTDecoder:
         config: "PretrainedConfig",
         device: torch.device,
         use_io_binding: bool = True,
-        **kwargs
     ):
         self.session = session
         self.config = config
@@ -1240,9 +1238,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     _MODEL_TYPE_TO_ORTENCODER = {
         "whisper": ORTEncoderForWhisper,
     }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     def _initialize_encoder(
         self,
