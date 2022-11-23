@@ -30,7 +30,7 @@ DeepSpeed provides a set of optimization tools for training and inference, and p
 
 - [:octocat: GitHub repo](https://github.com/TimDettmers/bitsandbytes)
 - Google colab demo: [![Colab demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1qOjXfQIAULfKvZqwCen8-MoWKGdSatZ4#scrollTo=W8tQtyjp75O_)
-- [![Youtube demo]("../assets/logos/youtube-music.png")](https://www.youtube.com/watch?v=lI3bZzsQcjs)
+- [![Youtube demo]("https://github.com/younesbelkada/optimum/blob/optimum-add-cheatsheet/assets/logos/youtube-music.png")](https://www.youtube.com/watch?v=lI3bZzsQcjs)
 - [:closed_book: Blogpost](https://huggingface.co/blog/hf-bitsandbytes-integration)
 - **Targetted hardwares**: GPU
 
@@ -38,7 +38,8 @@ DeepSpeed provides a set of optimization tools for training and inference, and p
 
 ### ONNX Runtime Quantization
 
-![image](https://github.com/microsoft/onnxruntime/blob/main/docs/images/ONNX_Runtime_logo_dark.png)
+
+<img src="https://github.com/microsoft/onnxruntime/blob/main/docs/images/ONNX_Runtime_logo_dark.png" width="512"/>
 
 - [:octocat: GitHub repo](https://github.com/microsoft/onnxruntime)
 - [🤗 integration](https://huggingface.co/docs/optimum/onnxruntime/overview)
