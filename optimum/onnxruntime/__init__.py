@@ -26,8 +26,8 @@ _import_structure = {
         "AutoOptimizationConfig",
         "ORTConfig",
     ],
-    "model": ["ORTModel"],
     "modeling_ort": [
+        "ORTModel",
         "ORTModelForCausalLM",
         "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
@@ -57,8 +57,8 @@ _import_structure = {
 # Direct imports for type-checking
 if TYPE_CHECKING:
     from .configuration import ORTConfig
-    from .model import ORTModel
     from .modeling_ort import (
+        ORTModel,
         ORTModelForCausalLM,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,

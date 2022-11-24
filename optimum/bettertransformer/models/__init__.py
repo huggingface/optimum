@@ -19,6 +19,7 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
+    ViltLayerBetterTransformer,
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
@@ -68,6 +69,7 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "YolosLayer": ViTLayerBetterTransformer,
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
+    "ViltLayer": ViltLayerBetterTransformer,
 }
 
 

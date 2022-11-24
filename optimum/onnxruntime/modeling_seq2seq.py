@@ -776,7 +776,8 @@ class ORTEncoderForWhisper(ORTEncoder):
     ):
         io_binding = self.session.io_binding()
 
-        # bind input ids
+        # bind input features
+        input_features = input_features.contiguous()
         io_binding.bind_input(
             "input_features",
             input_features.device.type,
@@ -1081,9 +1082,8 @@ class ORTDecoder:
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
             past_key_values = tuple()
-            for name in self.session_output_names:
-                if "key_values" in name or ".key" in name or ".value" in name:
-                    past_key_values += (output_buffers[name].view(output_shapes[name]),)
+            for name in self.key_value_output_names:
+                past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
             # cross-attention per decoder layer
@@ -1123,8 +1123,7 @@ class ORTDecoder:
             # self-attention layer and 2 to the cross-attention layer)
             past_key_values = tuple(
                 torch.from_numpy(outputs[self.session_outputs[key]]).to(self._device)
-                for key in self.session_output_names
-                if "key_values" in key or ".key" in key or ".value" in key
+                for key in self.key_value_output_names
             )
 
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and

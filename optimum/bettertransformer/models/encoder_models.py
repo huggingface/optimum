@@ -644,6 +644,102 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
+class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
+    def __init__(self, vilt_layer, config):
+        r"""
+        A simple conversion of the VilTLayer to its `BetterTransformer` implementation.
+
+        Args:
+            vilt_layer (`torch.nn.Module`):
+                The original `VilTLayer` where the weights needs to be retrieved.
+        """
+        super().__init__(config)
+        # In_proj layer
+        self.in_proj_weight = nn.Parameter(
+            torch.cat(
+                [
+                    vilt_layer.attention.attention.query.weight,
+                    vilt_layer.attention.attention.key.weight,
+                    vilt_layer.attention.attention.value.weight,
+                ]
+            )
+        )
+        self.in_proj_bias = nn.Parameter(
+            torch.cat(
+                [
+                    vilt_layer.attention.attention.query.bias,
+                    vilt_layer.attention.attention.key.bias,
+                    vilt_layer.attention.attention.value.bias,
+                ]
+            )
+        )
+
+        # Out proj layer
+        self.out_proj_weight = vilt_layer.attention.output.dense.weight
+        self.out_proj_bias = vilt_layer.attention.output.dense.bias
+
+        # Linear layer 1
+        self.linear1_weight = vilt_layer.intermediate.dense.weight
+        self.linear1_bias = vilt_layer.intermediate.dense.bias
+
+        # Linear layer 2
+        self.linear2_weight = vilt_layer.output.dense.weight
+        self.linear2_bias = vilt_layer.output.dense.bias
+
+        # Layer norm 1
+        self.norm1_eps = vilt_layer.layernorm_before.eps
+        self.norm1_weight = vilt_layer.layernorm_before.weight
+        self.norm1_bias = vilt_layer.layernorm_before.bias
+
+        # Layer norm 2
+        self.norm2_eps = vilt_layer.layernorm_after.eps
+        self.norm2_weight = vilt_layer.layernorm_after.weight
+        self.norm2_bias = vilt_layer.layernorm_after.bias
+
+        # Model hyper parameters
+        self.num_heads = vilt_layer.attention.attention.num_attention_heads
+        self.embed_dim = int(vilt_layer.attention.attention.attention_head_size * self.num_heads)
+
+        # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
+        self.is_last_layer = False
+        self.norm_first = True
+
+        self.validate_bettertransformer()
+
+    def forward(self, hidden_states, *_, **__):
+        r"""
+        This is just a wrapper around the forward function proposed in:
+        https://github.com/huggingface/transformers/pull/19553
+        """
+        super().forward_checker()
+        attention_mask = None
+
+        hidden_states = torch._transformer_encoder_layer_fwd(
+            hidden_states,
+            self.embed_dim,
+            self.num_heads,
+            self.in_proj_weight,
+            self.in_proj_bias,
+            self.out_proj_weight,
+            self.out_proj_bias,
+            self.use_gelu,
+            self.norm_first,
+            self.norm1_eps,
+            self.norm1_weight,
+            self.norm1_bias,
+            self.norm2_weight,
+            self.norm2_bias,
+            self.linear1_weight,
+            self.linear1_bias,
+            self.linear2_weight,
+            self.linear2_bias,
+            attention_mask,
+        )
+        if hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0)
+        return (hidden_states,)
+
+
 class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, wav2vec2_layer, config):
         r"""
