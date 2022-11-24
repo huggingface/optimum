@@ -202,6 +202,21 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
     return device, provider_options
 
 
+def validate_provider_availability(provider: str):
+    """
+    Ensure the ONNX Runtime execution provider `provider` is available.
+
+    Args:
+        provider (str): Name of an ONNX Runtime execution provider.
+    """
+    available_providers = ort.get_available_providers()
+    if provider not in available_providers:
+        raise ValueError(
+            f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+        )
+    #TODO better message for Tensorrt/cuda
+    
+
 class ORTQuantizableOperator(Enum):
     # Common ops
     Gather = "Gather"
