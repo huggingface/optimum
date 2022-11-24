@@ -45,22 +45,16 @@ def is_accelerate_available():
     return _accelerate_available
 
 
-def is_pytorch_greater_version(pt_version="1.12.0"):
-    import torch
-
-    return version.parse(torch.__version__) >= version.parse(pt_version)
-
-
 @contextmanager
-def check_if_pytorch_greater_112():
+def check_if_pytorch_greater(target_version: str, message: str):
     r"""
-    A context manager that does nothing except checking if the PyTorch version is greater than 1.12.0.
+    A context manager that does nothing except checking if the PyTorch version is greater than `pt_version`
     """
     import torch
 
-    if not is_pytorch_greater_version("1.12.0"):
+    if not version.parse(torch.__version__) >= version.parse(target_version):
         raise ImportError(
-            f"Found an incompatible version of PyTorch. Found version {torch.__version__}, but only 1.12.0 and above are supported."
+            f"Found an incompatible version of PyTorch. Found version {torch.__version__}, but only {target_version} and above are supported. {message}"
         )
     try:
         yield

@@ -14,8 +14,6 @@
 import torch
 import torch.nn as nn
 
-from optimum.utils import is_pytorch_greater_version
-
 
 KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation_function"]
 KNOWN_POS_EMB_ATTRIBUTES = ["position_embedding_type"]
@@ -91,14 +89,6 @@ class BetterTransformerBaseLayer(nn.Module):
                 f"Number of heads {self.num_heads} is not supported"
                 " for `BetterTransformer` integration."
                 f" Number of heads must be even."
-            )
-
-        # Check if norm_first is activated for pytorch==1.12
-        if self.norm_first == True and not is_pytorch_greater_version("1.13.0"):
-            raise ValueError(
-                "The option `norm_first` is only supported from PyTorch 1.13",
-                " please update your PyTorch to the latest version:",
-                " https://pytorch.org",
             )
 
     def forward_checker(self, *args, **kwargs):
