@@ -19,6 +19,7 @@ Transformers.
 import logging
 import os
 import shutil
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
@@ -57,29 +58,35 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 ONNX_INPUTS_DOCSTRING = r"""
-    Attributes:
-        TODO: those are not attributes...
-        encoder_session (`ort.InferenceSession`):
-            The ONNX Runtime inference session associated to the encoder.
-        decoder_session (`ort.InferenceSession`):
-            The ONNX Runtime inference session associated to the decoder.
-        decoder_with_past_session (`ort.InferenceSession`):
-            The ONNX Runtime inference session associated to the decoder with past key values.
+    Important attributes:
         config ([`PretrainedConfig`]):
-            `config` is an instance of the configuration associated to the model. Initializing with a config file does
+            Instance of the configuration associated to the model. Initializing with a config file does
             not load the weights associated with the model, only the configuration.
-        encoder_file_name(`str`, *optional*):
-            The encoder model file name. Overwrites the default file name and allows one to save the encoder model with
-            a different name.
-        decoder_file_name(`str`, *optional*):
-            The decoder model file name. Overwrites the default file name and allows one to save the decoder model with
-            a different name.
-        decoder_with_past_file_name(`str`, *optional*):
-            The decoder with past key values model file name overwriting the default file name, allowing to save
-            the decoder model with a different name.
-        use_io_binding (`bool`, *optional*):
+        use_io_binding (`bool`):
             Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
             if the device is CUDA, otherwise defaults to `False`.
+        use_cache (`bool`):
+            Whether or not past key/values cache should be used. It is determined by whether an InferenceSession for
+            that was provided or not.
+        providers (`List[str`]):
+            The list of execution providers the model is running on.
+        encoder (`ORTEncoder`):
+            The encoder model.
+        decoder (`ORTDecoder`):
+            The decoder model.
+        decoder_with_past (`Optional[ORTDecoder]`):
+            The decoder model handling the past key/values if `use_cache=True`, else `None`.
+
+    Other attributes:
+        encoder_file_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
+            The name of the ONNX file containing the encoder part of the model.
+        decoder_file_name (`str`,  defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
+            The name of the ONNX file containing the decoder part of the model.
+        decoder_file_with_past_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
+            The name of the ONNX file containing the decoder with past key/values part of the model.
+        model_save_dir (`str`, defaults to `""`):
+            The directory under which the model exported to ONNX was saved.
+
 """
 
 SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
@@ -224,7 +231,7 @@ AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE = r"""
     """,
     ONNX_INPUTS_DOCSTRING,
 )
-class ORTModelForConditionalGeneration(ORTModel):
+class ORTModelForConditionalGeneration(ORTModel, ABC):
     # Used in from_transformers to export model to onnxORTEncoder
     base_model_prefix = "onnx_model"
 
@@ -235,16 +242,41 @@ class ORTModelForConditionalGeneration(ORTModel):
         decoder_with_past_session: ort.InferenceSession,
         config: "PretrainedConfig",
         use_io_binding: bool = True,
-        model_save_dir: Optional[str] = None,
+        model_save_dir: str = "",
         last_encoder_model_name: str = ONNX_ENCODER_NAME,
         last_decoder_model_name: str = ONNX_DECODER_NAME,
         last_decoder_with_past_model_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        **kwargs
     ):
-        self.config = config
+        """
+        Args:
+            encoder_session (`ort.InferenceSession`):
+                The ONNX Runtime inference session associated to the encoder.
+            decoder_session (`ort.InferenceSession`):
+                The ONNX Runtime inference session associated to the decoder.
+            decoder_with_past_session (`ort.InferenceSession`):
+                The ONNX Runtime inference session associated to the decoder with past key values.
+            config ([`PretrainedConfig`]):
+                `config` is an instance of the configuration associated to the model. Initializing with a config file
+                does not load the weights associated with the model, only the configuration.
+            use_io_binding (`bool`, *optional*, defaults to `True`):
+                Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
+                `True` if the device is CUDA, otherwise defaults to `False`.
+            model_save_dir (`str`, *optional*, defaults to `""`):
+                The directory under which the model exported to ONNX was saved.
+            last_encoder_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
+                The name of the ONNX file containing the encoder part of the model.
+            last_decoder_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
+                The name of the ONNX file containing the decoder part of the model.
+            last_decoder_with_past_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
+                The name of the ONNX file containing the decoder with past key/values part of the model.
+        """
+        ABC.__init__(self)
+
         self.encoder_file_name = last_encoder_model_name
         self.decoder_file_name = last_decoder_model_name
         self.decoder_file_with_past_name = last_decoder_with_past_model_name
+
+        self.config = config
 
         self.use_io_binding = use_io_binding
         self.model_save_dir = model_save_dir
@@ -282,6 +314,16 @@ class ORTModelForConditionalGeneration(ORTModel):
         # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.base_model_prefix, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
+
+    @abstractmethod
+    def _initialize_encoder(
+        self,
+        session: ort.InferenceSession,
+        config: "PretrainedConfig",
+        device: torch.device,
+        use_io_binding: bool = True,
+    ) -> "ORTEncoder":
+        pass
 
     @staticmethod
     def load_model(
