@@ -124,7 +124,7 @@ class BetterTransformer(object):
     """
 
     @check_if_pytorch_greater(
-        "1.13",
+        "1.13.0",
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
     )
     def transform(
