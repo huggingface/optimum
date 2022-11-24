@@ -18,6 +18,7 @@ from .encoder_models import (
     BartEncoderLayerBetterTransformer,
     BertLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
+    ViltLayerBetterTransformer,
     MobileBertLayerBetterTransformer,
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
