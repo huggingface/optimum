@@ -113,7 +113,6 @@ def set_last_layer(model):
         return False
 
 
-@check_if_pytorch_greater_112()
 class BetterTransformer(object):
     r"""
     A conversion wrapper that takes as an input the `transformers` model to be converted
@@ -124,6 +123,7 @@ class BetterTransformer(object):
     # Original PR from: https://github.com/huggingface/transformers/pull/19553 adapted and wrapped in this script.
     """
 
+    @check_if_pytorch_greater_112()
     def transform(
         model: torch.nn.Module, keep_original_model: bool = False, max_memory: Optional[dict] = None, **kwargs
     ) -> torch.nn.Module:

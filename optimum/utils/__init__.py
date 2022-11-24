@@ -45,10 +45,10 @@ def is_accelerate_available():
     return _accelerate_available
 
 
-def is_pytorch_greater_112():
+def is_pytorch_greater_version(pt_version="1.12.0"):
     import torch
 
-    return version.parse(torch.__version__) >= version.parse("1.12.0")
+    return version.parse(torch.__version__) >= version.parse(pt_version)
 
 
 @contextmanager
@@ -58,7 +58,7 @@ def check_if_pytorch_greater_112():
     """
     import torch
 
-    if not is_pytorch_greater_112():
+    if not is_pytorch_greater_version("1.12.0"):
         raise ImportError(
             f"Found an incompatible version of PyTorch. Found version {torch.__version__}, but only 1.12.0 and above are supported."
         )

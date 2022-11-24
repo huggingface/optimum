@@ -67,6 +67,7 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "ViTMAELayer": ViTLayerBetterTransformer,
     "ViTMSNLayer": ViTLayerBetterTransformer,
     "YolosLayer": ViTLayerBetterTransformer,
+    "ViltLayer": ViltLayerBetterTransformer,
 }
 
 
