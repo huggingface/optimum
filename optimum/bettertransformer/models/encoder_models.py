@@ -756,12 +756,12 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, fsmt_layer, config):
         r"""
-                A simple conversion of the FSMT Encoder layer to its `BetterTransformer` implementation.
+        A simple conversion of the FSMT Encoder layer to its `BetterTransformer` implementation.
 
-                Args:
-                    fsmt_layer (`torch.nn.Module`):
-                        The original FSMT Layer where the weights needs to be retrieved.
-                """
+        Args:
+            fsmt_layer (`torch.nn.Module`):
+                The original FSMT Layer where the weights needs to be retrieved.
+        """
         super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
@@ -831,6 +831,10 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
             seqlen = attention_mask.shape[1]
             lengths = torch.sum(~attention_mask, 1)
+
+            if hidden_states.shape[0] != attention_mask.shape[0]:
+                hidden_states = hidden_states.transpose(1, 0)
+
             if not all([l == seqlen for l in lengths]):
                 hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
             attention_mask = None
@@ -858,4 +862,4 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         )
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
-        return (hidden_states,)
+        return (hidden_states, attention_mask)

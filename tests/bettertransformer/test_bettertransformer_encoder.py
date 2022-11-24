@@ -32,7 +32,6 @@ from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 ALL_ENCODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-DistilBertModel",
-    "hf-internal-testing/tiny-random-BartModel",
     "hf-internal-testing/tiny-random-AlbertModel",
     "hf-internal-testing/tiny-random-RobertaModel",
     "hf-internal-testing/tiny-xlm-roberta",
@@ -44,8 +43,12 @@ ALL_ENCODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-Data2VecTextModel",
     "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-BertModel",
+    "ybelkada/random-tiny-BertGenerationModel",
+]
+
+ALL_ENCODER_DECODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-FSMTModel",
-    "ybelkada/random-tiny-BertGenerationModel"
+    "hf-internal-testing/tiny-random-BartModel",
 ]
 
 
@@ -78,7 +81,10 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         model to test.
         """
         for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
-            if layer_class == "TransformerBlock":
+            if layer_class == "EncoderLayer":
+                # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
+                class_name = "FSMT"
+            elif layer_class == "TransformerBlock":
                 # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
                 class_name = "DistilBert"
             elif "EncoderLayer" in layer_class:
@@ -251,6 +257,30 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         """
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
+
+
+class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Full testing suite of the `BetterTransformers` integration into Hugging Face
+    `transformers` ecosystem. Check the docstring of each test to understand the
+    purpose of each test. Basically we test:
+    - if the conversion dictionnary is consistent, ie if the converted model exists
+    in HuggingFace `transformers` library.
+    - if the converted model produces the same logits as the original model.
+    - if the converted model is faster than the original model.
+    """
+    all_models_to_test = ALL_ENCODER_DECODER_MODELS_TO_TEST
+
+    def tearDown(self):
+        gc.collect()
+
+    def prepare_inputs_for_class(self, model_id=None):
+        input_dict = {
+            "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
+            "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
+            "decoder_input_ids": torch.LongTensor([[0], [0]]),
+        }
+        return input_dict
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
