@@ -213,7 +213,7 @@ class OptimizedModel(ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 use_auth_token=use_auth_token,
-                subfoler=subfolder,
+                subfolder=subfolder,
             )
         except OSError as e:
             # if config not found in subfolder, search for it at the top level
