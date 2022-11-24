@@ -239,6 +239,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         last_encoder_model_name: str = ONNX_ENCODER_NAME,
         last_decoder_model_name: str = ONNX_DECODER_NAME,
         last_decoder_with_past_model_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        **kwargs
     ):
         self.config = config
         self.encoder_file_name = last_encoder_model_name
@@ -391,10 +392,9 @@ class ORTModelForConditionalGeneration(ORTModel):
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
-        # TODO: should we make the default values available here?
-        encoder_file_name: Optional[str] = None,
-        decoder_file_name: Optional[str] = None,
-        decoder_with_past_file_name: Optional[str] = None,
+        encoder_file_name: str = ONNX_ENCODER_NAME,
+        decoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
         subfolder: str = "",
         local_files_only: bool = False,
         use_cache: bool = True,
@@ -403,10 +403,6 @@ class ORTModelForConditionalGeneration(ORTModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: bool = True,
     ):
-        encoder_file_name = encoder_file_name or ONNX_ENCODER_NAME
-        decoder_file_name = decoder_file_name or ONNX_DECODER_NAME
-        decoder_with_past_file_name = decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME
-
         kwargs = {"use_io_binding": use_io_binding}
 
         # Load model from a local directory

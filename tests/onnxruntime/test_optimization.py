@@ -98,7 +98,7 @@ class ORTOptimizerTest(unittest.TestCase):
                 tmp_dir,
                 encoder_file_name="encoder_model_optimized.onnx",
                 decoder_file_name="decoder_model_optimized.onnx",
-                decoder_file_with_past_name="decoder_with_past_model_optimized.onnx" if use_cache else None,
+                decoder_with_past_file_name="decoder_with_past_model_optimized.onnx" if use_cache else None,
                 from_transformers=False,
                 use_cache=use_cache,
             )
