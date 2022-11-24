@@ -94,7 +94,7 @@ class BetterTransformerBaseLayer(nn.Module):
             )
 
         # Check if norm_first is activated for pytorch==1.12
-        if self.norm_first and not is_pytorch_greater_version("1.13.0"):
+        if self.norm_first == True and not is_pytorch_greater_version("1.13.0"):
             raise ValueError(
                 "The option `norm_first` is only supported from PyTorch 1.13",
                 " please update your PyTorch to the latest version:",
