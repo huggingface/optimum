@@ -13,6 +13,8 @@
 #  limitations under the License.
 import importlib.util
 import inspect
+import os
+import subprocess
 from contextlib import contextmanager
 
 from packaging import version
@@ -26,6 +28,7 @@ _accelerate_available = importlib.util.find_spec("accelerate") is not None
 
 
 def is_onnxruntime_available():
+    """Not strict (will pass if either `onnxruntime` or `onnxruntime-gpu` is installed)."""
     try:
         # Try to import the source file of onnxruntime - if you run the tests from `tests` the function gets
         # confused since there a folder named `onnxruntime` in `tests`. Therefore, `_onnxruntime_available`
@@ -35,6 +38,22 @@ def is_onnxruntime_available():
     except:
         return False
     return _onnxruntime_available
+
+
+def is_onnxruntime_strict_available():
+    tokenizers_parallelism = os.environ.get("TOKENIZERS_PARALLELISM", "")
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    result = subprocess.check_output(["pip list | grep 'onnxruntime ' || true"], shell=True).decode("utf-8") != ""
+    os.environ["TOKENIZERS_PARALLELISM"] = tokenizers_parallelism
+    return result
+
+
+def is_onnxruntime_gpu_available():
+    tokenizers_parallelism = os.environ.get("TOKENIZERS_PARALLELISM", "")
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    result = subprocess.check_output(["pip list | grep onnxruntime-gpu || true"], shell=True).decode("utf-8") != ""
+    os.environ["TOKENIZERS_PARALLELISM"] = tokenizers_parallelism
+    return result
 
 
 def is_pydantic_available():

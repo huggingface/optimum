@@ -24,7 +24,7 @@ import onnx
 import onnxruntime as ort
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
-from ..utils import NormalizedTextConfig
+from ..utils import NormalizedTextConfig, is_onnxruntime_gpu_available, is_onnxruntime_strict_available
 
 
 logger = logging.get_logger(__name__)
@@ -209,13 +209,33 @@ def validate_provider_availability(provider: str):
     Args:
         provider (str): Name of an ONNX Runtime execution provider.
     """
+
+    if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+        additional_message = ""
+        if provider == "CUDAExecutionProvider":
+            additional_message = " Additionally, refer to https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html for required dependencies."
+        if provider == "TensorrtExecutionProvider":
+            additional_message = " Additionally, refer to https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html and https://hf.co/docs/optimum/onnxruntime/usage_guides/gpu#tensorrtexecutionprovider for required dependencies."
+
+        if is_onnxruntime_strict_available() == True and is_onnxruntime_gpu_available() == True:
+            raise ValueError(
+                f"Both `onnxruntime` and `onnxruntime-gpu` packages are installed. To use Optimum ONNX Runtime integration on GPU, only `onnxruntime-gpu` should be installed.{additional_message}"
+            )
+        elif is_onnxruntime_strict_available() == True and is_onnxruntime_gpu_available() == False:
+            raise ValueError(
+                f"The `onnxruntime` package was found, please install instead `onnxruntime-gpu` to use Optimum ONNX Runtime integration on GPU.{additional_message}"
+            )
+        elif is_onnxruntime_gpu_available() == False:
+            raise ValueError(
+                f"Please install the `onnxruntime-gpu` to use the Optimum ONNX Runtime integration on GPU.{additional_message}"
+            )
+
     available_providers = ort.get_available_providers()
     if provider not in available_providers:
         raise ValueError(
             f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
         )
-    #TODO better message for Tensorrt/cuda
-    
+
 
 class ORTQuantizableOperator(Enum):
     # Common ops
