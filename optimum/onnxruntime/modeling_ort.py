@@ -24,7 +24,6 @@ import torch
 from transformers import (
     AutoConfig,
     AutoModel,
-    AutoModelForCausalLM,
     AutoModelForImageClassification,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
@@ -32,10 +31,8 @@ from transformers import (
     AutoModelForTokenClassification,
 )
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
-from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import (
     BaseModelOutput,
-    CausalLMOutputWithCrossAttentions,
     ImageClassifierOutput,
     ModelOutput,
     MultipleChoiceModelOutput,
@@ -73,7 +70,8 @@ _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
 ONNX_MODEL_START_DOCSTRING = r"""
     This model inherits from [~`onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
     library implements for all its model (such as downloading or saving)
-    Parameters:
+
+    Args:
         config (`transformers.PretrainedConfig`): [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig) is the Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~onnxruntime.modeling_ort.ORTModel.from_pretrained`] method to load the model weights.
@@ -109,15 +107,13 @@ ONNX_IMAGE_INPUTS_DOCSTRING = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Base ORTModel class for implementing models using ONNX Runtime. The ORTModel implements generic methods for interacting
-    with the Hugging Face Hub as well as exporting vanilla transformers models to ONNX using `transformers.onnx` toolchain.
-    The ORTModel implements additionally generic methods for optimizing and quantizing Onnx models.
-    """,
-)
 class ORTModel(OptimizedModel):
     """
+    Base class for implementing models using ONNX Runtime.
+
+    The ORTModel implements generic methods for interacting with the Hugging Face Hub as well as exporting vanilla
+    transformers models to ONNX using `optimum.exporters.onnx` toolchain.
+
     Class attributes:
         - model_type (`str`, *optional*, defaults to `"onnx_model"`) -- The name of the model type to use when
         registering the ORTModel classes.

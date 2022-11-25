@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 import numpy as np
 import torch
 from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoTokenizer
-from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
+from transformers.file_utils import add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.onnx import FeaturesManager, export
@@ -57,37 +57,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-ONNX_INPUTS_DOCSTRING = r"""
-    Important attributes:
-        config ([`PretrainedConfig`]):
-            Instance of the configuration associated to the model. Initializing with a config file does
-            not load the weights associated with the model, only the configuration.
-        use_io_binding (`bool`):
-            Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
-            if the device is CUDA, otherwise defaults to `False`.
-        use_cache (`bool`):
-            Whether or not past key/values cache should be used. It is determined by whether an InferenceSession for
-            that was provided or not.
-        providers (`List[str`]):
-            The list of execution providers the model is running on.
-        encoder (`ORTEncoder`):
-            The encoder model.
-        decoder (`ORTDecoder`):
-            The decoder model.
-        decoder_with_past (`Optional[ORTDecoder]`):
-            The decoder model handling the past key/values if `use_cache=True`, else `None`.
-
-    Other attributes:
-        encoder_file_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
-            The name of the ONNX file containing the encoder part of the model.
-        decoder_file_name (`str`,  defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-            The name of the ONNX file containing the decoder part of the model.
-        decoder_file_with_past_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
-            The name of the ONNX file containing the decoder with past key/values part of the model.
-        model_save_dir (`str`, defaults to `""`):
-            The directory under which the model exported to ONNX was saved.
-
-"""
 
 SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
     Args:
@@ -225,13 +194,41 @@ AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
+class ORTModelForConditionalGeneration(ORTModel, ABC):
     """
     Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
-    """,
-    ONNX_INPUTS_DOCSTRING,
-)
-class ORTModelForConditionalGeneration(ORTModel, ABC):
+
+    Important attributes:
+        config ([`PretrainedConfig`]):
+            Instance of the configuration associated to the model. Initializing with a config file does
+            not load the weights associated with the model, only the configuration.
+        use_io_binding (`bool`):
+            Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
+            if the device is CUDA, otherwise defaults to `False`.
+        use_cache (`bool`):
+            Whether or not past key/values cache should be used. It is determined by whether an InferenceSession for
+            that was provided or not.
+        providers (`List[str`]):
+            The list of execution providers the model is running on.
+        encoder (`ORTEncoder`):
+            The encoder model.
+        decoder (`ORTDecoder`):
+            The decoder model.
+        decoder_with_past (`Optional[ORTDecoder]`):
+            The decoder model handling the past key/values if `use_cache=True`, else `None`.
+
+    Other attributes:
+        encoder_file_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
+            The name of the ONNX file containing the encoder part of the model.
+        decoder_file_name (`str`,  defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
+            The name of the ONNX file containing the decoder part of the model.
+        decoder_file_with_past_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
+            The name of the ONNX file containing the decoder with past key/values part of the model.
+        model_save_dir (`str`, defaults to `""`):
+            The directory under which the model exported to ONNX was saved.
+
+    """
+
     # Used in from_transformers to export model to onnxORTEncoder
     base_model_prefix = "onnx_model"
 
