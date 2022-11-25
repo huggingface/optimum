@@ -13,6 +13,7 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
+import os
 from enum import Enum
 from typing import Dict, Tuple, Type, Union
 
@@ -24,7 +25,7 @@ import onnx
 import onnxruntime as ort
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
-from ..utils import NormalizedTextConfig, is_onnxruntime_gpu_available, is_onnxruntime_strict_available
+from ..utils import NormalizedTextConfig
 
 
 logger = logging.get_logger(__name__)
@@ -204,31 +205,41 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
 
 def validate_provider_availability(provider: str):
     """
-    Ensure the ONNX Runtime execution provider `provider` is available.
+    Ensure the ONNX Runtime execution provider `provider` is available, and raise an error if it is not.
 
     Args:
         provider (str): Name of an ONNX Runtime execution provider.
     """
-
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
-        additional_message = ""
-        if provider == "CUDAExecutionProvider":
-            additional_message = " Additionally, refer to https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html for required dependencies."
-        if provider == "TensorrtExecutionProvider":
-            additional_message = " Additionally, refer to https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html and https://hf.co/docs/optimum/onnxruntime/usage_guides/gpu#tensorrtexecutionprovider for required dependencies."
+        path_cuda_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_cuda.so")
+        path_trt_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_tensorrt.so")
+        path_dependecy_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")
 
-        if is_onnxruntime_strict_available() == True and is_onnxruntime_gpu_available() == True:
-            raise ValueError(
-                f"Both `onnxruntime` and `onnxruntime-gpu` packages are installed. To use Optimum ONNX Runtime integration on GPU, only `onnxruntime-gpu` should be installed.{additional_message}"
-            )
-        elif is_onnxruntime_strict_available() == True and is_onnxruntime_gpu_available() == False:
-            raise ValueError(
-                f"The `onnxruntime` package was found, please install instead `onnxruntime-gpu` to use Optimum ONNX Runtime integration on GPU.{additional_message}"
-            )
-        elif is_onnxruntime_gpu_available() == False:
-            raise ValueError(
-                f"Please install the `onnxruntime-gpu` to use the Optimum ONNX Runtime integration on GPU.{additional_message}"
-            )
+        with open(path_dependecy_loading, "r") as f:
+            file_string = f.read()
+
+            if "ORT_CUDA" not in file_string or "ORT_TENSORRT" not in file_string:
+                if os.path.isfile(path_cuda_lib) and os.path.isfile(path_trt_lib):
+                    raise ImportError(
+                        f"`onnxruntime-gpu` is installed, but GPU dependencies are not loaded. It is likely there is a conflicting install between `onnxruntime` and `onnxruntime-gpu`. Please install only `onnxruntime-gpu` in order to use {provider}."
+                    )
+                else:
+                    raise ImportError(
+                        f"Asked to use {provider}, but `onnxruntime-gpu` package was not found. Make sure to install `onnxruntime-gpu` package instead of `onnxruntime`."
+                    )
+
+            from onnxruntime.capi import _ld_preload
+
+            if provider == "CUDAExecutionProvider":
+                if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
+                    raise ImportError(
+                        "`onnxruntime-gpu` package is installed, but CUDA requirements could not be loaded. Make sure to meet the required dependencies: https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html"
+                    )
+            if provider == "TensorrtExecutionProvider":
+                if os.environ.get("ORT_TENSORRT_UNAVAILABLE", "0") == "1":
+                    raise ImportError(
+                        "`onnxruntime-gpu` package is installed, but TensorRT requirements could not be loaded. Make sure to meet the required dependencies following https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html and https://hf.co/docs/optimum/onnxruntime/usage_guides/gpu#tensorrtexecutionprovider ."
+                    )
 
     available_providers = ort.get_available_providers()
     if provider not in available_providers:
