@@ -51,7 +51,13 @@ from huggingface_hub import HfApi, hf_hub_download
 
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from .io_binding import TypeHelper
-from .utils import ONNX_WEIGHTS_NAME, get_device_for_provider, get_provider_for_device, parse_device
+from .utils import (
+    ONNX_WEIGHTS_NAME,
+    get_device_for_provider,
+    get_provider_for_device,
+    parse_device,
+    validate_provider_availability,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -170,6 +176,8 @@ class ORTModel(OptimizedModel):
 
         self.device = device
         provider = get_provider_for_device(self.device)
+        validate_provider_availability(provider)  # raise error if the provider is not available
+
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
 
@@ -201,11 +209,7 @@ class ORTModel(OptimizedModel):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        available_providers = ort.get_available_providers()
-        if provider not in available_providers:
-            raise ValueError(
-                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
-            )
+        validate_provider_availability(provider)  # raise error if the provider is not available
 
         providers = [provider]
         if provider == "TensorrtExecutionProvider":

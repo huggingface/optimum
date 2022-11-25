@@ -16,7 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -27,9 +27,8 @@ from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.onnx import FeaturesManager, export
 
-import onnx
 import onnxruntime
-from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub import hf_hub_download
 
 from ..exporters.onnx.model_configs import SpeechSeq2SeqDecoderOnnxConfig, SpeechSeq2SeqEncoderOnnxConfig
 from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
@@ -44,6 +43,7 @@ from .utils import (
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
+    validate_provider_availability,
 )
 
 
@@ -304,11 +304,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        available_providers = onnxruntime.get_available_providers()
-        if provider not in available_providers:
-            raise ValueError(
-                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
-            )
+        validate_provider_availability(provider)  # raise error if the provider is not available
 
         providers = [provider]
         if provider == "TensorrtExecutionProvider":
@@ -625,6 +621,8 @@ class ORTModelForConditionalGeneration(ORTModel):
         device, provider_options = parse_device(device)
 
         provider = get_provider_for_device(device)
+        validate_provider_availability(provider)  # raise error if the provider is not available
+
         self.device = device
         self.encoder._device = device
         self.encoder.session.set_providers([provider], provider_options=[provider_options])
