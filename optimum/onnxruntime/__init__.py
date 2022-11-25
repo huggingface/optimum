@@ -28,7 +28,6 @@ _import_structure = {
     ],
     "modeling_ort": [
         "ORTModel",
-        "ORTModelForCausalLM",
         "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
@@ -38,6 +37,7 @@ _import_structure = {
         "ORTModelForTokenClassification",
     ],
     "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq"],
+    "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
     "quantization": ["ORTQuantizer"],
     "trainer": ["ORTTrainer"],
@@ -57,9 +57,9 @@ _import_structure = {
 # Direct imports for type-checking
 if TYPE_CHECKING:
     from .configuration import ORTConfig
+    from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
         ORTModel,
-        ORTModelForCausalLM,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,

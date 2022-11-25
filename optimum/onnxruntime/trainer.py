@@ -91,9 +91,9 @@ from transformers.trainer_utils import (
 )
 from transformers.utils import check_min_version, logging
 
+from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
-    ORTModelForCausalLM,
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
