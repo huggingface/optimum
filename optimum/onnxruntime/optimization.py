@@ -48,7 +48,7 @@ class ORTOptimizer:
         Args:
             onnx_model_path (`List[os.PathLike]`):
                 The paths of the onnx models to optimize.
-            config ([`~PretrainedConfig`]):
+            config ([`~transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model to optimize.
         """
         super().__init__()
@@ -67,8 +67,8 @@ class ORTOptimizer:
                 The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
                 Can be either:
                     - A path to a local *directory* containing the model to optimize.
-                    - An instance of ORTModel.
-            file_names(`List[str]`, *optional*):
+                    - An instance of [`~optimum.onnxruntime.ORTModel`].
+            file_names(`Optional[List[str]]`, *optional*):
                 The list of file names of the models to optimize.
         """
         onnx_model_path = []
@@ -110,7 +110,7 @@ class ORTOptimizer:
         Optimizes a model given the optimization specifications defined in `optimization_config`.
 
         Args:
-            optimization_config (`OptimizationConfig`):
+            optimization_config ([`~optimum.onnxruntime.OptimizationConfig`]):
                 The configuration containing the parameters related to optimization.
             save_dir (`Union[str, os.PathLike]`):
                 The path used to save the optimized model.
