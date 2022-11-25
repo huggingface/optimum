@@ -209,7 +209,7 @@ class ORTModel(OptimizedModel):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        validate_provider_availability(provider)
+        validate_provider_availability(provider)  # raise error if the provider is not available
 
         providers = [provider]
         if provider == "TensorrtExecutionProvider":

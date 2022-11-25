@@ -304,7 +304,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        validate_provider_availability(provider)
+        validate_provider_availability(provider)  # raise error if the provider is not available
 
         providers = [provider]
         if provider == "TensorrtExecutionProvider":
@@ -621,7 +621,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         device, provider_options = parse_device(device)
 
         provider = get_provider_for_device(device)
-        validate_provider_availability(provider)
+        validate_provider_availability(provider)  # raise error if the provider is not available
 
         self.device = device
         self.encoder._device = device
