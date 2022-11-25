@@ -127,8 +127,8 @@ class ORTModel(OptimizedModel):
     Common attributes:
         - model (`ort.InferenceSession`) -- The ONNX Runtime InferenceSession that is running the model.
         - config ([`~transformers.PretrainedConfig`] -- The configuration of the model.
-        - use_io_binding (`bool`, *optional*, defaults to `True`) -- Whether to use I/O bindings with ONNX Runtime, this
-        can significantly speedup inference depending on the task.
+        - use_io_binding (`bool`, *optional*, defaults to `True`) -- Whether to use I/O bindings with **ONNX Runtime
+        with the CUDAExecutionProvider**, this can significantly speedup inference depending on the task.
         - model_save_dir (`Optional[str]`, *optional*) -- The directory where the model exported to ONNX will be saved.
         By defaults, if the loaded model is local, the directory where the original model will be used. Otherwise, the
         cache directory is used.
@@ -162,7 +162,6 @@ class ORTModel(OptimizedModel):
             )
 
         if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
-            # TODO: is it an actual check? Like let's say I have multiple providers, how do I know TensorRT is going to be used?
             logger.warning(
                 "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
             )
