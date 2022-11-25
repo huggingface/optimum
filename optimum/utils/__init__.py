@@ -13,13 +13,9 @@
 #  limitations under the License.
 import importlib.util
 import inspect
-import os
-import subprocess
 from contextlib import contextmanager
 
 from packaging import version
-
-import onnxruntime
 
 
 CONFIG_NAME = "config.json"
@@ -30,7 +26,6 @@ _accelerate_available = importlib.util.find_spec("accelerate") is not None
 
 
 def is_onnxruntime_available():
-    """Not strict (will pass if either `onnxruntime`, `onnxruntime-gpu` or `onnxruntime-training` is installed)."""
     try:
         # Try to import the source file of onnxruntime - if you run the tests from `tests` the function gets
         # confused since there a folder named `onnxruntime` in `tests`. Therefore, `_onnxruntime_available`
