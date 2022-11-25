@@ -17,6 +17,7 @@
 import importlib
 import os
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, Optional, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
@@ -626,7 +627,9 @@ class TasksManager:
         return task_to_automodel[task]
 
     @staticmethod
-    def determine_framework(model_name: str, subfolder: str = "", framework: Optional[str] = None) -> str:
+    def determine_framework(
+        model_name_or_path: Union[str, Path], subfolder: str = "", framework: Optional[str] = None
+    ) -> str:
         """
         Determines the framework to use for the export.
 
@@ -637,10 +640,12 @@ class TasksManager:
             4. If could not infer, use available framework in environment, with priority given to PyTorch.
 
         Args:
-            model_name (`str`):
-                The name of the model to export.
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
             subfolder (`str`, *optional*, defaults to `""`):
-                The subfolder where the model is stored.
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
             framework (`Optional[str]`, *optional*):
                 The framework to use for the export. See above for priority if none provided.
 
@@ -653,11 +658,11 @@ class TasksManager:
 
         framework_map = {"pt": "PyTorch", "tf": "TensorFlow"}
 
-        full_model_path = os.path.join(model_name, subfolder)
-        if os.path.isdir(full_model_path):
-            if os.path.isfile(os.path.join(full_model_path, WEIGHTS_NAME)):
+        full_model_path = Path(model_name_or_path) / subfolder
+        if full_model_path.is_dir():
+            if (full_model_path / WEIGHTS_NAME).is_file():
                 framework = "pt"
-            elif os.path.isfile(os.path.join(full_model_path, TF2_WEIGHTS_NAME)):
+            elif (full_model_path / TF2_WEIGHTS_NAME).is_file():
                 framework = "tf"
             else:
                 raise FileNotFoundError(
@@ -667,8 +672,10 @@ class TasksManager:
                 )
             logger.info(f"Local {framework_map[framework]} model found.")
         else:
+            if not isinstance(model_name_or_path, str):
+                model_name_or_path = str(model_name_or_path)
             try:
-                url = huggingface_hub.hf_hub_url(model_name, WEIGHTS_NAME, subfolder=subfolder)
+                url = huggingface_hub.hf_hub_url(model_name_or_path, WEIGHTS_NAME, subfolder=subfolder)
                 huggingface_hub.get_hf_file_metadata(url)
                 framework = "pt"
             except Exception:
@@ -676,7 +683,7 @@ class TasksManager:
 
             if framework is None:
                 try:
-                    url = huggingface_hub.hf_hub_url(model_name, TF2_WEIGHTS_NAME, subfolder=subfolder)
+                    url = huggingface_hub.hf_hub_url(model_name_or_path, TF2_WEIGHTS_NAME, subfolder=subfolder)
                     huggingface_hub.get_hf_file_metadata(url)
                     framework = "tf"
                 except Exception:
@@ -702,7 +709,8 @@ class TasksManager:
             model_name_or_path (`str`):
                 The model repo or local path (not supported for now).
             subfolder (`str`, *optional*, defaults to `""`):
-                The subfolder where the model is stored.
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
 
@@ -725,7 +733,7 @@ class TasksManager:
             # TODO: maybe implement that.
             raise RuntimeError("Cannot infer the task from a local directory yet, please specify the task manually.")
         else:
-            if subfolder:
+            if subfolder != "":
                 raise RuntimeError(
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
@@ -748,7 +756,7 @@ class TasksManager:
     @staticmethod
     def get_model_from_task(
         task: str,
-        model_name: str,
+        model_name_or_path: Union[str, Path],
         subfolder: str = "",
         revision: Optional[str] = None,
         framework: Optional[str] = None,
@@ -761,10 +769,12 @@ class TasksManager:
         Args:
             task (`str`):
                 The task required.
-            model_name (`str`):
-                The name of the model to export.
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
             subfolder (`str`, *optional*, defaults to `""`):
-                The subfolder where the model is stored.
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
             framework (`Optional[str]`, *optional*):
@@ -779,22 +789,22 @@ class TasksManager:
             The instance of the model.
 
         """
-        framework = TasksManager.determine_framework(model_name, subfolder=subfolder, framework=framework)
+        framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
         if task == "auto":
-            task = TasksManager.infer_task_from_model(model_name, subfolder=subfolder, revision=revision)
+            task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
         model_class = TasksManager.get_model_class_for_task(task, framework)
         kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
-            model = model_class.from_pretrained(model_name, **kwargs)
+            model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
             if framework == "pt":
                 logger.info("Loading TensorFlow model in PyTorch before exporting.")
                 kwargs["from_tf"] = True
-                model = model_class.from_pretrained(model_name, **kwargs)
+                model = model_class.from_pretrained(model_name_or_path, **kwargs)
             else:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 kwargs["from_pt"] = True
-                model = model_class.from_pretrained(model_name, **kwargs)
+                model = model_class.from_pretrained(model_name_or_path, **kwargs)
         return model
 
     @staticmethod

@@ -344,13 +344,13 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             decoder_with_past_path (`Optional[Union[str, Path]]`, *optional*):
                 The path of the decoder with past key values ONNX model.
             provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
-                ONNX Runtime provider to use for loading the model. See https://ort.ai/docs/execution-providers/
+                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers.
             session_options (`Optional[ort.SessionOptions]`, *optional*),:
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
             provider_options (`Optional[Dict]`, *optional*):
                 Provider option dictionary corresponding to the provider used. See available options
-                for each provider: https://ort.ai/docs/api/c/group___global.html . Defaults to `None`.
+                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
         validate_provider_availability(provider)  # raise error if the provider is not available
 
