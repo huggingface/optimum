@@ -57,10 +57,10 @@ ONNX_INPUTS_DOCSTRING = r"""
             [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig)
             is an instance of the configuration associated to the model. Initializing with a config file does
             not load the weights associated with the model, only the configuration.
-        decoder_file_name(`str`, *optional*):
+        decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
             The decoder model file name. Overwrites the default file name and allows one to save the decoder model with
             a different name.
-        decoder_with_past_file_name(`str`, *optional*):
+        decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
             The decoder with past key values model file name overwriting the default file name, allowing to save
             the decoder model with a different name.
         use_io_binding (`bool`, *optional*):
@@ -141,9 +141,9 @@ class ORTModelDecoder(ORTModel):
 
     def __init__(
         self,
+        config: transformers.PretrainedConfig,
         decoder_session: onnxruntime.InferenceSession,
-        decoder_with_past_session: onnxruntime.InferenceSession = None,
-        config: transformers.PretrainedConfig = None,
+        decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
         use_io_binding: bool = True,
         model_save_dir: Optional[str] = None,
         last_decoder_model_name: str = ONNX_DECODER_NAME,
@@ -202,11 +202,11 @@ class ORTModelDecoder(ORTModel):
                 The path of the decoder ONNX model.
             decoder_with_past_path (`str` or `Path`, *optional*):
                 The path of the decoder with past key values ONNX model.
-            provider(`str`, *optional*):
+            provider(`str`, *optional*, defaults to `"CPUExecutionProvider"`):
                 The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
             session_options (`onnxruntime.SessionOptions`, *optional*),:
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
-            provider_options (`Dict`, **optional**):
+            provider_options (`Dict`, *optional*):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
@@ -254,13 +254,14 @@ class ORTModelDecoder(ORTModel):
         Arguments:
             save_directory (`str` or `Path`):
                 The directory where to save the model files.
-            decoder_file_name(`str`, *optional*):
+            decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
                 The decoder model file name. Overwrites the default file name and allows one to save the decoder model
                 with a different name.
-            decoder_with_past_file_name(`str`, *optional*):
+            decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
         """
+        # TODO : Remove unused kwargs
         src_file_names = [self.decoder_file_name]
         dst_file_names = [decoder_file_name]
         if self.use_cache:
@@ -309,10 +310,10 @@ class ORTModelDecoder(ORTModel):
             force_download (`bool`, *optional*, defaults to `False`):
                 Whether or not to force the (re-)download of the model weights and configuration files, overriding the
                 cached versions if they exist.
-            decoder_file_name(`str`, *optional*):
+            decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
                 The decoder model file name. Overwrites the default file name and allows one to save the decoder model
                 with a different name.
-            decoder_with_past_file_name(`str`, *optional*):
+            decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
             use_cache (`bool`, *optional*, defaults to `True`):
@@ -370,8 +371,8 @@ class ORTModelDecoder(ORTModel):
             )
 
         return cls(
+            config,
             *model,
-            config=config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             last_decoder_model_name=file_names["last_decoder_model_name"],
@@ -385,8 +386,8 @@ class ORTModelDecoder(ORTModel):
         config: "PretrainedConfig",
         subfolder: Optional[str] = "",
         save_dir: Union[str, Path] = default_cache_path,
-        use_auth_token: Optional[Union[bool, str, None]] = None,
-        revision: Optional[Union[str, None]] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
         force_download: bool = True,
         cache_dir: Optional[str] = None,
         use_cache: bool = True,
@@ -401,10 +402,10 @@ class ORTModelDecoder(ORTModel):
             save_dir (`str` or `Path`):
                 The directory where the ONNX model should be saved, default to
                 `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
-            use_auth_token (`str` or `bool`):
+            use_auth_token (`str` or `bool`, *optional*):
                 The token to use as HTTP bearer authorization for remote files. Needed to load models from a private
                 repository.
-            revision (`str`):
+            revision (`str`, *optional*):
                 The specific model version to use. It can be a branch name, a tag name, or a commit id.
             force_download (`bool`, *optional*, defaults to `False`):
                 Whether or not to force the (re-)download of the model weights and configuration files, overriding the
