@@ -103,8 +103,8 @@ class BetterTransformersTextVisionTTest(BetterTransformersTestMixin, unittest.Te
                 torch.manual_seed(0)
                 bt_hidden_states = converted_model(**inputs)[0]
 
-                if "gelu_new" in random_config.to_dict().values():
-                    # Since `gelu_new` is a slightly modified version of `GeLU` we expect a small
+                if "gelu_new" or "gelu_quick" in random_config.to_dict().values():
+                    # Since `gelu_new` and `gelu_quick` are a slightly modified version of `GeLU` we expect a small
                     # discrepency.
                     tol = 4e-2
                 else:
