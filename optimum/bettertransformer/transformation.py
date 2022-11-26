@@ -123,10 +123,10 @@ class BetterTransformer(object):
     # Original PR from: https://github.com/huggingface/transformers/pull/19553 adapted and wrapped in this script.
     """
 
-    @check_if_pytorch_greater(
-        "1.13.0",
-        "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
-    )
+    # @check_if_pytorch_greater(
+    #     "1.13.0",
+    #     "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
+    # )
     def transform(
         model: torch.nn.Module, keep_original_model: bool = False, max_memory: Optional[dict] = None, **kwargs
     ) -> torch.nn.Module:

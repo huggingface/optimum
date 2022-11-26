@@ -32,6 +32,7 @@ ALL_VISION_MODELS_TO_TEST = [
 
 ALL_VISION_TEXT_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-vilt-random-vqa",
+    "hf-internal-testing/tiny-random-OwlViTModel",
 ]
 
 
@@ -51,7 +52,7 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
         return inputs
 
 
-class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase):
+class BetterTransformersTextVisionTTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
