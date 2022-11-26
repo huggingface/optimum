@@ -65,5 +65,5 @@ class BetterTransformersTextVisionTTest(BetterTransformersTestMixin, unittest.Te
 
         # Model takes image and text as input
         processor = AutoProcessor.from_pretrained(model_id)
-        inputs = processor(image, text, return_tensors="pt")
+        inputs = processor(images=image, text=text, return_tensors="pt")
         return inputs
