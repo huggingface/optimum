@@ -17,6 +17,7 @@ from .encoder_models import (
     AlbertLayerBetterTransformer,
     BartEncoderLayerBetterTransformer,
     BertLayerBetterTransformer,
+    MBartEncoderLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     ViltLayerBetterTransformer,

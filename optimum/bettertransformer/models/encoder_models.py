@@ -383,7 +383,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Linear layer 2
         self.linear2_weight = mbart_layer.fc2.weight
-        self.linear2_bias = bart_layer.fc2.bias
+        self.linear2_bias = mbart_layer.fc2.bias
 
         # Layer norm 1
         self.norm1_eps = mbart_layer.self_attn_layer_norm.eps
