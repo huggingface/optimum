@@ -124,7 +124,10 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
         for hf_random_config in self._loop_all_classes():
-            hf_random_config.hidden_act = "silu"
+            if hasattr(hf_random_config, "vision_config"):
+                hf_random_config.vision_config.hidden_act = "silu"
+            else:
+                hf_random_config.hidden_act = "silu"
 
             hf_random_model = AutoModel.from_config(hf_random_config).eval()
             with self.assertRaises(ValueError):
