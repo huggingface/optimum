@@ -43,6 +43,7 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "AlbertLayer": AlbertLayerBetterTransformer,
     # Bart family
     "BartEncoderLayer": BartEncoderLayerBetterTransformer,
+    "MBartEncoderLayer": MBartEncoderLayerBetterTransformer,
     # "PLBartEncoderLayer": bart.BartEncoderLayerBetterTransformer,
     # "MarianEncoderLayer": bart.BartEncoderLayerBetterTransformer,
     # "TimeSeriesTransformerEncoderLayer": bart.BartEncoderLayerBetterTransformer,
