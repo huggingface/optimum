@@ -106,7 +106,7 @@ Now, make sure to fill all the necessary attributes, the list of attributes are:
 - `num_heads`
 - `embed_dim`
 Note that these attributes correspond to all the components that are necessary to run a Transformer Encoder module, check the figure 1 on the ["Attention Is All You Need"](https://arxiv.org/pdf/1706.03762.pdf) paper.
-Once you filled all these attributes (sometimes the `query`, `key` and `value` layers needs to be "contigufied", check the [`modeling_encoder.py`](https://github.com/huggingface/optimum/tree/main/optimum/bettertransformer/models/encoder_model.py) file to understand more.)
+Once you filled all these attributes (sometimes the `query`, `key` and `value` layers needs to be "contigufied", check the [`modeling_encoder.py`](https://github.com/huggingface/optimum/blob/main/optimum/bettertransformer/models/encoder_models.py) file to understand more.)
 
 Make sure also to add the lines:
 ```python
@@ -174,4 +174,4 @@ The best way to reproduce this experiment on your own model is to try it by get 
 
 ### Step 4: Sanity check!
 
-As a last step, make sure to update the `BETTER_TRANFORMER_LAYERS_MAPPING_DICT` dictionary in  `optimum/bettertransformer/__init__.py` with the correct names, and you should be ready to convert your model. Try it out with the conversion method that is presented in the [tutorials sections](./tutorials/content)!
+As a last step, make sure to update the `BETTER_TRANFORMER_LAYERS_MAPPING_DICT` dictionary in  `optimum/bettertransformer/__init__.py` with the correct names, and you should be ready to convert your model. Try it out with the conversion method that is presented in the [tutorials sections](../tutorials/convert)!
