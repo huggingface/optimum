@@ -45,6 +45,21 @@ def check_framework_is_available(func):
     return wrapper
 
 
+DEFAULT_DUMMY_SHAPES = {
+    "batch_size": 2,
+    "sequence_length": 16,
+    "num_choices": 4,
+    # image
+    "num_channels": 3,
+    "width": 224,
+    "heigh": 224,
+    # audio
+    "feature_size": 80,
+    "nb_max_frames": 3000,
+    "audio_sequence_length": 16000,
+}
+
+
 class DummyInputGenerator(ABC):
     """
     Generates dummy inputs for the supported input names, in the requested framework.
@@ -246,9 +261,9 @@ class DummyTextInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedTextConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
-        num_choices: int = 4,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
@@ -302,9 +317,9 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedTextConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
-        num_choices: int = 4,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
@@ -324,8 +339,16 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         if input_name == "encoder_outputs":
-            shape = (self.batch_size, self.sequence_length, self.hidden_size)
-            return (self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework), None, None)
+            return (
+                self.random_float_tensor(
+                    shape=[self.batch_size, self.sequence_length, self.hidden_size],
+                    min_value=0,
+                    max_value=1,
+                    framework=framework,
+                ),
+                None,
+                None,
+            )
 
         return super().generate(input_name, framework=framework)
 
@@ -341,8 +364,8 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedTextConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
@@ -387,8 +410,8 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedSeq2SeqConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         encoder_sequence_length: Optional[int] = None,
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
@@ -444,8 +467,8 @@ class DummyBboxInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
@@ -485,8 +508,8 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedVisionConfig,
-        batch_size: int = 2,
-        num_channels: int = 3,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
         width: int = 224,
         height: int = 224,
     ):
@@ -508,10 +531,13 @@ class DummyVisionInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         if input_name == "pixel_mask":
-            shape = [self.batch_size, self.height, self.width]
-            return self.random_int_tensor(shape, max_value=1, framework=framework)
-        shape = [self.batch_size, self.num_channels, self.height, self.width]
-        return self.random_float_tensor(shape, framework=framework)
+            return self.random_int_tensor(
+                shape=[self.batch_size, self.height, self.width], max_value=1, framework=framework
+            )
+        else:
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.num_channels, self.height, self.width], framework=framework
+            )
 
 
 class DummyAudioInputGenerator(DummyInputGenerator):
@@ -521,10 +547,10 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedConfig,
-        batch_size: int = 2,
-        feature_size: int = 80,
-        nb_max_frames: int = 3000,
-        sequence_length: int = 16000,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        feature_size: int = DEFAULT_DUMMY_SHAPES["feature_size"],
+        nb_max_frames: int = DEFAULT_DUMMY_SHAPES["nb_max_frames"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
     ):
         self.task = task
 
@@ -534,9 +560,15 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.sequence_length = sequence_length
 
     def generate(self, input_name: str, framework: str = "pt"):
-        shape = [self.batch_size, self.sequence_length]
-        if input_name == "input_values":
-            self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
 
-        shape = [self.batch_size, self.feature_size, self.nb_max_frames]
-        return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+        if input_name == "input_values":  # raw waveform
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.sequence_length], min_value=-1, max_value=1, framework=framework
+            )
+        else:
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.feature_size, self.nb_max_frames],
+                min_value=-1,
+                max_value=1,
+                framework=framework,
+            )

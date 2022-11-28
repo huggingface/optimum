@@ -134,7 +134,6 @@ class OnnxConfig(ExportConfig, ABC):
 
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
-        self.create_dummy_input_generator_classes()
 
         self._patching_specs = []
         for spec in patching_specs if patching_specs is not None else []:
@@ -142,21 +141,6 @@ class OnnxConfig(ExportConfig, ABC):
             if spec.orig_op is None:
                 final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
             self._patching_specs.append(final_spec)
-
-    def create_dummy_input_generator_classes(self):
-        """
-        Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
-
-        Each dummy input generator is independent, so this method instantiates the first generator, and
-        forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
-        size. Override this method for custom behavior.
-        """
-        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
-        self.dummy_inputs_generators = [
-            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size)
-            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
-        ]
-        self.dummy_inputs_generators.insert(0, first_inputs_gen)
 
     @property
     @abstractmethod
@@ -250,23 +234,58 @@ class OnnxConfig(ExportConfig, ABC):
         return ordered_inputs
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
-    def generate_dummy_inputs(self, framework: str = "pt"):
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         """
         Generates the dummy inputs necessary for tracing the model.
 
         Args:
             framework (`str`, defaults to `"pt"`):
                 The framework for which to create the dummy inputs.
+            batch_size (`int`, *optional*, defaults to 2):
+                The batch size to use in the dummy inputs.
+            sequence_length(`int`, *optional*, defaults to 16):
+                The sequence length to use in the dummy inputs.
+            num_choices (`int`, *optional*, defaults to 4):
+                The number of candidate answers provided for multiple choice task.
+            image_width (`int`, *optional*, defaults to 224):
+                The width to use in the dummy inputs for vision tasks.
+            image_height (`int`, *optional*, defaults to 224):
+                The height to use in the dummy inputs for vision tasks.
+            num_channels (`int`, *optional*, defaults to 3):
+                The number of channels to use in the dummpy inputs for vision tasks.
+            feature_size (`int`, *optional*, defaults to 80):
+                The number of features to use in the dummpy inputs for audio tasks in case it is not raw audio.
+                This is for example the number of STFT bins or MEL bins.
+            nb_max_frames (`int`, *optional*, defaults to 3000):
+                The number of frames to use in the dummpy inputs for audio tasks in case the input is not raw audio.
+            audio_sequence_length (`int`, *optional*, defaults to 16000):
+                The number of frames to use in the dummpy inputs for audio tasks in case the input is raw audio.
 
         Returns:
             `Dict`: A dictionary mapping the input names to dummy tensors in the proper framework format.
         """
+
+        """
+        Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
+
+        Each dummy input generator is independent, so this method instantiates the first generator, and
+        forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
+        size. Override this method for custom behavior.
+        """
+
+        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config, **kwargs)
+        dummy_inputs_generators = [
+            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size)
+            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+        ]
+        dummy_inputs_generators.insert(0, first_inputs_gen)
+
         dummy_inputs = {}
         for input_name in self.inputs:
             input_was_inserted = False
-            for dummy_input_gen in self.dummy_inputs_generators:
+            for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework, **kwargs)
                     input_was_inserted = True
                     break
             if not input_was_inserted:
