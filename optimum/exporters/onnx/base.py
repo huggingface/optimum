@@ -249,7 +249,6 @@ class OnnxConfig(ExportConfig, ABC):
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
 
-    # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         """
         Generates the dummy inputs necessary for tracing the model.
@@ -367,15 +366,16 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         if hasattr(self._config, "use_cache"):
             return {"use_cache": self.use_past}
 
-    # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
-    def generate_dummy_inputs(self, framework: str = "pt"):
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
+
         dummy_inputs = {}
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
         if self.use_past:
             input_names.append("past_key_values")
         for input_name in input_names:
             input_was_inserted = False
-            for dummy_input_gen in self.dummy_inputs_generators:
+            for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
                     dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                     input_was_inserted = True

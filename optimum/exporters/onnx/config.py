@@ -14,7 +14,7 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 from ...utils import (
     DummyAudioInputGenerator,
@@ -26,6 +26,10 @@ from ...utils import (
     DummyVisionInputGenerator,
 )
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+
+
+if TYPE_CHECKING:
+    from ...utils import DummyInputGenerator
 
 
 class TextEncoderOnnxConfig(OnnxConfig):
@@ -85,7 +89,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return common_inputs
 
-    def create_dummy_input_generator_classes(self):
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
             self.task,
@@ -99,11 +103,13 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
             batch_size=dummy_text_input_generator.batch_size,
             encoder_sequence_length=dummy_text_input_generator.sequence_length,
         )
-        self.dummy_inputs_generators = [
+        dummy_inputs_generators = [
             dummy_text_input_generator,
             dummy_decoder_text_input_generator,
             dummy_seq2seq_past_key_values_generator,
         ]
+
+        return dummy_inputs_generators
 
 
 class VisionOnnxConfig(OnnxConfig):

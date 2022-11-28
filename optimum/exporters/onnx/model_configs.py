@@ -46,6 +46,7 @@ from .config import (
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
+    from ...utils import DummyInputGenerator
     from .base import PatchingSpec
 
 
@@ -304,7 +305,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         },
     )
 
-    def create_dummy_input_generator_classes(self):
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
             self.task,
@@ -320,11 +321,13 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
             self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
         )
-        self.dummy_inputs_generators = [
+        dummy_inputs_generators = [
             dummy_text_input_generator,
             dummy_decoder_text_input_generator,
             dummy_seq2seq_past_key_values_generator,
         ]
+
+        return dummy_inputs_generators
 
     @property
     def inputs_for_default_and_seq2seq_lm(self):
