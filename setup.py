@@ -26,7 +26,7 @@ TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
-BENCHMARK_REQUIRE = ["optuna", "tqdm", "sklearn", "seqeval", "torchvision", "evaluate>=0.2.0"]
+BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
 EXTRAS_REQUIRE = {
     "onnxruntime": [
