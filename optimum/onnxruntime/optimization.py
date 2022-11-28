@@ -127,16 +127,12 @@ class ORTOptimizer:
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type)
 
-        # Save the model configuration
-        self.config.save_pretrained(save_dir)
-
         # Create and save the configuration summarizing all the parameters related to optimization
         ort_config = ORTConfig(
             optimization=optimization_config,
             use_external_data_format=use_external_data_format,
             one_external_file=one_external_file,
         )
-        ort_config.save_pretrained(save_dir)
 
         model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
         optimization_options = optimization_config.create_fusion_options(model_type)
@@ -162,6 +158,10 @@ class ORTOptimizer:
             suffix = f"_{file_suffix}" if file_suffix else ""
             output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
             optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format, one_external_file)
+
+        # Save the model configuration
+        self.config.save_pretrained(save_dir)
+        ort_config.save_pretrained(save_dir)
 
         LOGGER.info(
             f"Optimized model saved at: {save_dir} (external data format: "
