@@ -142,6 +142,22 @@ class OnnxConfig(ExportConfig, ABC):
                 final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
             self._patching_specs.append(final_spec)
 
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
+        """
+        Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
+        Each dummy input generator is independent, so this method instantiates the first generator, and
+        forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
+        size. Override this method for custom behavior.
+        """
+        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config, **kwargs)
+        dummy_inputs_generators = [
+            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size, **kwargs)
+            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+        ]
+        dummy_inputs_generators.insert(0, first_inputs_gen)
+
+        return dummy_inputs_generators
+
     @property
     @abstractmethod
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -232,22 +248,6 @@ class OnnxConfig(ExportConfig, ABC):
                 name = self.torch_to_onnx_input_map.get(name, name)
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
-
-    def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
-        """
-        Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
-        Each dummy input generator is independent, so this method instantiates the first generator, and
-        forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
-        size. Override this method for custom behavior.
-        """
-        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config, **kwargs)
-        dummy_inputs_generators = [
-            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size, **kwargs)
-            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
-        ]
-        dummy_inputs_generators.insert(0, first_inputs_gen)
-
-        return dummy_inputs_generators
 
     # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
