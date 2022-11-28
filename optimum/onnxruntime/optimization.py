@@ -104,7 +104,7 @@ class ORTOptimizer:
         save_dir: Union[str, os.PathLike],
         file_suffix: Optional[str] = "optimized",
         use_external_data_format: bool = False,
-        all_tensors_to_one_file: bool = True,
+        one_external_file: bool = True,
     ):
         """
         Optimizes a model given the optimization specifications defined in `optimization_config`.
@@ -118,8 +118,9 @@ class ORTOptimizer:
                 The file suffix used to save the optimized model.
             use_external_data_format (`bool`, *optional*, defaults to `False`):
                 Whether to use external data format to store model of size >= 2Gb.
-            all_tensors_to_one_file (`bool`, defaults to `True`):
-                Whether to save all tensors to one external file specified by location. If false, save each tensor to a file named with the tensor name.
+            one_external_file (`bool`, defaults to `True`):
+                When `use_external_data_format=True`, whether to save all tensors to one external file.
+                If false, save each tensor to a file named with the tensor name.
 
         """
         save_dir = Path(save_dir)
@@ -133,7 +134,7 @@ class ORTOptimizer:
         ort_config = ORTConfig(
             optimization=optimization_config,
             use_external_data_format=use_external_data_format,
-            all_tensors_to_one_file=all_tensors_to_one_file,
+            one_external_file=one_external_file,
         )
         ort_config.save_pretrained(save_dir)
 
@@ -160,12 +161,12 @@ class ORTOptimizer:
 
             suffix = f"_{file_suffix}" if file_suffix else ""
             output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
-            optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format, all_tensors_to_one_file)
+            optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format, one_external_file)
 
         LOGGER.info(
             f"Optimized model saved at: {save_dir} (external data format: "
             f"{use_external_data_format}; saved all tensor to one file: "
-            f"{all_tensors_to_one_file})"
+            f"{one_external_file})"
         )
 
         return Path(save_dir)

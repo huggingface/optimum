@@ -242,9 +242,9 @@ class OnnxExportArguments:
         default=False,
         metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
     )
-    all_tensors_to_one_file: bool = field(
+    one_external_file: bool = field(
         default=True,
-        metadata={"help": "Whether to save all tensors to one external file specified by location."},
+        metadata={"help": "When `use_external_data_format=True`, whether to save all tensors to one external file."},
     )
 
 
@@ -330,7 +330,7 @@ def main():
         optimization_config=optimization_config,
         save_dir=training_args.output_dir,
         use_external_data_format=onnx_export_args.use_external_data_format,
-        all_tensors_to_one_file=onnx_export_args.all_tensors_to_one_file,
+        one_external_file=onnx_export_args.one_external_file,
     )
 
     # Prepare the dataset downloading, preprocessing and metric creation to perform the evaluation and / or the
