@@ -43,12 +43,12 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
-    ORTConfigManager,
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
 )
+from ..utils.normalized_config import NormalizedConfigManager
 
 
 if TYPE_CHECKING:
@@ -670,7 +670,7 @@ class ORTEncoder:
         self._device = device
         self.use_io_binding = use_io_binding
         self.main_input_name = main_input_name
-        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
@@ -860,7 +860,7 @@ class ORTDecoder:
     ):
         self.session = session
         self.config = config
-        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
         self._device = device
         self.use_io_binding = use_io_binding
         self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}
