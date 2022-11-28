@@ -18,7 +18,7 @@ from .base import BetterTransformerBaseLayer
 
 
 class TapasLayerBetterTransformer:
-    def _init_(self, tapas_layer, config):
+    def __init__(self, tapas_layer, config):
         r"""
         A simple conversion of the TAPAS layer to its `BetterTransformer` implementation.
 
