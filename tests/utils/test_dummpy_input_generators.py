@@ -16,7 +16,6 @@
 from contextlib import nullcontext
 from unittest import TestCase
 
-import pytest
 from transformers import AutoConfig
 
 from parameterized import parameterized

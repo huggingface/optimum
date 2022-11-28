@@ -14,7 +14,7 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, List, Mapping
 
 from ...utils import (
     DummyAudioInputGenerator,
