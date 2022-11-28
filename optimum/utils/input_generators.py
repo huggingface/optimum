@@ -52,7 +52,7 @@ DEFAULT_DUMMY_SHAPES = {
     # image
     "num_channels": 3,
     "width": 224,
-    "heigh": 224,
+    "height": 224,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -518,7 +518,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         if normalized_config.has_attribute("image_size"):
             self.image_size = normalized_config.image_size
         else:
-            self.image_size = (width, height)
+            self.image_size = (height, width)
         if normalized_config.has_attribute("num_channels"):
             self.num_channels = normalized_config.num_channels
         else:

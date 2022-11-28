@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Callable, Type
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
+
 class NormalizedConfig:
     """
     Handles the normalization of [`PretrainedConfig`] attribute names, allowing to access attributes in a general way.
@@ -93,6 +94,7 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         elif self.VISION_CONFIG is not None and attr_name.upper() in dir(NormalizedVisionConfig):
             attr_name = f"{self.VISION_CONFIG}.{attr_name}"
         return super().__getattr__(attr_name)
+
 
 BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="encoder_attention_heads",
@@ -191,10 +193,12 @@ class NormalizedConfigManager:
         "mbart": BartLikeNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m_100": BartLikeNormalizedTextConfig,
+        "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
+        "yolos": NormalizedVisionConfig,
     }
 
     @classmethod

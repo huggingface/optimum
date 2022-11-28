@@ -49,6 +49,7 @@ def _is_gpu_available():
     else:
         return False
 
+
 class ORTConfigManager:
     """
     A class that contains all the information needed by ONNX Runtime optimization for a given model type.
