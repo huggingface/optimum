@@ -88,10 +88,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
             elif layer_class == "TransformerBlock":
                 # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
                 class_name = "DistilBert"
-
             elif layer_class == "TapasLayer":
                 class_name = "Tapas"
-
             elif "EncoderLayer" in layer_class:
                 class_name = layer_class[:-12]
             else:
@@ -280,7 +278,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         gc.collect()
 
     def prepare_inputs_for_class(self, model_id=None):
-        input_dlsict = {
+        input_dict = {
             "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
             "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
             "decoder_input_ids": torch.LongTensor([[0], [0]]),

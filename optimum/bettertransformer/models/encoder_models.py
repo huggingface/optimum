@@ -78,7 +78,7 @@ class TapasLayerBetterTransformer:
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, *_):
+    def forward(self, hidden_states, attention_mask, *_, **__):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553

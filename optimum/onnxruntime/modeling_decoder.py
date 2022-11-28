@@ -11,26 +11,26 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, Mapping, Optional, Set, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import transformers
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, PretrainedConfig
-from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
+from transformers import AutoModelForCausalLM, PretrainedConfig
+from transformers.file_utils import add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 from transformers.onnx import FeaturesManager, export
 from transformers.onnx.utils import get_preprocessor
 
-import onnx
 import onnxruntime
-from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub import hf_hub_download
 from optimum.onnx.configuration import DecoderOnnxConfigWithPast
 
 from .io_binding import TypeHelper
@@ -39,7 +39,6 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ORTConfigManager,
-    get_device_for_provider,
     get_provider_for_device,
     parse_device,
 )
@@ -47,29 +46,8 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-ONNX_INPUTS_DOCSTRING = r"""
-    Arguments:
-        decoder_session (`onnxruntime.InferenceSession`):
-            The ONNX Runtime inference session associated to the decoder.
-        decoder_with_past_session (`onnxruntime.InferenceSession`):
-            The ONNX Runtime inference session associated to the decoder with past key values.
-        config (`transformers.PretrainedConfig`):
-            [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig)
-            is an instance of the configuration associated to the model. Initializing with a config file does
-            not load the weights associated with the model, only the configuration.
-        decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-            The decoder model file name. Overwrites the default file name and allows one to save the decoder model with
-            a different name.
-        decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
-            The decoder with past key values model file name overwriting the default file name, allowing to save
-            the decoder model with a different name.
-        use_io_binding (`bool`, *optional*):
-            Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
-            if the device is CUDA, otherwise defaults to `False`.
-"""
-
 DECODER_INPUTS_DOCSTRING = r"""
-    Arguments:
+    Args:
         input_ids (`torch.LongTensor`):
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, sequence_length)`.
         attention_mask (`torch.LongTensor`, *optional*):
@@ -82,7 +60,7 @@ DECODER_INPUTS_DOCSTRING = r"""
 """
 
 CAUSALLM_ONNX_MODEL_DOCSTRING = r"""
-    Arguments:
+    Args:
         input_ids (`torch.LongTensor`):
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, sequence_length)`.
         attention_mask (`torch.LongTensor`):
@@ -129,359 +107,9 @@ TEXT_GENERATION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    ONNX model with a causal language modeling head for ONNX Runtime inference.
-    """,
-    ONNX_INPUTS_DOCSTRING,
-)
-class ORTModelDecoder(ORTModel):
-    # Used in from_transformers to export model to onnx
-    base_model_prefix = "onnx_model"
-
-    def __init__(
-        self,
-        config: transformers.PretrainedConfig,
-        decoder_session: onnxruntime.InferenceSession,
-        decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
-        use_io_binding: bool = True,
-        model_save_dir: Optional[str] = None,
-        last_decoder_model_name: str = ONNX_DECODER_NAME,
-        last_decoder_with_past_model_name: str = ONNX_DECODER_WITH_PAST_NAME,
-    ):
-        self.config = config
-        self.use_io_binding = use_io_binding
-        self.model_save_dir = model_save_dir
-        self.decoder_file_name = last_decoder_model_name
-        self.decoder_file_with_past_name = last_decoder_with_past_model_name
-        self.providers = decoder_session.get_providers()
-        self._device = get_device_for_provider(decoder_session.get_providers()[0])
-
-        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
-            logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` will be set to False."
-            )
-            self.use_io_binding = False
-
-        self.decoder = ORTDecoder(
-            session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
-        )
-        self.use_cache = decoder_with_past_session is not None
-        # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
-        # will be enabled
-        self.decoder_with_past = (
-            ORTDecoder(
-                session=decoder_with_past_session,
-                config=self.config,
-                device=self._device,
-                use_io_binding=self.use_io_binding,
-            )
-            if self.use_cache
-            else None
-        )
-        # registers the ORTModelForXXX classes into the transformers AutoModel classes
-        # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
-        AutoConfig.register(self.base_model_prefix, AutoConfig)
-        self.auto_model_class.register(AutoConfig, self.__class__)
-
-    @staticmethod
-    def load_model(
-        decoder_path: Union[str, Path],
-        decoder_with_past_path: Optional[Union[str, Path]] = None,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[onnxruntime.SessionOptions] = None,
-        provider_options: Optional[Dict] = None,
-    ):
-        """
-        Creates an instance of [`~optimum.onnxruntime.modeling_causal.ORTModelForCausalLM`].
-        Three inference sessions will be created for respectively the decoder and decoder with past key values
-        models. The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
-
-        Arguments:
-            decoder_path (`str` or `Path`):
-                The path of the decoder ONNX model.
-            decoder_with_past_path (`str` or `Path`, *optional*):
-                The path of the decoder with past key values ONNX model.
-            provider(`str`, *optional*, defaults to `"CPUExecutionProvider"`):
-                The ONNX Runtime provider to use for loading the model. Defaults to `"CPUExecutionProvider"`.
-            session_options (`onnxruntime.SessionOptions`, *optional*),:
-                ONNX Runtime session options to use for loading the model. Defaults to `None`.
-            provider_options (`Dict`, *optional*):
-                Provider option dictionary corresponding to the provider used. See available options
-                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
-        """
-        available_providers = onnxruntime.get_available_providers()
-        if provider not in available_providers:
-            raise ValueError(
-                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
-            )
-
-        providers = [provider]
-        if provider == "TensorrtExecutionProvider":
-            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
-            providers.append("CUDAExecutionProvider")
-
-        decoder_session = onnxruntime.InferenceSession(
-            str(decoder_path),
-            providers=providers,
-            sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
-        )
-        decoder_with_past_session = None
-        # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
-        # will be enabled
-        if decoder_with_past_path is not None:
-            decoder_with_past_session = onnxruntime.InferenceSession(
-                str(decoder_with_past_path),
-                providers=providers,
-                sess_options=session_options,
-                provider_options=None if provider_options is None else [provider_options],
-            )
-        return decoder_session, decoder_with_past_session
-
-    def _save_pretrained(
-        self,
-        save_directory: Union[str, Path],
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        **kwargs,
-    ):
-        """
-        Saves the model decoder and decoder with past key values as well as its configuration file to a
-        directory, so that it can be re-loaded using the
-        [`~optimum.onnxruntime.modeling_causal.ORTModelForCausalLM.from_pretrained`] class method.
-
-        Arguments:
-            save_directory (`str` or `Path`):
-                The directory where to save the model files.
-            decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
-                with a different name.
-            decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
-                The decoder with past key values model file name overwriting the default file name, allowing to save
-                the decoder model with a different name.
-        """
-        # TODO : Remove unused kwargs
-        src_file_names = [self.decoder_file_name]
-        dst_file_names = [decoder_file_name]
-        if self.use_cache:
-            src_file_names.append(self.decoder_file_with_past_name)
-            dst_file_names.append(decoder_with_past_file_name)
-
-        for src_file_name, dst_file_name in zip(src_file_names, dst_file_names):
-            src_path = self.model_save_dir.joinpath(src_file_name)
-            dst_path = Path(save_directory).joinpath(dst_file_name)
-            shutil.copyfile(src_path, dst_path)
-
-    @classmethod
-    def _from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = True,
-        cache_dir: Optional[str] = None,
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        use_cache: bool = True,
-        use_io_binding: bool = True,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[onnxruntime.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-    ):
-        """
-        Loads a model and its configuration file from a directory or the HF Hub.
-        Implements: https://github.com/huggingface/huggingface_hub/blob/e67de48368bc1843e40afc1cc9d236402b9609ee/src/huggingface_hub/hub_mixin.py#L73
-
-        Arguments:
-            model_id (`str` or `Path`):
-                The directory from which to load the model.
-            use_auth_token (`str` or `bool`):
-                The token to use as HTTP bearer authorization for remote files. Needed to load models from a private
-                repository.
-            revision (`str`):
-                The specific model version to use. It can be a branch name, a tag name, or a commit id.
-            cache_dir (`Union[str, Path]`, *optional*):
-                The path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
-            force_download (`bool`, *optional*, defaults to `False`):
-                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
-                cached versions if they exist.
-            decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
-                with a different name.
-            decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
-                The decoder with past key values model file name overwriting the default file name, allowing to save
-                the decoder model with a different name.
-            use_cache (`bool`, *optional*, defaults to `True`):
-                Whether or not use the pre-computed key/values hidden-states in order to speed up sequential decoding.
-            local_files_only(`bool`, *optional*, defaults to `False`):
-                Whether or not to only look at local files (i.e., do not try to download the model).
-        """
-        file_names = {}
-        # Load model from a local directory
-        if os.path.isdir(os.path.join(model_id, subfolder)):
-            decoder_with_past_path = (
-                os.path.join(model_id, subfolder, decoder_with_past_file_name) if use_cache else None
-            )
-            model = cls.load_model(
-                decoder_path=os.path.join(model_id, subfolder, decoder_file_name),
-                decoder_with_past_path=decoder_with_past_path,
-                provider=provider,
-                session_options=session_options,
-                provider_options=provider_options,
-            )
-            model_save_dir = Path(model_id).joinpath(subfolder)
-            file_names["last_decoder_model_name"] = decoder_file_name
-            file_names["last_decoder_with_past_model_name"] = decoder_with_past_file_name
-        # Load model from hub
-        else:
-            default_file_names = [ONNX_DECODER_NAME]
-            model_file_names = [decoder_file_name]
-            if use_cache:
-                default_file_names.append(ONNX_DECODER_WITH_PAST_NAME)
-                model_file_names.append(decoder_with_past_file_name)
-            # Download the decoder and decoder_with_past forming the model
-            for file_name, default_file_name in zip(model_file_names, default_file_names):
-                model_cache_path = hf_hub_download(
-                    repo_id=model_id,
-                    subfolder=subfolder,
-                    filename=file_name,
-                    use_auth_token=use_auth_token,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    local_files_only=local_files_only,
-                )
-                file_names[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
-            model_save_dir = Path(model_cache_path).parent
-
-            last_decoder_with_past_name = file_names.get("last_decoder_with_past_model_name", None)
-            if last_decoder_with_past_name is not None:
-                last_decoder_with_past_name = model_save_dir.joinpath(last_decoder_with_past_name)
-            model = cls.load_model(
-                decoder_path=model_save_dir.joinpath(file_names["last_decoder_model_name"]),
-                decoder_with_past_path=last_decoder_with_past_name,
-                provider=provider,
-                session_options=session_options,
-                provider_options=provider_options,
-            )
-
-        return cls(
-            config,
-            *model,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-            last_decoder_model_name=file_names["last_decoder_model_name"],
-            last_decoder_with_past_model_name=file_names.get("last_decoder_with_past_model_name", None),
-        )
-
-    @classmethod
-    def _from_transformers(
-        cls,
-        model_id: str,
-        config: "PretrainedConfig",
-        subfolder: Optional[str] = "",
-        save_dir: Union[str, Path] = default_cache_path,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = True,
-        cache_dir: Optional[str] = None,
-        use_cache: bool = True,
-        **kwargs,
-    ):
-        """
-        Exports through the ONNX format a vanilla Transformers model using `transformers.onnx.export_onnx`.
-
-        Arguments:
-            model_id (`str` or `Path`):
-                The directory from which to load the model.
-            save_dir (`str` or `Path`):
-                The directory where the ONNX model should be saved, default to
-                `transformers.file_utils.default_cache_path`, which is the cache dir for transformers.
-            use_auth_token (`str` or `bool`, *optional*):
-                The token to use as HTTP bearer authorization for remote files. Needed to load models from a private
-                repository.
-            revision (`str`, *optional*):
-                The specific model version to use. It can be a branch name, a tag name, or a commit id.
-            force_download (`bool`, *optional*, defaults to `False`):
-                Whether or not to force the (re-)download of the model weights and configuration files, overriding the
-                cached versions if they exist.
-            cache_dir (`Union[str, Path]`, *optional*):
-                The path to a directory in which a downloaded pretrained model configuration should be cached if the
-                standard cache should not be used.
-            use_cache (`bool`, *optional*, defaults to `True`):
-                Whether or not use the pre-computed key/values hidden-states in order to speed up sequential decoding.
-            kwargs (`Dict`, *optional*):
-                kwargs will be passed to the model during initialization.
-        """
-        # Create local save dir in cache dir
-        save_dir = Path(save_dir).joinpath(model_id)
-        save_dir.mkdir(parents=True, exist_ok=True)
-        preprocessor = get_preprocessor(model_id)
-        framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
-        model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
-        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
-
-        # Export the decoder without the past key values
-        onnx_config = DecoderOnnxConfigWithPast(model.config, task=cls.export_feature, use_past=False)
-        onnx_opset = onnx_config.default_onnx_opset
-        export(
-            preprocessor=preprocessor,
-            model=model,
-            config=onnx_config,
-            opset=onnx_opset,
-            output=save_dir.joinpath(ONNX_DECODER_NAME),
-        )
-
-        # Export the decoder with the past key values
-        if use_cache:
-            onnx_config_with_past = DecoderOnnxConfigWithPast(model.config, task=cls.export_feature, use_past=True)
-            export(
-                preprocessor=preprocessor,
-                model=model,
-                config=onnx_config_with_past,
-                opset=onnx_opset,
-                output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
-            )
-
-        return cls._from_pretrained(save_dir, config=config, use_cache=use_cache, **kwargs)
-
-    def to(self, device: Union[torch.device, str, int]):
-        """
-        Changes the ONNX Runtime provider according to the device.
-
-        Arguments:
-            device (`torch.device` or `str` or `int`):
-                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
-                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
-        Returns:
-            `ORTModel`: the model placed on the requested device.
-        """
-        device, provider_options = parse_device(device)
-
-        provider = get_provider_for_device(device)
-        self.device = device
-        self.decoder._device = device
-        self.decoder.session.set_providers([provider], provider_options=[provider_options])
-        if self.decoder_with_past is not None:
-            self.decoder_with_past._device = device
-            self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
-        self.providers = self.decoder.session.get_providers()
-
-        return self
-
-
 class ORTDecoder:
     """
     Decoder model with a language modeling head on top for ONNX Runtime inference.
-
-    Arguments:
-        session (`onnxruntime.InferenceSession`):
-            The ONNX Runtime inference session associated to the decoder.
     """
 
     def __init__(
@@ -684,6 +312,299 @@ class ORTDecoder:
         return self.forward(*args, **kwargs)
 
 
+class ORTModelDecoder(ORTModel):
+    """
+    Base class for implementing models with a causal language modeling head using ONNX Runtime inference.
+    """
+
+    def __init__(
+        self,
+        config: transformers.PretrainedConfig,
+        decoder_session: onnxruntime.InferenceSession,
+        decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
+        use_io_binding: bool = True,
+        model_save_dir: str = "",
+        last_decoder_model_name: str = ONNX_DECODER_NAME,
+        last_decoder_with_past_model_name: str = ONNX_DECODER_WITH_PAST_NAME,
+    ):
+        """
+        Args:
+            decoder_session (`onnxruntime.InferenceSession`):
+                The ONNX Runtime inference session associated to the decoder.
+            config (`transformers.PretrainedConfig`):
+                An instance of the configuration associated to the model. Initializing with a config file does
+                not load the weights associated with the model, only the configuration.
+            decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
+                The ONNX Runtime inference session associated to the decoder with past key values.
+            use_io_binding (`bool`, *optional*, defaults to `True`):
+                Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
+                `True` if the device is CUDA, otherwise defaults to `False`.
+            model_save_dir (`str`, *optional*, defaults to `""`):
+                The directory under which the model exported to ONNX was saved.
+            last_decoder_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
+                The name of the ONNX file containing the decoder part of the model.
+            last_decoder_with_past_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
+                The name of the ONNX file containing the decoder with past key/values part of the model.
+        """
+        super().__init__(
+            decoder_session,
+            config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            latest_model_name=last_decoder_model_name,
+        )
+        self.decoder_file_name = last_decoder_model_name
+        self.decoder_file_with_past_name = last_decoder_with_past_model_name
+
+        self.use_cache = decoder_with_past_session is not None
+        self.decoder = ORTDecoder(
+            session=self.model, config=self.config, device=self._device, use_io_binding=self.use_io_binding
+        )
+        self.decoder_with_past = None
+        if self.use_cache:
+            self.decoder_with_past = ORTDecoder(
+                session=decoder_with_past_session,
+                config=self.config,
+                device=self._device,
+                use_io_binding=self.use_io_binding,
+            )
+
+    @staticmethod
+    def load_model(
+        decoder_path: Union[str, Path],
+        decoder_with_past_path: Optional[Union[str, Path]] = None,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[onnxruntime.SessionOptions] = None,
+        provider_options: Optional[Dict] = None,
+    ):
+        """
+        Creates an instance of [`~optimum.onnxruntime.ORTModelDecoder`].
+        Three inference sessions will be created for respectively the decoder and decoder with past key values
+        models. The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
+
+        Args:
+            decoder_path (`str` or `Path`):
+                The path of the decoder ONNX model.
+            decoder_with_past_path (`str` or `Path`, *optional*):
+                The path of the decoder with past key values ONNX model.
+            provider(`str`, *optional*, defaults to `"CPUExecutionProvider"`):
+                The ONNX Runtime provider to use for loading the model.
+            session_options (`Optional[onnxruntime.SessionOptions]`, *optional*),:
+                ONNX Runtime session options to use for loading the model.
+            provider_options (`Optional[Dict]`, *optional*):
+                Provider option dictionary corresponding to the provider used. See available options
+                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html.
+        """
+        available_providers = onnxruntime.get_available_providers()
+        if provider not in available_providers:
+            raise ValueError(
+                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
+            )
+
+        providers = [provider]
+        if provider == "TensorrtExecutionProvider":
+            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
+            providers.append("CUDAExecutionProvider")
+
+        decoder_session = onnxruntime.InferenceSession(
+            str(decoder_path),
+            providers=providers,
+            sess_options=session_options,
+            provider_options=None if provider_options is None else [provider_options],
+        )
+        decoder_with_past_session = None
+        # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
+        # will be enabled
+        if decoder_with_past_path is not None:
+            decoder_with_past_session = onnxruntime.InferenceSession(
+                str(decoder_with_past_path),
+                providers=providers,
+                sess_options=session_options,
+                provider_options=None if provider_options is None else [provider_options],
+            )
+        return decoder_session, decoder_with_past_session
+
+    def _save_pretrained(
+        self,
+        save_directory: Union[str, Path],
+        decoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+    ):
+        """
+        Saves the model decoder and decoder with past key values as well as its configuration file to a
+        directory, so that it can be re-loaded using the
+        [`~optimum.onnxruntime.modeling_causal.ORTModelDecoder.from_pretrained`] class method.
+
+        Args:
+            save_directory (`str` or `Path`):
+                The directory where to save the model files.
+            decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
+                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
+                with a different name.
+            decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
+                The decoder with past key values model file name overwriting the default file name, allowing to save
+                the decoder model with a different name.
+        """
+        src_file_names = [self.decoder_file_name]
+        dst_file_names = [decoder_file_name]
+        if self.use_cache:
+            src_file_names.append(self.decoder_file_with_past_name)
+            dst_file_names.append(decoder_with_past_file_name)
+
+        for src_file_name, dst_file_name in zip(src_file_names, dst_file_names):
+            src_path = self.model_save_dir.joinpath(src_file_name)
+            dst_path = Path(save_directory).joinpath(dst_file_name)
+            shutil.copyfile(src_path, dst_path)
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        model_id: Union[str, Path],
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = True,
+        cache_dir: Optional[str] = None,
+        decoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        use_cache: bool = True,
+        use_io_binding: bool = True,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[onnxruntime.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+    ):
+        file_names = {}
+        # Load model from a local directory
+        if os.path.isdir(os.path.join(model_id, subfolder)):
+            decoder_with_past_path = (
+                os.path.join(model_id, subfolder, decoder_with_past_file_name) if use_cache else None
+            )
+            model = cls.load_model(
+                decoder_path=os.path.join(model_id, subfolder, decoder_file_name),
+                decoder_with_past_path=decoder_with_past_path,
+                provider=provider,
+                session_options=session_options,
+                provider_options=provider_options,
+            )
+            model_save_dir = Path(model_id).joinpath(subfolder)
+            file_names["last_decoder_model_name"] = decoder_file_name
+            file_names["last_decoder_with_past_model_name"] = decoder_with_past_file_name
+        # Load model from hub
+        else:
+            default_file_names = [ONNX_DECODER_NAME]
+            model_file_names = [decoder_file_name]
+            if use_cache:
+                default_file_names.append(ONNX_DECODER_WITH_PAST_NAME)
+                model_file_names.append(decoder_with_past_file_name)
+            # Download the decoder and decoder_with_past forming the model
+            for file_name, default_file_name in zip(model_file_names, default_file_names):
+                model_cache_path = hf_hub_download(
+                    repo_id=model_id,
+                    subfolder=subfolder,
+                    filename=file_name,
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                )
+                file_names[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
+            model_save_dir = Path(model_cache_path).parent
+
+            last_decoder_with_past_name = file_names.get("last_decoder_with_past_model_name", None)
+            if last_decoder_with_past_name is not None:
+                last_decoder_with_past_name = model_save_dir.joinpath(last_decoder_with_past_name)
+            model = cls.load_model(
+                decoder_path=model_save_dir.joinpath(file_names["last_decoder_model_name"]),
+                decoder_with_past_path=last_decoder_with_past_name,
+                provider=provider,
+                session_options=session_options,
+                provider_options=provider_options,
+            )
+
+        return cls(
+            config,
+            *model,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            last_decoder_model_name=file_names["last_decoder_model_name"],
+            last_decoder_with_past_model_name=file_names.get("last_decoder_with_past_model_name", None),
+        )
+
+    @classmethod
+    def _from_transformers(
+        cls,
+        model_id: str,
+        config: "PretrainedConfig",
+        subfolder: Optional[str] = "",
+        save_dir: Union[str, Path] = default_cache_path,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = True,
+        cache_dir: Optional[str] = None,
+        use_cache: bool = True,
+        **kwargs,
+    ):
+        # Create local save dir in cache dir
+        save_dir = Path(save_dir).joinpath(model_id)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        preprocessor = get_preprocessor(model_id)
+        framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
+        model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
+        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
+
+        # Export the decoder without the past key values
+        onnx_config = DecoderOnnxConfigWithPast(model.config, task=cls.export_feature, use_past=False)
+        onnx_opset = onnx_config.default_onnx_opset
+        export(
+            preprocessor=preprocessor,
+            model=model,
+            config=onnx_config,
+            opset=onnx_opset,
+            output=save_dir.joinpath(ONNX_DECODER_NAME),
+        )
+
+        # Export the decoder with the past key values
+        if use_cache:
+            onnx_config_with_past = DecoderOnnxConfigWithPast(model.config, task=cls.export_feature, use_past=True)
+            export(
+                preprocessor=preprocessor,
+                model=model,
+                config=onnx_config_with_past,
+                opset=onnx_opset,
+                output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
+            )
+
+        return cls._from_pretrained(save_dir, config=config, use_cache=use_cache, **kwargs)
+
+    def to(self, device: Union[torch.device, str, int]):
+        """
+        Changes the ONNX Runtime provider according to the device.
+
+        Args:
+            device (`Union[torch.device, str, int]`):
+                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
+                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
+
+        Returns:
+            `ORTModel`: the model placed on the requested device.
+        """
+        device, provider_options = parse_device(device)
+
+        provider = get_provider_for_device(device)
+        self.device = device
+        self.decoder._device = device
+        self.decoder.session.set_providers([provider], provider_options=[provider_options])
+        if self.decoder_with_past is not None:
+            self.decoder_with_past._device = device
+            self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
+        self.providers = self.decoder.session.get_providers()
+
+        return self
+
+
 class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     """
     ONNX model with a causal language modeling head for ONNX Runtime inference.
@@ -693,9 +614,6 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     export_feature = "causal-lm"
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
