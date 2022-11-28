@@ -68,7 +68,7 @@ def main():
         "--for-ort",
         action="store_true",
         help=(
-            "This generates ONNX models to run inference with ONNX Runtime ORTModelXXX for encoder-decoder models."
+            "This exports models ready to be run with optimum.onnxruntime ORTModelXXX. Useful for encoder-decoder models."
             " If enabled the encoder and decoder of the model are exported separately."
         ),
     )

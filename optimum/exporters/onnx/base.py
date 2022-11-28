@@ -315,44 +315,6 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return reference_model_inputs
 
-    def get_encoder_onnx_config(self, config: "PretrainedConfig"):
-        """
-        Returns ONNX encoder config for `Seq2Seq` models. Implement the method to export the encoder
-        of the model separately.
-
-        Args:
-            config (`PretrainedConfig`):
-                The encoder model's configuration to use when exporting to ONNX.
-
-        Returns:
-            `OnnxConfig`: An instance of the ONNX configuration object.
-        """
-        raise NotImplementedError(
-            f"{config.model_type} encoder export is not supported yet. ",
-            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
-        )
-
-    def get_decoder_onnx_config(self, config: "PretrainedConfig", task: str = "default", use_past: bool = False):
-        """
-        Returns ONNX decoder config for `Seq2Seq` models. Implement the method to export the decoder
-        of the model separately.
-
-        Args:
-            config (`PretrainedConfig`):
-                The decoder model's configuration to use when exporting to ONNX.
-            task (`str`, defaults to `"default"`):
-                The task the model should be exported for.
-            use_past (`bool`, defaults to `False`):
-                Whether to export the model with past_key_values.
-
-        Returns:
-            `OnnxConfig`: An instance of the ONNX configuration object.
-        """
-        raise NotImplementedError(
-            f"{config.model_type} decoder export is not supported yet. ",
-            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
-        )
-
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
@@ -504,3 +466,43 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
         flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+
+    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> OnnxConfig:
+        """
+        Returns ONNX encoder config for `Seq2Seq` models. Implement the method to export the encoder
+        of the model separately.
+
+        Args:
+            config (`PretrainedConfig`):
+                The encoder model's configuration to use when exporting to ONNX.
+
+        Returns:
+            `OnnxConfig`: An instance of the ONNX configuration object.
+        """
+        raise NotImplementedError(
+            f"{config.model_type} encoder export is not supported yet. ",
+            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
+        )
+
+    def get_decoder_onnx_config(
+        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
+    ) -> OnnxConfig:
+        """
+        Returns ONNX decoder config for `Seq2Seq` models. Implement the method to export the decoder
+        of the model separately.
+
+        Args:
+            config (`PretrainedConfig`):
+                The decoder model's configuration to use when exporting to ONNX.
+            task (`str`, defaults to `"default"`):
+                The task the model should be exported for.
+            use_past (`bool`, defaults to `False`):
+                Whether to export the model with past_key_values.
+
+        Returns:
+            `OnnxConfig`: An instance of the ONNX configuration object.
+        """
+        raise NotImplementedError(
+            f"{config.model_type} decoder export is not supported yet. ",
+            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
+        )
