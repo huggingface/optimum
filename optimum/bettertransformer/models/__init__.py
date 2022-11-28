@@ -24,7 +24,6 @@ from .encoder_models import (
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
     TapasLayerBetterTransformer,
-
 )
 
 
@@ -72,7 +71,6 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
-
     # Tapas Model
     "TapasLayer": TapasLayerBetterTransformer,
 }

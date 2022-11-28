@@ -16,6 +16,7 @@ import torch.nn as nn
 
 from .base import BetterTransformerBaseLayer
 
+
 class TapasLayerBetterTransformer:
     def _init_(self, tapas_layer, config):
         r"""
@@ -122,6 +123,7 @@ class TapasLayerBetterTransformer:
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
+
 
 class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, albert_layer, config):
