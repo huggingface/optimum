@@ -37,7 +37,7 @@ from huggingface_hub import hf_hub_download
 from ..exporters.onnx.model_configs import SpeechSeq2SeqDecoderOnnxConfig, SpeechSeq2SeqEncoderOnnxConfig
 from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
 from ..onnx.modeling_seq2seq import _DecoderWithLMhead
-from ..utils.normalized_config import NormalizedConfigManager
+from ..utils import NormalizedConfigManager
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (

@@ -74,6 +74,7 @@ from .input_generators import (  # noqa
 )
 from .normalized_config import (  # noqa
     NormalizedConfig,
+    NormalizedConfigManager,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,

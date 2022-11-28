@@ -33,7 +33,7 @@ import onnxruntime
 from huggingface_hub import hf_hub_download
 
 from ..onnx.configuration import DecoderOnnxConfigWithPast
-from ..utils.normalized_config import NormalizedConfigManager
+from ..utils import NormalizedConfigManager
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
