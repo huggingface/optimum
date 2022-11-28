@@ -236,8 +236,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self,
         encoder_session: ort.InferenceSession,
         decoder_session: ort.InferenceSession,
-        decoder_with_past_session: ort.InferenceSession,
         config: "PretrainedConfig",
+        decoder_with_past_session: Optional[ort.InferenceSession] = None,
         use_io_binding: bool = True,
         model_save_dir: str = "",
         last_encoder_model_name: str = ONNX_ENCODER_NAME,
@@ -250,11 +250,11 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The ONNX Runtime inference session associated to the encoder.
             decoder_session (`ort.InferenceSession`):
                 The ONNX Runtime inference session associated to the decoder.
-            decoder_with_past_session (`ort.InferenceSession`):
-                The ONNX Runtime inference session associated to the decoder with past key values.
             config ([`PretrainedConfig`]):
                 `config` is an instance of the configuration associated to the model. Initializing with a config file
                 does not load the weights associated with the model, only the configuration.
+            decoder_with_past_session (`Optional[ort.InferenceSession]`, *optional*):
+                The ONNX Runtime inference session associated to the decoder with past key values.
             use_io_binding (`bool`, *optional*, defaults to `True`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
@@ -495,7 +495,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 provider_options=provider_options,
             )
 
-        return cls(*model, config=config, **kwargs)
+        return cls(*model[:2], config, decoder_with_past_session=model[2], **kwargs)
 
     @classmethod
     def _from_transformers(
@@ -504,7 +504,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         config: "PretrainedConfig",
         save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[Union[str]] = None,
+        revision: str = "main",
         force_download: bool = True,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
@@ -523,7 +523,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
         model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
-        model = model_class.from_pretrained(model_id, subfolder=subfolder, config=config, cache_dir=cache_dir)
+        model = model_class.from_pretrained(
+            model_id,
+            subfolder=subfolder,
+            config=config,
+            cache_dir=cache_dir,
+            revision=revision,
+            use_auth_token=use_auth_token,
+            local_files_only=local_files_only,
+        )
 
         _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
         onnx_config = model_onnx_config(model.config)
