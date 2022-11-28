@@ -367,8 +367,6 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         return {
             "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
             "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-            "decoder_input_ids": {0: "batch_size", 1: "decoder_sequence_length"},
-            "decoder_attention_mask": {0: "batch_size", 1: "decoder_sequence_length"},
         }
 
     @property

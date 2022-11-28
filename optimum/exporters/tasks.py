@@ -16,8 +16,9 @@
 
 import importlib
 import os
-from functools import partial, reduce
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Type, Union
+from functools import partial
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
@@ -558,7 +559,7 @@ class TasksManager:
                 The model type to retrieve the supported tasks for.
             exporter (`str`):
                 The name of the exporter.
-            model_name (`str`, *optional*):
+            model_name (`Optional[str]`, *optional*):
                 The name attribute of the model object, only used for the exception message.
 
         Returns:
@@ -626,7 +627,9 @@ class TasksManager:
         return task_to_automodel[task]
 
     @staticmethod
-    def determine_framework(model: str, framework: str = None) -> str:
+    def determine_framework(
+        model_name_or_path: Union[str, Path], subfolder: str = "", framework: Optional[str] = None
+    ) -> str:
         """
         Determines the framework to use for the export.
 
@@ -637,9 +640,13 @@ class TasksManager:
             4. If could not infer, use available framework in environment, with priority given to PyTorch.
 
         Args:
-            model (`str`):
-                The name of the model to export.
-            framework (`str`, *optional*):
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            framework (`Optional[str]`, *optional*):
                 The framework to use for the export. See above for priority if none provided.
 
         Returns:
@@ -651,10 +658,11 @@ class TasksManager:
 
         framework_map = {"pt": "PyTorch", "tf": "TensorFlow"}
 
-        if os.path.isdir(model):
-            if os.path.isfile(os.path.join(model, WEIGHTS_NAME)):
+        full_model_path = Path(model_name_or_path) / subfolder
+        if full_model_path.is_dir():
+            if (full_model_path / WEIGHTS_NAME).is_file():
                 framework = "pt"
-            elif os.path.isfile(os.path.join(model, TF2_WEIGHTS_NAME)):
+            elif (full_model_path / TF2_WEIGHTS_NAME).is_file():
                 framework = "tf"
             else:
                 raise FileNotFoundError(
@@ -664,39 +672,47 @@ class TasksManager:
                 )
             logger.info(f"Local {framework_map[framework]} model found.")
         else:
+            if not isinstance(model_name_or_path, str):
+                model_name_or_path = str(model_name_or_path)
             try:
-                AutoModel.from_pretrained(model)
+                url = huggingface_hub.hf_hub_url(model_name_or_path, WEIGHTS_NAME, subfolder=subfolder)
+                huggingface_hub.get_hf_file_metadata(url)
                 framework = "pt"
             except Exception:
                 pass
 
             if framework is None:
                 try:
-                    TFAutoModel.from_pretrained(model)
+                    url = huggingface_hub.hf_hub_url(model_name_or_path, TF2_WEIGHTS_NAME, subfolder=subfolder)
+                    huggingface_hub.get_hf_file_metadata(url)
                     framework = "tf"
                 except Exception:
                     pass
 
-            if framework is None:
-                if is_torch_available():
-                    framework = "pt"
-                elif is_tf_available():
-                    framework = "tf"
-                else:
-                    raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
+        if is_torch_available():
+            framework = framework or "pt"
+        elif is_tf_available():
+            framework = framework or "tf"
+        else:
+            raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
         logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
 
         return framework
 
     @staticmethod
-    def infer_task_from_model(model_name_or_path: str) -> str:
+    def infer_task_from_model(model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None) -> str:
         """
         Infers the task from the model repo.
 
         Args:
             model_name_or_path (`str`):
                 The model repo or local path (not supported for now).
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
 
         Returns:
             `str`: The task name automatically detected from the model repo.
@@ -711,13 +727,17 @@ class TasksManager:
             class_name_prefix = "TF"
 
         inferred_task_name = None
-        is_local = os.path.isdir(model_name_or_path)
+        is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
         if is_local:
             # TODO: maybe implement that.
             raise RuntimeError("Cannot infer the task from a local directory yet, please specify the task manually.")
         else:
-            model_info = huggingface_hub.model_info(model_name_or_path)
+            if subfolder != "":
+                raise RuntimeError(
+                    "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
+                )
+            model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             transformers_info = model_info.transformersInfo
             if transformers_info is None or transformers_info.get("auto_model") is None:
                 raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
@@ -735,7 +755,13 @@ class TasksManager:
 
     @staticmethod
     def get_model_from_task(
-        task: str, model: str, framework: str = None, cache_dir: str = None
+        task: str,
+        model_name_or_path: Union[str, Path],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+        framework: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        **model_kwargs
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
         Retrieves a model from its name and the task to be enabled.
@@ -743,31 +769,42 @@ class TasksManager:
         Args:
             task (`str`):
                 The task required.
-            model (`str`):
-                The name of the model to export.
-            framework (`str`, *optional*):
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            framework (`Optional[str]`, *optional*):
                 The framework to use for the export. See `TasksManager.determine_framework` for the priority should
                 none be provided.
-            cache_dir (`str`, *optional*):
+            cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            model_kwargs (`Dict[str, Any]`, *optional*):
+                Keyword arguments to pass to the model `.from_pretrained()` method.
 
         Returns:
             The instance of the model.
 
         """
-        framework = TasksManager.determine_framework(model, framework)
+        framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
         if task == "auto":
-            task = TasksManager.infer_task_from_model(model)
+            task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
         model_class = TasksManager.get_model_class_for_task(task, framework)
+        kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
-            model = model_class.from_pretrained(model, cache_dir=cache_dir)
+            model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
             if framework == "pt":
                 logger.info("Loading TensorFlow model in PyTorch before exporting.")
-                model = model_class.from_pretrained(model, from_tf=True, cache_dir=cache_dir)
+                kwargs["from_tf"] = True
+                model = model_class.from_pretrained(model_name_or_path, **kwargs)
             else:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
-                model = model_class.from_pretrained(model, from_pt=True, cache_dir=cache_dir)
+                kwargs["from_pt"] = True
+                model = model_class.from_pretrained(model_name_or_path, **kwargs)
         return model
 
     @staticmethod
@@ -784,6 +821,8 @@ class TasksManager:
                 The exporter to use.
             task (`str`, *optional*, defaults to `"default"`):
                 The task to retrieve the config for.
+            model_name (`Optional[str]`, *optional*):
+                The name attribute of the model object, only used for the exception message.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.

@@ -393,7 +393,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_torch_gpu
     def test_seq2seq_model_on_gpu_str(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        gpu = torch.device("cuda")
         model.to("cuda")
         self.assertEqual(model.device, torch.device("cuda:0"))
         self.assertEqual(model.encoder._device, torch.device("cuda:0"))
