@@ -31,17 +31,17 @@ from transformers.onnx.utils import get_preprocessor
 
 import onnxruntime
 from huggingface_hub import hf_hub_download
-from optimum.onnx.configuration import DecoderOnnxConfigWithPast
+from ..onnx.configuration import DecoderOnnxConfigWithPast
 
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
-    ORTConfigManager,
     get_provider_for_device,
     parse_device,
 )
+from ..utils.normalized_config import NormalizedConfigManager
 
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ class ORTDecoder:
     ):
         self.session = session
         self.config = config
-        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
         self._device = device
         self.use_io_binding = use_io_binding
         self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}

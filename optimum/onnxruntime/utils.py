@@ -86,7 +86,7 @@ class ORTConfigManager:
     @classmethod
     def get_model_ort_type(cls, model_type: str) -> str:
         cls.check_supported_model(model_type)
-        return cls._conf[model_type][1]
+        return cls._conf[model_type]
 
     @classmethod
     def check_supported_model(cls, model_type: str):
@@ -100,7 +100,7 @@ class ORTConfigManager:
     @classmethod
     def check_optimization_supported_model(cls, model_type: str):
         supported_model_types_for_optimization = ["bert", "gpt2", "bart"]
-        if (model_type not in cls._conf) or (cls._conf[model_type][1] not in supported_model_types_for_optimization):
+        if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
             raise KeyError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {supported_model_types_for_optimization} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."
