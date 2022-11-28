@@ -280,7 +280,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         gc.collect()
 
     def prepare_inputs_for_class(self, model_id=None):
-        input_dlsict = {
+        input_dict = {
             "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
             "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
             "decoder_input_ids": torch.LongTensor([[0], [0]]),
