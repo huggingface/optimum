@@ -88,10 +88,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
             elif layer_class == "TransformerBlock":
                 # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
                 class_name = "DistilBert"
-
             elif layer_class == "TapasLayer":
                 class_name = "Tapas"
-
             elif "EncoderLayer" in layer_class:
                 class_name = layer_class[:-12]
             else:
