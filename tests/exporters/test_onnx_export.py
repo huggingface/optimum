@@ -21,7 +21,14 @@ import pytest
 from transformers import AutoConfig, is_tf_available, is_torch_available
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
 
-from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithPast, export, validate_model_outputs
+from optimum.exporters.onnx import (
+    OnnxConfig,
+    OnnxConfigWithPast,
+    export,
+    export_encoder_decoder_model,
+    validate_encoder_decoder_model_outputs,
+    validate_model_outputs,
+)
 from parameterized import parameterized
 
 
@@ -223,7 +230,9 @@ class OnnxExportTestCase(TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
-    def _onnx_export(self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu"):
+    def _onnx_export(
+        self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu", for_ort=False
+    ):
         model_class = TasksManager.get_model_class_for_task(task)
         config = AutoConfig.from_pretrained(model_name)
         model = model_class.from_config(config)
@@ -252,80 +261,50 @@ class OnnxExportTestCase(TestCase):
                     f" {onnx_config.MIN_TORCH_VERSION}, got: {TORCH_VERSION}"
                 )
 
-        with NamedTemporaryFile("w") as output:
-            try:
-                onnx_inputs, onnx_outputs = export(
-                    model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
-                )
-                atol = onnx_config.ATOL_FOR_VALIDATION
-                if isinstance(atol, dict):
-                    atol = atol[task.replace("-with-past", "")]
-                validate_model_outputs(
-                    onnx_config,
-                    model,
-                    Path(output.name),
-                    onnx_outputs,
-                    atol,
-                )
-            except (RuntimeError, ValueError) as e:
-                self.fail(f"{name}, {task} -> {e}")
+        atol = onnx_config.ATOL_FOR_VALIDATION
+        if isinstance(atol, dict):
+            atol = atol[task.replace("-with-past", "")]
 
-    def _onnx_export_for_encoder_decoder_models_for_ort(
-        self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu"
-    ):
-        model_class = TasksManager.get_model_class_for_task(task)
-        config = AutoConfig.from_pretrained(model_name)
-        model = model_class.from_config(config)
+        if for_ort:
+            with NamedTemporaryFile("w") as encoder_output, NamedTemporaryFile(
+                "w"
+            ) as decoder_output, NamedTemporaryFile("w") as decoder_with_past_output:
+                try:
+                    onnx_inputs, onnx_outputs = export_encoder_decoder_model(
+                        model,
+                        onnx_config,
+                        onnx_config.DEFAULT_ONNX_OPSET,
+                        task,
+                        True,
+                        Path(encoder_output.name),
+                        Path(decoder_output.name),
+                        Path(decoder_with_past_output.name),
+                        device=device,
+                    )
 
-        onnx_config = onnx_config_class_constructor(model.config)
+                    validate_encoder_decoder_model_outputs(
+                        onnx_config,
+                        model,
+                        onnx_outputs,
+                        atol,
+                        task,
+                        True,
+                        Path(encoder_output.name),
+                        Path(decoder_output.name),
+                        Path(decoder_with_past_output.name),
+                    )
+                except (RuntimeError, ValueError) as e:
+                    self.fail(f"{name}, {task} -> {e}")
 
-        if is_torch_available():
-            from optimum.exporters.onnx.utils import TORCH_VERSION
-
-            if not onnx_config.is_torch_support_available:
-                pytest.skip(
-                    "Skipping due to incompatible PyTorch version. Minimum required is"
-                    f" {onnx_config.MIN_TORCH_VERSION}, got: {TORCH_VERSION}"
-                )
-
-        encoder_model = model.get_encoder()
-        encoder_onnx_config = onnx_config.get_encoder_onnx_config(encoder_model.config)
-
-        decoder_model = model.get_decoder()
-        decoder_onnx_config = onnx_config.get_decoder_onnx_config(
-            decoder_model.config, task.replace("-with-past", ""), use_past=False
-        )
-
-        models_for_export = [
-            (
-                encoder_model,
-                encoder_onnx_config,
-            ),
-            (model, decoder_onnx_config),
-        ]
-
-        if "-with-past" in task:
-            decoder_onnx_config_with_past = onnx_config.get_decoder_onnx_config(
-                decoder_model.config, task.replace("-with-past", ""), use_past=True
-            )
-            models_for_export.append((model, decoder_onnx_config_with_past))
-
-        for model_to_export, model_onnx_config in models_for_export:
+        else:
             with NamedTemporaryFile("w") as output:
                 try:
                     onnx_inputs, onnx_outputs = export(
-                        model_to_export,
-                        model_onnx_config,
-                        onnx_config.DEFAULT_ONNX_OPSET,
-                        Path(output.name),
-                        device=device,
+                        model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
                     )
-                    atol = model_onnx_config.ATOL_FOR_VALIDATION
-                    if isinstance(atol, dict):
-                        atol = atol[task.replace("-with-past", "")]
                     validate_model_outputs(
-                        model_onnx_config,
-                        model_to_export,
+                        onnx_config,
+                        model,
                         Path(output.name),
                         onnx_outputs,
                         atol,
@@ -345,7 +324,9 @@ class OnnxExportTestCase(TestCase):
     @require_torch
     @require_vision
     def test_pytorch_export_on_cuda(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, device="cuda")
+        self._onnx_export(
+            test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS))
     @slow
@@ -354,8 +335,8 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_for_encoder_decoder_models_for_ort(
         self, test_name, name, model_name, task, onnx_config_class_constructor
     ):
-        self._onnx_export_for_encoder_decoder_models_for_ort(
-            test_name, name, model_name, task, onnx_config_class_constructor
+        self._onnx_export(
+            test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
         )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS))
@@ -365,9 +346,7 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_for_encoder_decoder_models_for_ort_on_cuda(
         self, test_name, name, model_name, task, onnx_config_class_constructor
     ):
-        self._onnx_export_for_encoder_decoder_models_for_ort(
-            test_name, name, model_name, task, onnx_config_class_constructor, device="cuda"
-        )
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow

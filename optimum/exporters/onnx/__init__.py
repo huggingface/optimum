@@ -15,4 +15,9 @@
 
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
 from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig  # noqa
-from .convert import export, validate_model_outputs  # noqa
+from .convert import (  # noqa
+    export,
+    export_encoder_decoder_model,
+    validate_encoder_decoder_model_outputs,
+    validate_model_outputs,
+)

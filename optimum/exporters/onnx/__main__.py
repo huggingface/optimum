@@ -22,7 +22,12 @@ from transformers import AutoFeatureExtractor, AutoTokenizer
 from ...utils import logging
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, validate_model_outputs
+from .convert import (
+    export,
+    export_encoder_decoder_model,
+    validate_encoder_decoder_model_outputs,
+    validate_model_outputs,
+)
 
 
 logger = logging.get_logger()  # pylint: disable=invalid-name
@@ -76,9 +81,10 @@ def main():
 
     # Retrieve CLI arguments
     args = parser.parse_args()
+    args.output = args.output.joinpath("model.onnx")
 
-    if not args.output.exists():
-        args.output.mkdir(parents=True)
+    if not args.output.parent.exists():
+        args.output.parent.mkdir(parents=True)
 
     # Infer the task
     task = args.task
@@ -122,64 +128,61 @@ def main():
             f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
         )
 
-    if args.atol is None:
-        args.atol = onnx_config.ATOL_FOR_VALIDATION
-        if isinstance(args.atol, dict):
-            args.atol = args.atol[task.replace("-with-past", "")]
-
+    use_past = True if "-with-past" in task else False
     if model.config.is_encoder_decoder and args.for_ort:
-        encoder_model = model.get_encoder()
-        encoder_onnx_config = onnx_config.get_encoder_onnx_config(encoder_model.config)
-
-        decoder_model = model.get_decoder()
-        decoder_onnx_config = onnx_config.get_decoder_onnx_config(
-            decoder_model.config, task.replace("-with-past", ""), use_past=False
-        )
-
-        models_for_export = [
-            (encoder_model, encoder_onnx_config, "encoder_model.onnx"),
-            (model, decoder_onnx_config, "decoder_model.onnx"),
-        ]
-
-        if "-with-past" in task:
-            decoder_onnx_config_with_past = onnx_config.get_decoder_onnx_config(
-                decoder_model.config, task.replace("-with-past", ""), use_past=True
-            )
-            models_for_export.append((model, decoder_onnx_config_with_past, "decoder_with_past_model.onnx"))
-    else:
-        models_for_export = [(model, onnx_config, "model.onnx")]
-
-    for model_to_export, model_onnx_config, output_name in models_for_export:
-        save_path = args.output.joinpath(output_name)
-        onnx_inputs, onnx_outputs = export(
-            model_to_export,
-            model_onnx_config,
+        onnx_inputs, onnx_outputs = export_encoder_decoder_model(
+            model,
+            onnx_config,
             args.opset,
-            save_path,
+            task,
+            use_past,
+            args.output.parent.joinpath("encoder_model.onnx"),
+            args.output.parent.joinpath("decoder_model.onnx"),
+            args.output.parent.joinpath("decoder_with_past_model.onnx"),
         )
-
-        try:
-            validate_model_outputs(model_onnx_config, model_to_export, save_path, onnx_outputs, args.atol)
-        except ValueError:
-            logger.error(f"An error occured, but the model was saved at: {save_path.as_posix()}")
-            return
-        logger.info(f"All good, model saved at: {save_path.as_posix()}")
+    else:
+        onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
 
     # Saving the model config as this is needed sometimes.
-    model.config.save_pretrained(args.output)
+    model.config.save_pretrained(args.output.parent)
 
     # Saving the tokenizer / feature extractor as well.
     try:
         tokenizer = AutoTokenizer.from_pretrained(args.model)
-        tokenizer.save_pretrained(args.output)
+        tokenizer.save_pretrained(args.output.parent)
     except Exception:
         pass
 
     try:
         feature_extractor = AutoFeatureExtractor.from_pretrained(args.model)
-        feature_extractor.save_pretrained(args.output)
+        feature_extractor.save_pretrained(args.output.parent)
     except Exception:
         pass
+
+    if args.atol is None:
+        args.atol = onnx_config.ATOL_FOR_VALIDATION
+        if isinstance(args.atol, dict):
+            args.atol = args.atol[task.replace("-with-past", "")]
+
+    try:
+        if model.config.is_encoder_decoder and args.for_ort:
+            validate_encoder_decoder_model_outputs(
+                onnx_config,
+                model,
+                onnx_outputs,
+                args.atol,
+                task,
+                use_past,
+                args.output.parent.joinpath("encoder_model.onnx"),
+                args.output.parent.joinpath("decoder_model.onnx"),
+                args.output.parent.joinpath("decoder_with_past_model.onnx"),
+            )
+        else:
+            validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
+    except ValueError:
+        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
+        return
+    logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import logging
 from .base import OnnxConfig
-from .utils import MIN_TORCH_VERSION, is_torch_onnx_support_available
+from .utils import MIN_TORCH_VERSION, get_encoder_decoder_models_for_export, is_torch_onnx_support_available
 
 
 if is_torch_available():
@@ -59,6 +59,66 @@ def check_dummy_inputs_are_allowed(
         raise ValueError(
             f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
         )
+
+
+def validate_encoder_decoder_model_outputs(
+    config: OnnxConfig,
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    onnx_named_outputs: List[str],
+    atol: float,
+    task: str,
+    use_past: bool,
+    encoder_onnx_model: Path,
+    decoder_onnx_model: Path,
+    decoder_with_past_onnx_model: Path = None,
+):
+    """
+    Validates the export by checking that the outputs from both the reference and the exported model match.
+    The following method validates the ONNX models exported using the `export_encoder_decoder_model` method.
+
+    Args:
+        config ([`~OnnxConfig`]:
+            The configuration used to export the model.
+        reference_model ([`~PreTrainedModel`] or [`~TFPreTrainedModel`]):
+            The model used for the export.
+        onnx_named_outputs (`List[str]`):
+            The names of the outputs to check.
+        atol (`float`):
+            The absolute tolerance in terms of outputs difference between the reference and the exported model.
+        task (`str`)
+            The type of task to export the model with.
+        use_past (`bool`, *optional*, defaults to `None`):
+            Whether to export the model with past_key_values.
+        encoder_onnx_model (`Path`):
+            The path to the exported encoder ONNX model.
+        decoder_onnx_model (`Path`):
+            The path to the exported decoder ONNX model.
+        decoder_with_past_onnx_model (`Path`, *optional*, defaults to `None`):
+            The path to the exported decoder with past ONNX model. Required when `use_past` is True.
+    Raises:
+        ValueError: If the outputs shapes or values do not match between the reference and the exported model.
+    """
+    task = task.replace("-with-past", "")
+
+    models_for_validation = get_encoder_decoder_models_for_export(reference_model, config, task, use_past)
+
+    if len(onnx_named_outputs) != len(models_for_validation.keys()):
+        raise ValueError(
+            f"Invalid number of ONNX named outputs. Required {len(models_for_validation.keys())}, Provided {len(onnx_named_outputs)}"
+        )
+
+    # Validate encoder
+    model, onnx_config = models_for_validation["encoder"]
+    validate_model_outputs(onnx_config, model, encoder_onnx_model, onnx_named_outputs[0], atol)
+
+    # Validate decoder
+    model, onnx_config = models_for_validation["decoder"]
+    validate_model_outputs(onnx_config, model, decoder_onnx_model, onnx_named_outputs[1], atol)
+
+    if use_past:
+        # Validate decoder with past
+        model, onnx_config = models_for_validation["decoder_with_past"]
+        validate_model_outputs(onnx_config, model, decoder_with_past_onnx_model, onnx_named_outputs[2], atol)
 
 
 def validate_model_outputs(
@@ -324,6 +384,68 @@ def export_tensorflow(
     config.restore_ops()
 
     return input_names, output_names
+
+
+def export_encoder_decoder_model(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    config: OnnxConfig,
+    opset: int,
+    task: str,
+    use_past: bool,
+    encoder_output: Path,
+    decoder_output: Path,
+    decoder_with_past_output: Path = None,
+    device: str = "cpu",
+) -> Tuple[List[List[str]], List[List[str]]]:
+    """
+    Exports a Pytorch or TensorFlow encoder decoder model to an ONNX Intermediate Representation.
+    The following method exports the encoder and decoder components of the model as separate
+    ONNX files.
+
+    Args:
+        model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
+            The model to export.
+        config ([`~exporters.onnx.config.OnnxConfig`]):
+            The ONNX configuration associated with the exported model.
+        opset (`int`):
+            The version of the ONNX operator set to use.
+        task (`str`)
+            The type of task to export the model with.
+        use_past (`bool`):
+            Whether to export the model with past_key_values.
+        encoder_output (`Path`):
+            Directory to store the exported encoder ONNX model.
+        decoder_output (`Path`):
+            Directory to store the exported decoder ONNX model.
+        decoder_with_past_output (`Path`, *optional*, defaults to `None`):
+            Directory to store the exported decoder with past ONNX model. Required when `use_past` is True.
+        device (`str`, *optional*, defaults to `cpu`):
+            The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
+            export on CUDA devices.
+    Returns:
+        `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
+        inputs from the ONNX configuration.
+    """
+    task = task.replace("-with-past", "")
+
+    models_for_export = get_encoder_decoder_models_for_export(model, config, task, use_past)
+    outputs = []
+
+    # export encoder
+    model, onnx_config = models_for_export["encoder"]
+    outputs.append(export(model, onnx_config, opset, encoder_output, device=device))
+
+    # export decoder
+    model, onnx_config = models_for_export["decoder"]
+    outputs.append(export(model, onnx_config, opset, decoder_output, device=device))
+
+    if use_past:
+        # export decoder with past
+        model, onnx_config = models_for_export["decoder_with_past"]
+        outputs.append(export(model, onnx_config, opset, decoder_with_past_output, device=device))
+
+    outputs = list(map(list, zip(*outputs)))
+    return outputs
 
 
 def export(
