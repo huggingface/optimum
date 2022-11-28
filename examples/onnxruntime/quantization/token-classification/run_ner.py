@@ -31,12 +31,13 @@ from typing import Optional
 import datasets
 import numpy as np
 import transformers
-from datasets import ClassLabel, load_dataset, load_metric
+from datasets import ClassLabel, load_dataset
 from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
 from transformers.onnx import FeaturesManager
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from evaluate import load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
@@ -348,8 +349,18 @@ def main():
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
 
         label2id = PretrainedConfig.from_pretrained(model_args.model_name_or_path).label2id
-        if label2id:
-            eval_dataset = eval_dataset.align_labels_with_mapping(label2id=label2id, label_column=label_column_name)
+        try:
+            eval_dataset = eval_dataset.align_labels_with_mapping(
+                label2id=label2id,
+                label_column=label_column_name,
+            )
+        except Exception as e:
+            logger.warning(
+                f"\nModel label mapping: {label2id}"
+                f"\nDataset label features: {eval_dataset.features[label_column_name]}"
+                f"\nCould not guarantee the model label mapping and the dataset labels match."
+                f" Evaluation results may suffer from a wrong matching."
+            )
         features = eval_dataset.features
     else:
         features = raw_datasets["train"].features
@@ -419,7 +430,7 @@ def main():
         return tokenized_inputs
 
     # Metrics
-    metric = load_metric("seqeval")
+    metric = load("seqeval")
 
     def compute_metrics(p):
         predictions, labels = p

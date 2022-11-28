@@ -12,63 +12,34 @@ specific language governing permissions and limitations under the License.
 
 # 🤗 Optimum
 
-🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardware.
+🤗 Optimum is an extension of 🤗 Transformers that provides a set of performance optimization tools to train and run models on targeted hardware with maximum efficiency.
 
-The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
-As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
+The AI ecosystem evolves quickly, and more and more specialized hardware along with their own optimizations are emerging every day.
+As such, 🤗 Optimum enables developers to efficiently use any of these platforms with the same ease inherent to 🤗 Transformers.
 
+🤗 Optimum is distributed as a collection of packages - check out the links below for an in-depth look at each one.
 
-## Integration with Hardware Partners
-
-🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
-
-To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
-- [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. [More information here](https://www.graphcore.ai/products/ipu).
-- [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - [HPUs](https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html) are designed to maximize training throughput and efficiency. [More information here](https://habana.ai/training/).
-- [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate end-to-end pipelines on Intel architectures. More information [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
-- More to come soon! ⭐
-
-## Optimizing models towards inference
-
-Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
-platforms.
-
-Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with Intel [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) (INC).
-
-|              Features              | ONNX Runtime  | Intel Neural Compressor |
-|:----------------------------------:|:-------------:|:-----------------------:|
-| Post-training Dynamic Quantization |       ✅       |            ✅           |
-| Post-training Static Quantization  |       ✅       |            ✅           |
-| Quantization Aware Training (QAT)  | Stay tuned! ⭐ |            ✅           |
-|              Pruning               |      N/A       |            ✅           |
-
-
-## Installation
-
-🤗 Optimum can be installed using `pip` as follows:
-
-```bash
-python -m pip install optimum
-```
-
-If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
-
-| Accelerator                                                                                                            | Installation                                 |
-|:-----------------------------------------------------------------------------------------------------------------------|:---------------------------------------------|
-| [ONNX runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]` |
-| [Intel Neural Compressor (INC)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) | `python -m pip install optimum[intel]`       |
-| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`   |
-| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`      |
-
-
-If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
-
-```bash
-python -m pip install git+https://github.com/huggingface/optimum.git
-```
-
-For the acclerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
-
-```bash
-python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
-```
+<div class="mt-10">
+  <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-3 md:gap-y-4 md:gap-x-5">
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./graphcore/index"
+      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Optimum Graphcore</div>
+      <p class="text-gray-700">Train transformers on <a href="https://www.graphcore.ai/products/ipu">Graphcore IPUs</a>, a completely new kind of massively parallel processor to accelerate machine intelligence.</p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./habana/index"
+      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Optimum Habana</div>
+      <p class="text-gray-700">Maximize training throughput and efficiency with <a href="https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html">Habana's Gaudi processor</a>.</p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./intel/index"
+      ><div class="w-full text-center bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Optimum Intel</div>
+      <p class="text-gray-700">Use Intel's <a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html">Neural Compressor</a> and <a href="https://docs.openvino.ai/latest/index.html">OpenVINO</a> frameworks to accelerate transformer inference.</p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./onnxruntime/overview"
+      ><div class="w-full text-center bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">ONNX Runtime</div>
+      <p class="text-gray-700">Apply quantization and graph optimization to accelerate transformer training and inference with <a href="https://onnxruntime.ai/">ONNX Runtime</a></p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./torch_fx/overview"
+      ><div class="w-full text-center bg-gradient-to-br from-green-400 to-green-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Torch FX</div>
+      <p class="text-gray-700">Create and compose custom graph transformations to optimize PyTorch transformer models with <a href="https://pytorch.org/docs/stable/fx.html#">Torch FX</a></p>
+    </a>
+  </div>
+</div>

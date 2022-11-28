@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import gc
+import subprocess
+import sys
 import tempfile
 import unittest
 from typing import List, Optional
@@ -21,7 +23,7 @@ from unittest.mock import Mock, patch
 
 import nltk
 import numpy as np
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
@@ -53,6 +55,8 @@ from transformers.trainer_utils import (
 )
 from transformers.training_args import OptimizerNames
 from transformers.utils import is_apex_available, is_bitsandbytes_available
+
+from evaluate import load
 
 
 if is_torch_available():
@@ -190,7 +194,7 @@ def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, paddin
 
     # Prepare dataset
     dataset = load_dataset(*data_metric_config["dataset"])
-    metric = load_metric(*data_metric_config["metric"])
+    metric = load(*data_metric_config["metric"])
 
     max_seq_length = min(max_seq_length, tokenizer.model_max_length)
 
@@ -232,7 +236,7 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
 
     # Load dataset and metric
     dataset = load_dataset(*data_metric_config["dataset"])
-    metric = load_metric(*data_metric_config["metric"])
+    metric = load(*data_metric_config["metric"])
     label_all_tokens = True
     task = "ner"
     label_list = dataset["train"].features[f"{task}_tags"].feature.names
@@ -324,7 +328,7 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
 
     # Load dataset and metric
     dataset = load_dataset(*data_metric_config["dataset"])
-    metric = load_metric(*data_metric_config["metric"])
+    metric = load(*data_metric_config["metric"])
 
     if model_name in ["t5-small", "t5-base", "t5-large", "t5-3b", "t5-11b"]:
         prefix = "summarize: "
@@ -379,8 +383,6 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
         decoded_labels = ["\n".join(nltk.sent_tokenize(label.strip())) for label in decoded_labels]
 
         result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-        # Extract a few results
-        result = {key: value.mid.fmeasure * 100 for key, value in result.items()}
 
         # Add mean generated length
         prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]
@@ -672,6 +674,37 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             prediction = trainer.predict(test_dataset)
             # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
+
+
+@slow
+@require_torch
+class ORTTrainerIntegrationDDPTest(unittest.TestCase):
+    def test_trainer_ddp_glue(self):
+
+        subprocess.run(
+            f"cp examples/onnxruntime/training/text-classification/run_glue.py ./",
+            shell=True,
+        )
+
+        subprocess.run(
+            f"{sys.executable} -m torch.distributed.launch"
+            " --nproc_per_node=1"
+            " run_glue.py"
+            " --model_name_or_path distilbert-base-uncased"
+            " --task_name mnli"
+            " --max_seq_length 128"
+            " --learning_rate 3e-6"
+            " --do_train"
+            " --output_dir /tmp/distilbert"
+            " --overwrite_output_dir"
+            " --max_steps 200"
+            " --logging_steps 20"
+            " --per_device_train_batch_size 32"
+            " --fp16 --optim adamw_ort_fused"
+            " --max_train_samples 3000",
+            shell=True,
+            check=True,
+        )
 
 
 class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):

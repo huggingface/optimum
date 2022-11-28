@@ -11,7 +11,10 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Configuration classes for graph optimization and quantization with ONNX Runtime."""
+
 import os
+import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -23,6 +26,7 @@ from packaging.version import Version, parse
 from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator
+from onnxruntime.transformers.fusion_options import FusionOptions
 
 from ..configuration_utils import BaseConfig
 
@@ -604,36 +608,41 @@ class AutoQuantizationConfig:
 class OptimizationConfig:
     """
     OptimizationConfig is the configuration class handling all the ONNX Runtime optimization parameters.
+    There are two stacks of optimizations:
+        1. The ONNX Runtime general-purpose optimization tool: it can work on any ONNX model.
+        2. The ONNX Runtime transformers optimization tool: it can only work on a subset of transformers models.
 
-    Args:
+    Attributes:
         optimization_level (`int`, defaults to 1):
-            ONNX opset version to export the model with.
             Optimization level performed by ONNX Runtime of the loaded graph.
             Supported optimization level are 0, 1, 2 and 99.
-            0 will disable all optimizations.
-            1 will enable basic optimizations.
-            2 will enable basic and extended optimizations, including complex node fusions applied to the nodes
-            assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent.
-            99 will enable all available optimizations including layout optimizations.
+                - 0: will disable all optimizations
+                - 1: will enable basic optimizations
+                - 2: will enable basic and extended optimizations, including complex node fusions applied to the nodes
+                assigned to the CPU or CUDA execution provider, making the resulting optimized graph hardware dependent
+                - 99: will enable all available optimizations including layout optimizations
         optimize_for_gpu (`bool`, defaults to `False`):
             Whether to optimize the model for GPU inference.
             The optimized graph might contain operators for GPU or CPU only when `optimization_level` > 1.
         fp16 (`bool`, defaults to `False`):
             Whether all weights and nodes should be converted from float32 to float16.
-        optimize_with_onnxruntime_only (`bool`, defaults to `False`):
-            Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python.
-        disable_gelu (`bool`, defaults to `False`):
+        enable_transformers_specific_optimizations (`bool`, defaults to `True`):
+            Whether to only use `transformers` specific optimizations on top of ONNX Runtime general optimizations.
+        disable_gelu_fusion (`bool`, defaults to `False`):
             Whether to disable the Gelu fusion.
-        disable_layer_norm (`bool`, defaults to `False`):
+        disable_layer_norm_fusion (`bool`, defaults to `False`):
             Whether to disable Layer Normalization fusion.
-        disable_attention (`bool`, defaults to `False`):
+        disable_attention_fusion (`bool`, defaults to `False`):
             Whether to disable Attention fusion.
-        disable_skip_layer_norm (`bool`, defaults to `False`):
+        disable_skip_layer_norm_fusion (`bool`, defaults to `False`):
             Whether to disable SkipLayerNormalization fusion.
-        disable_bias_skip_layer_norm (`bool`, defaults to `False`):
+        disable_bias_skip_layer_norm_fusion (`bool`, defaults to `False`):
             Whether to disable Add Bias and SkipLayerNormalization fusion.
-        disable_bias_gelu (`bool`, defaults to `False`):
+        disable_bias_gelu_fusion (`bool`, defaults to `False`):
             Whether to disable Add Bias and Gelu / FastGelu fusion.
+        disable_embed_layer_norm_fusion (`bool`, defaults to `True`):
+            Whether to disable EmbedLayerNormalization fusion.
+            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization.
         enable_gelu_approximation (`bool`, defaults to `False`):
             Whether to enable Gelu / BiasGelu to FastGelu conversion.
             The default value is set to `False` since this approximation might slightly impact the model's accuracy.
@@ -646,30 +655,229 @@ class OptimizationConfig:
             The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
         disable_shape_inference (`bool`, defaults to `False`):
             Whether to disable symbolic shape inference.
+            The default value is set to `False` but symbolic shape inference might cause issues sometimes.
     """
 
     optimization_level: int = 1
     optimize_for_gpu: bool = False
+
     fp16: bool = False
-    optimize_with_onnxruntime_only: bool = False
-    disable_gelu: bool = False
-    disable_layer_norm: bool = False
-    disable_attention: bool = False
-    disable_skip_layer_norm: bool = False
-    disable_bias_skip_layer_norm: bool = False
-    disable_bias_gelu: bool = False
+
+    optimize_with_onnxruntime_only: Optional[bool] = None
+    enable_transformers_specific_optimizations: bool = True
+
+    disable_gelu: Optional[bool] = None
+    disable_gelu_fusion: bool = False
+
+    disable_layer_norm: Optional[bool] = None
+    disable_layer_norm_fusion: bool = False
+
+    disable_attention: Optional[bool] = None
+    disable_attention_fusion: bool = False
+
+    disable_skip_layer_norm: Optional[bool] = None
+    disable_skip_layer_norm_fusion: bool = False
+
+    disable_bias_skip_layer_norm: Optional[bool] = None
+    disable_bias_skip_layer_norm_fusion: bool = False
+
+    disable_bias_gelu: Optional[bool] = None
+    disable_bias_gelu_fusion: bool = False
+
+    disable_embed_layer_norm: Optional[bool] = None
+    disable_embed_layer_norm_fusion: bool = True
+
     enable_gelu_approximation: bool = False
     use_mask_index: bool = False
     no_attention_mask: bool = False
     disable_embed_layer_norm: bool = True
     disable_shape_inference: bool = False
 
+    def __post_init__(self):
+        def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
+            if getattr(self, old_name, None) is not None:
+                if mapping_func is None:
+
+                    def identity(x):
+                        return x
+
+                    mapping_func = identity
+                setattr(self, new_name, mapping_func(getattr(self, old_name)))
+                warnings.warn(
+                    f"{old_name} will be deprecated soon, use {new_name} instead, {new_name} is set to "
+                    f"{getattr(self, new_name)}.",
+                    FutureWarning,
+                )
+
+        deprecate_renamed_attribute(
+            "optimize_with_onnxruntime_only",
+            "enable_transformers_specific_optimizations",
+            mapping_func=lambda x: not x,
+        )
+
+        deprecate_renamed_attribute("disable_gelu", "disable_bias_gelu_fusion")
+        deprecate_renamed_attribute("disable_layer_norm", "disable_layer_norm_fusion")
+        deprecate_renamed_attribute("disable_attention", "disable_attention_fusion")
+        deprecate_renamed_attribute("disable_skip_layer_norm", "disable_skip_layer_norm_fusion")
+        deprecate_renamed_attribute("disable_bias_skip_layer_norm", "disable_bias_skip_layer_norm_fusion")
+        deprecate_renamed_attribute("disable_bias_gelu", "disable_bias_gelu_fusion")
+        deprecate_renamed_attribute("disable_embed_layer_norm", "disable_embed_layer_norm_fusion")
+
+    def create_fusion_options(self, model_type: str) -> FusionOptions:
+        class Box:
+            pass
+
+        args = Box()
+        args.model_type = model_type
+        attribute_map = {
+            "disable_gelu_fusion": "disable_gelu",
+            "disable_layer_norm_fusion": "disable_layer_norm",
+            "disable_attention_fusion": "disable_attention",
+            "disable_skip_layer_norm_fusion": "disable_skip_layer_norm",
+            "disable_bias_skip_layer_norm_fusion": "disable_bias_skip_layer_norm",
+            "disable_bias_gelu_fusion": "disable_bias_gelu",
+            "disable_embed_layer_norm_fusion": "disable_embed_layer_norm",
+        }
+        for attr_name, fusion_attr_name in attribute_map.items():
+            setattr(args, fusion_attr_name, getattr(self, attr_name))
+
+        for attr, value in self.__dict__.items():
+            if hasattr(args, attr):
+                continue
+            setattr(args, attr, value)
+
+        return FusionOptions.parse(args)
+
+
+class AutoOptimizationConfig:
+    """
+    Factory to create common `OptimizationConfig`.
+    """
+
+    _LEVELS = {
+        "O1": {
+            "optimization_level": 1,
+            "enable_transformers_specific_optimizations": False,
+        },
+        "O2": {
+            "optimization_level": 2,
+            "enable_transformers_specific_optimizations": True,
+        },
+        "O3": {
+            "optimization_level": 2,
+            "enable_transformers_specific_optimizations": True,
+            "enable_gelu_approximation": True,
+        },
+        "O4": {
+            "optimization_level": 2,
+            "enable_transformers_specific_optimizations": True,
+            "enable_gelu_approximation": True,
+            "fp16": True,
+        },
+    }
+
+    @classmethod
+    def with_optimization_level(cls, optimization_level: str, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an [`~OptimizationConfig`] with pre-defined arguments according to an optimization level.
+
+        Args:
+            optimization_level (`str`):
+                The optimization level, the following values are allowed:
+                - O1: Basic general optimizations
+                - O2: Basic and extended general optimizations, transformers-specific fusions.
+                - O3: Same as O2 with Fast Gelu approximation.
+                - O4: Same as O3 with mixed precision.
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the requested optimization level.
+        """
+        if optimization_level not in cls._LEVELS:
+            raise ValueError(
+                f"optimization_level must be in {', '.join(cls._LEVELS.keys())}, got {optimization_level}"
+            )
+        return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
+
+    @classmethod
+    def O1(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an O1 [`~OptimizationConfig`].
+
+        Args:
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the O1 optimization level.
+        """
+        return cls.with_optimization_level("O1", for_gpu=for_gpu, **kwargs)
+
+    @classmethod
+    def O2(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an O2 [`~OptimizationConfig`].
+
+        Args:
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the O2 optimization level.
+        """
+        return cls.with_optimization_level("O2", for_gpu=for_gpu, **kwargs)
+
+    @classmethod
+    def O3(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an O3 [`~OptimizationConfig`].
+
+        Args:
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the O3 optimization level.
+        """
+        return cls.with_optimization_level("O3", for_gpu=for_gpu, **kwargs)
+
+    @classmethod
+    def O4(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+        """
+        Creates an O4 [`~OptimizationConfig`].
+
+        Args:
+            for_gpu (`bool`, *optional*, defaults to `False`):
+                Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
+                will run on. Only needed for optimization_level > 1.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Arguments to provide to the [`~OptimizationConfig`] constructor.
+
+        Returns:
+            `OptimizationConfig`: The `OptimizationConfig` corresponding to the O4 optimization level.
+        """
+        return cls.with_optimization_level("O4", for_gpu=for_gpu, **kwargs)
+
 
 class ORTConfig(BaseConfig):
     """
-    ORTConfig is the configuration class handling all the ONNX Runtime parameters related to the ONNX IR model export, optimization and quantization parameters.
+    ORTConfig is the configuration class handling all the ONNX Runtime parameters related to the ONNX IR model export,
+    optimization and quantization parameters.
 
-    Args:
+    Attributes:
         opset (`int`, *optional*):
             ONNX opset version to export the model with.
         use_external_data_format (`bool`, *optional*, defaults to `False`):

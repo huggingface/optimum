@@ -22,6 +22,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List
 
 import torch
+from transformers.file_utils import add_end_docstrings
 from transformers.utils.fx import _gen_constructor_wrapper
 
 
@@ -89,7 +90,7 @@ class Transformation(ABC):
     """
     A torch.fx graph transformation.
 
-    It  must implemement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] method, and be used as a
+    It  must implement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] method, and be used as a
     callable.
     """
 
@@ -180,7 +181,7 @@ class ReversibleTransformation(Transformation):
     """
     A torch.fx graph transformation that is reversible.
 
-    It must implemement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] and
+    It must implement the [`~optimum.fx.optimization.ReversibleTransformation.transform`] and
     [`~optimum.fx.optimization.ReversibleTransformation.reverse`] methods, and be used as a callable.
     """
 
@@ -263,9 +264,12 @@ class MergeLinears(ReversibleTransformation):
                 mod = getattr(mod, name)
         return mod, names[-1]
 
-    @staticmethod
     def _merge_linears(
-        graph_module: "GraphModule", input_node: "Node", linear_nodes: List["Node"], linears: List[torch.nn.Linear]
+        self,
+        graph_module: "GraphModule",
+        input_node: "Node",
+        linear_nodes: List["Node"],
+        linears: List[torch.nn.Linear],
     ):
         in_features = linears[0].in_features
         out_features = [linear.out_features for linear in linears]
@@ -308,7 +312,7 @@ class MergeLinears(ReversibleTransformation):
         with graph.inserting_before(linear_nodes[0]):
             fully_qualified_merged_linear_name = ".".join([fully_qualified_parent_name, merged_linear_name])
             merged_linear_node = graph.call_module(fully_qualified_merged_linear_name, args=(input_node,))
-            merged_linear_node.was_transformed = "MergeLinears"
+            self.mark_as_transformed(merged_linear_node)
             merged_linear_node.linear_node_targets = [n.target for n in linear_nodes]
 
         accum_out_features = list(itertools.accumulate([0] + out_features))
@@ -384,11 +388,8 @@ class MergeLinears(ReversibleTransformation):
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        for node in graph_module.graph.nodes:
-            if node.op == "call_module":
-                if getattr(node, "was_transformed", "") == "MergeLinears":
-                    self._unmerge_linears(graph_module, node, graph_module.get_submodule(node.target))
-
+        for node in self.get_transformed_nodes(graph_module):
+            self._unmerge_linears(graph_module, node, graph_module.get_submodule(node.target))
         return graph_module
 
 
@@ -423,26 +424,26 @@ class FuseBiasInLinear(ReversibleTransformation):
                         node.start_node = linear_input_proxy.node
                         node.end_node = output_proxy.node
                         node.args = (output_proxy.node,)
-                        node.was_transformed = "FuseBiasInLinear"
+                        self.mark_as_transformed(node)
                     new_weight = torch.nn.Parameter(torch.cat([module.weight, module.bias[:, None]], dim=1))
                     module.weight = new_weight
                     module.bias = None
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        for node in graph_module.graph.nodes:
-            if getattr(node, "was_transformed", "") == "FuseBiasInLinear":
-                node.args = (node.start_node,)
-                n = node.end_node
-                while n is not node.start_node:
-                    if n not in node.nodes_to_ignore:
-                        graph_module.graph.erase_node(n)
-                    n = n.prev
-                module = graph_module.get_submodule(node.target)
-                new_weight = torch.nn.Parameter(module.weight[:, :-1])
-                new_bias = torch.nn.Parameter(module.weight[:, -1].squeeze())
-                module.weight = new_weight
-                module.bias = new_bias
+        for node in self.get_transformed_nodes(graph_module):
+            node.args = (node.start_node,)
+            n = node.end_node
+            while n is not node.start_node:
+                if n not in node.nodes_to_ignore:
+                    graph_module.graph.erase_node(n)
+                n = n.prev
+            self.mark_as_restored(node)
+            module = graph_module.get_submodule(node.target)
+            new_weight = torch.nn.Parameter(module.weight[:, :-1])
+            new_bias = torch.nn.Parameter(module.weight[:, -1].squeeze())
+            module.weight = new_weight
+            module.bias = new_bias
         return graph_module
 
 
@@ -463,19 +464,226 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
                 if not isinstance(y, torch.fx.Node):
                     node.target = operator.mul
                     node.args = (x, 1 / y)
-                    node.was_transformed = "ChangeTrueDivToMulByInverse"
+                    self.mark_as_transformed(node)
 
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        graph = graph_module.graph
-        for node in graph.nodes:
-            if getattr(node, "was_transformed", "") == "ChangeTrueDivToMulByInverse":
-                node.target = operator.truediv
-                x, y = node.args
-                node.args = (x, 1 / y)
+        for node in self.get_transformed_nodes(graph_module):
+            node.target = operator.truediv
+            x, y = node.args
+            node.args = (x, 1 / y)
+            self.mark_as_restored(node)
 
         return graph_module
+
+
+@add_end_docstrings(_ATTRIBUTES_DOCSTRING)
+class FuseBatchNorm2dInConv2d(Transformation):
+    """
+    Transformation that fuses `nn.BatchNorm2d` following `nn.Conv2d` into a single `nn.Conv2d`.
+    The fusion will be done only if the convolution has the batch normalization as sole following node.
+
+    For example, fusion will not be done in the case
+    ```
+         Conv2d
+         /   \\
+        /     \\
+    ReLU   BatchNorm2d
+    ```
+
+    Example:
+    ```python
+    from transformers.utils.fx import symbolic_trace
+    from transformers import AutoModelForImageClassification
+
+    from optimum.fx.optimization import FuseBatchNorm2dInConv2d
+
+    model = AutoModelForImageClassification.from_pretrained("microsoft/resnet-50")
+    model.eval()
+
+    traced_model = symbolic_trace(
+        model,
+        input_names=["pixel_values"],
+        disable_check=True
+    )
+
+    transformation = FuseBatchNorm2dInConv2d()
+    transformed_model = transformation(traced_model)
+    ```
+    """
+
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        for node in graph_module.graph.nodes:
+            if node.op == "call_module" and node.args[0].op == "call_module":
+                if (
+                    type(graph_module.get_submodule(node.target)) is torch.nn.BatchNorm2d
+                    and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.Conv2d
+                ):
+                    if len(node.args[0].users) > 1:  # Output of conv is used by other nodes
+                        continue
+
+                    fused_conv = self.fuse(
+                        conv2d=graph_module.get_submodule(node.args[0].target),
+                        bn2d=graph_module.get_submodule(node.target),
+                    )
+
+                    # replace the old nn.Conv2d by the fused one
+                    parent_name, _, name = node.args[0].target.rpartition(".")
+                    parent_module = graph_module.get_submodule(parent_name)
+                    setattr(parent_module, name, fused_conv)
+
+                    # delete batchnorm from the modules
+                    parent_name, _, name = node.target.rpartition(".")
+                    parent_module = graph_module.get_submodule(parent_name)
+                    delattr(parent_module, name)
+
+                    node.replace_all_uses_with(node.args[0])
+                    graph_module.graph.erase_node(node)
+        return graph_module
+
+    def fuse(self, conv2d: torch.nn.Conv2d, bn2d: torch.nn.BatchNorm2d):
+        # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
+        conv_b = conv2d.bias if conv2d.bias is not None else torch.zeros_like(bn2d.running_mean)
+        bn_w = bn2d.weight if bn2d.weight is not None else torch.ones_like(bn2d.running_mean)
+        bn_b = bn2d.bias if bn2d.bias is not None else torch.ones_like(bn2d.running_mean)
+
+        bn_var_rsqrt = torch.rsqrt(bn2d.running_var + bn2d.eps)
+
+        conv2d.weight = torch.nn.Parameter(
+            conv2d.weight * (bn_w * bn_var_rsqrt).reshape([-1] + [1] * (len(conv2d.weight.shape) - 1))
+        )
+
+        conv2d.bias = torch.nn.Parameter(conv_b - bn2d.running_mean * bn_var_rsqrt * bn_w + bn_b)
+
+        return conv2d
+
+
+@add_end_docstrings(_ATTRIBUTES_DOCSTRING)
+class FuseBatchNorm1dInLinear(Transformation):
+    """
+    Transformation that fuses `nn.BatchNorm1d` following or preceding `nn.Linear` into a single `nn.Linear`.
+    The fusion will be done only if the linear layer has the batch normalization as sole following node, or the batch normalization
+    has the linear layer as sole following node.
+
+    For example, fusion will not be done in the case
+    ```
+         Linear
+         /   \\
+        /     \\
+    ReLU   BatchNorm1d
+    ```
+
+    Example:
+    ```python
+    from transformers.utils.fx import symbolic_trace
+    from transformers import AutoModel
+
+    from optimum.fx.optimization import FuseBatchNorm1dInLinear
+
+    model = AutoModel.from_pretrained("nvidia/groupvit-gcc-yfcc")
+    model.eval()
+
+    traced_model = symbolic_trace(
+        model,
+        input_names=["input_ids", "attention_mask", "pixel_values"],
+        disable_check=True
+    )
+
+    transformation = FuseBatchNorm1dInLinear()
+    transformed_model = transformation(traced_model)
+    ```
+    """
+
+    preserves_computation = True
+
+    def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        for node in graph_module.graph.nodes:
+            if node.op == "call_module" and node.args[0].op == "call_module":
+                if (
+                    type(graph_module.get_submodule(node.target)) is torch.nn.BatchNorm1d
+                    and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.Linear
+                ):
+                    # handle the case torch.nn.Linear --> torch.nn.BatchNorm1d
+
+                    if len(node.args[0].users) > 1:  # Output of linear is used by other nodes
+                        continue
+
+                    candidate_linear = graph_module.get_submodule(node.args[0].target)
+                    candidate_batchnorm1d = graph_module.get_submodule(node.target)
+
+                    # will fuse only if the linear output features is equal to the batchnorm num features, this is the case with 2D tensors
+                    # the case where the linear input is (N, C, L_in), output is (N, C, L_out) and C = L_out is NOT handled as can not be fused
+                    if candidate_linear.weight.shape[0] == candidate_batchnorm1d.weight.shape[0]:
+                        fused_linear = self.fuse(
+                            linear=candidate_linear, bn1d=candidate_batchnorm1d, bn1d_before=False
+                        )
+
+                        # replace the old nn.Linear by the fused one
+                        parent_name, _, name = node.args[0].target.rpartition(".")
+                        parent_module = graph_module.get_submodule(parent_name)
+                        setattr(parent_module, name, fused_linear)
+
+                        # delete batchnorm from the modules
+                        parent_name, _, name = node.target.rpartition(".")
+                        parent_module = graph_module.get_submodule(parent_name)
+                        delattr(parent_module, name)
+
+                        node.replace_all_uses_with(node.args[0])
+
+                        graph_module.graph.erase_node(node)  # delete BatchNorm1d
+                elif (
+                    type(graph_module.get_submodule(node.target)) is torch.nn.Linear
+                    and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.BatchNorm1d
+                ):
+                    # handle the case torch.nn.BatchNorm1d --> torch.nn.Linear
+                    if len(node.args[0].users) > 1:  # Output of batchnorm is used by other nodes
+                        continue
+
+                    candidate_linear = graph_module.get_submodule(node.target)
+                    candidate_batchnorm1d = graph_module.get_submodule(node.args[0].target)
+
+                    # will fuse only if the linear input features is equal to the batchnorm num features, this is the case with 2D tensors
+                    # the case where the linear input is (N, C, L_in) and C = L_in is NOT handled as can not be fused
+                    if candidate_batchnorm1d.weight.shape[0] == candidate_linear.weight.shape[1]:
+                        fused_linear = self.fuse(linear=candidate_linear, bn1d=candidate_batchnorm1d, bn1d_before=True)
+
+                        # replace the old nn.Linear by the fused one
+                        parent_name, _, name = node.target.rpartition(".")
+                        parent_module = graph_module.get_submodule(parent_name)
+                        setattr(parent_module, name, fused_linear)
+
+                        # delete batchnorm from the modules
+                        parent_name, _, name = node.args[0].target.rpartition(".")
+                        parent_module = graph_module.get_submodule(parent_name)
+                        delattr(parent_module, name)
+
+                        batchnorm_node = node.args[0]
+                        node.args[0].replace_all_uses_with(node.args[0].args[0])
+
+                        graph_module.graph.erase_node(batchnorm_node)  # delete BatchNorm1d
+        return graph_module
+
+    def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d, bn1d_before: bool):
+        # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
+        linear_b = linear.bias if linear.bias is not None else torch.zeros_like(bn1d.running_mean)
+        bn_w = bn1d.weight if bn1d.weight is not None else torch.ones_like(bn1d.running_mean)
+        bn_b = bn1d.bias if bn1d.bias is not None else torch.ones_like(bn1d.running_mean)
+
+        bn_var_rsqrt = torch.rsqrt(bn1d.running_var + bn1d.eps)
+
+        if bn1d_before:
+            linear.bias = torch.nn.Parameter(
+                linear.weight @ (-bn_w * bn1d.running_mean * bn_var_rsqrt + bn_b) + linear_b
+            )
+            linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[None, :])
+        else:
+            linear.bias = torch.nn.Parameter((linear_b - bn1d.running_mean) * bn_var_rsqrt * bn_w + bn_b)
+            linear.weight = torch.nn.Parameter(linear.weight * (bn_w * bn_var_rsqrt)[:, None])
+
+        return linear
 
 
 class DeepCopy(ReversibleTransformation):
@@ -490,8 +698,8 @@ class DeepCopy(ReversibleTransformation):
         # This is needed because copy.deepcopy does not take care of it.
         # Without these attributes, the reverse transformation cannot be done.
         for n1, n2 in zip(graph_module.graph.nodes, clone.graph.nodes):
-            if hasattr(n1, "was_transformed"):
-                n2.was_transformed = n1.was_transformed
+            if hasattr(n1, "transformations"):
+                n2.transformations = n1.transformations
         return clone
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
@@ -511,9 +719,7 @@ class LintAndRecompile(ReversibleTransformation):
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
-        graph_module.graph.lint()
-        graph_module.recompile()
-        return graph_module
+        return self.transform(graph_module)
 
 
 def compose(*args: Transformation, inplace: bool = True) -> Transformation:

@@ -74,7 +74,7 @@ jobs:
         run: |
           mkdir -p build_dir/optimum
           cd build_dir/optimum
-          wget https://raw.githubusercontent.com/huggingface/doc-build/main/optimum/_versions.yml
+          wget https://huggingface.co/datasets/hf-doc-build/doc-build/raw/main/optimum/_versions.yml
 
       - name: Make Graphcore documentation
         run: |
@@ -100,7 +100,7 @@ jobs:
       - name: Make Optimum documentation
         run: |
           cd optimum
-          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
+          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }} COMMIT_SHA_OPTIMUM=${{ env.VERSION }}
           cd ..
 
       - name: Combine subpackage documentation
@@ -113,5 +113,6 @@ jobs:
       - name: Push to repositories
         run: |
           cd build_dir
-          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build" --token ${{ secrets.HUGGINGFACE_PUSH }} --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5
+          chmod ugo+rwx optimum
+          doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build" --token "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" --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5 --upload_version_yml
         shell: bash

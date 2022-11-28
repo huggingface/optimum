@@ -33,21 +33,22 @@ from parameterized import parameterized
 
 class ORTOptimizerTest(unittest.TestCase):
 
+    # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-gpt2"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_model_with_optimized_model(self, model_cls, model_name):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             model = model_cls.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(tmp_dir)
@@ -70,15 +71,24 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertTrue(torch.allclose(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4))
             gc.collect()
 
+    # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", True),
     )
 
     @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_seq2seq_model_with_optimized_model(self, model_cls, model_name, use_cache):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             model = model_cls.from_pretrained(model_name, from_transformers=True, use_cache=use_cache)
             model.save_pretrained(tmp_dir)
@@ -88,7 +98,7 @@ class ORTOptimizerTest(unittest.TestCase):
                 tmp_dir,
                 encoder_file_name="encoder_model_optimized.onnx",
                 decoder_file_name="decoder_model_optimized.onnx",
-                decoder_file_with_past_name="decoder_with_past_model_optimized.onnx" if use_cache else None,
+                decoder_with_past_file_name="decoder_with_past_model_optimized.onnx" if use_cache else None,
                 from_transformers=False,
                 use_cache=use_cache,
             )
@@ -108,7 +118,9 @@ class ORTOptimizerTest(unittest.TestCase):
 
     def test_optimization_details(self):
         model_name = "hf-internal-testing/tiny-random-distilbert"
-        optimization_config = OptimizationConfig(optimization_level=0, optimize_with_onnxruntime_only=True)
+        optimization_config = OptimizationConfig(
+            optimization_level=0, enable_transformers_specific_optimizations=False
+        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)

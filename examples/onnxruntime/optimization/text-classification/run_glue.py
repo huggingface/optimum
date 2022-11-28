@@ -29,19 +29,19 @@ from typing import Optional
 import datasets
 import numpy as np
 import transformers
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 from transformers import (
     AutoConfig,
     AutoTokenizer,
     EvalPrediction,
     HfArgumentParser,
-    PretrainedConfig,
     PreTrainedTokenizer,
     TrainingArguments,
 )
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from evaluate import load
 from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.model import ORTModel
@@ -363,9 +363,9 @@ def main():
 
         # Get the metric function
         if data_args.task_name is not None:
-            metric = load_metric("glue", data_args.task_name)
+            metric = load("glue", data_args.task_name)
         else:
-            metric = load_metric("accuracy")
+            metric = load("accuracy")
 
         # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
         # predictions and label_ids field) and has to return a dictionary string to float.
@@ -392,9 +392,15 @@ def main():
         eval_dataset = raw_datasets[validation_split]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        if optimizer.config.label2id:
-            eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=optimizer.config.label2id, label_column="label"
+
+        try:
+            eval_dataset = eval_dataset.align_labels_with_mapping(label2id=model.config.label2id, label_column="label")
+        except Exception as e:
+            logger.warning(
+                f"\nModel label mapping: {model.config.label2id}"
+                f"\nDataset label features: {eval_dataset.features['label']}"
+                f"\nCould not guarantee the model label mapping and the dataset labels match."
+                f" Evaluation results may suffer from a wrong matching."
             )
 
         eval_dataset = eval_dataset.map(
