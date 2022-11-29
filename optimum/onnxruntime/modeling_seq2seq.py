@@ -19,6 +19,7 @@ Transformers.
 import logging
 import os
 import shutil
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
@@ -31,7 +32,7 @@ from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 import onnxruntime as ort
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, HfFolder, HfApi
 
 from ..exporters.onnx.convert import export_encoder_decoder_model as export
 from ..exporters.tasks import TasksManager
@@ -449,49 +450,66 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         kwargs = {"use_io_binding": use_io_binding}
         model_path = Path(model_id) / subfolder
 
-        def infer_filename(directory: Path, pattern : str, argument_name: str, fail_if_not_found: bool = True) -> str:
-            onnx_files = directory.glob(pattern)
+        def infer_filename(pattern : str, argument_name: str, fail_if_not_found: bool = True) -> str:
+            pattern = re.compile(pattern)
+            if model_path.is_dir():
+                path = model_path
+                files = model_path.glob("**")
+                onnx_files = [p for p in files if re.search(pattern, str(p))]
+            else:
+                path = model_id
+                if isinstance(use_auth_token, bool):
+                    token = HfFolder().get_token()
+                else:
+                    token = use_auth_token
+                repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
+                if subfolder != "":
+                    path = f"{subfolder}/{path}"
+                    pattern = f"{subfolder}/{pattern}"
+                onnx_files = [p for p in repo_files if re.match(pattern, str(p))]
+
             if fail_if_not_found and len(onnx_files) == 0:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {directory}")
+                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
             elif len(onnx_files) > 1:
                 if argument_name is not None:
                     raise RuntimeError(
-                        f"Too many ONNX model files were found in {directory}, specify which one to load by using the "
+                        f"Too many ONNX model files were found in {path}, specify which one to load by using the "
                         f"{argument_name} argument."
                     )
             return onnx_files[0].name
+
+        if encoder_file_name is None:
+            encoder_file_name = infer_filename(r"(.*)?encoder(.*)?\.onnx", "encoder_file_name")
+        if decoder_file_name is None:
+            decoder_file_name = infer_filename(r"(.*)?decoder((?!with_past).)*?\.onnx", "decoder_file_name")
+        if decoder_with_past_file_name is None:
+            decoder_with_past_file_name = infer_filename(r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=False)
+            decoder_with_past_path = (
+                model_path / decoder_with_past_file_name if use_cache else None
+            )
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_ENCODER_NAME)
         decoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_NAME)
         decoder_with_past_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
 
+        if encoder_file_name not in encoder_regular_onnx_filenames:
+            logger.warning(
+                f"The ONNX file {encoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                "ORTModelForConditionalGeneration might not behave as expected."
+            )
+
+        if decoder_file_name not in decoder_regular_onnx_filenames:
+            logger.warning(
+                f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                "ORTModelForConditionalGeneration might not behave as expected."
+            )
+        if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
+            logger.warning(
+                f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime, "
+                "the ORTModelForConditionalGeneration might not behave as expected."
+            )
+
         if model_path.is_dir():
-            if encoder_file_name is None:
-                encoder_file_name = infer_filename(model_path, "*encoder*.onnx", "encoder_file_name")
-            if decoder_file_name is None:
-                decoder_file_name = infer_filename(model_path, "*decoder*.onnx", "decoder_file_name")
-            if decoder_with_past_file_name is None:
-                decoder_with_past_file_name = infer_filename(model_path, "*decoder_with_past*.onnx", "decoder_with_past_file_name", fail_if_not_found=False)
-                decoder_with_past_path = (
-                    model_path / decoder_with_past_file_name if use_cache else None
-                )
-            if encoder_file_name not in encoder_regular_onnx_filenames:
-                logger.warning(
-                    f"The ONNX file {encoder_file_name} is not a regular name used in optimum.onnxruntime, the "
-                    "ORTModelForConditionalGeneration might not behave as expected."
-                )
-
-            if decoder_file_name not in decoder_regular_onnx_filenames:
-                logger.warning(
-                    f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime, the "
-                    "ORTModelForConditionalGeneration might not behave as expected."
-                )
-            if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
-                logger.warning(
-                    f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime, "
-                    "the ORTModelForConditionalGeneration might not behave as expected."
-                )
-
             model = cls.load_model(
                 encoder_path=model_path / encoder_file_name,
                 decoder_path=model_path / decoder_file_name,
@@ -504,34 +522,35 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             kwargs["last_encoder_model_name"] = encoder_file_name
             kwargs["last_decoder_model_name"] = decoder_file_name
             kwargs["last_decoder_with_past_model_name"] = decoder_with_past_file_name
-        # Load model from hub
         else:
-            default_file_names = [encoder_regular_onnx_filenames, decoder_regular_onnx_filenames]
-            model_file_names = [encoder_file_name, decoder_file_name]
-            if use_cache:
-                default_file_names.append(ONNX_DECODER_WITH_PAST_NAME)
-                model_file_names.append(decoder_with_past_file_name)
-            # Download the encoder, decoder and decoder_with_past forming the model
-            for file_name, default_file_name in zip(model_file_names, default_file_names):
+            attribute_name_to_filename = {
+                "last_encoder_model_name": encoder_file_name,
+                "last_decoder_model_name": decoder_file_name,
+                "last_decoder_with_past_model_name": decoder_with_past_file_name,
+            }
+            for attr_name, filename in attribute_name_to_filename.items():
+                if filename is None:
+                    continue
                 model_cache_path = hf_hub_download(
                     repo_id=model_id,
                     subfolder=subfolder,
-                    filename=file_name,
+                    filename=filename,
                     use_auth_token=use_auth_token,
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
-                kwargs[f"last_{default_file_name.split('.')[0]}_name"] = Path(model_cache_path).name
+                kwargs[attr_name] = Path(model_cache_path).name
             kwargs["model_save_dir"] = Path(model_cache_path).parent
 
             last_decoder_with_past_name = kwargs.get("last_decoder_with_past_model_name", None)
             if last_decoder_with_past_name is not None:
-                last_decoder_with_past_name = kwargs["model_save_dir"].joinpath(last_decoder_with_past_name)
+                last_decoder_with_past_name = kwargs["model_save_dir"] / last_decoder_with_past_name
+
             model = cls.load_model(
-                encoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_encoder_model_name"]),
-                decoder_path=kwargs["model_save_dir"].joinpath(kwargs["last_decoder_model_name"]),
+                encoder_path=kwargs["model_save_dir"] / kwargs["last_encoder_model_name"],
+                decoder_path=kwargs["model_save_dir"] / kwargs["last_decoder_model_name"],
                 decoder_with_past_path=last_decoder_with_past_name,
                 provider=provider,
                 session_options=session_options,
@@ -592,9 +611,11 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
         )
 
+        model_dir = save_dir if subfolder == "" else save_dir.parent
         return cls._from_pretrained(
-            save_dir,
-            config=config,
+            model_dir,
+            config,
+            subfolder=subfolder,
             use_cache=use_cache,
             provider=provider,
             session_options=session_options,

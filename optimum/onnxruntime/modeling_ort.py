@@ -398,7 +398,8 @@ class ORTModel(OptimizedModel):
             output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
         )
 
-        return cls._from_pretrained(save_dir.as_posix(), config, **kwargs)
+        model_dir = save_dir if subfolder == "" else save_dir.parent
+        return cls._from_pretrained(model_dir, config, subfolder=subfolder, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
