@@ -144,9 +144,9 @@ For the time being, IOBinding is supported for task-defined ORT models, if you w
 
 ### Observed time gains
 
-We have tested three common models which have a decoding process: `GPT2` / `T5-small` / `M2M100-418M`, and the benchmark was run on a versatile Tesla T4 GPU (more environment details at the end of this section).
+We tested three common models with a decoding process: `GPT2` / `T5-small` / `M2M100-418M`, and the benchmark was run on a versatile Tesla T4 GPU (more environment details at the end of this section).
 
-Here are some performance results running with `CUDAExecutionProvider` when IOBinding has been turned on. We have tested input sequence length from 8 to 512, and generated output both with greedy search and beam search (`num_beam=5`):
+Here are some performance results running with `CUDAExecutionProvider` when IOBinding has been turned on. We have tested input sequence length from 8 to 512, and generated outputs both with greedy search and beam search (`num_beam=5`):
 
 <table><tr>
 <td>
