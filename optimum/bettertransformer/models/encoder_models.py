@@ -17,7 +17,6 @@ import torch.nn as nn
 from .base import BetterTransformerBaseLayer
 
 
-class TapasLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, tapas_layer, config):
         r"""
         A simple conversion of the TAPAS layer to its `BetterTransformer` implementation.
