@@ -72,7 +72,7 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
     # Tapas Model
-    "TapasLayer": TapasLayerBetterTransformer,
+    "TapasLayer": BertLayerBetterTransformer,
 }
 
 
