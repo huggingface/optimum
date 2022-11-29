@@ -210,7 +210,7 @@ Environment:
 - Python version: 3.8.10
 - `transformers` version: 4.24.0
 - `optimum` version: 1.5.0
-- PyTorch version (GPU?): 1.12.0+cu113 (True)
+- PyTorch version: 1.12.0+cu113
 ```
 
 Note that previous experiments are run with __vanilla ONNX__ models exported directly from the exporter. If you are interested in __further acceleration__, with `ORTOptimizer` you can optimize the graph and convert your model to FP16 if you have a GPU with mixed precision capabilities.
