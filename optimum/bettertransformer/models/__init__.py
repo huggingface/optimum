@@ -27,9 +27,9 @@ from .encoder_models import (
 
 
 BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
-    # Tapas Model
-    "TapasLayer": BertLayerBetterTransformer,
+   
     # Bert Family
+    "TapasLayer": BertLayerBetterTransformer,
     "BertLayer": BertLayerBetterTransformer,
     "ElectraLayer": BertLayerBetterTransformer,
     "Data2VecTextLayer": BertLayerBetterTransformer,
