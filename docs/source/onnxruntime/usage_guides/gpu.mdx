@@ -125,7 +125,7 @@ Due to current limitations in ONNX Runtime, it is not possible to use quantized 
 
 [IOBinding](https://onnxruntime.ai/docs/api/python/api_summary.html#iobinding) is an efficient way to avoid expensive data copying when using GPUs. By default, ONNX Runtime will copy the input from the CPU (even if the tensors are already copied to the targeted device), and assume that outputs also need to be copied back to the CPU from GPUs after the run. These data copying overheads between the host and devices are expensive, and __can lead to worse inference latency than vanilla PyTorch__ especially for the decoding process.
 
-To avoid the slowdown, 🤗 Optimum adopts the IOBinding to copy inputs onto GPUs and pre-allocate memory for outputs prior the inference.  When instanciating the `ORTModel`, set the value of the argument `use_io_binding` to choose whether to turn on the IOBinding during the inference. `use_io_binding`is set to `True` by default, if you choose CUDA as execution provider.
+To avoid the slowdown, 🤗 Optimum adopts the IOBinding to copy inputs onto GPUs and pre-allocate memory for outputs prior the inference.  When instanciating the `ORTModel`, set the value of the argument `use_io_binding` to choose whether to turn on the IOBinding during the inference. `use_io_binding` is set to `True` by default, if you choose CUDA as execution provider.
 
 And if you want to turn off IOBinding:
 ```python
@@ -144,7 +144,51 @@ For the time being, IOBinding is supported for task-defined ORT models, if you w
 
 ### Observed time gains
 
-Coming soon!
+We have tested three common models which have decoding process, they are: `GPT2` / `T5-small` / `M2M100-418M`, and the benchmark was run on a versatile Tesla T4 GPU (more environment details at the end of this section).
+
+Here are some performance results running with `CUDAExecutionProvider` when IOBinding has been turned on. We haved tested sequence length from 8 to 512:
+
+
+<table><tr>
+<td>
+  <p align="center" style="padding: 10px">
+    <img alt="GPT2" src="../../../assets/onnxruntime/t4_res_ort_gpt2.png" width="300">
+    <br>
+    <em style="color: grey">GPT2</em>
+  </p>
+</td>
+<td>
+  <p align="center">
+    <img alt="T5-small" src="../../../assets/onnxruntime/t4_res_ort_t5_s.png" width="300">
+    <br>
+    <em style="color: grey">T5-small</em>
+  </p>
+</td>
+<td>
+  <p align="center">
+    <img alt="M2M100-418M" src="../../../assets/onnxruntime/t4_res_ort_m2m100_418m.png" width="300">
+    <br>
+    <em style="color: grey">M2M100-418M</em>
+  </p>
+</td>
+</tr></table>
+
+
+Environment:
+
+```
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 440.33.01    Driver Version: 440.33.01    CUDA Version: 11.3     |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|===============================+======================+======================|
+|   0  Tesla T4            On   | 00000000:00:1E.0 Off |                    0 |
+| N/A   28C    P8     8W /  70W |      0MiB / 15109MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+```
+
+Note that previous experiments are run with __vanilla ONNX__ models exported directly from the exporter. If you are interested in __further acceleration__, you can optimize the graph with `ORTOptimizer` and convert your model to FP16 if you have a GPU with mixed precision capabilities.
 
 ## TensorrtExecutionProvider
 
