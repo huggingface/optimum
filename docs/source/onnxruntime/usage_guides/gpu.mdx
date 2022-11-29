@@ -146,8 +146,7 @@ For the time being, IOBinding is supported for task-defined ORT models, if you w
 
 We have tested three common models which have a decoding process: `GPT2` / `T5-small` / `M2M100-418M`, and the benchmark was run on a versatile Tesla T4 GPU (more environment details at the end of this section).
 
-Here are some performance results running with `CUDAExecutionProvider` when IOBinding has been turned on. We have tested sequence length from 8 to 512:
-
+Here are some performance results running with `CUDAExecutionProvider` when IOBinding has been turned on. We have tested input sequence length from 8 to 512, and generated output both with greedy search and beam search (`num_beam=5`):
 
 <table><tr>
 <td>
@@ -173,7 +172,7 @@ Here are some performance results running with `CUDAExecutionProvider` when IOBi
 </td>
 </tr></table>
 
-And here is a summary for the saving time under different sequence length (from 8 to 512) while using ONNX Runtime compared with PyTorch:
+And here is a summary for the saving time with different sequence lengths (from 8 to 512) and generation modes(greedy search and beam search) while using ONNX Runtime compared with PyTorch:
 
 <table><tr>
 <td>
