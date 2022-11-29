@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
-import logging
 import random
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
 
@@ -31,6 +30,7 @@ from ...utils import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
+    logging,
 )
 from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (

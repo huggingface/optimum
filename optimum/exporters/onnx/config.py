@@ -14,7 +14,6 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-import logging
 from typing import TYPE_CHECKING, List, Mapping
 
 from ...utils import (
@@ -25,6 +24,7 @@ from ...utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+    logging,
 )
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
