@@ -73,8 +73,8 @@ def main():
         "--for-ort",
         action="store_true",
         help=(
-            "This exports models ready to be run with optimum.onnxruntime ORTModelXXX. Useful for encoder-decoder models."
-            " If enabled the encoder and decoder of the model are exported separately."
+            "This exports models ready to be run with optimum.onnxruntime ORTModelXXX. Useful for encoder-decoder models for"
+            "conditional generation. If enabled the encoder and decoder of the model are exported separately."
         ),
     )
     parser.add_argument("output", type=Path, help="Path indicating the directory where to store generated ONNX model.")
