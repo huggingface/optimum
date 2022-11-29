@@ -341,9 +341,7 @@ class OnnxExportTestCase(TestCase):
     @require_torch
     @require_vision
     def test_pytorch_export_on_cuda(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(
-            test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
-        )
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, device="cuda")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION))
     @slow
