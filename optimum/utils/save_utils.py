@@ -15,10 +15,11 @@
 """Utilities related to saving files."""
 
 import logging
-from typing import Union
 from pathlib import Path
+from typing import Union
 
-from transformers import AutoTokenizer, AutoFeatureExtractor, AutoProcessor
+from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
+
 
 logger = logging.getLogger(__name__)
 

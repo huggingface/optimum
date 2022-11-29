@@ -18,8 +18,8 @@ Transformers.
 
 import logging
 import os
-import shutil
 import re
+import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
@@ -32,7 +32,7 @@ from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 import onnxruntime as ort
-from huggingface_hub import hf_hub_download, HfFolder, HfApi
+from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_download, hf_hub_url
 
 from ..exporters.onnx.convert import export_encoder_decoder_model as export
 from ..exporters.tasks import TasksManager
@@ -436,9 +436,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
-        encoder_file_name: Optional[str] = None,
-        decoder_file_name: Optional[str] = None,
-        decoder_with_past_file_name: Optional[str] = None,
+        encoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
         subfolder: str = "",
         local_files_only: bool = False,
         use_cache: bool = True,
@@ -450,11 +450,21 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         kwargs = {"use_io_binding": use_io_binding}
         model_path = Path(model_id) / subfolder
 
-        def infer_filename(pattern : str, argument_name: str, fail_if_not_found: bool = True) -> str:
-            pattern = re.compile(pattern)
+        def validate_filename(filename):
+            if model_path.is_dir():
+                return (model_path / subfolder / filename).is_file()
+            succeeded = True
+            try:
+                get_hf_file_metadata(hf_hub_url(model_id, filename, subfolder=subfolder, revision=revision))
+            except Exception:
+                succeeded = False
+            return succeeded
+
+        def infer_filename(pattern: str, argument_name: str, fail_if_not_found: bool = True) -> str:
+            pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
             if model_path.is_dir():
                 path = model_path
-                files = model_path.glob("**")
+                files = model_path.glob("**/*.onnx")
                 onnx_files = [p for p in files if re.search(pattern, str(p))]
             else:
                 path = model_id
@@ -464,8 +474,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     token = use_auth_token
                 repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
                 if subfolder != "":
-                    path = f"{subfolder}/{path}"
-                    pattern = f"{subfolder}/{pattern}"
+                    path = f"{path}/{subfolder}"
                 onnx_files = [p for p in repo_files if re.match(pattern, str(p))]
 
             if fail_if_not_found and len(onnx_files) == 0:
@@ -478,19 +487,24 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     )
             return onnx_files[0].name
 
-        if encoder_file_name is None:
+        if not validate_filename(encoder_file_name):
             encoder_file_name = infer_filename(r"(.*)?encoder(.*)?\.onnx", "encoder_file_name")
-        if decoder_file_name is None:
+        if not validate_filename(decoder_file_name):
             decoder_file_name = infer_filename(r"(.*)?decoder((?!with_past).)*?\.onnx", "decoder_file_name")
-        if decoder_with_past_file_name is None:
-            decoder_with_past_file_name = infer_filename(r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=False)
-            decoder_with_past_path = (
-                model_path / decoder_with_past_file_name if use_cache else None
+        if not validate_filename(decoder_with_past_file_name):
+            decoder_with_past_file_name = infer_filename(
+                r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=False
             )
 
-        encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_ENCODER_NAME)
-        decoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_NAME)
-        decoder_with_past_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
+        encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
+            ONNX_ENCODER_NAME
+        )
+        decoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
+            ONNX_DECODER_NAME
+        )
+        decoder_with_past_regular_onnx_filenames = (
+            ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
+        )
 
         if encoder_file_name not in encoder_regular_onnx_filenames:
             logger.warning(
@@ -509,6 +523,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 "the ORTModelForConditionalGeneration might not behave as expected."
             )
 
+        decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
+
         if model_path.is_dir():
             model = cls.load_model(
                 encoder_path=model_path / encoder_file_name,
@@ -526,7 +542,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_file_name,
                 "last_decoder_model_name": decoder_file_name,
-                "last_decoder_with_past_model_name": decoder_with_past_file_name,
+                "last_decoder_with_past_model_name": decoder_with_past_file_name if use_cache else None,
             }
             for attr_name, filename in attribute_name_to_filename.items():
                 if filename is None:

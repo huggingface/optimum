@@ -29,7 +29,7 @@ from onnxruntime.quantization import CalibrationDataReader, QuantFormat, Quantiz
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 
-
+from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor
 from . import ORTQuantizableOperator
 from .configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
@@ -37,7 +37,6 @@ from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForConditionalGeneration
 from .preprocessors import QuantizationPreprocessor
 from .utils import ONNX_WEIGHTS_NAME
-from ..quantization_base import OptimumQuantizer
 
 
 if TYPE_CHECKING:

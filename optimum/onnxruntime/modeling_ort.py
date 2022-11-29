@@ -14,7 +14,6 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
@@ -42,7 +41,7 @@ from transformers.modeling_outputs import (
 )
 
 import onnxruntime as ort
-from huggingface_hub import hf_hub_download, get_hf_file_metadata, hf_hub_url, HfApi, HfFolder
+from huggingface_hub import HfApi, HfFolder, hf_hub_download
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
@@ -299,7 +298,7 @@ class ORTModel(OptimizedModel):
                     token = use_auth_token
                 repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
                 pattern = "*.onnx" if subfolder == "" else f"{subfolder}/*.onnx"
-                onnx_files = [p.match(pattern) for p in repo_files]
+                onnx_files = [p for p in repo_files if p.match(pattern)]
 
             if len(onnx_files) == 0:
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
