@@ -115,7 +115,24 @@ TENSORFLOW_EXPORT_MODELS = {
     ("roberta", "roberta-base"),
 }
 
-PYTORCH_ENCODER_DECODER_MODELS = {
+PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION = {
+    ("bart", "facebook/bart-base", ("seq2seq-lm", "seq2seq-lm-with-past")),
+    ("mbart", "sshleifer/tiny-mbart", ("seq2seq-lm", "seq2seq-lm-with-past")),
+    ("t5", "t5-small"),
+    ("marian", "Helsinki-NLP/opus-mt-en-de", ("seq2seq-lm", "seq2seq-lm-with-past")),
+    # Not using google/mt5-small because it takes too much time for testing.
+    ("mt5", "lewtun/tiny-random-mt5"),
+    # Not using facebook/m2m100_418M because it takes too much time for testing.
+    (
+        "m2m-100",
+        "hf-internal-testing/tiny-random-m2m_100",
+    ),
+    # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
+    (
+        "bigbird-pegasus",
+        "hf-internal-testing/tiny-random-bigbird_pegasus",
+        ("seq2seq-lm", "seq2seq-lm-with-past"),
+    ),
     ("whisper", "openai/whisper-tiny.en"),
 }
 
@@ -312,45 +329,45 @@ class OnnxExportTestCase(TestCase):
                 except (RuntimeError, ValueError) as e:
                     self.fail(f"{name}, {task} -> {e}")
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
-    @slow
-    @require_torch
-    @require_vision
-    def test_pytorch_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
+    # @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
+    # @slow
+    # @require_torch
+    # @require_vision
+    # def test_pytorch_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
+    #     self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
-    @slow
-    @require_torch
-    @require_vision
-    def test_pytorch_export_on_cuda(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(
-            test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
-        )
+    # @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
+    # @slow
+    # @require_torch
+    # @require_vision
+    # def test_pytorch_export_on_cuda(self, test_name, name, model_name, task, onnx_config_class_constructor):
+    #     self._onnx_export(
+    #         test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
+    #     )
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS))
+    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION))
     @slow
     @require_torch
     @require_vision
-    def test_pytorch_export_for_encoder_decoder_models_for_ort(
+    def test_pytorch_export_for_encoder_decoder_models_for_conditional_generation(
+        self, test_name, name, model_name, task, onnx_config_class_constructor
+    ):
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, for_ort=True)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION))
+    @slow
+    @require_torch
+    @require_vision
+    def test_pytorch_export_for_encoder_decoder_models_for_conditional_generation_on_cuda(
         self, test_name, name, model_name, task, onnx_config_class_constructor
     ):
         self._onnx_export(
             test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
         )
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS))
-    @slow
-    @require_torch
-    @require_vision
-    def test_pytorch_export_for_encoder_decoder_models_for_ort_on_cuda(
-        self, test_name, name, model_name, task, onnx_config_class_constructor
-    ):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
-
-    @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
-    @slow
-    @require_tf
-    @require_vision
-    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
+    # @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
+    # @slow
+    # @require_tf
+    # @require_vision
+    # def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
+    #     self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
