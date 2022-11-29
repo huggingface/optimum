@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
+import logging
 import random
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
 
@@ -48,6 +49,8 @@ if TYPE_CHECKING:
 
     from ...utils import DummyInputGenerator
     from .base import PatchingSpec
+
+logger = logging.get_logger(__name__)
 
 
 class BertOnnxConfig(TextEncoderOnnxConfig):
@@ -306,12 +309,19 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     )
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
-        dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
+        dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](
+            self.task, self._normalized_config, **kwargs
+        )
+
+        if self.use_past is True:
+            if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
+                logger.warning(
+                    f"Asked a sequence length of {kwargs['sequence_length']}, but expecting a sequence length of 1 with use_past == True. Overriding the sequence length to 1."
+                )
+            kwargs["sequence_length"] = 1
+
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
-            self.task,
-            self._normalized_config,
-            batch_size=dummy_text_input_generator.batch_size,
-            sequence_length=1 if self.use_past else 16,
+            self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
         )
         task = "default" if self.task != "causal-lm" else "causal-lm"
         kwargs = {}
