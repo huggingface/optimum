@@ -152,28 +152,30 @@ Here are some performance results running with `CUDAExecutionProvider` when IOBi
 <table><tr>
 <td>
   <p align="center">
-    <img alt="GPT2" src="../../assets/onnxruntime/t4_res_ort_gpt2.png" width="300">
+    <img alt="GPT2" src="../../assets/onnxruntime/t4_res_ort_gpt2.png" width="450">
     <br>
     <em style="color: grey">GPT2</em>
   </p>
 </td>
 <td>
   <p align="center">
-    <img alt="T5-small" src="../../assets/onnxruntime/t4_res_ort_t5_s.png" width="300">
+    <img alt="T5-small" src="../../assets/onnxruntime/t4_res_ort_t5_s.png" width="450">
     <br>
     <em style="color: grey">T5-small</em>
   </p>
 </td>
 <td>
   <p align="center">
-    <img alt="M2M100-418M" src="../../assets/onnxruntime/t4_res_ort_m2m100_418m.png" width="300">
+    <img alt="M2M100-418M" src="../../assets/onnxruntime/t4_res_ort_m2m100_418m.png" width="450">
     <br>
     <em style="color: grey">M2M100-418M</em>
   </p>
 </td>
 </tr></table>
 
-And here is a summary for the saving time while using ONNX Runtime compared with PyTorch
+And here is a summary for the saving time under different sequence length (from 8 to 512) while using ONNX Runtime compared with PyTorch:
+
+
 
 Environment:
 
@@ -195,7 +197,7 @@ Environment:
 - PyTorch version (GPU?): 1.12.0+cu113 (True)
 ```
 
-Note that previous experiments are run with __vanilla ONNX__ models exported directly from the exporter. If you are interested in __further acceleration__, you can optimize the graph with `ORTOptimizer` and convert your model to FP16 if you have a GPU with mixed precision capabilities.
+Note that previous experiments are run with __vanilla ONNX__ models exported directly from the exporter. If you are interested in __further acceleration__, with `ORTOptimizer` you can optimize the graph and convert your model to FP16 if you have a GPU with mixed precision capabilities.
 
 ## TensorrtExecutionProvider
 
