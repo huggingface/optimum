@@ -23,8 +23,6 @@ from transformers.utils import is_tf_available, is_torch_available
 
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .base import OnnxConfig
 
     if is_torch_available():
