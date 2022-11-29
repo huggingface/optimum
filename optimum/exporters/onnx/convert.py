@@ -69,7 +69,7 @@ def validate_encoder_decoder_model_outputs(
     task: str,
     encoder_onnx_model: Path,
     decoder_onnx_model: Path,
-    decoder_with_past_onnx_model: Path = None,
+    decoder_with_past_onnx_model: Optional[Path] = None,
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
@@ -90,7 +90,7 @@ def validate_encoder_decoder_model_outputs(
             The path to the exported encoder ONNX model.
         decoder_onnx_model (`Path`):
             The path to the exported decoder ONNX model.
-        decoder_with_past_onnx_model (`Path`, *optional*, defaults to `None`):
+        decoder_with_past_onnx_model (`Optional[Path]`, defaults to `None`):
             The path to the exported decoder with past ONNX model. Required when `past_key_values` are exported.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
@@ -284,7 +284,7 @@ def export_pytorch(
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
             dummy_inputs = tree_map(
-                lambda value: value.to(device) if isinstance(value, torch.Tensor) else None, dummy_inputs
+                lambda value: value.to(device) if isinstance(value, torch.Tensor) else value, dummy_inputs
             )
         check_dummy_inputs_are_allowed(model, dummy_inputs)
         inputs = config.ordered_inputs(model)
@@ -390,7 +390,7 @@ def export_encoder_decoder_model(
     task: str,
     encoder_output: Path,
     decoder_output: Path,
-    decoder_with_past_output: Path = None,
+    decoder_with_past_output: Optional[Path] = None,
     device: str = "cpu",
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -411,7 +411,7 @@ def export_encoder_decoder_model(
             Directory to store the exported encoder ONNX model.
         decoder_output (`Path`):
             Directory to store the exported decoder ONNX model.
-        decoder_with_past_output (`Path`, *optional*, defaults to `None`):
+        decoder_with_past_output (`Optional[Path]`, defaults to `None`):
             Directory to store the exported decoder with past ONNX model. Required when `past_key_values` are exported.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
