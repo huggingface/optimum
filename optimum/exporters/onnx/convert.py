@@ -17,7 +17,7 @@
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Iterable, List, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
