@@ -173,6 +173,7 @@ Here are some performance results running with `CUDAExecutionProvider` when IOBi
 </td>
 </tr></table>
 
+And here is a summary for the saving time while using ONNX Runtime compared with PyTorch
 
 Environment:
 
@@ -186,6 +187,12 @@ Environment:
 |   0  Tesla T4            On   | 00000000:00:1E.0 Off |                    0 |
 | N/A   28C    P8     8W /  70W |      0MiB / 15109MiB |      0%      Default |
 +-------------------------------+----------------------+----------------------+
+
+- Platform: Linux-5.4.0-1089-aws-x86_64-with-glibc2.29
+- Python version: 3.8.10
+- `transformers` version: 4.24.0
+- `optimum` version: 1.5.0
+- PyTorch version (GPU?): 1.12.0+cu113 (True)
 ```
 
 Note that previous experiments are run with __vanilla ONNX__ models exported directly from the exporter. If you are interested in __further acceleration__, you can optimize the graph with `ORTOptimizer` and convert your model to FP16 if you have a GPU with mixed precision capabilities.
