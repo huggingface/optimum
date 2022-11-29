@@ -45,6 +45,7 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # Bart family
     "BartEncoderLayer": BartEncoderLayerBetterTransformer,
     "MBartEncoderLayer": MBartEncoderLayerBetterTransformer,
+    "M2M100EncoderLayer":MBartEncoderLayerBetterTransformer,
     # "PLBartEncoderLayer": bart.BartEncoderLayerBetterTransformer,
     # "MarianEncoderLayer": bart.BartEncoderLayerBetterTransformer,
     # "TimeSeriesTransformerEncoderLayer": bart.BartEncoderLayerBetterTransformer,
