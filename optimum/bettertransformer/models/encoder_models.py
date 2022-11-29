@@ -401,7 +401,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
-
+        self.norm_first = True
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
