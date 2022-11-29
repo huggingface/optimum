@@ -510,7 +510,7 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
-
+        self.norm_first = True
         self.validate_bettertransformer()
 
     def forward(self, x, attn_mask, head_mask=None, output_attentions=None, *_):
