@@ -82,10 +82,10 @@ def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
 
 
 def get_encoder_decoder_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig", task: str, use_past: bool
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig", task: str
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
     """
-    Exports a Pytorch or TensorFlow model to an ONNX Intermediate Representation.
+    Returns the encoder and decoder parts of the model and their subsequent onnx configs.
 
     Args:
         model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
@@ -94,8 +94,6 @@ def get_encoder_decoder_models_for_export(
             The ONNX configuration associated with the exported model.
         task (`str`)
             The type of task to export the model with.
-        use_past (`bool`):
-            Whether to export the model with past_key_values.
 
     Returns:
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
@@ -111,7 +109,7 @@ def get_encoder_decoder_models_for_export(
     decoder_onnx_config = config.get_decoder_onnx_config(decoder_model.config, task, use_past=False)
     models_for_export["decoder"] = (model, decoder_onnx_config)
 
-    if use_past:
+    if config.use_past:
         decoder_onnx_config_with_past = config.get_decoder_onnx_config(decoder_model.config, task, use_past=True)
         models_for_export["decoder_with_past"] = (model, decoder_onnx_config_with_past)
 

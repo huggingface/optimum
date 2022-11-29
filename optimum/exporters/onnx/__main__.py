@@ -73,7 +73,7 @@ def main():
         "--for-ort",
         action="store_true",
         help=(
-            "This exports models ready to be run with optimum.onnxruntime ORTModelXXX. Useful for encoder-decoder models for"
+            "This exports models ready to be run with optimum.onnxruntime. Useful for encoder-decoder models for"
             "conditional generation. If enabled the encoder and decoder of the model are exported separately."
         ),
     )
@@ -128,14 +128,12 @@ def main():
             f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
         )
 
-    use_past = True if "-with-past" in task else False
     if model.config.is_encoder_decoder and args.for_ort:
         onnx_inputs, onnx_outputs = export_encoder_decoder_model(
             model,
             onnx_config,
             args.opset,
             task,
-            use_past,
             args.output.parent.joinpath("encoder_model.onnx"),
             args.output.parent.joinpath("decoder_model.onnx"),
             args.output.parent.joinpath("decoder_with_past_model.onnx"),
@@ -172,7 +170,6 @@ def main():
                 onnx_outputs,
                 args.atol,
                 task,
-                use_past,
                 args.output.parent.joinpath("encoder_model.onnx"),
                 args.output.parent.joinpath("decoder_model.onnx"),
                 args.output.parent.joinpath("decoder_with_past_model.onnx"),

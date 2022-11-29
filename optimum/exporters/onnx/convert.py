@@ -67,7 +67,6 @@ def validate_encoder_decoder_model_outputs(
     onnx_named_outputs: List[str],
     atol: float,
     task: str,
-    use_past: bool,
     encoder_onnx_model: Path,
     decoder_onnx_model: Path,
     decoder_with_past_onnx_model: Path = None,
@@ -87,20 +86,18 @@ def validate_encoder_decoder_model_outputs(
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
         task (`str`)
             The type of task to export the model with.
-        use_past (`bool`, *optional*, defaults to `None`):
-            Whether to export the model with past_key_values.
         encoder_onnx_model (`Path`):
             The path to the exported encoder ONNX model.
         decoder_onnx_model (`Path`):
             The path to the exported decoder ONNX model.
         decoder_with_past_onnx_model (`Path`, *optional*, defaults to `None`):
-            The path to the exported decoder with past ONNX model. Required when `use_past` is True.
+            The path to the exported decoder with past ONNX model. Required when `past_key_values` are exported.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
     task = task.replace("-with-past", "")
 
-    models_for_validation = get_encoder_decoder_models_for_export(reference_model, config, task, use_past)
+    models_for_validation = get_encoder_decoder_models_for_export(reference_model, config, task)
 
     if len(onnx_named_outputs) != len(models_for_validation.keys()):
         raise ValueError(
@@ -115,7 +112,7 @@ def validate_encoder_decoder_model_outputs(
     model, onnx_config = models_for_validation["decoder"]
     validate_model_outputs(onnx_config, model, decoder_onnx_model, onnx_named_outputs[1], atol)
 
-    if use_past:
+    if config.use_past:
         # Validate decoder with past
         model, onnx_config = models_for_validation["decoder_with_past"]
         validate_model_outputs(onnx_config, model, decoder_with_past_onnx_model, onnx_named_outputs[2], atol)
@@ -176,11 +173,11 @@ def validate_model_outputs(
             ref_outputs_dict[name] = value
 
     # Create onnxruntime inputs from the reference model inputs
-    reference_model_inputs_onnxruntime = config.generate_dummy_inputs_onnxruntime(reference_model_inputs)
+    reference_model_inputs_for_validation = config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}
-    for name, value in reference_model_inputs_onnxruntime.items():
+    for name, value in reference_model_inputs_for_validation.items():
         if isinstance(value, (list, tuple)):
             value = config.flatten_output_collection_property(name, value)
             onnx_inputs.update({tensor_name: pt_tensor.numpy() for tensor_name, pt_tensor in value.items()})
@@ -391,7 +388,6 @@ def export_encoder_decoder_model(
     config: OnnxConfig,
     opset: int,
     task: str,
-    use_past: bool,
     encoder_output: Path,
     decoder_output: Path,
     decoder_with_past_output: Path = None,
@@ -411,14 +407,12 @@ def export_encoder_decoder_model(
             The version of the ONNX operator set to use.
         task (`str`)
             The type of task to export the model with.
-        use_past (`bool`):
-            Whether to export the model with past_key_values.
         encoder_output (`Path`):
             Directory to store the exported encoder ONNX model.
         decoder_output (`Path`):
             Directory to store the exported decoder ONNX model.
         decoder_with_past_output (`Path`, *optional*, defaults to `None`):
-            Directory to store the exported decoder with past ONNX model. Required when `use_past` is True.
+            Directory to store the exported decoder with past ONNX model. Required when `past_key_values` are exported.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
@@ -428,7 +422,7 @@ def export_encoder_decoder_model(
     """
     task = task.replace("-with-past", "")
 
-    models_for_export = get_encoder_decoder_models_for_export(model, config, task, use_past)
+    models_for_export = get_encoder_decoder_models_for_export(model, config, task)
     outputs = []
 
     # export encoder
@@ -439,7 +433,7 @@ def export_encoder_decoder_model(
     model, onnx_config = models_for_export["decoder"]
     outputs.append(export(model, onnx_config, opset, decoder_output, device=device))
 
-    if use_past:
+    if config.use_past:
         # export decoder with past
         model, onnx_config = models_for_export["decoder_with_past"]
         outputs.append(export(model, onnx_config, opset, decoder_with_past_output, device=device))

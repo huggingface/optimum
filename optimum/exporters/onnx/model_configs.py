@@ -105,7 +105,7 @@ class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
 
         return None
 
-    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
         reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
         reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
@@ -551,7 +551,7 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
 
 
 class BigBirdPegasusEncoderOnnxConfig(Seq2SeqEncoderOnnxConfig):
-    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         # TODO: check why the attention mask is not present in the exported model
         reference_model_inputs.pop("attention_mask")
         return reference_model_inputs
@@ -786,7 +786,7 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqDecoderOnnxConfig):
 
         return common_inputs
 
-    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
         reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 

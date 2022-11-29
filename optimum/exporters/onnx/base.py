@@ -303,7 +303,7 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
 
-    def generate_dummy_inputs_onnxruntime(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         """
         Generate inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
