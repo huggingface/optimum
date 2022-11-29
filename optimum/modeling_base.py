@@ -132,10 +132,10 @@ class OptimizedModel(ABC):
 
     def push_to_hub(
         self,
-        save_directory: str = None,
-        repository_id: Optional[str] = None,
+        save_directory: str,
+        repository_id: str,
         private: Optional[bool] = None,
-        use_auth_token: Optional[Union[bool, str]] = None,
+        use_auth_token: Union[bool, str] = True,
     ) -> str:
         if isinstance(use_auth_token, str):
             huggingface_token = use_auth_token

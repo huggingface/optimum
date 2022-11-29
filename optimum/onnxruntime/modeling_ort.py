@@ -42,7 +42,7 @@ from transformers.modeling_outputs import (
 )
 
 import onnxruntime as ort
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, get_hf_file_metadata, hf_hub_url, HfApi, HfFolder
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
@@ -237,6 +237,9 @@ class ORTModel(OptimizedModel):
             # Follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
 
+        if not isinstance(path, str):
+            path = str(path)
+
         # `providers` list must of be of the same length as `provider_options` list
         return ort.InferenceSession(
             path,
@@ -261,6 +264,11 @@ class ORTModel(OptimizedModel):
         dst_path = Path(save_directory).joinpath(file_name)
         shutil.copyfile(src_path, dst_path)
 
+    @staticmethod
+    def _generate_regular_names_for_filename(filename: str):
+        name, extension = filename.rsplit(".", maxsplit=1)
+        return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}"]
+
     @classmethod
     def _from_pretrained(
         cls,
@@ -270,7 +278,7 @@ class ORTModel(OptimizedModel):
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
-        file_name: str = ONNX_WEIGHTS_NAME,
+        file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
         provider: str = "CPUExecutionProvider",
@@ -278,14 +286,45 @@ class ORTModel(OptimizedModel):
         provider_options: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> "ORTModel":
-        if os.path.isdir(os.path.join(model_id, subfolder)):
+        model_path = Path(model_id) / subfolder
+        regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
+
+        if file_name is None:
+            if model_path.is_dir():
+                onnx_files = list(model_path.glob("*.onnx"))
+            else:
+                if isinstance(use_auth_token, bool):
+                    token = HfFolder().get_token()
+                else:
+                    token = use_auth_token
+                repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
+                pattern = "*.onnx" if subfolder == "" else f"{subfolder}/*.onnx"
+                onnx_files = [p.match(pattern) for p in repo_files]
+
+            if len(onnx_files) == 0:
+                raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
+            elif len(onnx_files) > 1:
+                raise RuntimeError(
+                    f"Too many ONNX model files were found in {model_path}, specify which one to load by using the "
+                    "file_name argument."
+                )
+            else:
+                file_name = onnx_files[0].name
+
+        if file_name not in regular_onnx_filenames:
+            logger.warning(
+                f"The ONNX file {file_name} is not a regular name used in optimum.onnxruntime, the ORTModel might "
+                "not behave as expected."
+            )
+
+        if model_path.is_dir():
             model = ORTModel.load_model(
-                os.path.join(model_id, subfolder, file_name),
+                model_path / file_name,
                 provider=provider,
                 session_options=session_options,
                 provider_options=provider_options,
             )
-            kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
+            kwargs["model_save_dir"] = model_path
             kwargs["latest_model_name"] = file_name
         else:
             model_cache_path = hf_hub_download(

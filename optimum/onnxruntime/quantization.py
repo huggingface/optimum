@@ -28,13 +28,16 @@ from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
-from optimum.onnxruntime import ORTQuantizableOperator
-from optimum.onnxruntime.configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
-from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
-from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
-from optimum.onnxruntime.utils import ONNX_WEIGHTS_NAME
-from optimum.quantization_base import OptimumQuantizer
+
+
+from ..utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor
+from . import ORTQuantizableOperator
+from .configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
+from .modeling_ort import ORTModel
+from .modeling_seq2seq import ORTModelForConditionalGeneration
+from .preprocessors import QuantizationPreprocessor
+from .utils import ONNX_WEIGHTS_NAME
+from ..quantization_base import OptimumQuantizer
 
 
 if TYPE_CHECKING:
@@ -100,8 +103,8 @@ class ORTQuantizer(OptimumQuantizer):
             try:
                 self.config = AutoConfig.from_pretrained(self.onnx_model_path.parent)
             except OSError:
-                LOGGER.warn(
-                    f"Could not load the config for {self.onnx_augmented_model_name} automatically, this might makei "
+                LOGGER.warning(
+                    f"Could not load the config for {self.onnx_augmented_model_name} automatically, this might make "
                     "the quantized model harder to use because it will not be able to be loaded by an ORTModel without "
                     "having to specify the configuration explicitly."
                 )
@@ -399,6 +402,8 @@ class ORTQuantizer(OptimumQuantizer):
 
         if self.config is not None:
             self.config.save_pretrained(save_dir)
+
+        maybe_save_tokenizer_or_processor_or_feature_extractor(self.onnx_model_path.parent, save_dir)
 
         return Path(save_dir)
 

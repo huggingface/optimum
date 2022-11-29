@@ -14,12 +14,13 @@
 # limitations under the License.
 """Entry point to the optimum.exporters.onnx command line."""
 
+import logging
 from argparse import ArgumentParser
 from pathlib import Path
 
-from transformers import AutoFeatureExtractor, AutoTokenizer
+from transformers import AutoTokenizer
 
-from ...utils import logging
+from ...utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
 from .convert import (
@@ -30,7 +31,7 @@ from .convert import (
 )
 
 
-logger = logging.get_logger()  # pylint: disable=invalid-name
+logger = logging.get_logger(__name__)
 logger.setLevel(logging.INFO)
 
 
@@ -143,18 +144,7 @@ def main():
     # Saving the model config as this is needed sometimes.
     model.config.save_pretrained(args.output.parent)
 
-    # Saving the tokenizer / feature extractor as well.
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(args.model)
-        tokenizer.save_pretrained(args.output.parent)
-    except Exception:
-        pass
-
-    try:
-        feature_extractor = AutoFeatureExtractor.from_pretrained(args.model)
-        feature_extractor.save_pretrained(args.output.parent)
-    except Exception:
-        pass
+    maybe_save_tokenizer_or_processor_or_feature_extractor(args.model, args.output.parent)
 
     if args.atol is None:
         args.atol = onnx_config.ATOL_FOR_VALIDATION

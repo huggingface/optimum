@@ -435,9 +435,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
-        encoder_file_name: str = ONNX_ENCODER_NAME,
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        encoder_file_name: Optional[str] = None,
+        decoder_file_name: Optional[str] = None,
+        decoder_with_past_file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
         use_cache: bool = True,
@@ -447,27 +447,66 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         use_io_binding: bool = True,
     ):
         kwargs = {"use_io_binding": use_io_binding}
+        model_path = Path(model_id) / subfolder
 
-        # Load model from a local directory
-        if os.path.isdir(os.path.join(model_id, subfolder)):
-            decoder_with_past_path = (
-                os.path.join(model_id, subfolder, decoder_with_past_file_name) if use_cache else None
-            )
+        def infer_filename(directory: Path, pattern : str, argument_name: str, fail_if_not_found: bool = True) -> str:
+            onnx_files = directory.glob(pattern)
+            if fail_if_not_found and len(onnx_files) == 0:
+                raise FileNotFoundError(f"Could not find any ONNX model file in {directory}")
+            elif len(onnx_files) > 1:
+                if argument_name is not None:
+                    raise RuntimeError(
+                        f"Too many ONNX model files were found in {directory}, specify which one to load by using the "
+                        f"{argument_name} argument."
+                    )
+            return onnx_files[0].name
+
+        encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_ENCODER_NAME)
+        decoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_NAME)
+        decoder_with_past_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
+
+        if model_path.is_dir():
+            if encoder_file_name is None:
+                encoder_file_name = infer_filename(model_path, "*encoder*.onnx", "encoder_file_name")
+            if decoder_file_name is None:
+                decoder_file_name = infer_filename(model_path, "*decoder*.onnx", "decoder_file_name")
+            if decoder_with_past_file_name is None:
+                decoder_with_past_file_name = infer_filename(model_path, "*decoder_with_past*.onnx", "decoder_with_past_file_name", fail_if_not_found=False)
+                decoder_with_past_path = (
+                    model_path / decoder_with_past_file_name if use_cache else None
+                )
+            if encoder_file_name not in encoder_regular_onnx_filenames:
+                logger.warning(
+                    f"The ONNX file {encoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                    "ORTModelForConditionalGeneration might not behave as expected."
+                )
+
+            if decoder_file_name not in decoder_regular_onnx_filenames:
+                logger.warning(
+                    f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                    "ORTModelForConditionalGeneration might not behave as expected."
+                )
+            if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
+                logger.warning(
+                    f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime, "
+                    "the ORTModelForConditionalGeneration might not behave as expected."
+                )
+
             model = cls.load_model(
-                encoder_path=os.path.join(model_id, subfolder, encoder_file_name),
-                decoder_path=os.path.join(model_id, subfolder, decoder_file_name),
+                encoder_path=model_path / encoder_file_name,
+                decoder_path=model_path / decoder_file_name,
                 decoder_with_past_path=decoder_with_past_path,
                 provider=provider,
                 session_options=session_options,
                 provider_options=provider_options,
             )
-            kwargs["model_save_dir"] = Path(model_id).joinpath(subfolder)
+            kwargs["model_save_dir"] = model_path
             kwargs["last_encoder_model_name"] = encoder_file_name
             kwargs["last_decoder_model_name"] = decoder_file_name
             kwargs["last_decoder_with_past_model_name"] = decoder_with_past_file_name
         # Load model from hub
         else:
-            default_file_names = [ONNX_ENCODER_NAME, ONNX_DECODER_NAME]
+            default_file_names = [encoder_regular_onnx_filenames, decoder_regular_onnx_filenames]
             model_file_names = [encoder_file_name, decoder_file_name]
             if use_cache:
                 default_file_names.append(ONNX_DECODER_WITH_PAST_NAME)

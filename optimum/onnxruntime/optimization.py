@@ -25,6 +25,7 @@ from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import optimize_model
 
 from ..utils import CONFIG_NAME, NormalizedConfigManager
+from ..utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
@@ -126,6 +127,9 @@ class ORTOptimizer:
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type)
+
+        self.config.save_pretrained(save_dir)
+        maybe_save_tokenizer_or_processor_or_feature_extractor(self.onnx_model_path[0].parent, save_dir)
 
         # Create and save the configuration summarizing all the parameters related to optimization
         ort_config = ORTConfig(
