@@ -296,7 +296,6 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         "decoder_input_ids",
         "decoder_attention_mask",
         "encoder_outputs",
-        "attention_mask",
     )
 
     def __init__(
@@ -326,13 +325,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         if input_name == "encoder_outputs":
             shape = (self.batch_size, self.sequence_length, self.hidden_size)
-            return (self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework), None, None)
-
-        if input_name == "attention_mask":
-            min_value = 0
-            max_value = 2
-            shape = (self.batch_size, self.sequence_length)
-            return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework)
+            return (self.random_float_tensor(shape, framework=framework), None, None)
 
         return super().generate(input_name, framework=framework)
 

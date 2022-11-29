@@ -64,8 +64,8 @@ class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
         DummySeq2SeqDecoderTextInputGenerator,
-        DummyDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
     )
 
@@ -299,8 +299,8 @@ class T5DecoderOnnxConfig(Seq2SeqDecoderOnnxConfig):
     )
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
         DummySeq2SeqDecoderTextInputGenerator,
-        DummyDecoderTextInputGenerator,
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
 
@@ -769,8 +769,8 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
         DummySeq2SeqDecoderTextInputGenerator,
-        DummyDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
     )
 
