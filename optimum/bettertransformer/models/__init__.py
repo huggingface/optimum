@@ -19,7 +19,6 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
-    TapasLayerBetterTransformer,
     ViltLayerBetterTransformer,
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
@@ -28,6 +27,8 @@ from .encoder_models import (
 
 
 BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
+    # Tapas Model
+    "TapasLayer": BertLayerBetterTransformer,
     # Bert Family
     "BertLayer": BertLayerBetterTransformer,
     "ElectraLayer": BertLayerBetterTransformer,
@@ -71,8 +72,6 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
-    # Tapas Model
-    "TapasLayer": BertLayerBetterTransformer,
 }
 
 
