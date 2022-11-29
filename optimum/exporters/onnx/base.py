@@ -286,7 +286,7 @@ class OnnxConfig(ExportConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework, **kwargs)
+                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                     input_was_inserted = True
                     break
             if not input_was_inserted:
