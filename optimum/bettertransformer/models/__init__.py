@@ -19,6 +19,7 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
+    OwlViTLayerBetterTransformer,
     ViltLayerBetterTransformer,
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
@@ -62,6 +63,7 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # "UniSpeechEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # "Data2VecAudioEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # ViT Family:
+    "OwlViTEncoderLayer": OwlViTLayerBetterTransformer,
     "ViTLayer": ViTLayerBetterTransformer,
     "DeiTLayer": ViTLayerBetterTransformer,
     "ViTMAELayer": ViTLayerBetterTransformer,

@@ -19,7 +19,7 @@ KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation
 KNOWN_POS_EMB_ATTRIBUTES = ["position_embedding_type"]
 KNOWN_NUM_LAYERS = ["num_hidden_layers", "num_layers", "encoder_layers", "n_layers"]
 
-SUPPORTED_ACTIVATION_FUNCTIONS = ["gelu", "relu", "gelu_new"]
+SUPPORTED_ACTIVATION_FUNCTIONS = ["gelu", "relu", "gelu_new", "quick_gelu"]
 
 
 class BetterTransformerBaseLayer(nn.Module):
@@ -81,7 +81,7 @@ class BetterTransformerBaseLayer(nn.Module):
             raise ValueError(
                 f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
             )
-        self.use_gelu = (self.act_fn == "gelu") or (self.act_fn == "gelu_new")
+        self.use_gelu = (self.act_fn == "gelu") or (self.act_fn == "gelu_new") or (self.act_fn == "quick_gelu")
 
         # Check num_head is even
         if self.num_heads % 2 == 1:

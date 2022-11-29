@@ -14,10 +14,12 @@
 # limitations under the License.
 import unittest
 
+import torch
 from PIL import Image
-from transformers import AutoFeatureExtractor, AutoProcessor
+from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 import requests
+from optimum.bettertransformer import BetterTransformer
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -32,6 +34,7 @@ ALL_VISION_MODELS_TO_TEST = [
 
 ALL_VISION_TEXT_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-vilt-random-vqa",
+    "hf-internal-testing/tiny-random-OwlViTModel",
 ]
 
 
@@ -51,7 +54,7 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
         return inputs
 
 
-class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase):
+class BetterTransformersTextVisionTTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
@@ -64,5 +67,57 @@ class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase)
 
         # Model takes image and text as input
         processor = AutoProcessor.from_pretrained(model_id)
-        inputs = processor(image, text, return_tensors="pt")
+        inputs = processor(images=image, text=text, return_tensors="pt")
         return inputs
+
+    def test_logits(self):
+        r"""
+        This tests if the converted model produces the same logits
+        than the original model.
+        """
+        # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
+
+        for model_to_test in self.all_models_to_test:
+            inputs = self.prepare_inputs_for_class(model_to_test)
+
+            torch.manual_seed(0)
+            hf_random_model = AutoModel.from_pretrained(model_to_test).eval()
+            random_config = hf_random_model.config
+
+            torch.manual_seed(0)
+            converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+
+            self.assertFalse(
+                hasattr(hf_random_model, "use_bettertransformer"),
+                f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
+            )
+
+            with torch.no_grad():
+                r"""
+                Make sure the models are in eval mode! Make also sure that the original model
+                has not been converted to a fast model. The check is done above.
+                """
+                torch.manual_seed(0)
+                hf_hidden_states = hf_random_model(**inputs)[0]
+
+                torch.manual_seed(0)
+                bt_hidden_states = converted_model(**inputs)[0]
+
+                if hasattr(random_config, "vision_config"):
+                    random_config = random_config.vision_config
+
+                if ("quick_gelu" in random_config.to_dict().values()) or (
+                    "gelu_new" in random_config.to_dict().values()
+                ):
+                    # Since `gelu_new` and `gelu_quick` are a slightly modified version of `GeLU` we expect a small
+                    # discrepency.
+                    tol = 4e-2
+                else:
+                    tol = 1e-3
+
+                self.assertTrue(
+                    torch.allclose(hf_hidden_states[:, :3], bt_hidden_states[:, :3], atol=tol),
+                    "The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {}".format(
+                        hf_random_model.__class__.__name__
+                    ),
+                )
