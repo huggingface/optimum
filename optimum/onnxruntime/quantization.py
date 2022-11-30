@@ -163,7 +163,7 @@ class ORTQuantizer(OptimumQuantizer):
             batch_size (`int`, defaults to 1):
                 The batch size to use when collecting the quantization ranges values.
             use_external_data_format (`bool`, defaults to `False`):
-                Whether uto se external data format to store model which size is >= 2Gb.
+                Whether to use external data format to store model which size is >= 2Gb.
             use_gpu (`bool`, defaults to `False`):
                 Whether to use the GPU when collecting the quantization ranges values.
             force_symmetric_range (`bool`, defaults to `False`):
@@ -317,7 +317,7 @@ class ORTQuantizer(OptimumQuantizer):
             quantization_config.nodes_to_quantize = list(nodes_to_quantize)
             quantization_config.nodes_to_exclude = list(nodes_to_exclude)
 
-        onnx_model = onnx.load(self.onnx_model_path)
+        onnx_model = onnx.load(Path(self.onnx_model_path).as_posix())
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
 
         if parse(ort_version) >= Version("1.13.0"):
@@ -382,10 +382,10 @@ class ORTQuantizer(OptimumQuantizer):
         suffix = f"_{file_suffix}" if file_suffix else ""
         quantized_model_path = save_dir.joinpath(f"{self.onnx_model_path.stem}{suffix}").with_suffix(".onnx")
         LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
-        quantizer.model.save_model_to_file(quantized_model_path, use_external_data_format)
+        quantizer.model.save_model_to_file(quantized_model_path.as_posix(), use_external_data_format)
 
         # Create and save the configuration summarizing all the parameters related to quantization
-        ort_config = ORTConfig(quantization=quantization_config)
+        ort_config = ORTConfig(quantization=quantization_config, use_external_data_format=use_external_data_format)
         ort_config.save_pretrained(save_dir)
 
         return Path(save_dir)

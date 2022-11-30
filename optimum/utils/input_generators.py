@@ -560,6 +560,9 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.sequence_length = sequence_length
 
     def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.sequence_length]
+        if input_name == "input_values":
+            self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
 
         if input_name == "input_values":  # raw waveform
             return self.random_float_tensor(

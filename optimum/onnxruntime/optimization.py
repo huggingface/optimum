@@ -104,6 +104,7 @@ class ORTOptimizer:
         save_dir: Union[str, os.PathLike],
         file_suffix: Optional[str] = "optimized",
         use_external_data_format: bool = False,
+        one_external_file: bool = True,
     ):
         """
         Optimizes a model given the optimization specifications defined in `optimization_config`.
@@ -117,17 +118,21 @@ class ORTOptimizer:
                 The file suffix used to save the optimized model.
             use_external_data_format (`bool`, *optional*, defaults to `False`):
                 Whether to use external data format to store model of size >= 2Gb.
+            one_external_file (`bool`, defaults to `True`):
+                When `use_external_data_format=True`, whether to save all tensors to one external file.
+                If false, save each tensor to a file named with the tensor name.
+
         """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type)
 
-        # Save the model configuration
-        self.config.save_pretrained(save_dir)
-
         # Create and save the configuration summarizing all the parameters related to optimization
-        ort_config = ORTConfig(optimization=optimization_config)
-        ort_config.save_pretrained(save_dir)
+        ort_config = ORTConfig(
+            optimization=optimization_config,
+            use_external_data_format=use_external_data_format,
+            one_external_file=one_external_file,
+        )
 
         model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
         optimization_options = optimization_config.create_fusion_options(model_type)
@@ -152,9 +157,17 @@ class ORTOptimizer:
 
             suffix = f"_{file_suffix}" if file_suffix else ""
             output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
-            optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format)
+            optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format, one_external_file)
 
-        LOGGER.info(f"Optimized model saved at: {save_dir} (external data format: " f"{use_external_data_format})")
+        # Save the model configuration
+        self.config.save_pretrained(save_dir)
+        ort_config.save_pretrained(save_dir)
+
+        LOGGER.info(
+            f"Optimized model saved at: {save_dir} (external data format: "
+            f"{use_external_data_format}; saved all tensor to one file: "
+            f"{one_external_file})"
+        )
 
         return Path(save_dir)
 

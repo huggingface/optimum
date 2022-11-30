@@ -650,6 +650,9 @@ class OptimizationConfig:
             Whether to use mask index instead of raw attention mask in the attention operator.
         no_attention_mask (`bool`, defaults to `False`):
             Whether to not use attention masks. Only works for bert model type.
+        disable_embed_layer_norm (`bool`, defaults to `True`):
+            Whether to disable EmbedLayerNormalization fusion.
+            The default value is set to `True` since this fusion is incompatible with ONNX Runtime quantization
         disable_shape_inference (`bool`, defaults to `False`):
             Whether to disable symbolic shape inference.
             The default value is set to `False` but symbolic shape inference might cause issues sometimes.
@@ -687,6 +690,7 @@ class OptimizationConfig:
     enable_gelu_approximation: bool = False
     use_mask_index: bool = False
     no_attention_mask: bool = False
+    disable_embed_layer_norm: bool = True
     disable_shape_inference: bool = False
 
     def __post_init__(self):
@@ -878,6 +882,10 @@ class ORTConfig(BaseConfig):
             ONNX opset version to export the model with.
         use_external_data_format (`bool`, *optional*, defaults to `False`):
             Allow exporting model >= than 2Gb.
+        one_external_file (`bool`, defaults to `True`):
+            When `use_external_data_format=True`, whether to save all tensors to one external file.
+            If false, save each tensor to a file named with the tensor name.
+            (Can not be set to `False` for the quantization)
         optimization (`OptimizationConfig`, *optional*, defaults to None):
             Specify a configuration to optimize ONNX Runtime model
         quantization (`QuantizationConfig`, *optional*, defaults to None):
@@ -891,6 +899,7 @@ class ORTConfig(BaseConfig):
         self,
         opset: Optional[int] = None,
         use_external_data_format: bool = False,
+        one_external_file: bool = True,
         optimization: Optional[OptimizationConfig] = None,
         quantization: Optional[QuantizationConfig] = None,
         **kwargs,
@@ -898,6 +907,7 @@ class ORTConfig(BaseConfig):
         super().__init__()
         self.opset = opset
         self.use_external_data_format = use_external_data_format
+        self.one_external_file = one_external_file
         self.optimization = self.dataclass_to_dict(optimization)
         self.quantization = self.dataclass_to_dict(quantization)
         self.optimum_version = kwargs.pop("optimum_version", None)

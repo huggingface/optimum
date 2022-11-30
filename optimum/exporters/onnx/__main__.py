@@ -22,7 +22,12 @@ from transformers import AutoFeatureExtractor, AutoTokenizer
 from ...utils import logging
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, validate_model_outputs
+from .convert import (
+    export,
+    export_encoder_decoder_model,
+    validate_encoder_decoder_model_outputs,
+    validate_model_outputs,
+)
 
 
 logger = logging.get_logger()  # pylint: disable=invalid-name
@@ -64,6 +69,14 @@ def main():
         ),
     )
     parser.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+    parser.add_argument(
+        "--for-ort",
+        action="store_true",
+        help=(
+            "This exports models ready to be run with optimum.onnxruntime. Useful for encoder-decoder models for"
+            "conditional generation. If enabled the encoder and decoder of the model are exported separately."
+        ),
+    )
     parser.add_argument("output", type=Path, help="Path indicating the directory where to store generated ONNX model.")
 
     # Retrieve CLI arguments
@@ -115,12 +128,17 @@ def main():
             f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
         )
 
-    onnx_inputs, onnx_outputs = export(
-        model,
-        onnx_config,
-        args.opset,
-        args.output,
-    )
+    if model.config.is_encoder_decoder and args.for_ort:
+        onnx_inputs, onnx_outputs = export_encoder_decoder_model(
+            model,
+            onnx_config,
+            args.opset,
+            args.output.parent.joinpath("encoder_model.onnx"),
+            args.output.parent.joinpath("decoder_model.onnx"),
+            args.output.parent.joinpath("decoder_with_past_model.onnx"),
+        )
+    else:
+        onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
 
     # Saving the model config as this is needed sometimes.
     model.config.save_pretrained(args.output.parent)
@@ -144,11 +162,22 @@ def main():
             args.atol = args.atol[task.replace("-with-past", "")]
 
     try:
-        validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
+        if model.config.is_encoder_decoder and args.for_ort:
+            validate_encoder_decoder_model_outputs(
+                onnx_config,
+                model,
+                onnx_outputs,
+                args.atol,
+                args.output.parent.joinpath("encoder_model.onnx"),
+                args.output.parent.joinpath("decoder_model.onnx"),
+                args.output.parent.joinpath("decoder_with_past_model.onnx"),
+            )
+        else:
+            validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
     except ValueError:
-        logger.error(f"An error occured, but the model was saved at: {args.output.as_posix()}")
+        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
         return
-    logger.info(f"All good, model saved at: {args.output.as_posix()}")
+    logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
 
 
 if __name__ == "__main__":
