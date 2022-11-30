@@ -19,6 +19,7 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
+    MBartEncoderLayerBetterTransformer,
     ViltLayerBetterTransformer,
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
@@ -43,6 +44,8 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "AlbertLayer": AlbertLayerBetterTransformer,
     # Bart family
     "BartEncoderLayer": BartEncoderLayerBetterTransformer,
+    "MBartEncoderLayer": MBartEncoderLayerBetterTransformer,
+    "M2M100EncoderLayer": MBartEncoderLayerBetterTransformer,
     # "PLBartEncoderLayer": bart.BartEncoderLayerBetterTransformer,
     # "MarianEncoderLayer": bart.BartEncoderLayerBetterTransformer,
     # "TimeSeriesTransformerEncoderLayer": bart.BartEncoderLayerBetterTransformer,
