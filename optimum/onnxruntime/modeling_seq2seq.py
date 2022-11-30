@@ -29,14 +29,12 @@ from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoModelForSpeechSe
 from transformers.file_utils import add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
-from transformers.onnx import FeaturesManager, export
 
 import onnxruntime as ort
 from huggingface_hub import hf_hub_download
 
-from ..exporters.onnx.model_configs import SpeechSeq2SeqDecoderOnnxConfig, SpeechSeq2SeqEncoderOnnxConfig
-from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
-from ..onnx.modeling_seq2seq import _DecoderWithLMhead
+from ..exporters.onnx.convert import export_encoder_decoder_model as export
+from ..exporters.tasks import TasksManager
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (
@@ -519,94 +517,34 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         save_dir = Path(save_dir).joinpath(model_id, subfolder)
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-        framework = FeaturesManager.determine_framework(os.path.join(model_id, subfolder))
-        model_class = FeaturesManager.get_model_class_for_feature(cls.export_feature, framework)
-        model = model_class.from_pretrained(
+        model = TasksManager.get_model_from_task(
+            cls.export_feature,
             model_id,
             subfolder=subfolder,
-            config=config,
-            cache_dir=cache_dir,
             revision=revision,
+            cache_dir=cache_dir,
+            config=config,
             use_auth_token=use_auth_token,
             local_files_only=local_files_only,
         )
 
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=cls.export_feature)
-        onnx_config = model_onnx_config(model.config)
-        onnx_opset = onnx_config.default_onnx_opset
+        model_type = model.config.model_type.replace("_", "-")
+        model_name = getattr(model, "name", None)
 
-        # Extract the encoder and decoder for ONNX export
-        encoder = model.get_encoder()
-        decoder = model.get_decoder()
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            model_type, "onnx", task=cls.export_feature, model_name=model_name
+        )
+        onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
+        onnx_opset = onnx_config.DEFAULT_ONNX_OPSET
 
-        # Concatenate the decoder with the language model head for ONNX export
-        decoder_with_lm_head = _DecoderWithLMhead(model)
-
-        # Get the encoder and decoder ONNX configs
-        onnx_config_encoder = cls.get_encoder_onnx_config(encoder.config)
-        onnx_config_decoder = cls.get_decoder_onnx_config(decoder.config, cls.export_feature, use_past=False)
-        if use_cache:
-            onnx_config_decoder_with_past = cls.get_decoder_onnx_config(
-                decoder.config, cls.export_feature, use_past=True
-            )
-
-        if config.model_type == "whisper":
-            from ..exporters.onnx.convert import export as export_optimum
-
-            # Export the encoder
-            export_optimum(
-                encoder,
-                onnx_config_encoder,
-                onnx_opset,
-                save_dir.joinpath(ONNX_ENCODER_NAME),
-            )
-
-            # Export the decoder without the past key values
-            export_optimum(
-                model,
-                onnx_config_decoder,
-                onnx_opset,
-                save_dir.joinpath(ONNX_DECODER_NAME),
-            )
-
-            # Export the decoder with the past key values
-            if use_cache:
-                export_optimum(
-                    model,
-                    onnx_config_decoder_with_past,
-                    onnx_opset,
-                    save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
-                )
-        else:
-            # Export the encoder
-            export(
-                preprocessor=tokenizer,
-                model=encoder,
-                config=onnx_config_encoder,
-                opset=onnx_opset,
-                output=save_dir.joinpath(ONNX_ENCODER_NAME),
-            )
-
-            # Export the decoder without the past key values
-            export(
-                preprocessor=tokenizer,
-                model=decoder_with_lm_head,
-                config=onnx_config_decoder,
-                opset=onnx_opset,
-                output=save_dir.joinpath(ONNX_DECODER_NAME),
-            )
-
-            # Export the decoder with the past key values
-            if use_cache:
-                export(
-                    preprocessor=tokenizer,
-                    model=decoder_with_lm_head,
-                    config=onnx_config_decoder_with_past,
-                    opset=onnx_opset,
-                    output=save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
-                )
+        export(
+            model,
+            onnx_config,
+            onnx_opset,
+            save_dir.joinpath(ONNX_ENCODER_NAME),
+            save_dir.joinpath(ONNX_DECODER_NAME),
+            save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
+        )
 
         return cls._from_pretrained(
             save_dir,
@@ -1175,14 +1113,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             main_input_name=self.main_input_name,
         )
 
-    def get_encoder_onnx_config(encoder_config: "PretrainedConfig") -> EncoderOnnxConfig:
-        return EncoderOnnxConfig(encoder_config, task="default")
-
-    def get_decoder_onnx_config(
-        decoder_config: "PretrainedConfig", export_feature: str, use_past: bool = False
-    ) -> DecoderOnnxConfig:
-        return DecoderOnnxConfig(decoder_config, export_feature, use_past=use_past)
-
     @add_start_docstrings_to_model_forward(
         SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
         + TRANSLATION_EXAMPLE.format(
@@ -1301,14 +1231,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             use_io_binding=use_io_binding,
             main_input_name=self.main_input_name,
         )
-
-    def get_encoder_onnx_config(encoder_config: "PretrainedConfig") -> SpeechSeq2SeqEncoderOnnxConfig:
-        return SpeechSeq2SeqEncoderOnnxConfig(encoder_config, task="default")
-
-    def get_decoder_onnx_config(
-        decoder_config: "PretrainedConfig", export_feature: str, use_past: bool = False
-    ) -> SpeechSeq2SeqDecoderOnnxConfig:
-        return SpeechSeq2SeqDecoderOnnxConfig(decoder_config, export_feature, use_past=use_past)
 
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, feature_size, sequence_length")
