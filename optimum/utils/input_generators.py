@@ -325,7 +325,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         if input_name == "encoder_outputs":
             shape = (self.batch_size, self.sequence_length, self.hidden_size)
-            return (self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework), None, None)
+            return (self.random_float_tensor(shape, framework=framework), None, None)
 
         return super().generate(input_name, framework=framework)
 
