@@ -545,6 +545,11 @@ class TasksManager:
             "object-detection",
             onnx="YolosOnnxConfig",
         ),
+        "swin": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="SwinOnnxConfig",
+        ),
     }
 
     @staticmethod
