@@ -44,13 +44,13 @@ ALL_ENCODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-BertModel",
     "ybelkada/random-tiny-BertGenerationModel",
-    "hf-internal-testing/tiny-random-MBartModel",
-    "hf-internal-testing/tiny-random-nllb",
 ]
 
 ALL_ENCODER_DECODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-FSMTModel",
     "hf-internal-testing/tiny-random-BartModel",
+    "hf-internal-testing/tiny-random-MBartModel",
+    "hf-internal-testing/tiny-random-nllb",
 ]
 
 
