@@ -548,6 +548,7 @@ class TasksManager:
         "swin": supported_tasks_mapping(
             "default",
             "image-classification",
+            "masked-im",
             onnx="SwinOnnxConfig",
         ),
     }
