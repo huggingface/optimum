@@ -24,11 +24,11 @@ from onnx import load_model
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import optimize_model
 
-from ..utils import CONFIG_NAME
+from ..utils import CONFIG_NAME, NormalizedConfigManager
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
-from .utils import ONNX_WEIGHTS_NAME, NormalizedConfigManager, ORTConfigManager
+from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
 if TYPE_CHECKING:

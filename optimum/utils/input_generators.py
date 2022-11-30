@@ -50,9 +50,9 @@ DEFAULT_DUMMY_SHAPES = {
     "sequence_length": 16,
     "num_choices": 4,
     # image
-    "num_channels": 3,
     "width": 224,
     "height": 224,
+    "num_channels": 3,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,

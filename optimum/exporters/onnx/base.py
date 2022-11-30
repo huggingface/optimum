@@ -25,8 +25,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, 
 
 from transformers.utils import is_torch_available
 
-from ...utils import logging
-from ...utils.input_generators import DummyInputGenerator
+from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, logging
+from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
 from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 
@@ -60,6 +60,37 @@ class PatchingSpec:
     custom_op: Callable
     orig_op: Optional[Callable] = None
     op_wrapper: Optional[Callable] = None
+
+
+GENERATE_DUMMY_DOCSTRING = r"""
+        Generates the dummy inputs necessary for tracing the model. If not explicitely specified, default input shapes are used.
+
+        Args:
+            framework (`str`, defaults to `"pt"`):
+                The framework for which to create the dummy inputs.
+            batch_size (`int`, defaults to {batch_size}):
+                The batch size to use in the dummy inputs.
+            sequence_length (`int`, defaults to {sequence_length}):
+                The sequence length to use in the dummy inputs.
+            num_choices (`int`, defaults to {num_choices}):
+                The number of candidate answers provided for multiple choice task.
+            image_width (`int`, defaults to {width}):
+                The width to use in the dummy inputs for vision tasks.
+            image_height (`int`, defaults to {height}):
+                The height to use in the dummy inputs for vision tasks.
+            num_channels (`int`, defaults to {num_channels}):
+                The number of channels to use in the dummpy inputs for vision tasks.
+            feature_size (`int`, defaults to {feature_size}):
+                The number of features to use in the dummpy inputs for audio tasks in case it is not raw audio.
+                This is for example the number of STFT bins or MEL bins.
+            nb_max_frames (`int`, defaults to {nb_max_frames}):
+                The number of frames to use in the dummpy inputs for audio tasks in case the input is not raw audio.
+            audio_sequence_length (`int`, defaults to {audio_sequence_length}):
+                The number of frames to use in the dummpy inputs for audio tasks in case the input is raw audio.
+
+        Returns:
+            `Dict`: A dictionary mapping the input names to dummy tensors in the proper framework format.
+"""
 
 
 class OnnxConfig(ExportConfig, ABC):
@@ -165,7 +196,7 @@ class OnnxConfig(ExportConfig, ABC):
         Mapping containing the axis definition of the input tensors to provide to the model.
 
         Returns:
-            The name associated with the axes symbolic name and the axis position within the tensor of each input.
+            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
         """
         raise NotImplementedError()
 
@@ -175,7 +206,7 @@ class OnnxConfig(ExportConfig, ABC):
         Mapping containing the axis definition of the output tensors to provide to the model.
 
         Returns:
-            For each output: its name associated to the axes symbolic name and the axis position within the tensor.
+            `Mapping[str, Mapping[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
@@ -249,36 +280,8 @@ class OnnxConfig(ExportConfig, ABC):
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
 
-    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        """
-        Generates the dummy inputs necessary for tracing the model.
-
-        Args:
-            framework (`str`, defaults to `"pt"`):
-                The framework for which to create the dummy inputs.
-            batch_size (`int`, *optional*, defaults to 2):
-                The batch size to use in the dummy inputs.
-            sequence_length(`int`, *optional*, defaults to 16):
-                The sequence length to use in the dummy inputs.
-            num_choices (`int`, *optional*, defaults to 4):
-                The number of candidate answers provided for multiple choice task.
-            image_width (`int`, *optional*, defaults to 224):
-                The width to use in the dummy inputs for vision tasks.
-            image_height (`int`, *optional*, defaults to 224):
-                The height to use in the dummy inputs for vision tasks.
-            num_channels (`int`, *optional*, defaults to 3):
-                The number of channels to use in the dummpy inputs for vision tasks.
-            feature_size (`int`, *optional*, defaults to 80):
-                The number of features to use in the dummpy inputs for audio tasks in case it is not raw audio.
-                This is for example the number of STFT bins or MEL bins.
-            nb_max_frames (`int`, *optional*, defaults to 3000):
-                The number of frames to use in the dummpy inputs for audio tasks in case the input is not raw audio.
-            audio_sequence_length (`int`, *optional*, defaults to 16000):
-                The number of frames to use in the dummpy inputs for audio tasks in case the input is raw audio.
-
-        Returns:
-            `Dict`: A dictionary mapping the input names to dummy tensors in the proper framework format.
-        """
+    @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs) -> Dict:
         dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
 
         dummy_inputs = {}
@@ -378,6 +381,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         if hasattr(self._config, "use_cache"):
             return {"use_cache": self.use_past}
 
+    @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
 
