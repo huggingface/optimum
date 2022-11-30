@@ -66,7 +66,6 @@ def validate_encoder_decoder_model_outputs(
     reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
     onnx_named_outputs: List[str],
     atol: float,
-    task: str,
     encoder_onnx_model: Path,
     decoder_onnx_model: Path,
     decoder_with_past_onnx_model: Optional[Path] = None,
@@ -84,8 +83,6 @@ def validate_encoder_decoder_model_outputs(
             The names of the outputs to check.
         atol (`float`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
-        task (`str`)
-            The type of task to export the model with.
         encoder_onnx_model (`Path`):
             The path to the exported encoder ONNX model.
         decoder_onnx_model (`Path`):
@@ -95,9 +92,7 @@ def validate_encoder_decoder_model_outputs(
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    task = task.replace("-with-past", "")
-
-    models_for_validation = get_encoder_decoder_models_for_export(reference_model, config, task)
+    models_for_validation = get_encoder_decoder_models_for_export(reference_model, config)
 
     if len(onnx_named_outputs) != len(models_for_validation.keys()):
         raise ValueError(
@@ -387,7 +382,6 @@ def export_encoder_decoder_model(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     config: OnnxConfig,
     opset: int,
-    task: str,
     encoder_output: Path,
     decoder_output: Path,
     decoder_with_past_output: Optional[Path] = None,
@@ -405,8 +399,6 @@ def export_encoder_decoder_model(
             The ONNX configuration associated with the exported model.
         opset (`int`):
             The version of the ONNX operator set to use.
-        task (`str`)
-            The type of task to export the model with.
         encoder_output (`Path`):
             Directory to store the exported encoder ONNX model.
         decoder_output (`Path`):
@@ -420,9 +412,7 @@ def export_encoder_decoder_model(
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         inputs from the ONNX configuration.
     """
-    task = task.replace("-with-past", "")
-
-    models_for_export = get_encoder_decoder_models_for_export(model, config, task)
+    models_for_export = get_encoder_decoder_models_for_export(model, config)
     outputs = []
 
     # export encoder
