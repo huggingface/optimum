@@ -61,36 +61,20 @@ In order to use the `BetterTransformer` API just run the following commands:
 >>> model_hf = AutoModelForSequenceClassification.from_pretrained("bert-base-cased")
 >>> model = BetterTransformer.transform(model_hf, keep_original_model=True)
 ```
-
 You can leave `keep_original_model=False` in case you want to overwrite the current model with its `BetterTransformer` version.
 
 More details on `tutorials` section to deeply understand how to use it, or check the [Google colab demo](https://colab.research.google.com/drive/1Lv2RCG_AT6bZNdlL1oDDNNiwBBuirwI-?usp=sharing)!
 
+
 <div class="mt-10">
   <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">
-    <a
-      class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg"
-      href="./tutorials/convert"
-    >
-      <div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">
-        Tutorials
-      </div>
-      <p class="text-gray-700">
-        Learn the basics and become familiar with 🤗 and `BetterTransformer`
-        integration. Start here if you are using 🤗 Optimum for the first time!
-      </p>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./tutorials/convert"
+      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Tutorials</div>
+      <p class="text-gray-700">Learn the basics and become familiar with 🤗 and `BetterTransformer` integration. Start here if you are using 🤗 Optimum for the first time!</p>
     </a>
-    <a
-      class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg"
-      href="./tutorials/contribute"
-    >
-      <div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">
-        How-to guides
-      </div>
-      <p class="text-gray-700">
-        You want to add your own model for `BetterTransformer` support? Start
-        here to check the contribution guideline!
-      </p>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./tutorials/contribute"
+      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">How-to guides</div>
+      <p class="text-gray-700">You want to add your own model for `BetterTransformer` support? Start here to check the contribution guideline!</p>
     </a>
   </div>
 </div>
