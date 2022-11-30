@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Union
+from typing import Union, List
 
 from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
 
@@ -24,7 +24,26 @@ from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
 logger = logging.getLogger(__name__)
 
 
-def maybe_save_tokenizer_or_processor_or_feature_extractor(src_dir: Union[str, Path], dest_dir: Union[str, Path]):
+def maybe_load_preprocessors(src_name_or_path: Union[str, Path], subfolder: str = "") -> List:
+    preprocessors = []
+    try:
+        preprocessors.append(AutoTokenizer.from_pretrained(src_name_or_path, subfolder=subfolder))
+    except Exception:
+        pass
+
+    try:
+        preprocessors.append(AutoProcessor.from_pretrained(src_name_or_path, subfolder=subfolder))
+    except Exception:
+        pass
+
+    try:
+        preprocessors.append(AutoFeatureExtractor.from_pretrained(src_name_or_path, subfolder=subfolder))
+    except Exception:
+        pass
+    return preprocessors
+
+
+def maybe_save_tokenizer_or_processor_or_feature_extractor(src_name_or_path: Union[str, Path], dest_dir: Union[str, Path], src_subfolder: str = ""):
     """
     Saves the tokenizer, the processor and the feature extractor when found in `src_dir` in `dest_dir`.
 
@@ -33,27 +52,13 @@ def maybe_save_tokenizer_or_processor_or_feature_extractor(src_dir: Union[str, P
             The source directory from which to copy the files.
         dest_dir (`Union[str, Path]`):
             The destination directory to copy the files to.
+        src_subfolder (`str`, defaults to `""`):
+            In case the preprocessor files are located inside a subfolder of the model directory / repo on the Hugging
+            Face Hub, you can specify the subfolder name here.
     """
-    if not isinstance(src_dir, Path):
-        src_dir = Path(src_dir)
     if not isinstance(dest_dir, Path):
         dest_dir = Path(dest_dir)
 
     dest_dir.mkdir(exist_ok=True)
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(src_dir)
-        tokenizer.save_pretrained(dest_dir)
-    except Exception:
-        pass
-
-    try:
-        processor = AutoProcessor.from_pretrained(src_dir)
-        processor.save_pretrained(dest_dir)
-    except Exception:
-        pass
-
-    try:
-        feature_extractor = AutoFeatureExtractor.from_pretrained(src_dir)
-        feature_extractor.save_pretrained(dest_dir)
-    except Exception:
-        pass
+    for preprocessor in maybe_load_preprocessors(src_name_or_path, subfolder=src_subfolder):
+        preprocessor.save_pretrained(dest_dir)

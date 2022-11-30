@@ -97,13 +97,14 @@ class ORTQuantizer(OptimumQuantizer):
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
+        import pdb; pdb.set_trace()
         self.config = config
         if self.config is None:
             try:
                 self.config = AutoConfig.from_pretrained(self.onnx_model_path.parent)
             except OSError:
                 LOGGER.warning(
-                    f"Could not load the config for {self.onnx_augmented_model_name} automatically, this might make "
+                    f"Could not load the config for {self.onnx_model_path} automatically, this might make "
                     "the quantized model harder to use because it will not be able to be loaded by an ORTModel without "
                     "having to specify the configuration explicitly."
                 )

@@ -14,12 +14,12 @@
 # limitations under the License.
 """Entry point to the optimum.exporters.onnx command line."""
 
-import logging
 from argparse import ArgumentParser
 from pathlib import Path
 
 from transformers import AutoTokenizer
 
+from ...utils import logging
 from ...utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
@@ -31,7 +31,7 @@ from .convert import (
 )
 
 
-logger = logging.get_logger(__name__)
+logger = logging.get_logger()
 logger.setLevel(logging.INFO)
 
 

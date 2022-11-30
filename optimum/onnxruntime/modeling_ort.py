@@ -46,6 +46,7 @@ from huggingface_hub import HfApi, HfFolder, hf_hub_download
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
+from ..utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor
 from .io_binding import TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
@@ -142,8 +143,7 @@ class ORTModel(OptimizedModel):
         model_save_dir: Optional[str] = None,
         latest_model_name: str = "model.onnx",
     ):
-        self.model = model
-        self.config = config
+        super().__init__(model, config)
         self.use_io_binding = use_io_binding
         self.model_save_dir = model_save_dir
         self.latest_model_name = latest_model_name
