@@ -76,16 +76,15 @@ class ORTOptimizer:
         config = None
         if isinstance(model_or_path, ORTModel):
             if isinstance(model_or_path, ORTModelForSeq2SeqLM):
-                model_save_dir = model_or_path.model_path.parent
-                onnx_model_path = [
-                    model_save_dir.joinpath(model_or_path.encoder_file_name),
-                    model_save_dir.joinpath(model_or_path.decoder_file_name),
+                onnx_model_path += [
+                    Path(model_or_path.encoder_session._model_path),
+                    Path(model_or_path.decoder_session._model_path)
                 ]
                 # Add the decoder with past key/values if present
                 if model_or_path.use_cache:
-                    onnx_model_path.append(model_save_dir.joinpath(model_or_path.decoder_file_with_past_name))
+                    onnx_model_path.append(Path(model_or_path.decoder_with_past_session._model_path))
             else:
-                onnx_model_path = [model_or_path.model_path]
+                onnx_model_path.append(Path(model_or_path.model._model_path))
             config = model_or_path.config
         elif os.path.isdir(model_or_path):
             file_names = [ONNX_WEIGHTS_NAME] if file_names is None else file_names

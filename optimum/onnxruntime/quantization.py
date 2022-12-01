@@ -130,21 +130,22 @@ class ORTQuantizer(OptimumQuantizer):
         Returns:
             An instance of `ORTQuantizer`.
         """
-        if file_name is None:
-            if isinstance(model_or_path, ORTModel):
-                if isinstance(model_or_path, ORTModelForConditionalGeneration):
-                    raise ValueError(
-                        "ORTQuantizer does not support multi-file quantization. Please create separate ORTQuantizer instances for each model/file."
-                    )
-                file_name = model_or_path.latest_model_name
-            else:
-                file_name = ONNX_WEIGHTS_NAME
+        ort_quantizer_error_message = "ORTQuantizer does not support multi-file quantization. Please create separate ORTQuantizer instances for each model/file."
+        if isinstance(model_or_path, ORTModelForConditionalGeneration):
+            raise ValueError(ort_quantizer_error_message)
+        elif isinstance(model_or_path, (str, Path)):
+            onnx_files = list(model_or_path.glob("*.onnx"))
+            if len(onnx_files) == 0:
+                raise FileNotFoundError(f"Could not find any ONNX model file in {model_or_path}")
+            elif len(onnx_files) > 1:
+                raise RuntimeError(f"Found too many ONNX model files in {model_or_path}. {ort_quantizer_error_message}")
+            file_name = onnx_files[0].name
 
         path = None
         if isinstance(model_or_path, ORTModel):
-            path = model_or_path.model_save_dir.joinpath(file_name)
+            path = Path(model_or_path.model._model_path)
         elif os.path.isdir(model_or_path):
-            path = model_or_path = Path(model_or_path).joinpath(file_name)
+            path = Path(model_or_path) / file_name
         else:
             raise ValueError(f"Unable to load model from {model_or_path}.")
         return cls(path)
