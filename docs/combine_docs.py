@@ -120,11 +120,7 @@ def main():
         base_toc.extend(subpackage_toc)
 
     # Add popped sections at the end
-    for title, section in sections_to_pop.items():
-        if section is not None:
-            base_toc.extend(section)
-        else:
-            logger.warning(f"Section '{title}' is None so it is not added to the table of contents.")
+    base_toc.extend(sections_to_pop.values())
     # Write final table of contents
     with open(base_toc_path, "w") as f:
         yaml.safe_dump(base_toc, f, allow_unicode=True)
