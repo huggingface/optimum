@@ -35,6 +35,7 @@ from huggingface_hub import hf_hub_download
 
 from ..exporters.onnx.convert import export_encoder_decoder_model as export
 from ..exporters.tasks import TasksManager
+from ..utils import NormalizedConfigManager
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (
@@ -46,7 +47,6 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
-from ..utils import NormalizedConfigManager
 
 
 if TYPE_CHECKING:
