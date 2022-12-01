@@ -107,6 +107,8 @@ ONNX_IMAGE_INPUTS_DOCSTRING = r"""
             Pixel values can be obtained from encoded images using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
 """
 
+_AUTOMODELS_TO_TASKS = {cls_: task for task, cls_ in TasksManager._TASKS_TO_AUTOMODELS.items()}
+
 
 class ORTModel(OptimizedModel):
     """
@@ -382,19 +384,7 @@ class ORTModel(OptimizedModel):
         provider_options: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> "ORTModel":
-        # Reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
-        if cls.export_feature is not None:
-            task = cls.export_feature
-        else:
-            pass
-            # # TODO: Do we want to actually support that?
-            # # TODO: load from subfolder?
-            # task = TasksManager.infer_task_from_model(model_id, revision=revision)
-            # # TODO: is it still needed?
-            # if task in ["sentiment-analysis", "text-classification", "zero-shot-classification"]:
-            #     task = "sequence-classification"
-            # elif task in ["feature-extraction", "fill-mask"]:
-            #     task = "default"
+        task = _AUTOMODELS_TO_TASKS[cls.auto_model_class]
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
@@ -515,8 +505,6 @@ class ORTModelForFeatureExtraction(ORTModel):
     Feature Extraction model for ONNX.
     """
 
-    # used in from_transformers to export model to onnx
-    export_feature = "default"
     auto_model_class = AutoModel
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
@@ -688,7 +676,6 @@ class ORTModelForQuestionAnswering(ORTModel):
     Question Answering model for ONNX.
     """
 
-    export_feature = "question-answering"
     auto_model_class = AutoModelForQuestionAnswering
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
@@ -888,7 +875,6 @@ class ORTModelForSequenceClassification(ORTModel):
     Sequence Classification model for ONNX.
     """
 
-    export_feature = "sequence-classification"
     auto_model_class = AutoModelForSequenceClassification
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
@@ -1059,7 +1045,6 @@ class ORTModelForTokenClassification(ORTModel):
     Token Classification model for ONNX.
     """
 
-    export_feature = "token-classification"
     auto_model_class = AutoModelForTokenClassification
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
@@ -1225,7 +1210,6 @@ class ORTModelForMultipleChoice(ORTModel):
     Multiple choice model for ONNX.
     """
 
-    export_feature = "multiple-choice"
     auto_model_class = AutoModelForMultipleChoice
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
@@ -1395,7 +1379,6 @@ class ORTModelForImageClassification(ORTModel):
     Image Classification model for ONNX.
     """
 
-    export_feature = "image-classification"
     auto_model_class = AutoModelForImageClassification
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
@@ -1526,8 +1509,8 @@ class ORTModelForCustomTasks(ORTModel):
     Onnx Model for any custom tasks.
     """
 
-    export_feature = "default"
     auto_model_class = AutoModel
+    # TODO: support providing a task
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)
