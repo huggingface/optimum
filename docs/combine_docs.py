@@ -1,9 +1,13 @@
 import argparse
+import logging
 import shutil
 from pathlib import Path
 from typing import Dict
 
 import yaml
+
+
+logger = logging.getLogger()
 
 
 parser = argparse.ArgumentParser(
@@ -116,8 +120,11 @@ def main():
         base_toc.extend(subpackage_toc)
 
     # Add popped sections at the end
-    for section in sections_to_pop.values():
-        base_toc.extend(section)
+    for title, section in sections_to_pop.items():
+        if section is not None:
+            base_toc.extend(section)
+        else:
+            logger.warning(f"Section '{title}' is None so it is not added to the table of contents.")
     # Write final table of contents
     with open(base_toc_path, "w") as f:
         yaml.safe_dump(base_toc, f, allow_unicode=True)
