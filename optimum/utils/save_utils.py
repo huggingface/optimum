@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Union, List
+from typing import List, Union
 
 from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
 
@@ -43,7 +43,9 @@ def maybe_load_preprocessors(src_name_or_path: Union[str, Path], subfolder: str 
     return preprocessors
 
 
-def maybe_save_tokenizer_or_processor_or_feature_extractor(src_name_or_path: Union[str, Path], dest_dir: Union[str, Path], src_subfolder: str = ""):
+def maybe_save_tokenizer_or_processor_or_feature_extractor(
+    src_name_or_path: Union[str, Path], dest_dir: Union[str, Path], src_subfolder: str = ""
+):
     """
     Saves the tokenizer, the processor and the feature extractor when found in `src_dir` in `dest_dir`.
 

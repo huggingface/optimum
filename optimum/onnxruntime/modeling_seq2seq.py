@@ -22,12 +22,13 @@ import re
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoTokenizer
-from transformers.file_utils import add_start_docstrings_to_model_forward, default_cache_path
+from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoTokenizer
+from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
@@ -37,6 +38,7 @@ from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_downlo
 from ..exporters.onnx.convert import export_encoder_decoder_model as export
 from ..exporters.tasks import TasksManager
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..utils.save_utils import maybe_load_preprocessors, maybe_save_tokenizer_or_processor_or_feature_extractor
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (
@@ -244,10 +246,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[ort.InferenceSession] = None,
         use_io_binding: bool = True,
-        model_save_dir: str = "",
-        last_encoder_model_name: str = ONNX_ENCODER_NAME,
-        last_decoder_model_name: str = ONNX_DECODER_NAME,
-        last_decoder_with_past_model_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
     ):
         """
         Args:
@@ -265,45 +265,38 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
                 The directory under which the model exported to ONNX was saved.
-            last_encoder_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
-                The name of the ONNX file containing the encoder part of the model.
-            last_decoder_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-                The name of the ONNX file containing the decoder part of the model.
-            last_decoder_with_past_model_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
-                The name of the ONNX file containing the decoder with past key/values part of the model.
+            preprocessors (`Optional[List]`, defaults to `None`):
+                The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
         """
         ABC.__init__(self)
 
-        self.encoder_file_name = last_encoder_model_name
-        self.decoder_file_name = last_decoder_model_name
-        self.decoder_file_with_past_name = last_decoder_with_past_model_name
-
-        self.config = config
-
-        self.use_io_binding = use_io_binding
-        self.model_save_dir = model_save_dir
-
-        self.providers = encoder_session.get_providers()
-        self._device = get_device_for_provider(encoder_session.get_providers()[0])
-
-        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
-            logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` will be set to False."
-            )
-            self.use_io_binding = False
-
+        ORTModel.__init__(
+            self,
+            encoder_session,
+            config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+        )
         self.encoder = self._initialize_encoder(
             session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )
+        self.encoder_model_path = Path(encoder_session._model_path)
+        self.encoder_model_name = self.encoder_model_path.name
+
         self.decoder = ORTDecoder(
             session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )
+        self.decoder_model_path = Path(decoder_session._model_path)
+        self.decoder_model_name = self.decoder_model_path.name
 
         self.use_cache = decoder_with_past_session is not None
 
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         self.decoder_with_past = None
+        self.decoder_with_past_model_path = None
+        self.decoder_with_past_model_name = None
         if self.use_cache:
             self.decoder_with_past = ORTDecoder(
                 session=decoder_with_past_session,
@@ -311,11 +304,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 device=self._device,
                 use_io_binding=self.use_io_binding,
             )
-
-        # Registers the ORTModelForXXX classes into the transformers AutoModel classes
-        # to avoid warnings when create a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
-        AutoConfig.register(self.base_model_prefix, AutoConfig)
-        self.auto_model_class.register(AutoConfig, self.__class__)
+            self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
+            self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
 
     @abstractmethod
     def _initialize_encoder(
@@ -394,9 +384,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self,
         save_directory: Union[str, Path],
         # TODO: should we make the default values available here?
-        encoder_file_name: Optional[str] = None,
-        decoder_file_name: Optional[str] = None,
-        decoder_with_past_file_name: Optional[str] = None,
+        encoder_file_name: str = ONNX_ENCODER_NAME,
+        decoder_file_name: str = ONNX_DECODER_NAME,
+        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
     ):
         """
         Saves the model encoder, decoder and decoder with past key values as well as its configuration file to a
@@ -406,25 +396,24 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         Args:
             save_directory (`Union[str, Path`]):
                 The directory where to save the model files.
-            encoder_file_name(`Optional[str]`, *optional*):
+            encoder_file_name(`str`, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
                 The encoder model file name. Overwrites the default file name and allows one to save the encoder model
                 with a different name.
-            decoder_file_name(`Optional[str]`, *optional*):
+            decoder_file_name(`str`, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
                 The decoder model file name. Overwrites the default file name and allows one to save the decoder model
                 with a different name.
-            decoder_with_past_file_name(`Optional[str]`, *optional*):
+            decoder_with_past_file_name(`str`, defaults to `optimum.onnxruntime.ONNX_DECODER_WITH_PAST_NAME`):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
         """
-        src_file_names = [self.encoder_file_name, self.decoder_file_name]
-        dst_file_names = [encoder_file_name or ONNX_ENCODER_NAME, decoder_file_name or ONNX_DECODER_NAME]
+        src_file_names = [self.encoder_model_path, self.decoder_model_path]
+        dst_file_names = [encoder_file_name, decoder_file_name]
         if self.use_cache:
-            src_file_names.append(self.decoder_file_with_past_name)
-            dst_file_names.append(decoder_with_past_file_name or ONNX_DECODER_WITH_PAST_NAME)
+            src_file_names.append(self.decoder_with_past_model_path)
+            dst_file_names.append(decoder_with_past_file_name)
 
-        for src_file_name, dst_file_name in zip(src_file_names, dst_file_names):
-            src_path = self.model_save_dir.joinpath(src_file_name)
-            dst_path = Path(save_directory).joinpath(dst_file_name)
+        for src_path, dst_file_name in zip(src_file_names, dst_file_names):
+            dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)
 
     @classmethod
@@ -436,7 +425,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
-        encoder_file_name: str = ONNX_DECODER_NAME,
+        encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
         subfolder: str = "",
@@ -446,9 +435,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: bool = True,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
-        kwargs = {"use_io_binding": use_io_binding}
-        model_path = Path(model_id) / subfolder
+        model_path = Path(model_id)
 
         def validate_filename(filename):
             if model_path.is_dir():
@@ -525,6 +514,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
 
+        preprocessors = None
         if model_path.is_dir():
             model = cls.load_model(
                 encoder_path=model_path / encoder_file_name,
@@ -534,16 +524,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 session_options=session_options,
                 provider_options=provider_options,
             )
-            kwargs["model_save_dir"] = model_path
-            kwargs["last_encoder_model_name"] = encoder_file_name
-            kwargs["last_decoder_model_name"] = decoder_file_name
-            kwargs["last_decoder_with_past_model_name"] = decoder_with_past_file_name
+            new_model_save_dir = model_path
+            preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_file_name,
                 "last_decoder_model_name": decoder_file_name,
                 "last_decoder_with_past_model_name": decoder_with_past_file_name if use_cache else None,
             }
+            paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
                 if filename is None:
                     continue
@@ -557,30 +546,40 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
-                kwargs[attr_name] = Path(model_cache_path).name
-            kwargs["model_save_dir"] = Path(model_cache_path).parent
+                paths[attr_name] = Path(model_cache_path).name
+            new_model_save_dir = Path(model_cache_path).parent
+            preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
 
-            last_decoder_with_past_name = kwargs.get("last_decoder_with_past_model_name", None)
+            last_decoder_with_past_name = paths.get("last_decoder_with_past_model_name", None)
             if last_decoder_with_past_name is not None:
-                last_decoder_with_past_name = kwargs["model_save_dir"] / last_decoder_with_past_name
+                last_decoder_with_past_name = new_model_save_dir / last_decoder_with_past_name
 
             model = cls.load_model(
-                encoder_path=kwargs["model_save_dir"] / kwargs["last_encoder_model_name"],
-                decoder_path=kwargs["model_save_dir"] / kwargs["last_decoder_model_name"],
+                encoder_path=new_model_save_dir / paths["last_encoder_model_name"],
+                decoder_path=new_model_save_dir / paths["last_decoder_model_name"],
                 decoder_with_past_path=last_decoder_with_past_name,
                 provider=provider,
                 session_options=session_options,
                 provider_options=provider_options,
             )
 
-        return cls(*model[:2], config, decoder_with_past_session=model[2], **kwargs)
+        if model_save_dir is None:
+            model_save_dir = new_model_save_dir
+
+        return cls(
+            *model[:2],
+            config,
+            decoder_with_past_session=model[2],
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+        )
 
     @classmethod
     def _from_transformers(
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
@@ -593,9 +592,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: bool = True,
     ):
-        # Create local save dir in cache dir
-        save_dir = Path(save_dir).joinpath(model_id, subfolder)
-        save_dir.mkdir(parents=True, exist_ok=True)
+        save_dir = TemporaryDirectory()
+        save_dir_path = Path(save_dir.name)
 
         model = TasksManager.get_model_from_task(
             cls.export_feature,
@@ -627,16 +625,18 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
         )
 
-        model_dir = save_dir if subfolder == "" else save_dir.parent
+        config.save_pretrained(save_dir_path)
+        maybe_save_tokenizer_or_processor_or_feature_extractor(model_id, save_dir_path, src_subfolder=subfolder)
+
         return cls._from_pretrained(
-            model_dir,
+            save_dir_path,
             config,
-            subfolder=subfolder,
             use_cache=use_cache,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
             use_io_binding=use_io_binding,
+            model_save_dir=save_dir,
         )
 
     def to(self, device: Union[torch.device, str, int]):

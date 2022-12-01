@@ -15,9 +15,9 @@
 
 import logging
 import shutil
-from tempfile import TemporaryDirectory
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union, List
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -30,7 +30,7 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
 )
-from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, default_cache_path
+from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
     BaseModelOutput,
     ImageClassifierOutput,
@@ -42,12 +42,12 @@ from transformers.modeling_outputs import (
 )
 
 import onnxruntime as ort
-from huggingface_hub import hf_hub_download, HfApi, HfFolder
+from huggingface_hub import HfApi, HfFolder, hf_hub_download
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from ..utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor, maybe_load_preprocessors
+from ..utils.save_utils import maybe_load_preprocessors, maybe_save_tokenizer_or_processor_or_feature_extractor
 from .io_binding import TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
@@ -126,10 +126,9 @@ class ORTModel(OptimizedModel):
         - config ([`~transformers.PretrainedConfig`] -- The configuration of the model.
         - use_io_binding (`bool`, *optional*, defaults to `True`) -- Whether to use I/O bindings with **ONNX Runtime
         with the CUDAExecutionProvider**, this can significantly speedup inference depending on the task.
-        - model_save_dir (`Optional[str]`, *optional*) -- The directory where the model exported to ONNX will be saved.
+        - model_save_dir (`Path`) -- The directory where the model exported to ONNX is saved.
         By defaults, if the loaded model is local, the directory where the original model will be used. Otherwise, the
         cache directory is used.
-        - latest_model_name (`str`, *optional*, defaults to `"model.onnx"` -- The name of the last ONNX model file.
         - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
@@ -161,6 +160,9 @@ class ORTModel(OptimizedModel):
             self.model_save_dir = Path(model_save_dir)
         else:
             self.model_save_dir = model_save_dir
+        self.model_path = Path(model._model_path)
+        self.model_name = self.model_path.name
+
         self._preprocessors = preprocessors if preprocessors is not None else []
 
         if self._device is None:
@@ -274,8 +276,7 @@ class ORTModel(OptimizedModel):
         """
         # TODO: support models with external data
         dst_path = Path(save_directory).joinpath(file_name)
-        onnx_files = list(self.model_save_dir.glob("*.onnx"))
-        shutil.copyfile(onnx_files[0], dst_path)
+        shutil.copyfile(self.model_path, dst_path)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
@@ -297,9 +298,10 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModel":
-        model_path = Path(model_id) / subfolder
+        model_path = Path(model_id)
         regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
 
         if file_name is None:
@@ -330,7 +332,6 @@ class ORTModel(OptimizedModel):
                 "not behave as expected."
             )
 
-        model_save_dir = None
         preprocessors = None
         if model_path.is_dir():
             model = ORTModel.load_model(
@@ -339,8 +340,8 @@ class ORTModel(OptimizedModel):
                 session_options=session_options,
                 provider_options=provider_options,
             )
-            model_save_dir = model_path
-            preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
+            new_model_save_dir = model_path
+            preprocessors = maybe_load_preprocessors(model_id)
         else:
             model_cache_path = hf_hub_download(
                 repo_id=model_id,
@@ -355,12 +356,14 @@ class ORTModel(OptimizedModel):
             model = ORTModel.load_model(
                 model_cache_path, provider=provider, session_options=session_options, provider_options=provider_options
             )
-            model_save_dir = Path(model_cache_path).parent
+            new_model_save_dir = Path(model_cache_path).parent
             preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.
-        model_save_dir = kwargs.pop("model_save_dir", model_save_dir)
+        if model_save_dir is None:
+            model_save_dir = new_model_save_dir
+
         return cls(model=model, config=config, model_save_dir=model_save_dir, preprocessors=preprocessors, **kwargs)
 
     @classmethod
@@ -417,7 +420,7 @@ class ORTModel(OptimizedModel):
         config.save_pretrained(tmp_dir_path)
         maybe_save_tokenizer_or_processor_or_feature_extractor(model_id, tmp_dir_path, src_subfolder=subfolder)
 
-        return cls._from_pretrained(tmp_dir_path, config, subfolder=subfolder, model_save_dir=tmp_dir, **kwargs)
+        return cls._from_pretrained(tmp_dir_path, config, model_save_dir=tmp_dir, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)

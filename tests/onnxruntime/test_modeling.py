@@ -450,7 +450,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             model = ORTModel.from_pretrained(tmpdirname, file_name=test_model_name)
 
-            self.assertEqual(model.latest_model_name, test_model_name)
+            self.assertEqual(model.model_name, test_model_name)
 
     @require_hf_token
     def test_save_model_from_hub(self):

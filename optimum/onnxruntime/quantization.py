@@ -97,7 +97,9 @@ class ORTQuantizer(OptimumQuantizer):
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         self.config = config
         if self.config is None:
             try:
@@ -138,7 +140,9 @@ class ORTQuantizer(OptimumQuantizer):
             if len(onnx_files) == 0:
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_or_path}")
             elif len(onnx_files) > 1:
-                raise RuntimeError(f"Found too many ONNX model files in {model_or_path}. {ort_quantizer_error_message}")
+                raise RuntimeError(
+                    f"Found too many ONNX model files in {model_or_path}. {ort_quantizer_error_message}"
+                )
             file_name = onnx_files[0].name
 
         path = None
