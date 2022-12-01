@@ -611,7 +611,7 @@ class YolosOnnxConfig(ViTOnnxConfig):
 
 
 class SwinOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
+    pass
 
 
 class SegformerOnnxConfig(YolosOnnxConfig):
