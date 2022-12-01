@@ -83,6 +83,16 @@ def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, op
 def main():
     args = parser.parse_args()
     optimum_path = Path("optimum-doc-build")
+    # Load optimum table of contents
+    base_toc_path = next(optimum_path.rglob("_toctree.yml"))
+    with open(base_toc_path, "r") as f:
+        base_toc = yaml.safe_load(f)
+
+    # Pop specific sections to add them after subpackages
+    sections_to_pop = {"Utilities": None}
+    for i, section in enumerate(base_toc[:]):
+        if section["title"] in sections_to_pop.keys():
+            sections_to_pop[section["title"]] = base_toc.pop(i)
 
     # Copy and rename all files from subpackages' docs to Optimum doc
     for subpackage in args.subpackages:
@@ -96,10 +106,6 @@ def main():
             args.version,
         )
 
-        # Load optimum table of contents
-        base_toc_path = next(optimum_path.rglob("_toctree.yml"))
-        with open(base_toc_path, "r") as f:
-            base_toc = yaml.safe_load(f)
         # Load subpackage table of contents
         subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
         with open(subpackage_toc_path, "r") as f:
@@ -108,8 +114,13 @@ def main():
         rename_subpackage_toc(subpackage, subpackage_toc)
         # Update optimum table of contents
         base_toc.extend(subpackage_toc)
-        with open(base_toc_path, "w") as f:
-            yaml.safe_dump(base_toc, f, allow_unicode=True)
+
+    # Add popped sections at the end
+    for section in sections_to_pop.values():
+        base_toc.extend(section)
+    # Write final table of contents
+    with open(base_toc_path, "w") as f:
+        yaml.safe_dump(base_toc, f, allow_unicode=True)
 
 
 if __name__ == "__main__":
