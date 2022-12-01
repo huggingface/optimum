@@ -805,12 +805,8 @@ class ORTDecoder:
         self.session_outputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         self.session_input_names = list(self.session_inputs.keys())
         self.session_output_names = list(self.session_outputs.keys())
-        self.key_value_input_names = [
-            key for key in self.session_input_names if ("key_values" in key or ".key" in key or ".value" in key)
-        ]
-        self.key_value_output_names = [
-            key for key in self.session_output_names if ("key_values" in key or ".key" in key or ".value" in key)
-        ]
+        self.key_value_input_names = [key for key in self.session_input_names if (".key" in key or ".value" in key)]
+        self.key_value_output_names = [key for key in self.session_output_names if (".key" in key or ".value" in key)]
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
 
     def prepare_output_buffer(
@@ -833,7 +829,7 @@ class ORTDecoder:
         elif output_name == "logits":
             output_shape = (batch_size, sequence_length, self.normalized_config.vocab_size)
             output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
-        elif "key_values" in output_name or ".key" in output_name or ".value" in output_name:
+        elif ".key" in output_name or ".value" in output_name:
             num_attention_heads = self.normalized_config.num_attention_heads
             hidden_size = self.normalized_config.hidden_size
             embed_size_per_head = hidden_size // num_attention_heads
