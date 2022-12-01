@@ -1,13 +1,9 @@
 import argparse
-import logging
 import shutil
 from pathlib import Path
 from typing import Dict
 
 import yaml
-
-
-logger = logging.getLogger()
 
 
 parser = argparse.ArgumentParser(
@@ -93,7 +89,7 @@ def main():
         base_toc = yaml.safe_load(f)
 
     # Pop specific sections to add them after subpackages
-    sections_to_pop = {"Utilities": None}
+    sections_to_pop = {"Utilities": None, "blabla": None}
     for i, section in enumerate(base_toc[:]):
         if section["title"] in sections_to_pop.keys():
             sections_to_pop[section["title"]] = base_toc.pop(i)
