@@ -15,8 +15,9 @@
 
 import logging
 import shutil
+import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union, List
 
 import numpy as np
 import torch
@@ -41,7 +42,7 @@ from transformers.modeling_outputs import (
 )
 
 import onnxruntime as ort
-from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub import hf_hub_download, HfApi, HfFolder
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
@@ -142,11 +143,12 @@ class ORTModel(OptimizedModel):
         use_io_binding: bool = True,
         model_save_dir: Optional[str] = None,
         latest_model_name: str = "model.onnx",
+        preprocessors: Optional[List] = None
     ):
         super().__init__(model, config)
+        self._preprocessors = preprocessors if preprocessors is not None else []
+        self.model_path = Path(model._model_path)
         self.use_io_binding = use_io_binding
-        self.model_save_dir = model_save_dir
-        self.latest_model_name = latest_model_name
         self.providers = model.get_providers()
         self._device = get_device_for_provider(self.providers[0])
 
@@ -259,9 +261,9 @@ class ORTModel(OptimizedModel):
             file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
                 The filename to use when saving the model.
         """
-        src_path = self.model_save_dir.joinpath(self.latest_model_name)
+        # TODO: support models with external data
         dst_path = Path(save_directory).joinpath(file_name)
-        shutil.copyfile(src_path, dst_path)
+        shutil.copyfile(self._model_path, dst_path)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
@@ -323,8 +325,6 @@ class ORTModel(OptimizedModel):
                 session_options=session_options,
                 provider_options=provider_options,
             )
-            kwargs["model_save_dir"] = model_path
-            kwargs["latest_model_name"] = file_name
         else:
             model_cache_path = hf_hub_download(
                 repo_id=model_id,
@@ -339,8 +339,6 @@ class ORTModel(OptimizedModel):
             model = ORTModel.load_model(
                 model_cache_path, provider=provider, session_options=session_options, provider_options=provider_options
             )
-            kwargs["model_save_dir"] = Path(model_cache_path).parent
-            kwargs["latest_model_name"] = Path(model_cache_path).name
 
         return cls(model=model, config=config, **kwargs)
 
@@ -349,7 +347,6 @@ class ORTModel(OptimizedModel):
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        save_dir: Union[str, Path] = default_cache_path,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -361,9 +358,6 @@ class ORTModel(OptimizedModel):
         provider_options: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> "ORTModel":
-        save_dir = Path(save_dir).joinpath(model_id, subfolder)
-        save_dir.mkdir(parents=True, exist_ok=True)
-
         # Reads pipeline task from ORTModelForXXX class if available else tries to extract from hub
         if cls.export_feature is not None:
             task = cls.export_feature
@@ -390,15 +384,18 @@ class ORTModel(OptimizedModel):
 
         onnx_config = onnx_config_class(model.config)
 
-        export(
-            model=model,
-            config=onnx_config,
-            opset=onnx_config.DEFAULT_ONNX_OPSET,
-            output=save_dir.joinpath(ONNX_WEIGHTS_NAME),
-        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_dir = Path(tmp_dir)
+            export(
+                model=model,
+                config=onnx_config,
+                opset=onnx_config.DEFAULT_ONNX_OPSET,
+                output=tmp_dir / ONNX_WEIGHTS_NAME,
+            )
+            config.save_pretrained(tmp_dir)
+            maybe_save_tokenizer_or_processor_or_feature_extractor(model_id, tmp_dir, src_subfolder=subfolder)
 
-        model_dir = save_dir if subfolder == "" else save_dir.parent
-        return cls._from_pretrained(model_dir, config, subfolder=subfolder, **kwargs)
+            return cls._from_pretrained(tmp_dir, config, subfolder=subfolder, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
