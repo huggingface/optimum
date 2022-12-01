@@ -15,6 +15,7 @@ import copy
 from collections import defaultdict
 from typing import DefaultDict, Dict, Set, Tuple
 
+import onnx
 from onnx import ModelProto
 
 
@@ -79,3 +80,27 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     _remove_redundant_initializers(model, name_sharing_dict)
 
     return model
+
+
+def fix_atenops_to_gather(model_path):
+    # Fix broken ATenOp nodes back to Gather nodes.
+    model = onnx.load(model_path)
+    onnx.checker.check_model(model)
+
+    nodes = model.graph.node
+
+    for node in nodes:
+        if node.op_type in ["ATenOp", "ATen"]:
+            op_num = node.name.split("_")[-1]
+            new_node = onnx.helper.make_node(
+                "Gather",
+                name="Gather_" + op_num,
+                inputs=[node.input[0], node.input[1]],
+                outputs=node.output,
+            )
+
+            model.graph.node.remove(node)
+            model.graph.node.insert(int(op_num), new_node)
+
+    onnx.checker.check_model(model)
+    onnx.save(model, model_path)
