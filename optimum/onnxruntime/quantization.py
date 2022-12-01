@@ -97,9 +97,6 @@ class ORTQuantizer(OptimumQuantizer):
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
-        import pdb
-
-        pdb.set_trace()
         self.config = config
         if self.config is None:
             try:
