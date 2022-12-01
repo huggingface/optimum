@@ -526,6 +526,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             config=config,
             use_auth_token=use_auth_token,
             local_files_only=local_files_only,
+            force_download=force_download,
         )
 
         model_type = model.config.model_type.replace("_", "-")
