@@ -63,9 +63,11 @@ def check_if_pytorch_greater(target_version: str, message: str):
 
 
 from .input_generators import (  # noqa
+    DEFAULT_DUMMY_SHAPES,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
+    DummyInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
@@ -74,6 +76,7 @@ from .input_generators import (  # noqa
 )
 from .normalized_config import (  # noqa
     NormalizedConfig,
+    NormalizedConfigManager,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,

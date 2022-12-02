@@ -50,64 +50,44 @@ def _is_gpu_available():
         return False
 
 
-BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_attention_heads="encoder_attention_heads",
-    hidden_size="d_model",
-)
-GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="n_head", hidden_size="n_embd")
-T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_attention_heads="num_heads",
-    hidden_size="d_model",
-)
-WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    hidden_size="d_model",
-)
-
-
 class ORTConfigManager:
     """
     A class that contains all the information needed by ONNX Runtime optimization for a given model type.
 
     Attributes:
-        _conf (`Dict[str, tuple]`):
-            A dictionary mapping each supported model type to a tuple containing the number of attention heads
-            and the hidden size model config attribute names as well as the corresponding ONNX Runtime model type.
+        _conf (`Dict[str]`):
+            A dictionary mapping each supported model type to the corresponding ONNX Runtime model type.
     """
 
     # Contribution note: Please add new models in alphabetical order
     _conf = {
-        "albert": (NormalizedTextConfig, "bert"),
-        "bart": (BartLikeNormalizedTextConfig, "bart"),
-        "bert": (NormalizedTextConfig, "bert"),
-        "big_bird": (NormalizedTextConfig, "bert"),
-        "bigbird_pegasus": (BartLikeNormalizedTextConfig, None),  # bug in `fusion_skiplayernorm.py`
-        "camembert": (NormalizedTextConfig, "bert"),
-        "codegen": (GPT2LikeNormalizedTextConfig, "gpt2"),
-        "deberta": (NormalizedTextConfig, "bert"),
-        "deberta-v2": (NormalizedTextConfig, "bert"),
-        "distilbert": (NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"), "bert"),
-        "electra": (NormalizedTextConfig, "bert"),
-        "gpt2": (GPT2LikeNormalizedTextConfig, "gpt2"),
-        "gpt_neo": (NormalizedTextConfig.with_args(num_attention_heads="num_heads"), "gpt2"),
-        "marian": (BartLikeNormalizedTextConfig, "bart"),
-        "mbart": (BartLikeNormalizedTextConfig, "bart"),
-        "mt5": (T5LikeNormalizedTextConfig, "bart"),
-        "m2m_100": (BartLikeNormalizedTextConfig, "bart"),
-        "roberta": (NormalizedTextConfig, "bert"),
-        "t5": (T5LikeNormalizedTextConfig, "t5"),
-        "whisper": (WhisperLikeNormalizedTextConfig, "whisper"),
-        "xlm-roberta": (NormalizedTextConfig, "bert"),
+        "albert": "bert",
+        "bart": "bart",
+        "bert": "bert",
+        "big_bird": "bert",
+        "bigbird_pegasus": None,  # bug in `fusion_skiplayernorm.py`
+        "camembert": "bert",
+        "codegen": "gpt2",
+        "deberta": "bert",
+        "deberta-v2": "bert",
+        "distilbert": "bert",
+        "electra": "bert",
+        "gpt2": "gpt2",
+        "gpt_neo": "gpt2",
+        "marian": "bart",
+        "mbart": "bart",
+        "mt5": "bart",
+        "m2m_100": "bart",
+        "roberta": "bert",
+        "t5": "t5",
+        "whisper": "whisper",
+        "xlm-roberta": "bert",
     }
-
-    @classmethod
-    def get_normalized_config_class(cls, model_type: str) -> Type:
-        cls.check_supported_model(model_type)
-        return cls._conf[model_type][0]
 
     @classmethod
     def get_model_ort_type(cls, model_type: str) -> str:
         cls.check_supported_model(model_type)
-        return cls._conf[model_type][1]
+        return cls._conf[model_type]
 
     @classmethod
     def check_supported_model(cls, model_type: str):
@@ -121,7 +101,7 @@ class ORTConfigManager:
     @classmethod
     def check_optimization_supported_model(cls, model_type: str):
         supported_model_types_for_optimization = ["bert", "gpt2", "bart"]
-        if (model_type not in cls._conf) or (cls._conf[model_type][1] not in supported_model_types_for_optimization):
+        if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
             raise KeyError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {supported_model_types_for_optimization} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."

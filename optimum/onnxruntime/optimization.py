@@ -24,7 +24,7 @@ from onnx import load_model
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import optimize_model
 
-from ..utils import CONFIG_NAME
+from ..utils import CONFIG_NAME, NormalizedConfigManager
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
@@ -55,7 +55,7 @@ class ORTOptimizer:
         self.onnx_model_path = onnx_model_path
         self.config = config
         self.model_type = self.config.model_type
-        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.model_type)(self.config)
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
 
     @classmethod
     def from_pretrained(
