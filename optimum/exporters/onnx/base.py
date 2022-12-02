@@ -340,6 +340,10 @@ class OnnxConfig(ExportConfig, ABC):
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
+    """
+    Inherits from [`~OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
+    """
+
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
 
     def __init__(
@@ -451,6 +455,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
 
 class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
+    """
+    Inherits from [`~OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
+    """
+
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
 
     @property
