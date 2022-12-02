@@ -32,6 +32,7 @@ ALL_VISION_MODELS_TO_TEST = [
 
 ALL_VISION_TEXT_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-vilt-random-vqa",
+    "hf-internal-testing/tiny-random-FlavaModel",
 ]
 
 
@@ -52,6 +53,23 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
 
 
 class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
+    """
+    all_models_to_test = ALL_VISION_TEXT_MODELS_TO_TEST
+
+    def prepare_inputs_for_class(self, model_id=None):
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        text = "How many cats are there?"
+
+        # Model takes image and text as input
+        processor = AutoProcessor.from_pretrained(model_id)
+        inputs = processor(image, text, return_tensors="pt")
+        return inputs
+
+
+class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
