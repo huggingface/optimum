@@ -6,6 +6,9 @@ from typing import Dict
 import yaml
 
 
+SECTIONS_AT_THE_END = ["Utilities", "blablabla"]
+
+
 parser = argparse.ArgumentParser(
     description="Script to combine doc builds from subpackages with base doc build of Optimum. "
     "Assumes all subpackage doc builds are present in the root of the `optimum` repo."
@@ -89,10 +92,14 @@ def main():
         base_toc = yaml.safe_load(f)
 
     # Pop specific sections to add them after subpackages
-    sections_to_pop = {"Utilities": None, "blabla": None}
+    sections_to_pop = {title: None for title in SECTIONS_AT_THE_END}
     for i, section in enumerate(base_toc[:]):
-        if section["title"] in sections_to_pop.keys():
+        if section["title"] in SECTIONS_AT_THE_END:
             sections_to_pop[section["title"]] = base_toc.pop(i)
+    # Raise an error if a section was not found
+    for key, value in sections_to_pop.items():
+        if value is None:
+            raise ValueError(f"No section was found for title '{key}'.")
 
     # Copy and rename all files from subpackages' docs to Optimum doc
     for subpackage in args.subpackages:
