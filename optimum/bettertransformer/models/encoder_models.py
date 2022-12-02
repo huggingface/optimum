@@ -414,6 +414,8 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         if hidden_states.is_nested:
             attention_mask = None
+        else:
+            self.set_nested_hidden_shape(hidden_states.shape)
 
         if attention_mask is not None:
             # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
@@ -450,7 +452,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             attention_mask,
         )
         if hidden_states.is_nested and self.is_last_layer:
-            hidden_states = hidden_states.to_padded_tensor(0.0)
+            hidden_states = hidden_states.to_padded_tensor(0.0, self.get_nested_hidden_shape())
         return (hidden_states,)
 
 

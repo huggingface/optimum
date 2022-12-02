@@ -51,6 +51,14 @@ class BetterTransformerBaseLayer(nn.Module):
                 self.num_layers = getattr(config, attr)
                 break
 
+    @classmethod
+    def set_nested_hidden_shape(cls, hidden_shape):
+        cls.nested_hidden_shape = hidden_shape
+
+    @classmethod
+    def get_nested_hidden_shape(cls):
+        return cls.nested_hidden_shape
+
     def validate_bettertransformer(self):
         r"""
         A wrapper function to validate the `BetterTransformer` implementation. Implements most relevant checks
