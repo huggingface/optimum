@@ -17,6 +17,7 @@ from .encoder_models import (
     AlbertLayerBetterTransformer,
     BartEncoderLayerBetterTransformer,
     BertLayerBetterTransformer,
+    CLIPLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,
@@ -74,6 +75,8 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
+    # CLIP
+    "CLIPEncoderLayer": CLIPLayerBetterTransformer,
 }
 
 

@@ -1068,3 +1068,103 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states, attention_mask)
+
+
+class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
+    def __init__(self, layer, config):
+        r"""
+        A simple conversion of the CLIPEncoderLayer to its `BetterTransformer` implementation.
+
+        Args:
+            layer (`torch.nn.Module`):
+                The original `CLIPEncoderLayer` where the weights needs to be retrieved.
+        """
+        super().__init__(config)
+        # In_proj layer
+        self.in_proj_weight = nn.Parameter(
+            torch.cat(
+                [
+                    layer.self_attn.q_proj.weight,
+                    layer.self_attn.k_proj.weight,
+                    layer.self_attn.v_proj.weight,
+                ]
+            )
+        )
+        self.in_proj_bias = nn.Parameter(
+            torch.cat(
+                [
+                    layer.self_attn.q_proj.bias,
+                    layer.self_attn.k_proj.bias,
+                    layer.self_attn.v_proj.bias,
+                ]
+            )
+        )
+
+        # Out proj layer
+        self.out_proj_weight = layer.self_attn.out_proj.weight
+        self.out_proj_bias = layer.self_attn.out_proj.bias
+
+        # Linear layer 1
+        self.linear1_weight = layer.mlp.fc1.weight
+        self.linear1_bias = layer.mlp.fc1.bias
+
+        # Linear layer 2
+        self.linear2_weight = layer.mlp.fc2.weight
+        self.linear2_bias = layer.mlp.fc2.bias
+
+        # Layer norm 1
+        self.norm1_eps = layer.layer_norm1.eps
+        self.norm1_weight = layer.layer_norm1.weight
+        self.norm1_bias = layer.layer_norm1.bias
+
+        # Layer norm 2
+        self.norm2_eps = layer.layer_norm2.eps
+        self.norm2_weight = layer.layer_norm2.weight
+        self.norm2_bias = layer.layer_norm2.bias
+
+        # Model hyper parameters
+        self.num_heads = layer.self_attn.num_heads
+        self.embed_dim = layer.self_attn.embed_dim
+
+        # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
+        self.is_last_layer = False
+        self.norm_first = True
+
+        # support for quick gelu
+        if layer.mlp.activation_fn.__class__.__name__ == "QuickGELUActivation":
+            self.act_fn = "gelu"
+
+        self.validate_bettertransformer()
+
+    def forward(self, hidden_states, *_, **__):
+        r"""
+        This is just a wrapper around the forward function proposed in:
+        https://github.com/huggingface/transformers/pull/19553
+        """
+        super().forward_checker()
+        attention_mask = None
+
+        hidden_states = torch._transformer_encoder_layer_fwd(
+            hidden_states,
+            self.embed_dim,
+            self.num_heads,
+            self.in_proj_weight,
+            self.in_proj_bias,
+            self.out_proj_weight,
+            self.out_proj_bias,
+            self.use_gelu,
+            self.norm_first,
+            self.norm1_eps,
+            self.norm1_weight,
+            self.norm1_bias,
+            self.norm2_weight,
+            self.norm2_bias,
+            self.linear1_weight,
+            self.linear1_bias,
+            self.linear2_weight,
+            self.linear2_bias,
+            attention_mask,
+        )
+        if hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0)
+        return (hidden_states,)

@@ -128,7 +128,7 @@ class BetterTransformer(object):
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
     )
     def transform(
-        model: torch.nn.Module, keep_original_model: bool = False, max_memory: Optional[dict] = None, **kwargs
+        model: torch.nn.Module, cfg, keep_original_model: bool = False, max_memory: Optional[dict] = None, **kwargs
     ) -> torch.nn.Module:
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
@@ -152,7 +152,7 @@ class BetterTransformer(object):
         else:
             load_accelerate = False
 
-        hf_config = model.config
+        hf_config = cfg
 
         if load_accelerate:
             # remove the hooks from the original model to
