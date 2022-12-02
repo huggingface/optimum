@@ -1482,9 +1482,9 @@ class ORTModelForImageSegmentation(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
-    def prepare_logits_buffer(self, input_shape):
+    def prepare_logits_buffer(self, batch_size, output_size):
         """Prepares the buffer of logits with a 2D tensor on shape: (batch_size, config.num_labels, height, width)."""
-        batch_size, height, width = input_shape
+        height, width = output_size
         ort_type = TypeHelper.get_output_type(self.model, "logits")
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
 
@@ -1510,8 +1510,10 @@ class ORTModelForImageSegmentation(ORTModel):
             pixel_values.data_ptr(),
         )
 
+        output_size = (128, 128)  # Need to get proper output size from object or config
         # bind logits
-        logits_shape, logits_buffer = self.prepare_logits_buffer(input_shape=pixel_values.shape)
+        logits_shape, logits_buffer = self.prepare_logits_buffer(batch_size=pixel_values.size(0),
+                                                                 output_size=output_size)
         io_binding.bind_output(
             "logits",
             logits_buffer.device.type,
@@ -1527,7 +1529,7 @@ class ORTModelForImageSegmentation(ORTModel):
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
-        + IMAGE_CLASSIFICATION_EXAMPLE.format(
+        + IMAGE_SEGMENTATION_EXAMPLE.format(
             processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForImageSegmentation",
             checkpoint="optimum/vit-base-patch16-224",  # Probably have to modify to an onnx segmentation model
