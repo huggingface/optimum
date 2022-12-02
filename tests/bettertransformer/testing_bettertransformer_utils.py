@@ -64,6 +64,8 @@ class BetterTransformersTestMixin:
                 Make sure the models are in eval mode! Make also sure that the original model
                 has not been converted to a fast model. The check is done above.
                 """
+                print("inputs:", inputs)
+                print(type(hf_random_model))
                 torch.manual_seed(0)
                 hf_hidden_states = hf_random_model(**inputs)[0]
 
@@ -78,10 +80,8 @@ class BetterTransformersTestMixin:
                     tol = 1e-3
 
                 self.assertTrue(
-                    torch.allclose(hf_hidden_states[:, :3, :], bt_hidden_states[:, :3, :], atol=tol),
-                    "The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {}".format(
-                        hf_random_model.__class__.__name__
-                    ),
+                    torch.allclose(hf_hidden_states, bt_hidden_states, atol=tol),
+                    f"The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {hf_random_model.__class__.__name__}. Maxdiff: {torch.abs(hf_hidden_states - bt_hidden_states).max()}",
                 )
 
     def test_raise_on_save(self):
