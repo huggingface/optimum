@@ -25,25 +25,17 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from packaging.version import Version, parse
 from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoTokenizer
-from transformers import __version__ as transformers_version
 from transformers.file_utils import add_start_docstrings_to_model_forward, default_cache_path
 from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
-
-
-if parse(transformers_version) >= Version("4.25.0"):
-    from transformers.generation import GenerationMixin
-else:
-    from transformers.generation_utils import GenerationMixin
 
 import onnxruntime as ort
 from huggingface_hub import hf_hub_download
 
 from ..exporters.onnx.convert import export_encoder_decoder_model as export
 from ..exporters.tasks import TasksManager
-from ..utils import NormalizedConfigManager
+from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import (
@@ -55,6 +47,12 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
+
+
+if check_if_transformers_greater("4.25.0"):
+    from transformers.generation import GenerationMixin
+else:
+    from transformers.generation_utils import GenerationMixin
 
 
 if TYPE_CHECKING:
