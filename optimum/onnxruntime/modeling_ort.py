@@ -144,7 +144,19 @@ class ORTModel(OptimizedModel):
         use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
+        **kwargs,
     ):
+        # TODO: remove at version 2.0
+        if kwargs.pop("latest_model_name", None) is not None:
+            logger.warning(
+                f"The latest_model_name argument to create an {self.__class__.__name__} is deprecated, and not used "
+                "anymore."
+            )
+        if kwargs:
+            raise ValueError(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
+            )
+
         super().__init__(model, config)
         self.use_io_binding = use_io_binding
         self.providers = model.get_providers()
@@ -300,8 +312,8 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        **kwargs,
     ) -> "ORTModel":
         model_path = Path(model_id)
         regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
@@ -366,7 +378,13 @@ class ORTModel(OptimizedModel):
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
-        return cls(model=model, config=config, model_save_dir=model_save_dir, preprocessors=preprocessors, **kwargs)
+        return cls(
+            model=model,
+            config=config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+        )
 
     @classmethod
     def _from_transformers(
@@ -382,9 +400,11 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        use_io_binding: bool = True,
+        task: Optional[str] = None,
     ) -> "ORTModel":
-        task = _AUTOMODELS_TO_TASKS[cls.auto_model_class]
+        if task is None:
+            task = _AUTOMODELS_TO_TASKS[cls.auto_model_class]
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
@@ -410,7 +430,15 @@ class ORTModel(OptimizedModel):
         config.save_pretrained(tmp_dir_path)
         maybe_save_tokenizer_or_processor_or_feature_extractor(model_id, tmp_dir_path, src_subfolder=subfolder)
 
-        return cls._from_pretrained(tmp_dir_path, config, model_save_dir=tmp_dir, **kwargs)
+        return cls._from_pretrained(
+            tmp_dir_path,
+            config,
+            use_io_binding=use_io_binding,
+            model_save_dir=tmp_dir,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+        )
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
@@ -1508,9 +1536,6 @@ class ORTModelForCustomTasks(ORTModel):
     """
     Onnx Model for any custom tasks.
     """
-
-    auto_model_class = AutoModel
-    # TODO: support providing a task
 
     def __init__(self, model=None, config=None, **kwargs):
         super().__init__(model, config, **kwargs)

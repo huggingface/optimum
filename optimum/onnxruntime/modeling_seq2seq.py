@@ -248,6 +248,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
+        **kwargs,
     ):
         """
         Args:
@@ -268,6 +269,22 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             preprocessors (`Optional[List]`, defaults to `None`):
                 The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
         """
+        # TODO: remove at version 2.0
+        def show_deprecated_argument(arg_name):
+            if kwargs.pop(arg_name, None) is not None:
+                logger.warning(
+                    f"The {arg_name} argument to create an {self.__class__.__name__} is deprecated, and not used "
+                    "anymore."
+                )
+
+        show_deprecated_argument("last_encoder_model_name")
+        show_deprecated_argument("last_decoder_model_name")
+        show_deprecated_argument("last_decoder_with_past_model_name")
+        if kwargs:
+            raise ValueError(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
+            )
+
         ABC.__init__(self)
 
         ORTModel.__init__(
@@ -620,9 +637,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             model,
             onnx_config,
             onnx_opset,
-            save_dir.joinpath(ONNX_ENCODER_NAME),
-            save_dir.joinpath(ONNX_DECODER_NAME),
-            save_dir.joinpath(ONNX_DECODER_WITH_PAST_NAME),
+            save_dir_path.joinpath(ONNX_ENCODER_NAME),
+            save_dir_path.joinpath(ONNX_DECODER_NAME),
+            save_dir_path.joinpath(ONNX_DECODER_WITH_PAST_NAME),
         )
 
         config.save_pretrained(save_dir_path)

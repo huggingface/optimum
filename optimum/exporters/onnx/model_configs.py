@@ -73,6 +73,8 @@ class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
         DummySeq2SeqPastKeyValuesGenerator,
     )
 
+    USE_PRESENT_IN_OUTPUTS = True
+
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         common_inputs = {
@@ -81,7 +83,7 @@ class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
             "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
 
-        if self.use_past:
+        if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
@@ -93,21 +95,6 @@ class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
             "encoder_outputs": "encoder_hidden_states",
             "attention_mask": "encoder_attention_mask",
         }
-
-    @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = super().outputs
-        self.add_past_key_values(common_outputs, direction="outputs")
-        return common_outputs
-
-    @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
-        # Needed here because the configuration will actually be used with both use_past = True and use_past = False,
-        # but the cache must always be used regardless.
-        if hasattr(self._config, "use_cache"):
-            return {"use_cache": True}
-
-        return None
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
@@ -796,7 +783,7 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqDecoderOnnxConfig):
             "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
         }
 
-        if self.use_past:
+        if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
@@ -817,12 +804,12 @@ class WhisperOnnxConfig(TextAndAudioOnnxConfig):
         common_inputs = {
             "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
         }
-        if self.use_past:
+        if self.use_past_in_inputs:
             common_inputs["decoder_input_ids"] = {0: "batch_size"}
         else:
             common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
 
-        if self.use_past:
+        if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs

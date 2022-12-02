@@ -53,7 +53,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         common_inputs = {"input_ids": {0: "batch_size", 1: "sequence_length"}}
-        if self.use_past:
+        if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
             common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
         else:
@@ -79,7 +79,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
             "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
             "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
-        if self.use_past:
+        if self.use_past_in_inputs:
             common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
             common_inputs["decoder_input_ids"] = {0: "batch_size"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
@@ -87,7 +87,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
 
-        if self.use_past:
+        if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
@@ -97,7 +97,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
             self.task, self._normalized_config, **kwargs
         )
 
-        if self.use_past is True:
+        if self.use_past_in_inputs is True:
             if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                 logger.warning(
                     f"Asked a sequence length of {kwargs['sequence_length']}, but expecting a sequence length of 1 with use_past == True. Overriding the sequence length to 1."
