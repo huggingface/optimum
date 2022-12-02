@@ -25,6 +25,7 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForImageClassification,
+    AutoModelForImageSegmentation,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
@@ -34,6 +35,7 @@ from transformers.file_utils import add_start_docstrings, add_start_docstrings_t
 from transformers.modeling_outputs import (
     BaseModelOutput,
     ImageClassifierOutput,
+    SemanticSegmenterOutput,
     ModelOutput,
     MultipleChoiceModelOutput,
     QuestionAnsweringModelOutput,
@@ -1419,6 +1421,145 @@ class ORTModelForImageClassification(ORTModel):
 
             # converts output to namedtuple for pipelines post-processing
             return ImageClassifierOutput(logits=logits)
+
+
+IMAGE_SEGMENTATION_EXAMPLE = r"""
+    Example of image segmentation:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from transformers import {processor_class}
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = preprocessor(images=image, return_tensors="pt")
+
+    >>> outputs = model(**inputs)
+    >>> logits = outputs.logits
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_image_segmenter = pipeline("image-segmentation", model=model, feature_extractor=preprocessor)
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> pred = onnx_image_segmenter(url)
+    ```
+"""
+# Probably have to modify urls above to an image that can be segmented to the chosen onnx segmentation model
+
+
+@add_start_docstrings(
+    """
+    Onnx Model for image-segmentation tasks.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForImageSegmentation(ORTModel):
+    """
+    Image Segmentation model for ONNX.
+    """
+
+    export_feature = "image-segmentation"
+    auto_model_class = AutoModelForImageSegmentation
+
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
+
+    def prepare_logits_buffer(self, input_shape):
+        """Prepares the buffer of logits with a 2D tensor on shape: (batch_size, config.num_labels, height, width)."""
+        batch_size, height, width = input_shape
+        ort_type = TypeHelper.get_output_type(self.model, "logits")
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+
+        logits_shape = (batch_size, self.config.num_labels, height, width)
+        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
+
+        return logits_shape, logits_buffer
+
+    def prepare_io_binding(
+        self,
+        pixel_values: torch.Tensor,
+    ):
+        io_binding = self.model.io_binding()
+
+        # bind pixel values
+        pixel_values = pixel_values.contiguous()
+        io_binding.bind_input(
+            "pixel_values",
+            pixel_values.device.type,
+            self.device.index,
+            self.name_to_np_type["pixel_values"],
+            tuple(pixel_values.shape),
+            pixel_values.data_ptr(),
+        )
+
+        # bind logits
+        logits_shape, logits_buffer = self.prepare_logits_buffer(input_shape=pixel_values.shape)
+        io_binding.bind_output(
+            "logits",
+            logits_buffer.device.type,
+            self.device.index,
+            self.name_to_np_type["logits"],
+            logits_shape,
+            logits_buffer.data_ptr(),
+        )
+        output_shapes = {"logits": logits_shape}
+        output_buffers = {"logits": logits_buffer}
+
+        return io_binding, output_shapes, output_buffers
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
+        + IMAGE_CLASSIFICATION_EXAMPLE.format(
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
+            model_class="ORTModelForImageSegmentation",
+            checkpoint="optimum/vit-base-patch16-224",  # Probably have to modify to an onnx segmentation model
+        )
+    )
+    def forward(
+        self,
+        pixel_values: torch.Tensor,
+        **kwargs,
+    ):
+        if self.device.type == "cuda" and self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(pixel_values)
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # converts output to namedtuple for pipelines post-processing
+            return SemanticSegmenterOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "pixel_values": pixel_values.cpu().detach().numpy(),
+            }
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.model_outputs["logits"]])
+
+            # converts output to namedtuple for pipelines post-processing
+            return SemanticSegmenterOutput(logits=logits)
 
 
 CUSTOM_TASKS_EXAMPLE = r"""
