@@ -22,12 +22,18 @@ from typing import Any, Dict, Optional, Tuple, Union
 import numpy as np
 import torch
 import transformers
+from packaging.version import Version, parse
 from transformers import AutoModelForCausalLM, PretrainedConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward, default_cache_path
-from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 from transformers.onnx import FeaturesManager, export
 from transformers.onnx.utils import get_preprocessor
+
+
+if parse(transformers.__version__) >= Version("4.25.0"):
+    from transformers.generation import GenerationMixin
+else:
+    from transformers.generation_utils import GenerationMixin
 
 import onnxruntime
 from huggingface_hub import hf_hub_download
