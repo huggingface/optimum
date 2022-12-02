@@ -107,7 +107,13 @@ ONNX_IMAGE_INPUTS_DOCSTRING = r"""
             Pixel values can be obtained from encoded images using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
 """
 
-_AUTOMODELS_TO_TASKS = {cls_: task for task, cls_ in TasksManager._TASKS_TO_AUTOMODELS.items()}
+
+class classproperty:
+    def __init__(self, getter):
+        self.getter = getter
+
+    def __get__(self, instance, owner):
+        return self.getter(owner)
 
 
 class ORTModel(OptimizedModel):
@@ -134,8 +140,14 @@ class ORTModel(OptimizedModel):
         - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
+    _AUTOMODELS_TO_TASKS = {cls_: task for task, cls_ in TasksManager._TASKS_TO_AUTOMODELS.items()}
     model_type = "onnx_model"
     auto_model_class = AutoModel
+
+    @classproperty
+    def export_feature(cls):
+        logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
+        return _AUTOMODELS_TO_TASKS.get(cls.auto_model_class, None)
 
     def __init__(
         self,
@@ -298,10 +310,6 @@ class ORTModel(OptimizedModel):
         return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}"]
 
     @classmethod
-    def get_task(cls):
-        return _AUTOMODELS_TO_TASKS[cls.auto_model_class]
-
-    @classmethod
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
@@ -408,7 +416,7 @@ class ORTModel(OptimizedModel):
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
-            task = cls.get_task()
+            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
