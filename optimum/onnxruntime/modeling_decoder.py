@@ -26,10 +26,10 @@ import transformers
 from transformers import AutoModelForCausalLM, PretrainedConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
-from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_download, hf_hub_url
 
 import onnxruntime
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_download, hf_hub_url
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
