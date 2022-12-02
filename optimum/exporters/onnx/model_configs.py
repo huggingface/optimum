@@ -400,7 +400,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             self.task, self._normalized_config, **kwargs
         )
 
-        if self.use_past is True:
+        if self.use_past_in_inputs is True:
             if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                 logger.warning(
                     f"Asked a sequence length of {kwargs['sequence_length']}, but expecting a sequence length of 1 with use_past == True. Overriding the sequence length to 1."
@@ -432,14 +432,14 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
             "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
-        if self.use_past:
+        if self.use_past_in_inputs:
             common_inputs["decoder_input_ids"] = {0: "batch_size"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
         else:
             common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
 
-        if self.use_past:
+        if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
         return common_inputs
 
@@ -449,7 +449,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
             "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
         }
-        if self.use_past:
+        if self.use_past_in_inputs:
             for i in range(self._normalized_config.decoder_num_layers):
                 common_inputs[f"past_key_values.{i}.key"] = {
                     0: "batch_size",
@@ -485,7 +485,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super().outputs
         else:
             common_outputs = super(OnnxConfigWithPast, self).outputs
-            if self.use_past:
+            if self.use_present_in_outputs:
                 for i in range(self._normalized_config.encoder_num_layers):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
                     common_outputs[f"present.{i}.value"] = {

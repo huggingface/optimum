@@ -354,10 +354,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         task: str = "default",
         patching_specs: List[PatchingSpec] = None,
         use_past: bool = False,
-        use_past_in_inputs: Optional[bool] = USE_PAST_IN_INPUTS,
-        use_present_in_outputs: Optional[bool] = USE_PRESENT_IN_OUTPUTS,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
     ):
         self.use_past = use_past
+        if use_past_in_inputs is None:
+            use_past_in_inputs = self.USE_PAST_IN_INPUTS
+        if use_present_in_outputs is None:
+            use_present_in_outputs = self.USE_PRESENT_IN_OUTPUTS
         self.use_past_in_inputs = use_past if use_past_in_inputs is None else use_past_in_inputs
         self.use_present_in_outputs = use_past if use_present_in_outputs is None else use_present_in_outputs
         super().__init__(config, task=task, patching_specs=patching_specs)

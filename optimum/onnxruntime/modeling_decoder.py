@@ -116,7 +116,7 @@ class ORTDecoder:
     def __init__(
         self,
         session: onnxruntime.InferenceSession,
-        config: transformers.PretrainedConfig,
+        config: "PretrainedConfig",
         device: torch.device,
         use_io_binding: bool = True,
     ):
@@ -153,7 +153,7 @@ class ORTDecoder:
         if output_name == "logits":
             output_shape = (batch_size, sequence_length, self.normalized_config.vocab_size)
             output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
-        elif "key_values" in output_name:
+        elif ".key" in output_name or ".value" in output_name:
             num_attention_heads = self.normalized_config.num_attention_heads
             hidden_size = self.normalized_config.hidden_size
             embed_size_per_head = hidden_size // num_attention_heads
@@ -635,12 +635,16 @@ class ORTModelDecoder(ORTModel):
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: bool = True,
-    ):
+        task: Optional[str] = None,
+    ) -> "ORTModelDecoder":
+        if task is None:
+            task = cls.get_task()
+
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
 
         model = TasksManager.get_model_from_task(
-            cls.export_feature,
+            task,
             model_id,
             subfolder=subfolder,
             revision=revision,
@@ -655,7 +659,7 @@ class ORTModelDecoder(ORTModel):
         model_name = getattr(model, "name", None)
 
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=cls.export_feature, model_name=model_name
+            model_type, "onnx", task=task, model_name=model_name
         )
         onnx_config = onnx_config_constructor(model.config, use_present_in_outputs=True)
 

@@ -298,6 +298,10 @@ class ORTModel(OptimizedModel):
         return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}"]
 
     @classmethod
+    def get_task(cls):
+        return _AUTOMODELS_TO_TASKS[cls.auto_model_class]
+
+    @classmethod
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
@@ -404,7 +408,7 @@ class ORTModel(OptimizedModel):
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
-            task = _AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls.get_task()
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
