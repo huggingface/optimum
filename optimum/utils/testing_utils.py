@@ -8,6 +8,24 @@ from packaging import version
 
 from optimum.utils import is_accelerate_available
 
+from typing import Dict
+
+import collections
+
+
+def flatten_dict(dictionary: Dict):
+    """
+    Flatten a nested dictionaries as a flat dictionary.
+    """
+    items = []
+    for k, v in dictionary.items():
+        new_key = k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
 
 def require_accelerate(test_case):
     """

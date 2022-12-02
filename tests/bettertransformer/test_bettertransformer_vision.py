@@ -35,7 +35,8 @@ ALL_VISION_TEXT_MODELS_TO_TEST = [
 ]
 
 ALL_ZERO_SHOT_IMAGE_CLASSIFICATION = [
-    "hf-internal-testing/tiny-random-clip-zero-shot-image-classification"
+    "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
+    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K" # with gelu
 ]
 
 
@@ -80,9 +81,9 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     def prepare_inputs_for_class(self, model_id=None):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        text = ["a picture of a dig", "a picture of a cat"]
+        text = ["a photo of remote controls", "a photo of a dog", "a photo of two cats"]
 
         # Model takes image and text as input
         processor = AutoProcessor.from_pretrained(model_id)
-        inputs = processor(images=image, text=text, return_tensors="pt")
+        inputs = processor(images=image, text=text, return_tensors="pt", padding=True)
         return inputs

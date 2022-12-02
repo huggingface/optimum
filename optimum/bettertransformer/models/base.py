@@ -14,12 +14,17 @@
 import torch
 import torch.nn as nn
 
+from ...utils import logging
 
 KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation_function"]
 KNOWN_POS_EMB_ATTRIBUTES = ["position_embedding_type"]
 KNOWN_NUM_LAYERS = ["num_hidden_layers", "num_layers", "encoder_layers", "n_layers"]
 
 SUPPORTED_ACTIVATION_FUNCTIONS = ["gelu", "relu", "gelu_new"]
+USE_AT_OWN_RISK_ACTIVATION_FUNCTIONS = ["quick_gelu"]
+
+
+logger = logging.get_logger(__name__)
 
 
 class BetterTransformerBaseLayer(nn.Module):
@@ -34,10 +39,13 @@ class BetterTransformerBaseLayer(nn.Module):
         self.num_layers = None
 
         # Get activation function
-        for attr in KNOWN_ACTIVATION_ATTRIBUTES:
-            if hasattr(config, attr):
-                self.act_fn = getattr(config, attr)
-                break
+        if hasattr(self, "_get_activation_function"):
+            self.act_fn = self._get_activation_function(config)
+        else:
+            for attr in KNOWN_ACTIVATION_ATTRIBUTES:
+                if hasattr(config, attr):
+                    self.act_fn = getattr(config, attr)
+                    break
 
         # Get pos emb type
         for attr in KNOWN_POS_EMB_ATTRIBUTES:
@@ -77,7 +85,10 @@ class BetterTransformerBaseLayer(nn.Module):
             raise ValueError("norm1_eps and norm2_eps must be equal for `BetterTransformer` integration.")
 
         # Check activation function
-        if self.act_fn not in SUPPORTED_ACTIVATION_FUNCTIONS:
+        if self.act_fn in USE_AT_OWN_RISK_ACTIVATION_FUNCTIONS:
+            logger.warning(f"Overridding {self.act_fn} activation with gelu. Use the transformed model at your own risk, the output logits could be significantly different.")
+            self.act_fn = "gelu"
+        elif self.act_fn not in SUPPORTED_ACTIVATION_FUNCTIONS:
             raise ValueError(
                 f"Activation function {self.act_fn} not supported" " for `BetterTransformer` integration."
             )

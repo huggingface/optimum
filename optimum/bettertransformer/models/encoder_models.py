@@ -16,6 +16,12 @@ import torch.nn as nn
 
 from .base import BetterTransformerBaseLayer
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
+
+
 
 class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, albert_layer, config):
@@ -416,6 +422,8 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             attention_mask = None
 
         if attention_mask is not None:
+            print("IN attention_mask is not None")
+            print("attention_mask.shape", attention_mask.shape)
             # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
             # 0->false->keep this token -inf->true->mask this token
             if len(attention_mask.shape) == 4:
@@ -424,6 +432,8 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
             seqlen = attention_mask.shape[1]
             lengths = torch.sum(~attention_mask, 1)
+            print("attention_mask.shape", attention_mask.shape)
+            print("hidden_states.shape", hidden_states.shape)
             if not all([l == seqlen for l in lengths]):
                 hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
             attention_mask = None
@@ -1130,19 +1140,60 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         self.is_last_layer = False
         self.norm_first = True
 
+        """
         # support for quick gelu
         if layer.mlp.activation_fn.__class__.__name__ == "QuickGELUActivation":
             self.act_fn = "gelu"
+            logger.warning("Overridding quick_gelu activation with gelu. Use the transformed model at your own risk.")
+        """
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, *_, **__):
+    def forward(self, hidden_states, attention_mask, causal_attention_mask, *_, **__):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553
         """
         super().forward_checker()
+        if hidden_states.is_nested:
+            print("MARKING NONE")
+            attention_mask = None
+            causal_attention_mask = None
+
+        if causal_attention_mask is not None:
+            print("IN causal_attention_mask is not None")
+            # causal attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
+            # 0->false->keep this token -inf->true->mask this token
+            print("causal_attention_mask.shape", causal_attention_mask.shape)
+            if len(causal_attention_mask.shape) == 4:
+                causal_attention_mask = causal_attention_mask.squeeze(1)[:, 0]
+            causal_attention_mask = causal_attention_mask.bool()
+            causal_attention_mask = torch.reshape(causal_attention_mask, (causal_attention_mask.shape[0], causal_attention_mask.shape[-1]))
+            seqlen = causal_attention_mask.shape[1]
+            lengths = torch.sum(~causal_attention_mask, 1)
+            print("causal_attention_mask.shape", causal_attention_mask.shape)
+            print("hidden_states.shape", hidden_states.shape)
+            if not all([l == seqlen for l in lengths]):
+                hidden_states = torch._nested_tensor_from_mask(hidden_states, ~causal_attention_mask)
+            causal_attention_mask = None
+        
         attention_mask = None
+        if attention_mask is not None:
+            print("IN attention_mask is not None")
+            print("attention_mask.shape", attention_mask.shape)
+            print(attention_mask)
+            print("Maxabs attention_mask", torch.abs(attention_mask).max())
+            # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
+            # 0->false->keep this token -inf->true->mask this token
+            attention_mask = attention_mask.bool()
+            attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
+            seqlen = attention_mask.shape[1]
+            lengths = torch.sum(~attention_mask, 1)
+            print("attention_mask.shape", attention_mask.shape)
+            print("hidden_states.shape", hidden_states.shape)
+            if not all([l == seqlen for l in lengths]):
+                hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
+            attention_mask = None
 
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
@@ -1168,3 +1219,10 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
+    
+    def _get_activation_function(self, config: "PretrainedConfig"):
+        if hasattr(config, "vision_config") and hasattr(config, "text_config"):
+            assert config.vision_config.hidden_act == config.text_config.hidden_act
+            return config.vision_config.hidden_act
+        else:
+            return config.hidden_act
