@@ -64,7 +64,7 @@ def check_if_pytorch_greater(target_version: str, message: str):
 
 def check_if_transformers_greater(target_version: str) -> bool:
     """
-    Checks whether the current install of transformers is grater than or equal to the target version.
+    Checks whether the current install of transformers is greater than or equal to the target version.
 
     Args:
         target_version (str): version used as the reference for comparison.
