@@ -6,7 +6,7 @@ from typing import Dict
 import yaml
 
 
-SECTIONS_AT_THE_END = ["Utilities", "blablabla"]
+SECTIONS_AT_THE_END = ["Utilities"]
 
 
 parser = argparse.ArgumentParser(
