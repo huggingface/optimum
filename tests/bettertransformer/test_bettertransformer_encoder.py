@@ -279,9 +279,10 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, padding, max_length, model_id):
+    def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        inputs = tokenizer(["a dummy input", "and two"], padding=padding, max_length=max_length, return_tensors="pt")
+        padding = preprocessor_kwargs.pop("padding", True)
+        inputs = tokenizer(["a dummy input", "and two"], return_tensors="pt", padding=padding, **preprocessor_kwargs)
         inputs["decoder_input_ids"] = inputs["input_ids"]  # just a hack for m2m100
         return inputs
 
