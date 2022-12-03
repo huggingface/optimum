@@ -19,6 +19,7 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
+    GLPNLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,
     ViltLayerBetterTransformer,
     ViTLayerBetterTransformer,
@@ -60,20 +61,22 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "TransformerBlock": DistilBertLayerBetterTransformer,
     # WhisperModel
     "WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer,
-    # Wav2vec2 family:
+    # Wav2vec2 family
     "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     "HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # "UniSpeechEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # "Data2VecAudioEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    # ViT Family:
+    # ViT Family
     "ViTLayer": ViTLayerBetterTransformer,
     "DeiTLayer": ViTLayerBetterTransformer,
     "ViTMAELayer": ViTLayerBetterTransformer,
     "ViTMSNLayer": ViTLayerBetterTransformer,
     "YolosLayer": ViTLayerBetterTransformer,
-    # FSMTModel:
+    # FSMTModel
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
+    # GLPNModel
+    "GLPNLayer": GLPNLayerBetterTransformer,
 }
 
 
