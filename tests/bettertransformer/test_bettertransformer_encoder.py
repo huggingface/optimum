@@ -274,7 +274,6 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     - if the converted model produces the same logits as the original model.
     - if the converted model is faster than the original model.
     """
-    # all_models_to_test = ALL_ENCODER_DECODER_MODELS_TO_TEST
     all_models_to_test = ALL_ENCODER_DECODER_MODELS_TO_TEST
 
     def tearDown(self):
