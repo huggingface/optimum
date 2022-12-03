@@ -34,21 +34,25 @@ class BetterTransformersTestMixin:
     """
     all_models_to_test = []
 
-    def prepare_inputs_for_class(self):
+    def prepare_inputs_for_class(self, models_to_test=None):
         raise NotImplementedError
 
-    def test_logits(self):
+    def test_logits(self, models_to_test, **preprocessor_kwargs):
         r"""
         This tests if the converted model produces the same logits
         than the original model.
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
 
-        for model_to_test in self.all_models_to_test:
-            inputs = self.prepare_inputs_for_class(model_to_test)
+        if models_to_test is None:
+            models_to_test = self.all_models_to_test
+
+        for model_id in models_to_test:
+            print("model_id:", model_id)
+            inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs)
 
             torch.manual_seed(0)
-            hf_random_model = AutoModel.from_pretrained(model_to_test).eval()
+            hf_random_model = AutoModel.from_pretrained(model_id).eval()
             random_config = hf_random_model.config
 
             torch.manual_seed(0)
@@ -75,13 +79,13 @@ class BetterTransformersTestMixin:
                     # discrepency.
                     tol = 4e-2
                 else:
-                    tol = 1e-3
+                    tol = 2e-3
 
                 self.assertTrue(
-                    torch.allclose(hf_hidden_states[:, :3, :], bt_hidden_states[:, :3, :], atol=tol),
-                    "The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {}".format(
-                        hf_random_model.__class__.__name__
-                    ),
+                    torch.allclose(hf_hidden_states, bt_hidden_states, atol=tol),
+                    f"The BetterTransformers converted model does not produce the same logits as the original model"
+                    f" Failed for the model {hf_random_model.__class__.__name__}."
+                    f" Maxdiff: {torch.abs(hf_hidden_states - bt_hidden_states).max()}",
                 )
 
     def test_raise_on_save(self):

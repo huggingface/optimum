@@ -1,8 +1,10 @@
 import importlib.util
+import itertools
 import os
 import subprocess
 import sys
 import unittest
+from typing import Any, Dict, Iterable
 
 from packaging import version
 
@@ -105,3 +107,11 @@ def convert_to_hf_classes(mapping_dict):
 
         hf_names_dict[fast_layer_key] = hf_class
     return hf_names_dict
+
+
+def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
+    """
+    Generate an iterable over the grid of all combinations of parameters
+    """
+    for params in itertools.product(*parameters.values()):
+        yield list(params)

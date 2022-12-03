@@ -18,15 +18,17 @@ import unittest
 
 import torch
 import transformers
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
 from optimum.utils.testing_utils import (
     convert_to_hf_classes,
+    grid_parameters,
     is_torch_greater_than_113,
     require_accelerate,
     require_torch_gpu,
 )
+from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -49,8 +51,8 @@ ALL_ENCODER_MODELS_TO_TEST = [
 
 ALL_ENCODER_DECODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-FSMTModel",
-    "hf-internal-testing/tiny-random-BartModel",
-    "hf-internal-testing/tiny-random-MBartModel",
+    "hf-internal-testing/tiny-random-bart",
+    "hf-internal-testing/tiny-random-mbart",
     "hf-internal-testing/tiny-random-nllb",
 ]
 
@@ -272,18 +274,28 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     - if the converted model produces the same logits as the original model.
     - if the converted model is faster than the original model.
     """
+    # all_models_to_test = ALL_ENCODER_DECODER_MODELS_TO_TEST
     all_models_to_test = ALL_ENCODER_DECODER_MODELS_TO_TEST
 
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id=None):
-        input_dict = {
-            "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
-            "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
-            "decoder_input_ids": torch.LongTensor([[0], [0]]),
-        }
-        return input_dict
+    def prepare_inputs_for_class(self, padding, max_length, model_id):
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        inputs = tokenizer(["a dummy input", "and two"], padding=padding, max_length=max_length, return_tensors="pt")
+        inputs["decoder_input_ids"] = inputs["input_ids"]  # just a hack for m2m100
+        return inputs
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": ALL_ENCODER_DECODER_MODELS_TO_TEST,
+                "padding": ["max_length", True],
+            }
+        )
+    )
+    def test_logits(self, model_id, padding, max_length=20):
+        super().test_logits([model_id], padding=padding, max_length=max_length)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
