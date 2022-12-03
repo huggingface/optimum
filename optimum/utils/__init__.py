@@ -62,6 +62,21 @@ def check_if_pytorch_greater(target_version: str, message: str):
         pass
 
 
+def check_if_transformers_greater(target_version: str) -> bool:
+    """
+    Checks whether the current install of transformers is greater than or equal to the target version.
+
+    Args:
+        target_version (str): version used as the reference for comparison.
+
+    Returns:
+        bool: whether the check is True or not.
+    """
+    import transformers
+
+    return version.parse(transformers.__version__) >= version.parse(target_version)
+
+
 from .input_generators import (  # noqa
     DEFAULT_DUMMY_SHAPES,
     DummyAudioInputGenerator,
