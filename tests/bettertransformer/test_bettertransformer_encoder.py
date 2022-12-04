@@ -31,25 +31,26 @@ from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_ENCODER_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-DistilBertModel",
     "hf-internal-testing/tiny-random-AlbertModel",
-    "hf-internal-testing/tiny-random-RobertaModel",
-    "hf-internal-testing/tiny-xlm-roberta",
-    "hf-internal-testing/tiny-random-SplinterModel",
-    "hf-internal-testing/tiny-random-ErnieModel",
-    "hf-internal-testing/tiny-random-camembert",
-    "hf-internal-testing/tiny-random-ElectraModel",
-    "hf-internal-testing/tiny-random-LayoutLMModel",
-    "hf-internal-testing/tiny-random-Data2VecTextModel",
-    "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-BertModel",
-    "ybelkada/random-tiny-BertGenerationModel",
+    "hf-internal-testing/tiny-random-camembert",
+    "hf-internal-testing/tiny-random-Data2VecTextModel",
+    "hf-internal-testing/tiny-random-DistilBertModel",
+    "hf-internal-testing/tiny-random-ElectraModel",
+    "hf-internal-testing/tiny-random-ErnieModel",
+    "hf-internal-testing/tiny-random-LayoutLMModel",
+    "hf-internal-testing/tiny-random-MarkupLMModel",
+    "hf-internal-testing/tiny-random-rembert",
+    "hf-internal-testing/tiny-random-RobertaModel",
+    "hf-internal-testing/tiny-random-SplinterModel",
     "hf-internal-testing/tiny-random-TapasModel",
+    "hf-internal-testing/tiny-xlm-roberta",
+    "ybelkada/random-tiny-BertGenerationModel",
 ]
 
 ALL_ENCODER_DECODER_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-FSMTModel",
     "hf-internal-testing/tiny-random-BartModel",
+    "hf-internal-testing/tiny-random-FSMTModel",
     "hf-internal-testing/tiny-random-MBartModel",
     "hf-internal-testing/tiny-random-nllb",
 ]
