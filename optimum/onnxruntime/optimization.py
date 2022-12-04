@@ -27,7 +27,7 @@ from onnxruntime.transformers.optimizer import optimize_model
 from ..utils import CONFIG_NAME, NormalizedConfigManager
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
-from .modeling_seq2seq import ORTModelForSeq2SeqLM
+from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
@@ -74,7 +74,7 @@ class ORTOptimizer:
         onnx_model_path = []
         config = None
         if isinstance(model_or_path, ORTModel):
-            if isinstance(model_or_path, ORTModelForSeq2SeqLM):
+            if isinstance(model_or_path, ORTModelForSeq2SeqLM) or isinstance(model_or_path, ORTModelForSpeechSeq2Seq):
                 model_save_dir = model_or_path.model_save_dir
                 onnx_model_path = [
                     model_save_dir.joinpath(model_or_path.encoder_file_name),
