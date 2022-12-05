@@ -286,6 +286,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         inputs["decoder_input_ids"] = inputs["input_ids"]  # just a hack for m2m100
         return inputs
 
+    # run the test over all possible combinations of `model_id` and `padding`
     @parameterized.expand(
         grid_parameters(
             {

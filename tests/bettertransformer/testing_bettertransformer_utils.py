@@ -102,8 +102,8 @@ class BetterTransformersTestMixin:
     def assert_equal(self, tensor1, tensor2, atol: float, model_name: str):
         self.assertTrue(
             torch.allclose(tensor1, tensor2, atol=atol),
-            f"The BetterTransformer converted model does not produce the same logits as the original model. Failed for the model {model_name}"
-            f"Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
+            f"The BetterTransformer converted model does not produce the same logits as the original model. Failed for the model {model_name}."
+            f" Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
         )
 
     def test_raise_on_save(self):
