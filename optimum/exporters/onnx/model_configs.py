@@ -20,6 +20,7 @@ from packaging import version
 
 from ...utils import (
     DummyDecoderTextInputGenerator,
+    DummyStableDiffusionInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
@@ -604,6 +605,29 @@ class YolosOnnxConfig(ViTOnnxConfig):
 
 class SwinOnnxConfig(ViTOnnxConfig):
     pass
+
+
+class UNetOnnxConfig(ViTOnnxConfig):
+
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        image_size="sample_size",
+        num_channels="in_channels",
+        hidden_size="cross_attention_dim",
+        allow_new=True,
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "timestep": {0: "steps"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
+        }
 
 
 class SegformerOnnxConfig(YolosOnnxConfig):

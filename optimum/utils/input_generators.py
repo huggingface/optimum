@@ -574,3 +574,67 @@ class DummyAudioInputGenerator(DummyInputGenerator):
                 max_value=1,
                 framework=framework,
             )
+
+
+class DummyStableDiffusionInputGenerator(DummyInputGenerator):
+    """
+    Generates dummy stable diffusion model inputs.
+    """
+
+    SUPPORTED_INPUT_NAMES = (
+        "timestep",
+        "sample",
+        "encoder_hidden_states",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedVisionConfig,
+        batch_size: int = 2,
+        num_channels: int = 4,
+        width: int = 224,
+        height: int = 224,
+        timestep: int = 1,
+        sequence_length: int = 77,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+    ):
+        self.task = task
+        self.hidden_size = normalized_config.hidden_size
+        self.timestep = timestep
+
+        if random_batch_size_range:
+            low, high = random_batch_size_range
+            self.batch_size = random.randint(low, high)
+        else:
+            self.batch_size = batch_size
+
+        if random_sequence_length_range:
+            low, high = random_sequence_length_range
+            self.sequence_length = random.randint(low, high)
+        else:
+            self.sequence_length = sequence_length
+
+        if normalized_config.has_attribute("num_channels"):
+            self.num_channels = normalized_config.num_channels
+        else:
+            self.num_channels = num_channels
+
+        if normalized_config.has_attribute("image_size"):
+            self.image_size = normalized_config.image_size
+        else:
+            self.image_size = (width, height)
+        if not isinstance(self.image_size, (tuple, list)):
+            self.image_size = (self.image_size, self.image_size)
+        self.height, self.width = self.image_size
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        if input_name == "timestep":
+            shape = [self.timestep]
+            return self.random_int_tensor(shape, max_value=1, framework=framework)
+        if input_name == "sample":
+            shape = [self.batch_size, self.num_channels, self.height, self.width]
+            return self.random_float_tensor(shape, framework=framework)
+        shape = [self.batch_size, self.sequence_length, self.hidden_size]
+        return self.random_float_tensor(shape, framework=framework)

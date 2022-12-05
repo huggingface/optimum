@@ -474,6 +474,10 @@ class TasksManager:
             "image-classification",
             onnx="ResNetOnnxConfig",
         ),
+        "unet": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="UNetOnnxConfig",
+        ),
         "roberta": supported_tasks_mapping(
             "default",
             "masked-lm",

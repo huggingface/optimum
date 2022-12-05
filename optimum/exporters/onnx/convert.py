@@ -54,7 +54,7 @@ def check_dummy_inputs_are_allowed(
         model_inputs (`Iterable[str]`):
             The model input names.
     """
-    forward = model.forward if is_torch_available() and issubclass(type(model), PreTrainedModel) else model.call
+    forward = model.forward if is_torch_available() and hasattr(model, "forward") else model.call
     forward_parameters = signature(forward).parameters
     forward_inputs_set = set(forward_parameters.keys())
     dummy_input_names = set(dummy_input_names)
@@ -495,7 +495,8 @@ def export(
             "Please install torch or tensorflow first."
         )
 
-    if is_torch_available() and issubclass(type(model), PreTrainedModel):
+    if is_torch_available():
+
         import torch
 
         if not is_torch_onnx_support_available():
@@ -510,7 +511,7 @@ def export(
             )
         return export_pytorch(model, config, opset, output, device=device)
 
-    elif is_tf_available() and issubclass(type(model), TFPreTrainedModel):
+    elif is_tf_available():
         if device == "cuda":
             raise RuntimeError("`tf2onnx` does not support export on CUDA device.")
         return export_tensorflow(model, config, opset, output)
