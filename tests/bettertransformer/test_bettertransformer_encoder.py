@@ -54,7 +54,7 @@ ALL_ENCODER_DECODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-bart",
     "hf-internal-testing/tiny-random-FSMTModel",
     "hf-internal-testing/tiny-random-mbart",
-    "hf-internal-testing/tiny-random-nllb"
+    "hf-internal-testing/tiny-random-nllb",
 ]
 
 
