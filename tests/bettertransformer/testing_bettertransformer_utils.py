@@ -49,7 +49,6 @@ class BetterTransformersTestMixin:
             models_to_test = self.all_models_to_test
 
         for model_id in models_to_test:
-            print("model_id:", model_id)
             inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs)
 
             torch.manual_seed(0)
