@@ -1489,9 +1489,7 @@ class ORTModelForCustomTasks(ORTModel):
         # Bind inputs
         for input_name in self.model_input_names:
             onnx_input = kwargs.pop(input_name)
-
-            if not onnx_input.is_contiguous():
-                raise RuntimeError(f"Input {input_name} need to be contiguous for IO binding.")
+            onnx_input = onnx_input.contiguous()
 
             io_binding.bind_input(
                 input_name,
