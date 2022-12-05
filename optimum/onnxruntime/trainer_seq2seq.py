@@ -284,7 +284,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                     else nested_concat(inputs_host, inputs_decode, padding_index=-100)
                 )
             if logits is not None:
-                logits = logits.to(args.device)
+                logits = logits.to(args.device) if isinstance(logits, torch.Tensor) else logits
                 logits = self._pad_across_processes(logits)
                 logits = self._nested_gather(logits)
                 if self.preprocess_logits_for_metrics is not None:
@@ -341,13 +341,15 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             num_samples = len(eval_dataset)
         # The instance check is weird and does not actually check for the type, but whether the dataset has the right
         # methods. Therefore we need to make sure it also has the attribute.
-        elif isinstance(eval_dataset, IterableDatasetShard) and hasattr(eval_dataset, "num_examples"):
+        elif isinstance(eval_dataset, IterableDatasetShard) and getattr(eval_dataset, "num_examples", 0) > 0:
             num_samples = eval_dataset.num_examples
         else:
             if has_length(dataloader):
                 num_samples = self.num_examples(dataloader)
             else:  # both len(dataloader.dataset) and len(dataloader) fail
                 num_samples = observed_num_examples
+        if num_samples == 0 and observed_num_examples > 0:
+            num_samples = observed_num_examples
 
         # Number of losses has been rounded to a multiple of batch_size and in a distributed training, the number of
         # samplers has been rounded to a multiple of batch_size, so we truncate.
@@ -659,9 +661,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
     ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Perform an evaluation step on `model` using `inputs`.
-
         Subclass and override to inject custom behavior.
-
         Args:
             model (`nn.Module`):
                 The model to evaluate.
@@ -671,10 +671,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 argument `labels`. Check your model's documentation for all accepted arguments.
             prediction_loss_only (`bool`):
                 Whether or not to return the loss only.
-
         Return:
-            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, generated
-            tokens and labels (each being optional).
+            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, logits and
+            labels (each being optional).
         """
 
         if not self.args.predict_with_generate or prediction_loss_only:
@@ -723,9 +722,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_new_tokens"] + 1)
 
         with torch.no_grad():
-            with self.compute_loss_context_manager():
-                outputs = model(**inputs)
             if has_labels:
+                with self.compute_loss_context_manager():
+                    outputs = model(**inputs)
                 if self.label_smoother is not None:
                     loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
                 else:

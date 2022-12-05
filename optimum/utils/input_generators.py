@@ -17,9 +17,11 @@
 import functools
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from transformers.utils import is_tf_available, is_torch_available
+
+from .normalized_config import NormalizedConfig, NormalizedSeq2SeqConfig, NormalizedTextConfig, NormalizedVisionConfig
 
 
 if is_torch_available():
@@ -27,74 +29,6 @@ if is_torch_available():
 
 if is_tf_available():
     import tensorflow as tf
-
-
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig
-
-
-class NormalizedConfig:
-    def __init__(self, config: "PretrainedConfig", allow_new: bool = False, **kwargs):
-        self.config = config
-        for key, value in kwargs.items():
-            if allow_new or hasattr(self, key.upper()):
-                setattr(self, key.upper(), value)
-            else:
-                raise AttributeError(f"{self.__class__} has not attribute {key}.")
-
-    @classmethod
-    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
-        return functools.partial(cls, allow_new=allow_new, **kwargs)
-
-    def __getattr__(self, attr_name):
-        attr_name = attr_name.split(".")
-        leaf_attr_name = attr_name[-1]
-        config = self.config
-        for attr in attr_name[:-1]:
-            config = getattr(config, attr)
-        attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
-        if attr is None:
-            raise AttributeError(f'Could not find the attribute named "{leaf_attr_name}" in the normalized config.')
-        return attr
-
-    def has_attribute(self, attr_name):
-        try:
-            self.__getattr__(attr_name)
-        except AttributeError:
-            return False
-        return True
-
-
-class NormalizedTextConfig(NormalizedConfig):
-    VOCAB_SIZE = "vocab_size"
-    HIDDEN_SIZE = "hidden_size"
-    NUM_LAYERS = "num_hidden_layers"
-    NUM_ATTENTION_HEADS = "num_attention_heads"
-    EOS_TOKEN_ID = "eos_token_id"
-
-
-class NormalizedSeq2SeqConfig(NormalizedTextConfig):
-    ENCODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
-    DECODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
-    ENCODER_NUM_ATTENTION_HEADS = NormalizedTextConfig.NUM_ATTENTION_HEADS
-    DECODER_NUM_ATTENTION_HEADS = NormalizedTextConfig.NUM_ATTENTION_HEADS
-
-
-class NormalizedVisionConfig(NormalizedConfig):
-    IMAGE_SIZE = "image_size"
-    NUM_CHANNELS = "num_channels"
-
-
-class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
-    TEXT_CONFIG = None
-    VISION_CONFIG = None
-
-    def __getattr__(self, attr_name):
-        if self.TEXT_CONFIG is not None and attr_name.upper() in dir(NormalizedTextConfig):
-            attr_name = f"{self.TEXT_CONFIG}.{attr_name}"
-        elif self.VISION_CONFIG is not None and attr_name.upper() in dir(NormalizedVisionConfig):
-            attr_name = f"{self.VISION_CONFIG}.{attr_name}"
-        return super().__getattr__(attr_name)
 
 
 def check_framework_is_available(func):
@@ -111,19 +45,77 @@ def check_framework_is_available(func):
     return wrapper
 
 
+DEFAULT_DUMMY_SHAPES = {
+    "batch_size": 2,
+    "sequence_length": 16,
+    "num_choices": 4,
+    # image
+    "width": 224,
+    "height": 224,
+    "num_channels": 3,
+    # audio
+    "feature_size": 80,
+    "nb_max_frames": 3000,
+    "audio_sequence_length": 16000,
+}
+
+
 class DummyInputGenerator(ABC):
+    """
+    Generates dummy inputs for the supported input names, in the requested framework.
+    """
+
     SUPPORTED_INPUT_NAMES = ()
 
     def supports_input(self, input_name: str) -> bool:
+        """
+        Checks whether the `DummyInputGenerator` supports the generation of the requested input.
+
+        Args:
+            input_name (`str`):
+                The name of the input to generate.
+
+        Returns:
+            `bool`: A boolean specifying whether the input is supported.
+
+        """
         return any(input_name.startswith(supported_input_name) for supported_input_name in self.SUPPORTED_INPUT_NAMES)
 
     @abstractmethod
     def generate(self, input_name: str, framework: str = "pt"):
+        """
+        Generates the dummy input matching `input_name` for the requested framework.
+
+        Args:
+            input_name (`str`):
+                The name of the input to generate.
+            framework (`str`, *optional*, defaults to `"pt"`):
+                The requested framework.
+
+        Returns:
+            A tensor in the requested framework of the input.
+        """
         raise NotImplementedError
 
     @staticmethod
     @check_framework_is_available
     def random_int_tensor(shape: List[int], max_value: int, min_value: int = 0, framework: str = "pt"):
+        """
+        Generates a tensor of random integers in the [min_value, max_value] range.
+
+        Args:
+            shape (`List[int]`):
+                The shape of the random tensor.
+            max_value (`int`):
+                The maximum value allowed.
+            min_value (`int`, *optional*, defaults to 0):
+                The minimum value allowed.
+            framework (`str`, *optional*, defaults to `"pt"`):
+                The requested framework.
+
+        Returns:
+            A random tensor in the requested framework.
+        """
         if framework == "pt":
             return torch.randint(low=min_value, high=max_value, size=shape)
         return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.int32)
@@ -131,6 +123,22 @@ class DummyInputGenerator(ABC):
     @staticmethod
     @check_framework_is_available
     def random_float_tensor(shape: List[int], min_value: float = 0, max_value: float = 1, framework: str = "pt"):
+        """
+        Generates a tensor of random floats in the [min_value, max_value] range.
+
+        Args:
+            shape (`List[int]`):
+                The shape of the random tensor.
+            min_value (`float`, *optional*, defaults to 0):
+                The minimum value allowed.
+            max_value (`float`, *optional*, defaults to 1):
+                The maximum value allowed.
+            framework (`str`, *optional*, defaults to `"pt"`):
+                The requested framework.
+
+        Returns:
+            A random tensor in the requested framework.
+        """
         if framework == "pt":
             tensor = torch.empty(shape, dtype=torch.float32).uniform_(min_value, max_value)
             return tensor
@@ -141,6 +149,22 @@ class DummyInputGenerator(ABC):
     def constant_tensor(
         shape: List[int], value: Union[int, float] = 1, dtype: Optional[Any] = None, framework: str = "pt"
     ):
+        """
+        Generates a constant tensor.
+
+        Args:
+            shape (`List[int]`):
+                The shape of the constant tensor.
+            value (`Union[int, float]`, *optional*, defaults to 1):
+                The value to fill the constant tensor with.
+            dtype (`Any`, *optional*):
+                The dtype of the constant tensor.
+            framework (`str`, *optional*, defaults to `"pt"`):
+                The requested framework.
+
+        Returns:
+            A constant tensor in the requested framework.
+        """
         if framework == "pt":
             return torch.full(shape, value, dtype=dtype)
         return tf.constant(value, dtype=dtype, shape=shape)
@@ -158,6 +182,17 @@ class DummyInputGenerator(ABC):
 
     @classmethod
     def concat_inputs(cls, inputs, dim: int):
+        """
+        Concatenates inputs together.
+
+        Args:
+            inputs:
+                The list of tensors in a given framework to concatenate.
+            dim (`int`):
+                The dimension along which to concatenate.
+        Returns:
+            The tensor of the concatenation.
+        """
         if not inputs:
             raise ValueError("You did not provide any inputs to concat")
         framework = cls._infer_framework_from_input(inputs[0])
@@ -175,6 +210,26 @@ class DummyInputGenerator(ABC):
         value: Union[int, float] = 1,
         dtype: Optional[Any] = None,
     ):
+        """
+        Pads an input either to the desired length, or by a padding length.
+
+        Args:
+            input_:
+                The tensor to pad.
+            dim (`int`):
+                The dimension along which to pad.
+            desired_length (`int`, *optional*):
+                The desired length along the dimension after padding.
+            padding_length (`int`, *optional*):
+                The length to pad along the dimension.
+            value (`Union[int, float]`, *optional*, defaults to 1):
+                The value to use for padding.
+            dtype (`Any`, *optional*):
+                The dtype of the padding.
+
+        Returns:
+            The padded tensor.
+        """
         if (desired_length is None and padding_length is None) or (
             desired_length is not None and padding_length is not None
         ):
@@ -192,6 +247,10 @@ class DummyInputGenerator(ABC):
 
 
 class DummyTextInputGenerator(DummyInputGenerator):
+    """
+    Generates dummy encoder text inputs.
+    """
+
     SUPPORTED_INPUT_NAMES = (
         "input_ids",
         "attention_mask",
@@ -202,9 +261,9 @@ class DummyTextInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedTextConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
-        num_choices: int = 4,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
@@ -237,21 +296,76 @@ class DummyTextInputGenerator(DummyInputGenerator):
 
 
 class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
+    """
+    Generates dummy decoder text inputs.
+    """
+
     SUPPORTED_INPUT_NAMES = (
         "decoder_input_ids",
         "decoder_attention_mask",
     )
 
 
+class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "decoder_input_ids",
+        "decoder_attention_mask",
+        "encoder_outputs",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        random_num_choices_range: Optional[Tuple[int, int]] = None,
+    ):
+        super().__init__(
+            task,
+            normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            num_choices=num_choices,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            random_num_choices_range=random_num_choices_range,
+        )
+
+        self.hidden_size = normalized_config.hidden_size
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        if input_name == "encoder_outputs":
+            return (
+                self.random_float_tensor(
+                    shape=[self.batch_size, self.sequence_length, self.hidden_size],
+                    min_value=0,
+                    max_value=1,
+                    framework=framework,
+                ),
+                None,
+                None,
+            )
+
+        return super().generate(input_name, framework=framework)
+
+
 class DummyPastKeyValuesGenerator(DummyInputGenerator):
+    """
+    Generates dummy past_key_values inputs.
+    """
+
     SUPPORTED_INPUT_NAMES = ("past_key_values",)
 
     def __init__(
         self,
         task: str,
         normalized_config: NormalizedTextConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
@@ -286,14 +400,18 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
 
 
 class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
+    """
+    Generates dummy past_key_values inputs for seq2seq architectures.
+    """
+
     SUPPORTED_INPUT_NAMES = ("past_key_values",)
 
     def __init__(
         self,
         task: str,
         normalized_config: NormalizedSeq2SeqConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         encoder_sequence_length: Optional[int] = None,
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
@@ -339,14 +457,18 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
 
 # TODO: should it just be merged to DummyTextInputGenerator?
 class DummyBboxInputGenerator(DummyInputGenerator):
+    """
+    Generates dummy bbox inputs.
+    """
+
     SUPPORTED_INPUT_NAMES = ("bbox",)
 
     def __init__(
         self,
         task: str,
         normalized_config: NormalizedConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
@@ -373,6 +495,10 @@ class DummyBboxInputGenerator(DummyInputGenerator):
 
 
 class DummyVisionInputGenerator(DummyInputGenerator):
+    """
+    Generates dummy vision inputs.
+    """
+
     SUPPORTED_INPUT_NAMES = (
         "pixel_values",
         "pixel_mask",
@@ -382,17 +508,17 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedVisionConfig,
-        batch_size: int = 2,
-        num_channels: int = 3,
-        width: int = 224,
-        height: int = 224,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        width: int = DEFAULT_DUMMY_SHAPES["width"],
+        height: int = DEFAULT_DUMMY_SHAPES["height"],
     ):
         self.task = task
         # Some vision models can take any input sizes, in this case we use the values provided as parameters.
         if normalized_config.has_attribute("image_size"):
             self.image_size = normalized_config.image_size
         else:
-            self.image_size = (width, height)
+            self.image_size = (height, width)
         if normalized_config.has_attribute("num_channels"):
             self.num_channels = normalized_config.num_channels
         else:
@@ -405,7 +531,47 @@ class DummyVisionInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         if input_name == "pixel_mask":
-            shape = [self.batch_size, self.height, self.width]
-            return self.random_int_tensor(shape, max_value=1, framework=framework)
-        shape = [self.batch_size, self.num_channels, self.height, self.width]
-        return self.random_float_tensor(shape, framework=framework)
+            return self.random_int_tensor(
+                shape=[self.batch_size, self.height, self.width], max_value=1, framework=framework
+            )
+        else:
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.num_channels, self.height, self.width], framework=framework
+            )
+
+
+class DummyAudioInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("input_features", "input_values")
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        feature_size: int = DEFAULT_DUMMY_SHAPES["feature_size"],
+        nb_max_frames: int = DEFAULT_DUMMY_SHAPES["nb_max_frames"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+    ):
+        self.task = task
+
+        self.feature_size = feature_size
+        self.nb_max_frames = nb_max_frames
+        self.batch_size = batch_size
+        self.sequence_length = sequence_length
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.sequence_length]
+        if input_name == "input_values":
+            self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+
+        if input_name == "input_values":  # raw waveform
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.sequence_length], min_value=-1, max_value=1, framework=framework
+            )
+        else:
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.feature_size, self.nb_max_frames],
+                min_value=-1,
+                max_value=1,
+                framework=framework,
+            )

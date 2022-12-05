@@ -18,6 +18,7 @@ import shutil
 import tempfile
 import unittest
 
+import numpy as np
 import pytest
 import torch
 from PIL import Image
@@ -29,6 +30,7 @@ from transformers import (
     AutoModelForQuestionAnswering,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
+    AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
     PretrainedConfig,
     set_seed,
@@ -53,10 +55,13 @@ from optimum.onnxruntime import (
     ORTModelForQuestionAnswering,
     ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
+    ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
 )
+from optimum.onnxruntime.modeling_decoder import ORTDecoder
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTDecoder, ORTEncoder
+from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
+from optimum.onnxruntime.modeling_seq2seq import ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME
 from optimum.utils.testing_utils import require_hf_token
@@ -81,6 +86,7 @@ MODEL_NAMES = {
     "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "whisper": "openai/whisper-tiny.en",
 }
 
 SEED = 42
@@ -107,6 +113,33 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
+    def test_load_model_from_hub_subfolder(self):
+        # does not pass with ORTModel as it does not have export_feature attribute
+        model = ORTModelForSequenceClassification.from_pretrained(
+            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", from_transformers=True
+        )
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+        model = ORTModel.from_pretrained("fxmarty/tiny-bert-sst2-distilled-onnx-subfolder", subfolder="my_subfolder")
+        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+    def test_load_seq2seq_model_from_hub_subfolder(self):
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", from_transformers=True
+        )
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-onnx-subfolder", subfolder="my_folder")
+        self.assertIsInstance(model.encoder, ORTEncoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.config, PretrainedConfig)
+
     def test_load_model_from_cache(self):
         _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID)  # caching
 
@@ -129,8 +162,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_empty_cache(self):
@@ -162,14 +195,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_without_past_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoder)
+        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
         self.assertTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
 
@@ -216,7 +249,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         gpu = torch.device("cuda")
         model.to(gpu)
-        self.assertEqual(model.device, gpu)
+        self.assertEqual(model.device, torch.device("cuda:0"))
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
     # test string device input for to()
@@ -225,7 +258,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         gpu = torch.device("cuda")
         model.to("cuda")
-        self.assertEqual(model.device, gpu)
+        self.assertEqual(model.device, torch.device("cuda:0"))
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
     def test_passing_session_options(self):
@@ -321,10 +354,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         gpu = torch.device("cuda")
         model.to(gpu)
-        self.assertEqual(model.device, gpu)
-        self.assertEqual(model.encoder._device, gpu)
-        self.assertEqual(model.decoder._device, gpu)
-        self.assertEqual(model.decoder_with_past._device, gpu)
+        self.assertEqual(model.device, torch.device("cuda:0"))
+        self.assertEqual(model.encoder._device, torch.device("cuda:0"))
+        self.assertEqual(model.decoder._device, torch.device("cuda:0"))
+        self.assertEqual(model.decoder_with_past._device, torch.device("cuda:0"))
         self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
@@ -360,12 +393,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_torch_gpu
     def test_seq2seq_model_on_gpu_str(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        gpu = torch.device("cuda")
         model.to("cuda")
-        self.assertEqual(model.device, gpu)
-        self.assertEqual(model.encoder._device, gpu)
-        self.assertEqual(model.decoder._device, gpu)
-        self.assertEqual(model.decoder_with_past._device, gpu)
+        self.assertEqual(model.device, torch.device("cuda:0"))
+        self.assertEqual(model.encoder._device, torch.device("cuda:0"))
+        self.assertEqual(model.decoder._device, torch.device("cuda:0"))
+        self.assertEqual(model.decoder_with_past._device, torch.device("cuda:0"))
         self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
@@ -539,7 +571,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         io_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -673,7 +705,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         )
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -782,7 +814,7 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         )
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -886,7 +918,7 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         io_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1017,7 +1049,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
+        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1068,7 +1101,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live"
         outputs = pipe(text)
         # check model device
@@ -1080,6 +1113,18 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_with_and_without_past_key_values_model_outputs(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        tokenizer = get_preprocessor(model_id)
+        text = "My Name is Philipp and i live"
+        tokens = tokenizer(text, return_tensors="pt")
+        model_with_pkv = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=True)
+        outputs_model_with_pkv = model_with_pkv.generate(**tokens)
+        model_without_pkv = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=False)
+        outputs_model_without_pkv = model_without_pkv.generate(**tokens)
+        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
     def test_compare_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
@@ -1089,7 +1134,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         io_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1191,7 +1236,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
         # check model device
@@ -1219,7 +1264,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=image, return_tensors="pt")
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
 
@@ -1275,8 +1320,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1353,14 +1398,19 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=False, device=0)
         text = "My Name is Philipp and i live"
-        outputs = pipe(text)
+        outputs = pipe(text, max_length=2 * len(text) + 1)
         # check model device
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
-        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
-        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+        self.assertTrue(isinstance(outputs[0]["translation_text"], str))
+
+        pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=True, device=0)
+
+        outputs = pipe(text, min_length=len(text) + 1, max_length=2 * len(text) + 1)
+        self.assertTrue(isinstance(outputs[0]["translation_token_ids"], torch.Tensor))
+        self.assertTrue(len(outputs[0]["translation_token_ids"]) > len(text))
 
     def test_compare_with_and_without_past_key_values_model_outputs(self):
         model_id = MODEL_NAMES["t5"]
@@ -1383,9 +1433,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         io_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
         decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
 
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
         io_outputs = io_model(**tokens, **decoder_inputs)
@@ -1409,8 +1459,178 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model.generate(**tokens)
-        io_outputs = io_model.generate(**tokens)
+        onnx_outputs = onnx_model.generate(**tokens, num_beams=5)
+        io_outputs = io_model.generate(**tokens, num_beams=5)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+
+        gc.collect()
+
+
+class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES = ("whisper",)
+
+    def _generate_random_audio_data(self):
+        np.random.seed(10)
+        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        # generate pure sine wave at 220 Hz
+        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+        return audio_data
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_generate_utils(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        processor = get_preprocessor(model_id)
+
+        data = self._generate_random_audio_data()
+        features = processor.feature_extractor(data, return_tensors="pt")
+
+        outputs = model.generate(inputs=features["input_features"])
+        res = processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertIsInstance(res[0], str)
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        set_seed(SEED)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.encoder, ORTEncoder)
+        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
+        processor = get_preprocessor(model_id)
+
+        data = self._generate_random_audio_data()
+        features = processor.feature_extractor(data, return_tensors="pt")
+
+        decoder_start_token_id = transformers_model.config.decoder_start_token_id
+        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        onnx_outputs = onnx_model(**features, **decoder_inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**features, **decoder_inputs)
+        # Compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_pipeline_speech_recognition(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        processor = get_preprocessor(model_id)
+
+        # Speech recogition generation
+        pipe = pipeline(
+            "automatic-speech-recognition",
+            model=onnx_model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+        )
+        data = self._generate_random_audio_data()
+        outputs = pipe(data)
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertIsInstance(outputs["text"], str)
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        processor = get_preprocessor(model_id)
+        pipe = pipeline(
+            "automatic-speech-recognition",
+            model=onnx_model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+            device=0,
+        )
+
+        data = self._generate_random_audio_data()
+        outputs = pipe(data)
+
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        # compare model output class
+        self.assertTrue(isinstance(outputs["text"], str))
+
+    def test_compare_with_and_without_past_key_values_model_outputs(self):
+        model_id = MODEL_NAMES["whisper"]
+        processor = get_preprocessor(model_id)
+
+        data = self._generate_random_audio_data()
+        features = processor.feature_extractor(data, return_tensors="pt")
+
+        model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=True)
+        outputs_model_with_pkv = model_with_pkv.generate(**features)
+        model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=False)
+        outputs_model_without_pkv = model_without_pkv.generate(**features)
+
+        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        set_seed(SEED)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+
+        processor = get_preprocessor(model_id)
+
+        data = self._generate_random_audio_data()
+        features = processor.feature_extractor([data] * 2, return_tensors="pt")
+
+        decoder_start_token_id = onnx_model.config.decoder_start_token_id
+        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
+
+        onnx_outputs = onnx_model(**features, **decoder_inputs)
+        io_outputs = io_model(**features, **decoder_inputs)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_compare_generation_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        set_seed(SEED)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+
+        processor = get_preprocessor(model_id)
+
+        data = self._generate_random_audio_data()
+        features = processor.feature_extractor(data, return_tensors="pt")
+
+        onnx_outputs = onnx_model.generate(**features, num_beams=5)
+        io_outputs = io_model.generate(**features, num_beams=5)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))

@@ -22,11 +22,11 @@ REQUIRED_PKGS = [
     "huggingface_hub>=0.8.0",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
-BENCHMARK_REQUIRE = ["optuna", "tqdm", "sklearn", "seqeval", "torchvision", "evaluate>=0.2.0"]
+BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
 EXTRAS_REQUIRE = {
     "onnxruntime": [
@@ -44,7 +44,7 @@ EXTRAS_REQUIRE = {
         "protobuf==3.20.1",
     ],
     "exporters": ["onnx", "onnxruntime", "timm"],
-    "exporters-tf": ["tensorflow", "tf2onnx", "onnx", "onnxruntime", "timm"],
+    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
     "nncf": "optimum-intel[nncf]",

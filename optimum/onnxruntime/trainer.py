@@ -17,6 +17,7 @@ The ORTTrainer class, to easily train a 🤗 Transformers from scratch or finetu
 import functools
 import math
 import os
+import shutil
 import sys
 import time
 import warnings
@@ -90,9 +91,9 @@ from transformers.trainer_utils import (
 )
 from transformers.utils import check_min_version, logging
 
+from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
-    ORTModelForCausalLM,
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
@@ -103,7 +104,7 @@ from .modeling_ort import (
 )
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
-from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
+from .utils import wrap_onnx_config_for_loss
 
 
 if is_apex_available():
@@ -483,6 +484,9 @@ class ORTTrainer(Trainer):
         logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size}")
         logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
         logger.info(f"  Total optimization steps = {max_steps}")
+        logger.info(
+            f"  Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+        )
 
         self.state.epoch = 0
         start_time = time.time()
@@ -520,7 +524,10 @@ class ORTTrainer(Trainer):
         self.callback_handler.optimizer = self.optimizer
         self.callback_handler.lr_scheduler = self.lr_scheduler
         self.callback_handler.train_dataloader = train_dataloader
-        self.state.trial_name = self.hp_name(trial) if self.hp_name is not None else None
+        if self.hp_name is not None and self._trial is not None:
+            # use self._trial because the SigOpt/Optuna hpo only call `_hp_search_setup(trial)` instead of passing trial
+            # parameter to Train when using DDP.
+            self.state.trial_name = self.hp_name(self._trial)
         if trial is not None:
             assignments = trial.assignments if self.hp_search_backend == HPSearchBackend.SIGOPT else trial
             self.state.trial_params = hp_params(assignments)
@@ -726,11 +733,17 @@ class ORTTrainer(Trainer):
 
         self.log(metrics)
 
-        self.control = self.callback_handler.on_train_end(args, self.state, self.control)
+        run_dir = self._get_output_dir(trial)
+        checkpoints_sorted = self._sorted_checkpoints(use_mtime=False, output_dir=run_dir)
 
-        # ONNX Runtime - Update the `session_options` for inference
-        while hasattr(model, "module") and not isinstance(model, ORTModule):
-            model = model.module
+        # Delete the last checkpoint when save_total_limit=1 if it's different from the best checkpoint.
+        if self.state.best_model_checkpoint is not None and self.args.save_total_limit == 1:
+            for checkpoint in checkpoints_sorted:
+                if checkpoint != self.state.best_model_checkpoint:
+                    logger.info(f"Deleting older checkpoint [{checkpoint}] due to args.save_total_limit")
+                    shutil.rmtree(checkpoint)
+
+        self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
@@ -1140,8 +1153,6 @@ class ORTTrainer(Trainer):
         if self.onnx_model_path and (has_labels == self.exported_with_loss):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
-            # Fix exported ONNX IR
-            fix_atenops_to_gather(self.onnx_model_path)
         else:
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
@@ -1158,8 +1169,6 @@ class ORTTrainer(Trainer):
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
-            # Fix exported ONNX IR
-            fix_atenops_to_gather(self.onnx_model_path)
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model

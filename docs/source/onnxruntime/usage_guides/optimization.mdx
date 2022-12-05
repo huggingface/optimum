@@ -17,7 +17,7 @@ specific language governing permissions and limitations under the License.
 
 ## Creating an `ORTOptimizer`
 
-The `ORTOptimizer` class is used to optimize your ONNX model. The class can be initialized using the `from_pretrained()` method, which supports different checkpoint formats.
+The [`~onnxruntime.ORTOptimizer`] class is used to optimize your ONNX model. The class can be initialized using the `from_pretrained()` method, which supports different checkpoint formats.
 
 1. Using an already initialized `ORTModelForXXX` class.
 
@@ -40,14 +40,56 @@ The `ORTOptimizer` class is used to optimize your ONNX model. The class can be i
 >>> optimizer = ORTOptimizer.from_pretrained("path/to/model")
 ```
 
+## Optimization Configuration
+
+The [`~onnxruntime.configuration.OptimizationConfig`] class allows to specify how the optimization should be performed by the [`~onnxruntime.ORTOptimizer`].
+
+In the optimization configuration, there are 4 possible optimization levels:
+- `optimization_level=0`: to disable all optimizations
+- `optimization_level=1`: to enable basic optimizations such as constant folding or redundant node eliminations
+- `optimization_level=2`: to enable extended graph optimizations such as node fusions
+- `optimization_level=99`: to enable data layout optimizations
+
+Choosing a level enables the optimizations of that level, as well as the optimizations of all preceding levels.
+More information [here](https://onnxruntime.ai/docs/performance/graph-optimizations.html).
+
+`enable_transformers_specific_optimizations=True` means that `transformers`-specific graph fusion and approximation are performed in addition to the ONNX Runtime optimizations described above.
+Here is a list of the possible optimizations you can enable:
+- Gelu fusion with `disable_gelu_fusion=False`,
+- Layer Normalization fusion with `disable_layer_norm_fusion=False`,
+- Attention fusion with `disable_attention_fusion=False`,
+- SkipLayerNormalization fusion with `disable_skip_layer_norm_fusion=False`,
+- Add Bias and SkipLayerNormalization fusion with `disable_bias_skip_layer_norm_fusion=False`,
+- Add Bias and Gelu / FastGelu fusion with `disable_bias_gelu_fusion=False`,
+- Gelu approximation with `enable_gelu_approximation=True`.
+
+While [`~onnxruntime.configuration.OptimizationConfig`] gives you full control on how to do optimization, it can be hard to know what to enable / disable. Instead, you can use [`~onnxruntime.configuration.AutoOptimizationConfig`] which provides 3 common optimizations levels:
+- O1: basic general optimizations.
+- O2: basic and extended general optimizations, `transformers`-specific fusions.
+- O3: same as O2 with Gelu approximation.
+- O4: same as O3 with mixed precision.
+
+Example: Loading a O2 [`~onnxruntime.configuration.OptimizationConfig`]
+
+```python
+>>> from optimum.onnxruntime import AutoOptimizationConfig
+>>> optimization_config = AutoOptimizationConfig.O2()
+```
+
+You can also specify custom argument that were not defined in the O2 configuration, for instance:
+
+```python
+>>> from optimum.onnxruntime import AutoOptimizationConfig
+>>> optimization_config = AutoOptimizationConfig.O2(disable_embed_layer_norm_fusion=False)
+```
+
 
 ## Optimization examples
 
 Below you will find an easy end-to-end example on how to optimize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
 
 ```python
->>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSequenceClassification
->>> from optimum.onnxruntime.configuration import OptimizationConfig
+>>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSequenceClassification, OptimizationConfig
 
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 >>> save_dir = "/tmp/outputs"
@@ -61,7 +103,7 @@ Below you will find an easy end-to-end example on how to optimize [distilbert-ba
 # Define the optimization strategy by creating the appropriate configuration
 >>> optimization_config = OptimizationConfig(
     optimization_level=2,
-    optimize_with_onnxruntime_only=False,
+    enable_transformers_specific_optimizations=True,
     optimize_for_gpu=False,
 )
 
@@ -73,8 +115,7 @@ Below you will find an easy end-to-end example on how to optimize [distilbert-ba
 Below you will find an easy end-to-end example on how to optimize a Seq2Seq model [sshleifer/distilbart-cnn-12-6"](https://huggingface.co/sshleifer/distilbart-cnn-12-6).
 
 ```python
->>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSeq2SeqLM
->>> from optimum.onnxruntime.configuration import OptimizationConfig
+>>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSeq2SeqLM, OptimizationConfig
 >>> from transformers import AutoTokenizer
 
 >>> model_id = "sshleifer/distilbart-cnn-12-6"
@@ -89,7 +130,7 @@ Below you will find an easy end-to-end example on how to optimize a Seq2Seq mode
 # Define the optimization strategy by creating the appropriate configuration
 >>> optimization_config = OptimizationConfig(
     optimization_level=2,
-    optimize_with_onnxruntime_only=False,
+    enable_transformers_specific_optimizations=True,
     optimize_for_gpu=False,
 )
 
@@ -107,4 +148,3 @@ Below you will find an easy end-to-end example on how to optimize a Seq2Seq mode
 >>> tokens = tokenizer("This is a sample input", return_tensors="pt")
 >>> outputs = optimized_model.generate(**tokens)
 ```
-

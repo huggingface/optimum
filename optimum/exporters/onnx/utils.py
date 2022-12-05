@@ -16,10 +16,20 @@
 
 from ctypes import c_float, sizeof
 from enum import Enum
+from typing import TYPE_CHECKING, Dict, Tuple, Union
 
 import packaging
-from transformers.utils import is_torch_available
+from transformers.utils import is_tf_available, is_torch_available
 
+
+if TYPE_CHECKING:
+    from .base import OnnxConfig
+
+    if is_torch_available():
+        from transformers.modeling_utils import PreTrainedModel
+
+    if is_tf_available():
+        from transformers.modeling_tf_utils import TFPreTrainedModel
 
 MIN_TORCH_VERSION = packaging.version.parse("1.11.0")
 TORCH_VERSION = None
@@ -69,3 +79,38 @@ def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
             f"but we require the version to be >= {minimum_version} to enable all the conversions options.\n"
             "Please update ONNX Runtime by running `pip install --upgrade onnxruntime`"
         )
+
+
+def get_encoder_decoder_models_for_export(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig"
+) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
+    """
+    Returns the encoder and decoder parts of the model and their subsequent onnx configs.
+
+    Args:
+        model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
+            The model to export.
+        config ([`~exporters.onnx.config.OnnxConfig`]):
+            The ONNX configuration associated with the exported model.
+
+    Returns:
+        `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
+        onnx configs for the encoder and decoder parts of the model.
+    """
+    models_for_export = dict()
+
+    encoder_model = model.get_encoder()
+    encoder_onnx_config = config.get_encoder_onnx_config(encoder_model.config)
+    models_for_export["encoder"] = (encoder_model, encoder_onnx_config)
+
+    decoder_model = model.get_decoder()
+    decoder_onnx_config = config.get_decoder_onnx_config(decoder_model.config, config.task, use_past=False)
+    models_for_export["decoder"] = (model, decoder_onnx_config)
+
+    if config.use_past:
+        decoder_onnx_config_with_past = config.get_decoder_onnx_config(
+            decoder_model.config, config.task, use_past=True
+        )
+        models_for_export["decoder_with_past"] = (model, decoder_onnx_config_with_past)
+
+    return models_for_export

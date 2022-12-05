@@ -1,0 +1,82 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Overview
+
+🤗 Optimum provides an integration with `BetterTransformer`, a stable API from PyTorch to benefit from interesting speedups on CPU & GPU through sparsity and fused kernels.
+
+## Quickstart
+
+Since its 1.13 version, PyTorch released the stable version of `BetterTransformer` in its library. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NIVIDIA GPUs.
+You can now use this feature in 🤗 Optimum together with Transformers and use it for major models in the Hugging Face ecosystem.
+
+### Supported models
+
+The list of supported model below:
+
+- [AlBERT](https://arxiv.org/abs/1909.11942)
+- [BART](https://arxiv.org/abs/1910.13461)
+- [BERT](https://arxiv.org/abs/1810.04805)
+- [BERT-generation](https://arxiv.org/abs/1907.12461)
+- [CamemBERT](https://arxiv.org/abs/1911.03894)
+- [Data2VecText](https://arxiv.org/abs/2202.03555)
+- [DistilBert](https://arxiv.org/abs/1910.01108)
+- [DeiT](https://arxiv.org/abs/2012.12877)
+- [Electra](https://arxiv.org/abs/2003.10555)
+- [Ernie](https://arxiv.org/abs/1904.09223)
+- [FSMT](https://arxiv.org/abs/1907.06616)
+- [HuBERT](https://arxiv.org/pdf/2106.07447.pdf)
+- [LayoutLM](https://arxiv.org/abs/1912.13318)
+- [MarkupLM](https://arxiv.org/abs/2110.08518)
+- [MBart](https://arxiv.org/abs/2001.08210)
+- [M2M100](https://arxiv.org/abs/2010.11125)
+- [RoBERTa](https://arxiv.org/abs/1907.11692)
+- [Splinter](https://arxiv.org/abs/2101.00438)
+- [Tapas](https://arxiv.org/abs/2211.06550)
+- [ViLT](https://arxiv.org/abs/2102.03334)
+- [ViT](https://arxiv.org/abs/2010.11929)
+- [ViT-MAE](https://arxiv.org/abs/2111.06377)
+- [ViT-MSN](https://arxiv.org/abs/2204.07141)
+- [Wav2Vec2](https://arxiv.org/abs/2006.11477)
+- [Whisper](https://cdn.openai.com/papers/whisper.pdf)
+- [XLMRoberta](https://arxiv.org/abs/1911.02116)
+- [YOLOS](https://arxiv.org/abs/2106.00666)
+
+Let us know by opening an issue in 🤗 Optimum if you want more models to be supported, or check out the contribution guideline if you want to add it by yourself!
+
+### Quick usage
+
+In order to use the `BetterTransformer` API just run the following commands:
+
+```python
+>>> from transformers import AutoModelForSequenceClassification
+>>> from optimum.bettertransformer import BetterTransformer
+>>> model_hf = AutoModelForSequenceClassification.from_pretrained("bert-base-cased")
+>>> model = BetterTransformer.transform(model_hf, keep_original_model=True)
+```
+You can leave `keep_original_model=False` in case you want to overwrite the current model with its `BetterTransformer` version.
+
+More details on `tutorials` section to deeply understand how to use it, or check the [Google colab demo](https://colab.research.google.com/drive/1Lv2RCG_AT6bZNdlL1oDDNNiwBBuirwI-?usp=sharing)!
+
+
+<div class="mt-10">
+  <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./tutorials/convert"
+      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Tutorials</div>
+      <p class="text-gray-700">Learn the basics and become familiar with 🤗 and `BetterTransformer` integration. Start here if you are using 🤗 Optimum for the first time!</p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./tutorials/contribute"
+      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">How-to guides</div>
+      <p class="text-gray-700">You want to add your own model for `BetterTransformer` support? Start here to check the contribution guideline!</p>
+    </a>
+  </div>
+</div>

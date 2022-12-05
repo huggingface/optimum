@@ -12,15 +12,23 @@ specific language governing permissions and limitations under the License.
 
 # Configuration
 
+The configuration classes are the way to specify how a task should be done. There are two tasks supported with the ONNX Runtime package:
+
+1. Optimization: Performed by the [`~onnxruntime.ORTOptimizer`], this task can be tweaked using an [`~onnxruntime.configuration.OptimizationConfig`].
+
+2. Quantization: Performed by the [`~onnxruntime.ORTQuantizer`], quantization can be set using a [`~onnxruntime.configuration.QuantizationConfig`]. A calibration step is required in some cases (post training static quantization), which can be specified using a [`~onnxruntime.configuration.CalibrationConfig`].
+
 ## OptimizationConfig
 
 [[autodoc]] onnxruntime.configuration.OptimizationConfig
+
+[[autodoc]] onnxruntime.configuration.AutoOptimizationConfig
 
 ## QuantizationConfig
 
 [[autodoc]] onnxruntime.configuration.QuantizationConfig
 
-## CalibrationConfig
+### CalibrationConfig
 
 [[autodoc]] onnxruntime.configuration.CalibrationConfig
 

@@ -25,14 +25,14 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, 
 
 from transformers.utils import is_torch_available
 
-from ...utils import logging
-from ...utils.input_generators import DummyInputGenerator
+from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, logging
+from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
 from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedModel
+    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
 logger = logging.get_logger(__name__)
 
@@ -60,6 +60,37 @@ class PatchingSpec:
     custom_op: Callable
     orig_op: Optional[Callable] = None
     op_wrapper: Optional[Callable] = None
+
+
+GENERATE_DUMMY_DOCSTRING = r"""
+        Generates the dummy inputs necessary for tracing the model. If not explicitely specified, default input shapes are used.
+
+        Args:
+            framework (`str`, defaults to `"pt"`):
+                The framework for which to create the dummy inputs.
+            batch_size (`int`, defaults to {batch_size}):
+                The batch size to use in the dummy inputs.
+            sequence_length (`int`, defaults to {sequence_length}):
+                The sequence length to use in the dummy inputs.
+            num_choices (`int`, defaults to {num_choices}):
+                The number of candidate answers provided for multiple choice task.
+            image_width (`int`, defaults to {width}):
+                The width to use in the dummy inputs for vision tasks.
+            image_height (`int`, defaults to {height}):
+                The height to use in the dummy inputs for vision tasks.
+            num_channels (`int`, defaults to {num_channels}):
+                The number of channels to use in the dummpy inputs for vision tasks.
+            feature_size (`int`, defaults to {feature_size}):
+                The number of features to use in the dummpy inputs for audio tasks in case it is not raw audio.
+                This is for example the number of STFT bins or MEL bins.
+            nb_max_frames (`int`, defaults to {nb_max_frames}):
+                The number of frames to use in the dummpy inputs for audio tasks in case the input is not raw audio.
+            audio_sequence_length (`int`, defaults to {audio_sequence_length}):
+                The number of frames to use in the dummpy inputs for audio tasks in case the input is raw audio.
+
+        Returns:
+            `Dict`: A dictionary mapping the input names to dummy tensors in the proper framework format.
+"""
 
 
 class OnnxConfig(ExportConfig, ABC):
@@ -120,6 +151,7 @@ class OnnxConfig(ExportConfig, ABC):
         "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "speech2seq-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
     }
 
     def __init__(
@@ -133,7 +165,6 @@ class OnnxConfig(ExportConfig, ABC):
 
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
-        self.create_dummy_input_generator_classes()
 
         self._patching_specs = []
         for spec in patching_specs if patching_specs is not None else []:
@@ -142,20 +173,21 @@ class OnnxConfig(ExportConfig, ABC):
                 final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
             self._patching_specs.append(final_spec)
 
-    def create_dummy_input_generator_classes(self):
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
         """
         Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
-
         Each dummy input generator is independent, so this method instantiates the first generator, and
         forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
         size. Override this method for custom behavior.
         """
-        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
-        self.dummy_inputs_generators = [
-            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size)
+        first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config, **kwargs)
+        dummy_inputs_generators = [
+            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size, **kwargs)
             for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
         ]
-        self.dummy_inputs_generators.insert(0, first_inputs_gen)
+        dummy_inputs_generators.insert(0, first_inputs_gen)
+
+        return dummy_inputs_generators
 
     @property
     @abstractmethod
@@ -164,7 +196,7 @@ class OnnxConfig(ExportConfig, ABC):
         Mapping containing the axis definition of the input tensors to provide to the model.
 
         Returns:
-            The name associated with the axes symbolic name and the axis position within the tensor of each input.
+            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
         """
         raise NotImplementedError()
 
@@ -174,7 +206,7 @@ class OnnxConfig(ExportConfig, ABC):
         Mapping containing the axis definition of the output tensors to provide to the model.
 
         Returns:
-            For each output: its name associated to the axes symbolic name and the axis position within the tensor.
+            `Mapping[str, Mapping[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
@@ -206,20 +238,35 @@ class OnnxConfig(ExportConfig, ABC):
             return TORCH_VERSION >= self.MIN_TORCH_VERSION
         return False
 
-    def ordered_inputs(self, model: "PreTrainedModel") -> Mapping[str, Mapping[int, str]]:
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        """
+        Dictionary of keys to update the ONNX input name for export. Override the function when
+        the dummy input names and the exported ONNX input names need to be different.
+
+        Returns:
+            `Mapping[str, str]`: A dictionary specifying the dummy input name to exported ONNX input name map.
+        """
+        return {}
+
+    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Mapping[str, Mapping[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
 
         Args:
-            model ([`transformers.PreTrainedModel`]):
+            model ([`transformers.PreTrainedModel`] or [`transformers.TFPreTrainedModel`]):
                 The model for which we will use the OnnxConfig.
 
         Returns:
             `Mapping[str, Mappingp[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
+
         ordered_inputs = {}
-        sig = inspect.signature(model.forward)
+        if hasattr(model, "forward"):
+            sig = inspect.signature(model.forward)
+        else:
+            sig = inspect.signature(model.call)
         for param in sig.parameters:
             param_regex = re.compile(rf"{param}(\.\d*)?")
             to_insert = []
@@ -229,25 +276,18 @@ class OnnxConfig(ExportConfig, ABC):
             # TODO: figure out a smart way of re-ordering potential nested structures.
             # to_insert = sorted(to_insert, key=lambda t: t[0])
             for name, dynamic_axes in to_insert:
+                name = self.torch_to_onnx_input_map.get(name, name)
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
 
-    # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
-    def generate_dummy_inputs(self, framework: str = "pt"):
-        """
-        Generates the dummy inputs necessary for tracing the model.
+    @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs) -> Dict:
+        dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
 
-        Args:
-            framework (`str`, defaults to `"pt"`):
-                The framework for which to create the dummy inputs.
-
-        Returns:
-            `Dict`: A dictionary mapping the input names to dummy tensors in the proper framework format.
-        """
         dummy_inputs = {}
         for input_name in self.inputs:
             input_was_inserted = False
-            for dummy_input_gen in self.dummy_inputs_generators:
+            for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
                     dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                     input_was_inserted = True
@@ -286,8 +326,24 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
 
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        """
+        Generate inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
+        models which have the encoder and decoder exported as separate ONNX files.
+        Args:
+            reference_model_inputs ([`Mapping[str, Tensor]`):
+                Reference inputs for the model.
+        Returns:
+            `Mapping[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
+        """
+        return reference_model_inputs
+
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
+    """
+    Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
+    """
+
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
 
     def __init__(
@@ -329,15 +385,17 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         if hasattr(self._config, "use_cache"):
             return {"use_cache": self.use_past}
 
-    # TODO: make it possible to pass static shapes (batch size, sequence length, num choices, image width / height / channel)
-    def generate_dummy_inputs(self, framework: str = "pt"):
+    @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
+
         dummy_inputs = {}
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
         if self.use_past:
             input_names.append("past_key_values")
         for input_name in input_names:
             input_was_inserted = False
-            for dummy_input_gen in self.dummy_inputs_generators:
+            for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
                     dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                     input_was_inserted = True
@@ -397,6 +455,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
 
 class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
+    """
+    Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
+    """
+
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
 
     @property
@@ -437,3 +499,43 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
         flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+
+    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> OnnxConfig:
+        """
+        Returns ONNX encoder config for `Seq2Seq` models. Implement the method to export the encoder
+        of the model separately.
+
+        Args:
+            config (`PretrainedConfig`):
+                The encoder model's configuration to use when exporting to ONNX.
+
+        Returns:
+            `OnnxConfig`: An instance of the ONNX configuration object.
+        """
+        raise NotImplementedError(
+            f"{config.model_type} encoder export is not supported yet. ",
+            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
+        )
+
+    def get_decoder_onnx_config(
+        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
+    ) -> OnnxConfig:
+        """
+        Returns ONNX decoder config for `Seq2Seq` models. Implement the method to export the decoder
+        of the model separately.
+
+        Args:
+            config (`PretrainedConfig`):
+                The decoder model's configuration to use when exporting to ONNX.
+            task (`str`, defaults to `"default"`):
+                The task the model should be exported for.
+            use_past (`bool`, defaults to `False`):
+                Whether to export the model with past_key_values.
+
+        Returns:
+            `OnnxConfig`: An instance of the ONNX configuration object.
+        """
+        raise NotImplementedError(
+            f"{config.model_type} decoder export is not supported yet. ",
+            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
+        )

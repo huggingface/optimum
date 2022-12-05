@@ -21,7 +21,14 @@ import pytest
 from transformers import AutoConfig, is_tf_available, is_torch_available
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
 
-from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithPast, export, validate_model_outputs
+from optimum.exporters.onnx import (
+    OnnxConfig,
+    OnnxConfigWithPast,
+    export,
+    export_encoder_decoder_model,
+    validate_encoder_decoder_model_outputs,
+    validate_model_outputs,
+)
 from parameterized import parameterized
 
 
@@ -96,6 +103,8 @@ PYTORCH_EXPORT_MODELS = {
     ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
     # Not using google/long-t5-local-base because it takes too much time for testing.
     ("longt5", "hf-internal-testing/tiny-random-longt5"),
+    ("whisper", "openai/whisper-tiny.en"),
+    ("swin", "microsoft/swin-base-patch4-window12-384-in22k"),
 }
 
 
@@ -105,6 +114,27 @@ TENSORFLOW_EXPORT_MODELS = {
     ("camembert", "camembert-base"),
     ("distilbert", "distilbert-base-cased"),
     ("roberta", "roberta-base"),
+}
+
+PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION = {
+    ("bart", "facebook/bart-base", ("seq2seq-lm", "seq2seq-lm-with-past")),
+    ("mbart", "sshleifer/tiny-mbart", ("seq2seq-lm", "seq2seq-lm-with-past")),
+    ("t5", "t5-small"),
+    ("marian", "Helsinki-NLP/opus-mt-en-de", ("seq2seq-lm", "seq2seq-lm-with-past")),
+    # Not using google/mt5-small because it takes too much time for testing.
+    ("mt5", "lewtun/tiny-random-mt5"),
+    # Not using facebook/m2m100_418M because it takes too much time for testing.
+    (
+        "m2m-100",
+        "hf-internal-testing/tiny-random-m2m_100",
+    ),
+    # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
+    (
+        "bigbird-pegasus",
+        "hf-internal-testing/tiny-random-bigbird_pegasus",
+        ("seq2seq-lm", "seq2seq-lm-with-past"),
+    ),
+    ("whisper", "openai/whisper-tiny.en"),
 }
 
 
@@ -218,7 +248,9 @@ class OnnxExportTestCase(TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
-    def _onnx_export(self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu"):
+    def _onnx_export(
+        self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu", for_ort=False
+    ):
         model_class = TasksManager.get_model_class_for_task(task)
         config = AutoConfig.from_pretrained(model_name)
         model = model_class.from_config(config)
@@ -247,23 +279,52 @@ class OnnxExportTestCase(TestCase):
                     f" {onnx_config.MIN_TORCH_VERSION}, got: {TORCH_VERSION}"
                 )
 
-        with NamedTemporaryFile("w") as output:
-            try:
-                onnx_inputs, onnx_outputs = export(
-                    model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
-                )
-                atol = onnx_config.ATOL_FOR_VALIDATION
-                if isinstance(atol, dict):
-                    atol = atol[task.replace("-with-past", "")]
-                validate_model_outputs(
-                    onnx_config,
-                    model,
-                    Path(output.name),
-                    onnx_outputs,
-                    atol,
-                )
-            except (RuntimeError, ValueError) as e:
-                self.fail(f"{name}, {task} -> {e}")
+        atol = onnx_config.ATOL_FOR_VALIDATION
+        if isinstance(atol, dict):
+            atol = atol[task.replace("-with-past", "")]
+
+        if for_ort:
+            with NamedTemporaryFile("w") as encoder_output, NamedTemporaryFile(
+                "w"
+            ) as decoder_output, NamedTemporaryFile("w") as decoder_with_past_output:
+                try:
+                    onnx_inputs, onnx_outputs = export_encoder_decoder_model(
+                        model,
+                        onnx_config,
+                        onnx_config.DEFAULT_ONNX_OPSET,
+                        Path(encoder_output.name),
+                        Path(decoder_output.name),
+                        Path(decoder_with_past_output.name),
+                        device=device,
+                    )
+
+                    validate_encoder_decoder_model_outputs(
+                        onnx_config,
+                        model,
+                        onnx_outputs,
+                        atol,
+                        Path(encoder_output.name),
+                        Path(decoder_output.name),
+                        Path(decoder_with_past_output.name),
+                    )
+                except (RuntimeError, ValueError) as e:
+                    self.fail(f"{name}, {task} -> {e}")
+
+        else:
+            with NamedTemporaryFile("w") as output:
+                try:
+                    onnx_inputs, onnx_outputs = export(
+                        model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
+                    )
+                    validate_model_outputs(
+                        onnx_config,
+                        model,
+                        Path(output.name),
+                        onnx_outputs,
+                        atol,
+                    )
+                except (RuntimeError, ValueError) as e:
+                    self.fail(f"{name}, {task} -> {e}")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
     @slow
@@ -278,6 +339,26 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     def test_pytorch_export_on_cuda(self, test_name, name, model_name, task, onnx_config_class_constructor):
         self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, device="cuda")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION))
+    @slow
+    @require_torch
+    @require_vision
+    def test_pytorch_export_for_encoder_decoder_models_for_conditional_generation(
+        self, test_name, name, model_name, task, onnx_config_class_constructor
+    ):
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, for_ort=True)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION))
+    @slow
+    @require_torch
+    @require_vision
+    def test_pytorch_export_for_encoder_decoder_models_for_conditional_generation_on_cuda(
+        self, test_name, name, model_name, task, onnx_config_class_constructor
+    ):
+        self._onnx_export(
+            test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
+        )
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow
