@@ -55,8 +55,6 @@ from transformers.file_utils import (
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.onnx import export
-from transformers.onnx.features import FeaturesManager
 from transformers.pytorch_utils import is_torch_less_than_1_11
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -91,6 +89,8 @@ from transformers.trainer_utils import (
 )
 from transformers.utils import check_min_version, logging
 
+from ..exporters import TasksManager
+from ..exporters.onnx import export
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
@@ -1460,9 +1460,15 @@ class ORTTrainer(Trainer):
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
-        onnx_config = model_onnx_config(model.config)
-        opset = onnx_config.default_onnx_opset if opset is None else opset
+        model_type = model.config.model_type.replace("_", "-")
+        model_name = getattr(model, "name", None)
+
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            model_type, "onnx", task=self.feature, model_name=model_name
+        )
+        onnx_config = onnx_config_constructor(model.config)
+
+        opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
 
         if with_loss:
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
@@ -1470,14 +1476,7 @@ class ORTTrainer(Trainer):
 
         # transformers >= 4.21.0 is required to export with specified device
         check_min_version("4.21.0")
-        _ = export(
-            preprocessor=self.tokenizer,
-            model=model,
-            config=onnx_config,
-            opset=opset,
-            output=model_path,
-            device=device,
-        )
+        _ = export(model, onnx_config, opset, model_path, device=device)
 
     def _wrap_model(self, model, training=True, dataloader=None):
         # TODO: torchdynamo works for inference with PyTorch in ORTTrainer, will move `inference_with_ort` to training arguments and

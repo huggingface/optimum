@@ -44,6 +44,8 @@ class NormalizedConfig:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):
+        if attr_name == "config":
+            return None
         attr_name = attr_name.split(".")
         leaf_attr_name = attr_name[-1]
         config = self.config
