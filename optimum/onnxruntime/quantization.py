@@ -130,9 +130,13 @@ class ORTQuantizer(OptimumQuantizer):
             An instance of `ORTQuantizer`.
         """
         ort_quantizer_error_message = "ORTQuantizer does not support multi-file quantization. Please create separate ORTQuantizer instances for each model/file."
+
+        if isinstance(model_or_path, str):
+            model_or_path = Path(model_or_path)
+
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise ValueError(ort_quantizer_error_message)
-        elif isinstance(model_or_path, (str, Path)):
+        elif isinstance(model_or_path, Path):
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_or_path}")

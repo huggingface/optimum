@@ -961,8 +961,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     path = f"{path}/{subfolder}"
                 onnx_files = [p for p in repo_files if re.match(pattern, str(p))]
 
-            if fail_if_not_found and len(onnx_files) == 0:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+            if len(onnx_files) == 0:
+                if fail_if_not_found:
+                    raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+                return None
             elif len(onnx_files) > 1:
                 if argument_name is not None:
                     raise RuntimeError(
@@ -977,7 +979,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             decoder_file_name = infer_filename(r"(.*)?decoder((?!with_past).)*?\.onnx", "decoder_file_name")
         if not validate_filename(decoder_with_past_file_name):
             decoder_with_past_file_name = infer_filename(
-                r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=False
+                r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=use_cache
             )
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
