@@ -14,6 +14,7 @@
 # limitations under the License.
 import tempfile
 import unittest
+from typing import List, Optional
 
 import torch
 from transformers import AutoModel
@@ -34,21 +35,24 @@ class BetterTransformersTestMixin:
     """
     all_models_to_test = []
 
-    def prepare_inputs_for_class(self):
+    def prepare_inputs_for_class(self, models_to_test=None):
         raise NotImplementedError
 
-    def test_logits(self):
+    def test_logits(self, models_to_test: Optional[List] = None, **preprocessor_kwargs):
         r"""
         This tests if the converted model produces the same logits
         than the original model.
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
 
-        for model_to_test in self.all_models_to_test:
-            inputs = self.prepare_inputs_for_class(model_to_test)
+        if models_to_test is None:
+            models_to_test = self.all_models_to_test
+
+        for model_id in models_to_test:
+            inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs)
 
             torch.manual_seed(0)
-            hf_random_model = AutoModel.from_pretrained(model_to_test).eval()
+            hf_random_model = AutoModel.from_pretrained(model_id).eval()
             random_config = hf_random_model.config
 
             torch.manual_seed(0)
@@ -75,14 +79,31 @@ class BetterTransformersTestMixin:
                     # discrepency.
                     tol = 4e-2
                 else:
-                    tol = 1e-3
+                    tol = 2e-3
 
-                self.assertTrue(
-                    torch.allclose(hf_hidden_states[:, :3, :], bt_hidden_states[:, :3, :], atol=tol),
-                    "The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {}".format(
-                        hf_random_model.__class__.__name__
-                    ),
-                )
+                if "attention_mask" in inputs:
+                    for i, attention_mask in enumerate(inputs["attention_mask"]):
+                        length = torch.argwhere(attention_mask != 0).max().item()
+                        self.assert_equal(
+                            tensor1=hf_hidden_states[i, : length + 1, :],
+                            tensor2=bt_hidden_states[i, : length + 1, :],
+                            atol=tol,
+                            model_name=hf_random_model.__class__.__name__,
+                        )
+                else:
+                    self.assert_equal(
+                        tensor1=hf_hidden_states[:, :3, :],
+                        tensor2=bt_hidden_states[:, :3, :],
+                        atol=tol,
+                        model_name=hf_random_model.__class__.__name__,
+                    )
+
+    def assert_equal(self, tensor1, tensor2, atol: float, model_name: str):
+        self.assertTrue(
+            torch.allclose(tensor1, tensor2, atol=atol),
+            f"The BetterTransformer converted model does not produce the same logits as the original model. Failed for the model {model_name}."
+            f" Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
+        )
 
     def test_raise_on_save(self):
         r"""

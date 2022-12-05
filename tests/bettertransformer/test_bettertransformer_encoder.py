@@ -18,39 +18,42 @@ import unittest
 
 import torch
 import transformers
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
 from optimum.utils.testing_utils import (
     convert_to_hf_classes,
+    grid_parameters,
     is_torch_greater_than_113,
     require_accelerate,
     require_torch_gpu,
 )
+from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_ENCODER_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-DistilBertModel",
     "hf-internal-testing/tiny-random-AlbertModel",
-    "hf-internal-testing/tiny-random-RobertaModel",
-    "hf-internal-testing/tiny-xlm-roberta",
-    "hf-internal-testing/tiny-random-SplinterModel",
-    "hf-internal-testing/tiny-random-ErnieModel",
-    "hf-internal-testing/tiny-random-camembert",
-    "hf-internal-testing/tiny-random-ElectraModel",
-    "hf-internal-testing/tiny-random-LayoutLMModel",
-    "hf-internal-testing/tiny-random-Data2VecTextModel",
-    "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-BertModel",
-    "ybelkada/random-tiny-BertGenerationModel",
+    "hf-internal-testing/tiny-random-camembert",
+    "hf-internal-testing/tiny-random-Data2VecTextModel",
+    "hf-internal-testing/tiny-random-DistilBertModel",
+    "hf-internal-testing/tiny-random-ElectraModel",
+    "hf-internal-testing/tiny-random-ErnieModel",
+    "hf-internal-testing/tiny-random-LayoutLMModel",
+    "hf-internal-testing/tiny-random-MarkupLMModel",
+    "hf-internal-testing/tiny-random-rembert",
+    "hf-internal-testing/tiny-random-RobertaModel",
+    "hf-internal-testing/tiny-random-SplinterModel",
     "hf-internal-testing/tiny-random-TapasModel",
+    "hf-internal-testing/tiny-xlm-roberta",
+    "ybelkada/random-tiny-BertGenerationModel",
 ]
 
 ALL_ENCODER_DECODER_MODELS_TO_TEST = [
+    "hf-internal-testing/tiny-random-bart",
     "hf-internal-testing/tiny-random-FSMTModel",
-    "hf-internal-testing/tiny-random-BartModel",
-    "hf-internal-testing/tiny-random-MBartModel",
+    "hf-internal-testing/tiny-random-mbart",
     "hf-internal-testing/tiny-random-nllb",
 ]
 
@@ -277,13 +280,24 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id=None):
-        input_dict = {
-            "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
-            "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
-            "decoder_input_ids": torch.LongTensor([[0], [0]]),
-        }
-        return input_dict
+    def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        padding = preprocessor_kwargs.pop("padding", True)
+        inputs = tokenizer(["a dummy input", "and two"], return_tensors="pt", padding=padding, **preprocessor_kwargs)
+        inputs["decoder_input_ids"] = inputs["input_ids"]  # just a hack for m2m100
+        return inputs
+
+    # run the test over all possible combinations of `model_id` and `padding`
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": ALL_ENCODER_DECODER_MODELS_TO_TEST,
+                "padding": ["max_length", True],
+            }
+        )
+    )
+    def test_logits(self, model_id, padding, max_length=20):
+        super().test_logits([model_id], padding=padding, max_length=max_length)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
