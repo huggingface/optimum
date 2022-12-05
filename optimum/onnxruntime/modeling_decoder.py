@@ -24,24 +24,24 @@ import torch
 import transformers
 from transformers import AutoModelForCausalLM, PretrainedConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward, default_cache_path
-from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 from transformers.onnx import FeaturesManager, export
 from transformers.onnx.utils import get_preprocessor
 
 import onnxruntime
 from huggingface_hub import hf_hub_download
-from optimum.onnx.configuration import DecoderOnnxConfigWithPast
 
+from ..onnx.configuration import DecoderOnnxConfigWithPast
+from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
-from .utils import (
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ORTConfigManager,
-    get_provider_for_device,
-    parse_device,
-)
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
+
+
+if check_if_transformers_greater("4.25.0"):
+    from transformers.generation import GenerationMixin
+else:
+    from transformers.generation_utils import GenerationMixin
 
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,9 @@ class ORTDecoder:
     ):
         self.session = session
         self.config = config
-        self.normalized_config = ORTConfigManager.get_normalized_config_class(self.config.model_type)(self.config)
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.config.model_type)(
+            self.config
+        )
         self._device = device
         self.use_io_binding = use_io_binding
         self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}

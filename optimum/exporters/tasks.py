@@ -628,7 +628,8 @@ class TasksManager:
             task_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
         if task not in task_to_automodel:
             raise KeyError(
-                f"Unknown task: {task}. Possible values are {list(TasksManager._TASKS_TO_AUTOMODELS.values())}"
+                f"Unknown task: {task}. Possible values are: "
+                + ", ".join([f"`{key}` for {task_to_automodel[key].__name__}" for key in task_to_automodel])
             )
         return task_to_automodel[task]
 
