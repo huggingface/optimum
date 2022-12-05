@@ -85,21 +85,26 @@ class BetterTransformersTestMixin:
                 if "attention_mask" in inputs:
                     for i, attention_mask in enumerate(inputs["attention_mask"]):
                         length = torch.argwhere(attention_mask != 0).max().item()
-                        self.assertTrue(
-                            torch.allclose(
-                                hf_hidden_states[i, : length + 1, :], bt_hidden_states[i, : length + 1, :], atol=tol
-                            ),
-                            "The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {}".format(
-                                hf_random_model.__class__.__name__
-                            ),
+                        self.assert_equal(
+                            tensor1=hf_hidden_states[i, : length + 1, :],
+                            tensor2=bt_hidden_states[i, : length + 1, :],
+                            atol=tol,
+                            model_name=hf_random_model.__class__.__name__,
                         )
                 else:
-                    self.assertTrue(
-                        torch.allclose(hf_hidden_states[:, :3, :], bt_hidden_states[:, :3, :], atol=tol),
-                        "The BetterTransformers Converted model does not produce the same logits as the original model. Failed for the model {}".format(
-                            hf_random_model.__class__.__name__
-                        ),
+                    self.assert_equal(
+                        tensor1=hf_hidden_states[:, :3, :],
+                        tensor2=bt_hidden_states[:, :3, :],
+                        atol=tol,
+                        model_name=hf_random_model.__class__.__name__,
                     )
+
+    def assert_equal(self, tensor1, tensor2, atol: float, model_name: str):
+        self.assertTrue(
+            torch.allclose(tensor1, tensor2, atol=atol),
+            f"The BetterTransformer converted model does not produce the same logits as the original model. Failed for the model {model_name}"
+            f"Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
+        )
 
     def test_raise_on_save(self):
         r"""
