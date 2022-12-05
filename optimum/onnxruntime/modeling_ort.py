@@ -1462,7 +1462,7 @@ CUSTOM_TASKS_EXAMPLE = r"""
 )
 class ORTModelForCustomTasks(ORTModel):
     """
-    Onnx Model for any custom tasks.
+    Onnx Model for any custom tasks using encoder or decoder-only models.
     """
 
     export_feature = "default"
