@@ -14,6 +14,7 @@
 # limitations under the License.
 import tempfile
 import unittest
+from typing import List, Optional
 
 import torch
 from transformers import AutoModel
@@ -37,7 +38,7 @@ class BetterTransformersTestMixin:
     def prepare_inputs_for_class(self, models_to_test=None):
         raise NotImplementedError
 
-    def test_logits(self, models_to_test, **preprocessor_kwargs):
+    def test_logits(self, models_to_test: Optional[List] = None, **preprocessor_kwargs):
         r"""
         This tests if the converted model produces the same logits
         than the original model.
