@@ -18,12 +18,11 @@ import re
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-import transformers
-from transformers import AutoModelForCausalLM, PretrainedConfig
+from transformers import AutoModelForCausalLM
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
@@ -33,10 +32,14 @@ from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_downlo
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_tokenizer_or_processor_or_feature_extractor
+from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
+
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
 
 
 if check_if_transformers_greater("4.25.0"):
@@ -326,7 +329,7 @@ class ORTModelDecoder(ORTModel):
     def __init__(
         self,
         decoder_session: onnxruntime.InferenceSession,
-        config: transformers.PretrainedConfig,
+        config: "PretrainedConfig",
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
         use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
@@ -335,11 +338,11 @@ class ORTModelDecoder(ORTModel):
     ):
         """
         Args:
-            config (`transformers.PretrainedConfig`):
-                An instance of the configuration associated to the model. Initializing with a config file does
-                not load the weights associated with the model, only the configuration.
             decoder_session (`onnxruntime.InferenceSession`):
                 The ONNX Runtime inference session associated to the decoder.
+            config ([~`transformers.PretrainedConfig`]):
+                An instance of the configuration associated to the model. Initializing with a config file does
+                not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
             use_io_binding (`bool`, *optional*, defaults to `True`):
@@ -358,7 +361,7 @@ class ORTModelDecoder(ORTModel):
                     "anymore."
                 )
 
-        show_deprecated_argument("last_decoder_model_name:")
+        show_deprecated_argument("last_decoder_model_name")
         show_deprecated_argument("last_decoder_with_past_model_name")
         if kwargs:
             raise ValueError(
@@ -499,7 +502,7 @@ class ORTModelDecoder(ORTModel):
     ):
         model_path = Path(model_id)
 
-        def validate_filename(filename):
+        def validate_file_exists(filename):
             if model_path.is_dir():
                 return (model_path / subfolder / filename).is_file()
             succeeded = True
@@ -526,8 +529,10 @@ class ORTModelDecoder(ORTModel):
                     path = f"{path}/{subfolder}"
                 onnx_files = [p for p in repo_files if re.match(pattern, str(p))]
 
-            if fail_if_not_found and len(onnx_files) == 0:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+            if len(onnx_files) == 0:
+                if fail_if_not_found:
+                    raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+                return None
             elif len(onnx_files) > 1:
                 if argument_name is not None:
                     raise RuntimeError(
@@ -536,9 +541,9 @@ class ORTModelDecoder(ORTModel):
                     )
             return onnx_files[0].name
 
-        if not validate_filename(decoder_file_name):
+        if not validate_file_exists(decoder_file_name):
             decoder_file_name = infer_filename(r"(.*)?decoder((?!with_past).)*?\.onnx", "decoder_file_name")
-        if not validate_filename(decoder_with_past_file_name):
+        if not validate_file_exists(decoder_with_past_file_name):
             decoder_with_past_file_name = infer_filename(
                 r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=False
             )
@@ -680,7 +685,7 @@ class ORTModelDecoder(ORTModel):
             )
 
         config.save_pretrained(save_dir_path)
-        maybe_save_tokenizer_or_processor_or_feature_extractor(model_id, save_dir_path, src_subfolder=subfolder)
+        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
             save_dir_path,

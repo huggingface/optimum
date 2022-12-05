@@ -28,7 +28,6 @@ import numpy as np
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq
 from transformers.file_utils import add_start_docstrings_to_model_forward
-from transformers.generation_utils import GenerationMixin
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 import onnxruntime as ort
@@ -37,7 +36,7 @@ from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_downlo
 from ..exporters.onnx.convert import export_encoder_decoder_model as export
 from ..exporters.tasks import TasksManager
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_tokenizer_or_processor_or_feature_extractor
+from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_decoder import ORTDecoder
 from .modeling_ort import ORTModel
@@ -45,7 +44,6 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
-    ORTConfigManager,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
@@ -200,14 +198,14 @@ AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE = r"""
     ```
 """
 
+ENCODER_ONNX_FILE_PATTERN = r"(.*)?encoder(.*)?\.onnx"
+DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
+DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
+
 
 class ORTEncoder:
     """
-    Encoder model for ONNX Runtime inference.
-
-    Args:
-        session (`ort.InferenceSession`):
-            The ONNX Runtime inference session associated to the encoder.
+    Encoder part of the encoder-decoder model for ONNX Runtime inference.
     """
 
     def __init__(
@@ -934,7 +932,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
     ):
         model_path = Path(model_id)
 
-        def validate_filename(filename):
+        def validate_file_exists(filename):
             if model_path.is_dir():
                 return (model_path / subfolder / filename).is_file()
             succeeded = True
@@ -973,13 +971,13 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     )
             return onnx_files[0].name
 
-        if not validate_filename(encoder_file_name):
-            encoder_file_name = infer_filename(r"(.*)?encoder(.*)?\.onnx", "encoder_file_name")
-        if not validate_filename(decoder_file_name):
-            decoder_file_name = infer_filename(r"(.*)?decoder((?!with_past).)*?\.onnx", "decoder_file_name")
-        if not validate_filename(decoder_with_past_file_name):
+        if not validate_file_exists(encoder_file_name):
+            encoder_file_name = infer_filename(ENCODER_ONNX_FILE_PATTERN, "encoder_file_name")
+        if not validate_file_exists(decoder_file_name):
+            decoder_file_name = infer_filename(DECODER_ONNX_FILE_PATTERN, "decoder_file_name")
+        if not validate_file_exists(decoder_with_past_file_name):
             decoder_with_past_file_name = infer_filename(
-                r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=use_cache
+                DECODER_WITH_PAST_ONNX_FILE_PATTERN, "decoder_with_past_file_name", fail_if_not_found=use_cache
             )
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
@@ -1127,7 +1125,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         )
 
         config.save_pretrained(save_dir_path)
-        maybe_save_tokenizer_or_processor_or_feature_extractor(model_id, save_dir_path, src_subfolder=subfolder)
+        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
             save_dir_path,

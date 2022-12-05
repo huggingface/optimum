@@ -47,7 +47,7 @@ from huggingface_hub import HfApi, HfFolder, hf_hub_download
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_tokenizer_or_processor_or_feature_extractor
+from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
@@ -440,7 +440,7 @@ class ORTModel(OptimizedModel):
             output=tmp_dir_path / ONNX_WEIGHTS_NAME,
         )
         config.save_pretrained(tmp_dir_path)
-        maybe_save_tokenizer_or_processor_or_feature_extractor(model_id, tmp_dir_path, src_subfolder=subfolder)
+        maybe_save_preprocessors(model_id, tmp_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
             tmp_dir_path,

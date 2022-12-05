@@ -14,8 +14,6 @@
 # limitations under the License.
 """Utility functions."""
 
-from ctypes import c_float, sizeof
-from enum import Enum
 from typing import TYPE_CHECKING, Dict, Tuple, Union
 
 import packaging

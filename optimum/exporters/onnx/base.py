@@ -364,6 +364,16 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             use_present_in_outputs = self.USE_PRESENT_IN_OUTPUTS
         self.use_past_in_inputs = use_past if use_past_in_inputs is None else use_past_in_inputs
         self.use_present_in_outputs = use_past if use_present_in_outputs is None else use_present_in_outputs
+        if use_past != self.use_past_in_inputs:
+            logger.warning(
+                f"use_past = {use_past} is different than use_past_in_inputs = {use_past_in_inputs}, the value of "
+                "use_past_in_inputs will used for the inputs."
+            )
+        if use_past != self.use_present_in_outputs:
+            logger.warning(
+                f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
+                "of use_present_in_outputs value will used for the outputs."
+            )
         super().__init__(config, task=task, patching_specs=patching_specs)
 
     @classmethod
