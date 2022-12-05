@@ -74,7 +74,7 @@ class ORTOptimizer:
         onnx_model_path = []
         config = None
         if isinstance(model_or_path, ORTModel):
-            if isinstance(model_or_path, ORTModelForSeq2SeqLM) or isinstance(model_or_path, ORTModelForSpeechSeq2Seq):
+            if isinstance(model_or_path, ORTModelForConditionalGeneration):
                 model_save_dir = model_or_path.model_save_dir
                 onnx_model_path = [
                     model_save_dir.joinpath(model_or_path.encoder_file_name),
