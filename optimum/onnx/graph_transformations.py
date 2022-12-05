@@ -82,11 +82,17 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     return model
 
 
-def fix_atenops_to_gather(model_path):
-    # Fix broken ATenOp nodes back to Gather nodes.
-    model = onnx.load(model_path)
-    onnx.checker.check_model(model)
+def replace_atenops_to_gather(model: ModelProto):
+    """
+    Replaces broken ATenOp nodes back to Gather nodes.
 
+    Args:
+        model (`~onnx.ModelProto`): The ONNX model to fix.
+        inplace (`bool`, defaults to False): Whether to perform this transformation inplace.
+
+    Returns:
+        `~onnx.ModelProto`: The ONNX model fixed.
+    """
     nodes = model.graph.node
 
     for node in nodes:
@@ -103,4 +109,46 @@ def fix_atenops_to_gather(model_path):
             model.graph.node.insert(int(op_num), new_node)
 
     onnx.checker.check_model(model)
-    onnx.save(model, model_path)
+    return model
+
+
+def _trace_upsteam_nodes(graph, name, node_input_names, node_map, initializer_map):
+    """
+    Recurisvely traces all upstream nodes of a particular node in the graph.
+
+    Args:
+        decoder (`~onnx.ModelProto`): The decoder ONNX model.
+        decoder_with_past (`~onnx.ModelProto`): The decoder with past ONNX model.
+
+    Returns:
+        `~onnx.ModelProto`: The fused decoder ONNX model.
+    """
+    for n in graph.node:
+        for noutput in n.output:
+            if (noutput == name) and (n.name not in node_input_names):
+                # give node "name" is node n's output, so add node "n" to node_input_names list
+                node_input_names.append(n.name)
+                if n.name in node_map.keys():
+                    for ninput in node_map[n.name].input:
+                        # trace input node's inputs
+                        node_input_names = _trace_upsteam_nodes(
+                            graph, ninput, node_input_names, node_map, initializer_map
+                        )
+    # don't forget the initializers they can be terminal inputs on a path.
+    if name in initializer_map.keys():
+        node_input_names.append(name)
+    return node_input_names
+
+
+def fuse_decoders(decoder: ModelProto, decoder_with_past: ModelProto):
+    """
+    Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
+
+    Args:
+        decoder (`~onnx.ModelProto`): The decoder ONNX model.
+        decoder_with_past (`~onnx.ModelProto`): The decoder with past ONNX model.
+
+    Returns:
+        `~onnx.ModelProto`: The fused decoder ONNX model.
+    """
+    pass
