@@ -51,7 +51,7 @@ from optimum.onnxruntime import (
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
-    ORTModelForImageSegmentation,
+    ORTModelForSemanticSegmentation,
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
     ORTModelForSeq2SeqLM,
@@ -1278,14 +1278,14 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         gc.collect()
 
 
-class ORTModelForImageSegmentationIntegrationTest(unittest.TestCase):
+class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "vit": "hf-internal-testing/tiny-random-vit",  # Probably have to modify to an onnx segmentation model
     }
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForImageSegmentation.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -1293,7 +1293,7 @@ class ORTModelForImageSegmentationIntegrationTest(unittest.TestCase):
     def test_compare_to_transformers(self, *args, **kwargs):
         model_arch, model_id = args
         set_seed(SEED)
-        onnx_model = ORTModelForImageSegmentation.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
 
         self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
@@ -1320,7 +1320,7 @@ class ORTModelForImageSegmentationIntegrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = ORTModelForImageSegmentation.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -1346,7 +1346,7 @@ class ORTModelForImageSegmentationIntegrationTest(unittest.TestCase):
     @require_torch_gpu
     def test_pipeline_on_gpu(self, *args, **kwargs):
         model_arch, model_id = args
-        onnx_model = ORTModelForImageSegmentation.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -1365,11 +1365,11 @@ class ORTModelForImageSegmentationIntegrationTest(unittest.TestCase):
     def test_compare_to_io_binding(self, *args, **kwargs):
         model_arch, model_id = args
         set_seed(SEED)
-        onnx_model = ORTModelForImageSegmentation.from_pretrained(
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
         )
         set_seed(SEED)
-        io_model = ORTModelForImageSegmentation.from_pretrained(
+        io_model = ORTModelForSemanticSegmentation.from_pretrained(
             model_id, from_transformers=True, use_io_binding=True
         )
 

@@ -25,7 +25,7 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForImageClassification,
-    AutoModelForImageSegmentation,
+    AutoModelForSemanticSegmentation,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
@@ -1469,13 +1469,13 @@ IMAGE_SEGMENTATION_EXAMPLE = r"""
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
-class ORTModelForImageSegmentation(ORTModel):
+class ORTModelForSemanticSegmentation(ORTModel):
     """
     Image Segmentation model for ONNX.
     """
 
     export_feature = "image-segmentation"
-    auto_model_class = AutoModelForImageSegmentation
+    auto_model_class = AutoModelForSemanticSegmentation
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
@@ -1531,7 +1531,7 @@ class ORTModelForImageSegmentation(ORTModel):
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
         + IMAGE_SEGMENTATION_EXAMPLE.format(
             processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
-            model_class="ORTModelForImageSegmentation",
+            model_class="ORTModelForSemanticSegmentation",
             checkpoint="optimum/vit-base-patch16-224",  # Probably have to modify to an onnx segmentation model
         )
     )
