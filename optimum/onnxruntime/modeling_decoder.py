@@ -14,7 +14,6 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
-import re
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -27,11 +26,12 @@ from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
-from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_download, hf_hub_url
+from huggingface_hub import hf_hub_download
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
@@ -109,6 +109,9 @@ TEXT_GENERATION_EXAMPLE = r"""
     >>> gen = onnx_gen(text)
     ```
 """
+
+DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
+DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
 
 
 class ORTDecoder:
@@ -502,50 +505,11 @@ class ORTModelDecoder(ORTModel):
     ):
         model_path = Path(model_id)
 
-        def validate_file_exists(filename):
-            if model_path.is_dir():
-                return (model_path / subfolder / filename).is_file()
-            succeeded = True
-            try:
-                get_hf_file_metadata(hf_hub_url(model_id, filename, subfolder=subfolder, revision=revision))
-            except Exception:
-                succeeded = False
-            return succeeded
-
-        def infer_filename(pattern: str, argument_name: str, fail_if_not_found: bool = True) -> str:
-            pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
-            if model_path.is_dir():
-                path = model_path
-                files = model_path.glob("**/*.onnx")
-                onnx_files = [p for p in files if re.search(pattern, str(p))]
-            else:
-                path = model_id
-                if isinstance(use_auth_token, bool):
-                    token = HfFolder().get_token()
-                else:
-                    token = use_auth_token
-                repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
-                if subfolder != "":
-                    path = f"{path}/{subfolder}"
-                onnx_files = [p for p in repo_files if re.match(pattern, str(p))]
-
-            if len(onnx_files) == 0:
-                if fail_if_not_found:
-                    raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
-                return None
-            elif len(onnx_files) > 1:
-                if argument_name is not None:
-                    raise RuntimeError(
-                        f"Too many ONNX model files were found in {path}, specify which one to load by using the "
-                        f"{argument_name} argument."
-                    )
-            return onnx_files[0].name
-
-        if not validate_file_exists(decoder_file_name):
-            decoder_file_name = infer_filename(r"(.*)?decoder((?!with_past).)*?\.onnx", "decoder_file_name")
-        if not validate_file_exists(decoder_with_past_file_name):
-            decoder_with_past_file_name = infer_filename(
-                r"(.*)?decoder(.*)?with_past(.*)?\.onnx", "decoder_with_past_file_name", fail_if_not_found=False
+        if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
+            decoder_file_name = ORTModelDecoder.infer_onnx_filename(DECODER_ONNX_FILE_PATTERN, "decoder_file_name")
+        if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
+            decoder_with_past_file_name = ORTModelDecoder.infer_onnx_filename(
+                DECODER_WITH_PAST_ONNX_FILE_PATTERN, "decoder_with_past_file_name", fail_if_not_found=False
             )
 
         decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)

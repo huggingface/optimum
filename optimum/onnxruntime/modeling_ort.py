@@ -47,6 +47,7 @@ from huggingface_hub import HfApi, HfFolder, hf_hub_download
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
+from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .utils import (
@@ -308,6 +309,41 @@ class ORTModel(OptimizedModel):
     def _generate_regular_names_for_filename(filename: str):
         name, extension = filename.rsplit(".", maxsplit=1)
         return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}"]
+
+    @staticmethod
+    def infer_onnx_filename(
+        model_name_or_path: Union[str, Path],
+        pattern: str,
+        argument_name: str,
+        subfolder: str = "",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        fail_if_not_found: bool = True,
+    ) -> str:
+        onnx_files = find_files_matching_pattern(
+            model_name_or_path,
+            pattern,
+            glob_pattern="**/*.onnx",
+            subfolder=subfolder,
+            use_auth_token=use_auth_token,
+            revision=revision,
+        )
+
+        path = model_name_or_path
+        if subfolder != "":
+            path = f"{path}/{subfolder}"
+
+        if len(onnx_files) == 0:
+            if fail_if_not_found:
+                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+            return None
+        elif len(onnx_files) > 1:
+            if argument_name is not None:
+                raise RuntimeError(
+                    f"Too many ONNX model files were found in {path}, specify which one to load by using the "
+                    f"{argument_name} argument."
+                )
+        return onnx_files[0].name
 
     @classmethod
     def _from_pretrained(

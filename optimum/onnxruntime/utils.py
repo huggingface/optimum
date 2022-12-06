@@ -15,7 +15,7 @@
 
 import os
 from enum import Enum
-from typing import Dict, Tuple, Type, Union
+from typing import Dict, Tuple, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -25,7 +25,6 @@ import onnx
 import onnxruntime as ort
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
-from ..utils import NormalizedTextConfig
 
 
 logger = logging.get_logger(__name__)
