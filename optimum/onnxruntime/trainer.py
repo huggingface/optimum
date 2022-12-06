@@ -1497,6 +1497,16 @@ class ORTTrainer(Trainer):
         if self.use_apex and training:
             model, self.optimizer = amp.initialize(model, self.optimizer, opt_level=self.args.fp16_opt_level)
 
+            if args.fp16:
+                try:
+                    from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
+                    self.optimizer = FP16_Optimizer(self.optimizer)
+                except ImportError:
+                    raise ImportError(
+                        "ORTTrainer tried to instantiate ORT FP16_Optimizer but onnxruntime-training is not correctly installed!"
+                    )
+
         # Multi-gpu training (should be after apex fp16 initialization)
         if self.args.n_gpu > 1:
             model = nn.DataParallel(model)
