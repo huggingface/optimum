@@ -26,7 +26,7 @@ platforms.
 
 Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
 
-| Features                           | ONNX Runtime          | Intel Neural Compressor |         OpenVINO        |
+| Features                           | ONNX Runtime          |     Neural Compressor   |         OpenVINO        |
 |:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|
 | Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
 | Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
