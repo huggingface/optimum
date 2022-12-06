@@ -41,7 +41,7 @@ ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 
 def _is_gpu_available():
     """
-    checks if a gpu is available.
+    Checks if a gpu is available.
     """
     available_providers = ort.get_available_providers()
     if "CUDAExecutionProvider" in available_providers and torch.cuda.is_available():
@@ -52,7 +52,7 @@ def _is_gpu_available():
 
 def is_onnxruntime_training_available():
     """
-    checks if onnxruntime-training is available.
+    Checks if onnxruntime-training is available.
     """
     path_training_dependecy = os.path.join(ort.__path__[0], "training")
     if os.path.exists(path_training_dependecy):
@@ -63,7 +63,7 @@ def is_onnxruntime_training_available():
 
 def is_cupy_available():
     """
-    checks if onnxruntime-training is available.
+    Checks if onnxruntime-training is available.
     """
     return importlib.util.find_spec("cupy") is not None
 

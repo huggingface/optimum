@@ -1603,7 +1603,6 @@ class ORTModelForCustomTasks(ORTModel):
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
             outputs = {}
             for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
