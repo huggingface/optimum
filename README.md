@@ -116,6 +116,9 @@ classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
 results = classifier("I love burritos!")
 ```
 
+You can find more examples [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime).
+
+
 #### Intel
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
@@ -136,6 +139,9 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
 ```
+
+You can find more examples [here](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
+
 
 ## Accelerated training
 
@@ -173,6 +179,9 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
   trainer.train()
 ```
 
+You can find more examples [here](https://github.com/huggingface/optimum-habana/tree/main/examples).
+
+
 #### Graphcore
 
 To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
@@ -209,6 +218,9 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
   trainer.train()
 ```
 
+You can find more examples [here](https://github.com/huggingface/optimum-graphcore/tree/main/examples).
+
+
 #### ONNX Runtime
 
 To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
@@ -241,3 +253,4 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
   # Use ONNX Runtime for training!
   trainer.train()
 ```
+You can find more examples [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
