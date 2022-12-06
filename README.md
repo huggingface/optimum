@@ -69,7 +69,7 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
 
-## Accelerate your inference
+## Accelerate inference
 
 #### ONNX Runtime
 
@@ -143,7 +143,7 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
 You can find more examples [here](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
 
 
-## Accelerate your training
+## Accelerate training
 
 #### Habana
 
