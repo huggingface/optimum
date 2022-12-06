@@ -1684,3 +1684,24 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
         self.assertEqual(pipe.device, onnx_model.device)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True)
+        tokenizer = get_preprocessor(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        onnx_outputs = onnx_model(**tokens)
+        io_outputs = io_model(**tokens)
+
+        self.assertTrue("pooler_output" in io_outputs)
+        self.assertIsInstance(io_outputs.pooler_output, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.pooler_output, io_outputs.pooler_output))
+
+        gc.collect()

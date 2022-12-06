@@ -48,7 +48,7 @@ from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .io_binding import TypeHelper
+from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
     get_device_for_provider,
@@ -1546,17 +1546,46 @@ CUSTOM_TASKS_EXAMPLE = r"""
 )
 class ORTModelForCustomTasks(ORTModel):
     """
-    Onnx Model for any custom tasks.
+    Onnx Model for any custom tasks using encoder or decoder-only models.
     """
 
-    def __init__(self, model=None, config=None, **kwargs):
-        super().__init__(model, config, **kwargs)
-        if kwargs.pop("use_io_binding", False):
-            logger.warning(
-                "ORTModelForCustomTasks doesn't support IO Binding yet, and the inference will be done without IO binding which could cause"
-                " significant overhead on data copying. If you want us to enable IO binding for custom use case, please open an issue in "
-                "Optimum: https://github.com/huggingface/optimum."
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding=True, **kwargs)
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_input_names = list(self.model_inputs.keys())
+        self.model_output_names = list(self.model_outputs.keys())
+
+    def prepare_io_binding(self, **kwargs) -> ort.IOBinding:
+        """
+        Returns IOBinding object for an inference session. This method is created for general purpose, if the inputs and outputs
+        are determined, you can prepare data buffers directly to avoid tensor transfers across frameworks.
+        """
+
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+
+        # Bind inputs and outputs to onnxruntime session
+        io_binding = self.model.io_binding()
+
+        # Bind inputs
+        for input_name in self.model_input_names:
+            onnx_input = kwargs.pop(input_name)
+            onnx_input = onnx_input.contiguous()
+
+            io_binding.bind_input(
+                input_name,
+                onnx_input.device.type,
+                self.device.index,
+                name_to_np_type[input_name],
+                list(onnx_input.size()),
+                onnx_input.data_ptr(),
             )
+
+        # Bind outputs
+        for name in self.model_output_names:
+            io_binding.bind_output(name, self.device.type, device_id=self.device.index)
+
+        return io_binding
 
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(
@@ -1566,13 +1595,30 @@ class ORTModelForCustomTasks(ORTModel):
         )
     )
     def forward(self, **kwargs):
-        # converts pytorch inputs into numpy inputs for onnx
-        onnx_inputs = self._prepare_onnx_inputs(**kwargs)
-        # run inference
-        onnx_outputs = self.model.run(None, onnx_inputs)
-        outputs = self._prepare_onnx_outputs(onnx_outputs)
-        # converts outputs to namedtuple for pipelines post-processing if applicable
-        return ModelOutput(outputs)
+        if self.device.type == "cuda" and self.use_io_binding:
+            io_binding = self.prepare_io_binding(**kwargs)
+
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            outputs = {}
+            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return ModelOutput(**outputs)
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
+
+            # run inference
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            outputs = self._prepare_onnx_outputs(onnx_outputs)
+
+            # converts output to namedtuple for pipelines post-processing
+            return ModelOutput(outputs)
 
     def _prepare_onnx_inputs(self, **kwargs):
         model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
