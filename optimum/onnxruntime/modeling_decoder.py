@@ -506,10 +506,23 @@ class ORTModelDecoder(ORTModel):
         model_path = Path(model_id)
 
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            decoder_file_name = ORTModelDecoder.infer_onnx_filename(DECODER_ONNX_FILE_PATTERN, "decoder_file_name")
+            decoder_file_name = ORTModelDecoder.infer_onnx_filename(
+                model_id,
+                DECODER_ONNX_FILE_PATTERN,
+                "decoder_file_name",
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
+            )
         if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
             decoder_with_past_file_name = ORTModelDecoder.infer_onnx_filename(
-                DECODER_WITH_PAST_ONNX_FILE_PATTERN, "decoder_with_past_file_name", fail_if_not_found=False
+                model_id,
+                DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                "decoder_with_past_file_name",
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
+                fail_if_not_found=use_cache,
             )
 
         decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)

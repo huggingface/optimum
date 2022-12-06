@@ -935,15 +935,31 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
             encoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
-                ENCODER_ONNX_FILE_PATTERN, "encoder_file_name"
+                model_id,
+                ENCODER_ONNX_FILE_PATTERN,
+                "encoder_file_name",
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
             )
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
             decoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
-                DECODER_ONNX_FILE_PATTERN, "decoder_file_name"
+                model_id,
+                DECODER_ONNX_FILE_PATTERN,
+                "decoder_file_name",
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
             )
         if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
             decoder_with_past_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
-                DECODER_WITH_PAST_ONNX_FILE_PATTERN, "decoder_with_past_file_name", fail_if_not_found=use_cache
+                model_id,
+                DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                "decoder_with_past_file_name",
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
+                fail_if_not_found=use_cache,
             )
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
