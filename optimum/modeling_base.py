@@ -75,6 +75,7 @@ class OptimizedModel(ABC):
         super().__init__()
         self.model = model
         self.config = config
+        self._preprocessors = []
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -117,6 +118,8 @@ class OptimizedModel(ABC):
         os.makedirs(save_directory, exist_ok=True)
 
         self.config.save_pretrained(save_directory)
+        for preprocessor in self._preprocessors:
+            preprocessor.save_pretrained(save_directory)
         self._save_pretrained(save_directory, **kwargs)
 
         if push_to_hub:
@@ -132,10 +135,10 @@ class OptimizedModel(ABC):
 
     def push_to_hub(
         self,
-        save_directory: str = None,
-        repository_id: Optional[str] = None,
+        save_directory: str,
+        repository_id: str,
         private: Optional[bool] = None,
-        use_auth_token: Optional[Union[bool, str]] = None,
+        use_auth_token: Union[bool, str] = True,
     ) -> str:
         if isinstance(use_auth_token, str):
             huggingface_token = use_auth_token

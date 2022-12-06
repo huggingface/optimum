@@ -41,7 +41,6 @@ from transformers.testing_utils import get_gpu_count, require_torch_gpu
 import onnxruntime
 import requests
 from huggingface_hub.constants import default_cache_path
-from huggingface_hub.utils import EntryNotFoundError
 from optimum.onnxruntime import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
@@ -226,7 +225,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_model_from_hub_without_onnx_model(self):
-        with self.assertRaises(EntryNotFoundError):
+        with self.assertRaises(FileNotFoundError):
             ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
 
     def test_model_on_cpu(self):
@@ -451,7 +450,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             model = ORTModel.from_pretrained(tmpdirname, file_name=test_model_name)
 
-            self.assertEqual(model.latest_model_name, test_model_name)
+            self.assertEqual(model.model_name, test_model_name)
 
     @require_hf_token
     def test_save_model_from_hub(self):

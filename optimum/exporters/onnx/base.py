@@ -344,7 +344,9 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
     """
 
-    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
+    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH: bool = True
+    USE_PAST_IN_INPUTS: Optional[bool] = None
+    USE_PRESENT_IN_OUTPUTS: Optional[bool] = None
 
     def __init__(
         self,
@@ -352,8 +354,26 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         task: str = "default",
         patching_specs: List[PatchingSpec] = None,
         use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
     ):
         self.use_past = use_past
+        if use_past_in_inputs is None:
+            use_past_in_inputs = self.USE_PAST_IN_INPUTS
+        if use_present_in_outputs is None:
+            use_present_in_outputs = self.USE_PRESENT_IN_OUTPUTS
+        self.use_past_in_inputs = use_past if use_past_in_inputs is None else use_past_in_inputs
+        self.use_present_in_outputs = use_past if use_present_in_outputs is None else use_present_in_outputs
+        if use_past != self.use_past_in_inputs:
+            logger.warning(
+                f"use_past = {use_past} is different than use_past_in_inputs = {use_past_in_inputs}, the value of "
+                "use_past_in_inputs will used for the inputs."
+            )
+        if use_past != self.use_present_in_outputs:
+            logger.warning(
+                f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
+                "of use_present_in_outputs value will used for the outputs."
+            )
         super().__init__(config, task=task, patching_specs=patching_specs)
 
     @classmethod
@@ -375,15 +395,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super().outputs
-        if self.use_past:
+        if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
-
         return common_outputs
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
         if hasattr(self._config, "use_cache"):
-            return {"use_cache": self.use_past}
+            return {"use_cache": self.use_past_in_inputs or self.use_present_in_outputs}
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
@@ -407,7 +426,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         if (
             self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH
-            and self.use_past
+            and self.use_past_in_inputs
             and "attention_mask" in dummy_inputs
         ):
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
@@ -473,7 +492,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 # We reset the value as the order in common_outputs (OrderedDict) is lost otherwise
                 else:
                     axes_names[axis_idx] = name
-        if self.use_past:
+        if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
 
         return common_outputs

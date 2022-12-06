@@ -25,6 +25,7 @@ from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import optimize_model
 
 from ..utils import CONFIG_NAME, NormalizedConfigManager
+from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
@@ -48,7 +49,7 @@ class ORTOptimizer:
         Args:
             onnx_model_path (`List[os.PathLike]`):
                 The paths of the onnx models to optimize.
-            config ([`~PretrainedConfig`]):
+            config ([`~transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model to optimize.
         """
         super().__init__()
@@ -67,24 +68,23 @@ class ORTOptimizer:
                 The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
                 Can be either:
                     - A path to a local *directory* containing the model to optimize.
-                    - An instance of ORTModel.
-            file_names(`List[str]`, *optional*):
+                    - An instance of [`~optimum.onnxruntime.ORTModel`].
+            file_names(`Optional[List[str]]`, *optional*):
                 The list of file names of the models to optimize.
         """
         onnx_model_path = []
         config = None
         if isinstance(model_or_path, ORTModel):
             if isinstance(model_or_path, ORTModelForSeq2SeqLM):
-                model_save_dir = model_or_path.model_save_dir
-                onnx_model_path = [
-                    model_save_dir.joinpath(model_or_path.encoder_file_name),
-                    model_save_dir.joinpath(model_or_path.decoder_file_name),
+                onnx_model_path += [
+                    model_or_path.encoder_model_path,
+                    model_or_path.decoder_model_path,
                 ]
                 # Add the decoder with past key/values if present
                 if model_or_path.use_cache:
-                    onnx_model_path.append(model_save_dir.joinpath(model_or_path.decoder_file_with_past_name))
+                    onnx_model_path.append(model_or_path.decoder_with_past_model_path)
             else:
-                onnx_model_path = [model_or_path.model_save_dir.joinpath(model_or_path.latest_model_name)]
+                onnx_model_path.append(model_or_path.model_path)
             config = model_or_path.config
         elif os.path.isdir(model_or_path):
             file_names = [ONNX_WEIGHTS_NAME] if file_names is None else file_names
@@ -110,7 +110,7 @@ class ORTOptimizer:
         Optimizes a model given the optimization specifications defined in `optimization_config`.
 
         Args:
-            optimization_config (`OptimizationConfig`):
+            optimization_config ([`~optimum.onnxruntime.OptimizationConfig`]):
                 The configuration containing the parameters related to optimization.
             save_dir (`Union[str, os.PathLike]`):
                 The path used to save the optimized model.
@@ -126,6 +126,9 @@ class ORTOptimizer:
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type)
+
+        self.config.save_pretrained(save_dir)
+        maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
 
         # Create and save the configuration summarizing all the parameters related to optimization
         ort_config = ORTConfig(

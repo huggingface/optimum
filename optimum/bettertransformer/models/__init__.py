@@ -29,17 +29,18 @@ from .encoder_models import (
 
 BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # Bert Family
-    "TapasLayer": BertLayerBetterTransformer,
+    "BertGenerationLayer": BertLayerBetterTransformer,
     "BertLayer": BertLayerBetterTransformer,
-    "ElectraLayer": BertLayerBetterTransformer,
-    "Data2VecTextLayer": BertLayerBetterTransformer,
     "CamembertLayer": BertLayerBetterTransformer,
-    "MarkupLMLayer": BertLayerBetterTransformer,
-    "RobertaLayer": BertLayerBetterTransformer,
-    "SplinterLayer": BertLayerBetterTransformer,
+    "Data2VecTextLayer": BertLayerBetterTransformer,
+    "ElectraLayer": BertLayerBetterTransformer,
     "ErnieLayer": BertLayerBetterTransformer,
     "LayoutLMLayer": BertLayerBetterTransformer,
-    "BertGenerationLayer": BertLayerBetterTransformer,
+    "MarkupLMLayer": BertLayerBetterTransformer,
+    "RemBertLayer": BertLayerBetterTransformer,
+    "RobertaLayer": BertLayerBetterTransformer,
+    "SplinterLayer": BertLayerBetterTransformer,
+    "TapasLayer": BertLayerBetterTransformer,
     "XLMRobertaLayer": BertLayerBetterTransformer,
     # Albert Family
     "AlbertLayer": AlbertLayerBetterTransformer,
@@ -61,13 +62,13 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # WhisperModel
     "WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer,
     # Wav2vec2 family:
-    "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     "HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
+    "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # "UniSpeechEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # "Data2VecAudioEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
     # ViT Family:
-    "ViTLayer": ViTLayerBetterTransformer,
     "DeiTLayer": ViTLayerBetterTransformer,
+    "ViTLayer": ViTLayerBetterTransformer,
     "ViTMAELayer": ViTLayerBetterTransformer,
     "ViTMSNLayer": ViTLayerBetterTransformer,
     "YolosLayer": ViTLayerBetterTransformer,
