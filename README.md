@@ -69,7 +69,7 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
 
-### Inference
+## Accelerated Inference
 
 #### ONNX Runtime
 
@@ -137,7 +137,7 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
   results = classifier("He's a dreadful magician.")
 ```
 
-### Accelerated training
+## Accelerated training
 
 #### Habana
 
