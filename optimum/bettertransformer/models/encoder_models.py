@@ -308,6 +308,11 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         """
         super().forward_checker()
 
+        if not hasattr(hidden_states, "original_shape"):
+            original_shape = hidden_states.shape
+        else:
+            original_shape = hidden_states.original_shape
+
         if hidden_states.is_nested:
             attention_mask = None
 
@@ -345,8 +350,11 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             self.linear2_bias,
             attention_mask,
         )
-        if hidden_states.is_nested and self.is_last_layer:
-            hidden_states = hidden_states.to_padded_tensor(0.0)
+
+        if not self.is_last_layer:
+            hidden_states.original_shape = original_shape
+        elif hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0, original_shape)
         return (hidden_states,)
 
 
@@ -359,7 +367,6 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `MBartEncoderLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
-
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -419,13 +426,15 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         """
         super().forward_checker()
 
+        if not hasattr(hidden_states, "original_shape"):
+            original_shape = hidden_states.shape
+        else:
+            original_shape = hidden_states.original_shape
+
         if hidden_states.is_nested:
             attention_mask = None
 
         if attention_mask is not None:
-            hidden_states.input_shape = 4
-            print("IN attention_mask is not None")
-            print("attention_mask.shape", attention_mask.shape)
             # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
             # 0->false->keep this token -inf->true->mask this token
             if len(attention_mask.shape) == 4:
@@ -434,19 +443,10 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
             seqlen = attention_mask.shape[1]
             lengths = torch.sum(~attention_mask, 1)
-            print("lengths:", lengths)
-            print("attention_mask.shape", attention_mask.shape)
-            print(attention_mask)
-            print("hidden_states.shape", hidden_states.shape)
             if not all([l == seqlen for l in lengths]):
-                print("calling torch._nested_tensor_from_mask")
                 hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
-                hidden_states.input_shape = 3
-                print("after the call")
             attention_mask = None
 
-        print("hidden_states is nested:", hidden_states.is_nested)
-        print("hidden_states.input_shape", hidden_states.input_shape)
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
             self.embed_dim,
@@ -468,11 +468,11 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             self.linear2_bias,
             attention_mask,
         )
-        hidden_states.input_shape = 3
 
-        if hidden_states.is_nested and self.is_last_layer:
-            print("IN if hidden_states.is_nested and self.is_last_layer:")
-            hidden_states = hidden_states.to_padded_tensor(0.0)
+        if not self.is_last_layer:
+            hidden_states.original_shape = original_shape
+        elif hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0, original_shape)
         return (hidden_states,)
 
 
@@ -1048,6 +1048,11 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         """
         super().forward_checker()
 
+        if not hasattr(hidden_states, "original_shape"):
+            original_shape = hidden_states.shape
+        else:
+            original_shape = hidden_states.original_shape
+
         if hidden_states.is_nested:
             attention_mask = None
 
@@ -1059,8 +1064,11 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             seqlen = attention_mask.shape[1]
             lengths = torch.sum(~attention_mask, 1)
 
+            # FSMT swaps the first two axis before calling the encoder stack
+            # Reference: https://github.com/huggingface/transformers/blob/699e90437f984d69ad3c9b891dd2e9d0fc2cffe4/src/transformers/models/fsmt/modeling_fsmt.py#L508
             if hidden_states.shape[0] != attention_mask.shape[0]:
                 hidden_states = hidden_states.transpose(1, 0)
+                original_shape = hidden_states.shape
 
             if not all([l == seqlen for l in lengths]):
                 hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
@@ -1087,8 +1095,11 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             self.linear2_bias,
             attention_mask,
         )
-        if hidden_states.is_nested and self.is_last_layer:
-            hidden_states = hidden_states.to_padded_tensor(0.0)
+
+        if not self.is_last_layer:
+            hidden_states.original_shape = original_shape
+        elif hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0, original_shape)
         return (hidden_states, attention_mask)
 
 

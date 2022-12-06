@@ -29,3 +29,16 @@ def generate_doc_dataclass(cls) -> str:
         doc += f"{attribute.metadata['description']}\n"  # argument description
     cls.__doc__ = (cls.__doc__ if cls.__doc__ is not None else "") + "\n\n" + "".join(doc)
     return cls
+
+
+def add_dynamic_docstring(
+    *docstr,
+    text,
+    dynamic_elements,
+):
+    def docstring_decorator(fn):
+        func_doc = (fn.__doc__ or "") + "".join(docstr)
+        fn.__doc__ = func_doc + text.format(**dynamic_elements)
+        return fn
+
+    return docstring_decorator
