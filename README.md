@@ -139,6 +139,40 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
 
 ### Accelerated training
 
+#### Habana
+
+To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+
+```diff
+- from transformers import Trainer, TrainingArguments
++ from optimum.habana import GaudiTrainer, GaudiTrainingArguments
+
+  # Download a pretrained model from the Hub
+  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
+
+  # Define the training arguments
+- training_args = TrainingArguments(
++ training_args = GaudiTrainingArguments(
+      output_dir="path/to/save/folder/",
++     use_habana=True,
++     use_lazy_mode=True,
++     gaudi_config_name="Habana/bert-base-uncased",
+      ...
+  )
+
+  # Initialize the trainer
+- trainer = Trainer(
++ trainer = GaudiTrainer(
+      model=model,
+      args=training_args,
+      train_dataset=train_dataset,
+      ...
+  )
+
+  # Use Habana Gaudi processor for training!
+  trainer.train()
+```
+
 #### Graphcore
 
 To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
@@ -172,41 +206,6 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
   )
 
   # Use Graphcore IPU for training!
-  trainer.train()
-```
-
-
-#### Habana
-
-To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
-
-```diff
-- from transformers import Trainer, TrainingArguments
-+ from optimum.habana import GaudiTrainer, GaudiTrainingArguments
-
-  # Download a pretrained model from the Hub
-  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
-
-  # Define the training arguments
-- training_args = TrainingArguments(
-+ training_args = GaudiTrainingArguments(
-      output_dir="path/to/save/folder/",
-+     use_habana=True,
-+     use_lazy_mode=True,
-+     gaudi_config_name="Habana/bert-base-uncased",
-      ...
-  )
-
-  # Initialize the trainer
-- trainer = Trainer(
-+ trainer = GaudiTrainer(
-      model=model,
-      args=training_args,
-      train_dataset=train_dataset,
-      ...
-  )
-
-  # Use Habana Gaudi processor for training!
   trainer.train()
 ```
 
