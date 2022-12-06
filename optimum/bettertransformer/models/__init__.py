@@ -80,6 +80,10 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     "CLIPEncoderLayer": CLIPLayerBetterTransformer,
 }
 
+EXCLUDE_FROM_TRANSFORM = {
+    "clip": ["text_model"],  # text model uses causal attention, that is most likely not supported in BetterTransformer
+}
+
 
 class warn_uncompatible_save(object):
     def __init__(self, callback):

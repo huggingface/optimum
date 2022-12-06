@@ -1108,6 +1108,8 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         r"""
         A simple conversion of the CLIPEncoderLayer to its `BetterTransformer` implementation.
 
+        **The implementation is valid only for the vision model, that does not use `causal_attention_mask`.**
+
         Args:
             layer (`torch.nn.Module`):
                 The original `CLIPEncoderLayer` where the weights needs to be retrieved.
@@ -1172,57 +1174,14 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, causal_attention_mask, *_, **__):
+    def forward(self, hidden_states, attention_mask, *_, **__):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553
         """
         super().forward_checker()
-        if hidden_states.is_nested:
-            print("MARKING NONE")
-            attention_mask = None
-            causal_attention_mask = None
 
-        if causal_attention_mask is not None:
-            print("IN causal_attention_mask is not None")
-            # causal attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
-            # 0->false->keep this token -inf->true->mask this token
-            print("causal_attention_mask.shape", causal_attention_mask.shape)
-            if len(causal_attention_mask.shape) == 4:
-                causal_attention_mask = causal_attention_mask.squeeze(1)[:, 0]
-            causal_attention_mask = causal_attention_mask.bool()
-            causal_attention_mask = torch.reshape(
-                causal_attention_mask, (causal_attention_mask.shape[0], causal_attention_mask.shape[-1])
-            )
-            seqlen = causal_attention_mask.shape[1]
-            lengths = torch.sum(~causal_attention_mask, 1)
-            print("causal_attention_mask.shape", causal_attention_mask.shape)
-            print("hidden_states.shape", hidden_states.shape)
-            if not all([l == seqlen for l in lengths]):
-                print("calling torch._nested_tensor_from_mask")
-                hidden_states = torch._nested_tensor_from_mask(hidden_states, ~causal_attention_mask)
-                print("after the call")
-            causal_attention_mask = None
-
-        attention_mask = None
-        """
-        if attention_mask is not None:
-            print("IN attention_mask is not None")
-            print("attention_mask.shape", attention_mask.shape)
-            print(attention_mask)
-            print("Maxabs attention_mask", torch.abs(attention_mask).max())
-            # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
-            # 0->false->keep this token -inf->true->mask this token
-            attention_mask = attention_mask.bool()
-            attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
-            seqlen = attention_mask.shape[1]
-            lengths = torch.sum(~attention_mask, 1)
-            print("attention_mask.shape", attention_mask.shape)
-            print("hidden_states.shape", hidden_states.shape)
-            if not all([l == seqlen for l in lengths]):
-                hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
-            attention_mask = None
-        """
+        assert attention_mask is None  # we expect attention_mask to be None in the vision model
 
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
@@ -1245,8 +1204,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
             self.linear2_bias,
             attention_mask,
         )
-        if hidden_states.is_nested and self.is_last_layer:
-            hidden_states = hidden_states.to_padded_tensor(0.0)
+
         return (hidden_states,)
 
     def _get_activation_function(self, config: "PretrainedConfig"):

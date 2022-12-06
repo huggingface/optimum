@@ -85,7 +85,11 @@ class BetterTransformersTestMixin:
                 else:
                     tol = 2e-3
 
-                if "attention_mask" in inputs:
+                if hasattr(self, "compare_outputs"):
+                    self.compare_outputs(
+                        hf_hidden_states, bt_hidden_states, atol=tol, model_name=hf_random_model.__class__.__name__
+                    )
+                elif "attention_mask" in inputs:
                     for i, attention_mask in enumerate(inputs["attention_mask"]):
                         length = torch.argwhere(attention_mask != 0).max().item()
                         self.assert_equal(

@@ -18,6 +18,8 @@ from PIL import Image
 from transformers import AutoFeatureExtractor, AutoProcessor
 
 import requests
+from optimum.utils.testing_utils import grid_parameters
+from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -79,12 +81,33 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     """
     all_models_to_test = ALL_ZERO_SHOT_IMAGE_CLASSIFICATION
 
-    def prepare_inputs_for_class(self, model_id=None):
+    def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        text = ["a photo of remote controls", "a photo of a dog", "a photo of two cats"]
+        text = ["a photo", "a photo of dog", "a photo of two big cats"]
 
         # Model takes image and text as input
         processor = AutoProcessor.from_pretrained(model_id)
-        inputs = processor(images=image, text=text, return_tensors="pt", padding=True)
+        inputs = processor(images=image, text=text, return_tensors="pt", **preprocessor_kwargs)
         return inputs
+
+    def compare_outputs(self, hf_hidden_states, bt_hidden_states, atol: float, model_name: str):
+        # CLIP returns a 2D tensor
+        self.assert_equal(
+            tensor1=hf_hidden_states,
+            tensor2=bt_hidden_states,
+            atol=atol,
+            model_name=model_name,
+        )
+
+    # run the test over all possible combinations of `model_id` and `padding`
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION,
+                "padding": ["max_length", True],
+            }
+        )
+    )
+    def test_logits(self, model_id, padding, max_length=20):
+        super().test_logits([model_id], padding=padding, max_length=max_length)

@@ -17,18 +17,14 @@ from typing import Optional
 import torch
 
 from ..utils import check_if_pytorch_greater, is_accelerate_available
-from .models import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, warn_uncompatible_save
+from .models import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, EXCLUDE_FROM_TRANSFORM, warn_uncompatible_save
 
 
 if is_accelerate_available():
     from accelerate import dispatch_model, infer_auto_device_map
     from accelerate.hooks import remove_hook_from_module
 
-ERROR_MESSAGE = r"""
-The Better Transformers implementation for the model {model_name} has not been
-implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer`
-implementation.
-"""
+ERROR_MESSAGE = r"The Better Transformers implementation for the model {model_name} has not been implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer` implementation."
 
 
 def replace_to_bettertransformer(model, config):
@@ -54,7 +50,11 @@ def replace_to_bettertransformer(model, config):
 
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
-            replace_to_bettertransformer(module, config)
+            # we may explicitely exclude part of the model to use BetterTransformer
+            if config.model_type not in EXCLUDE_FROM_TRANSFORM or (
+                config.model_type in EXCLUDE_FROM_TRANSFORM and name not in EXCLUDE_FROM_TRANSFORM[config.model_type]
+            ):
+                replace_to_bettertransformer(module, config)
 
         if hasattr(module, "is_decoder"):
             # Decoders are not supported yet on Better Transformers
@@ -94,7 +94,17 @@ def set_last_layer(model: torch.nn.Module):
     modulelist_lengths = []
 
     for key in dict_named_module.keys():
-        if isinstance(dict_named_module[key], torch.nn.ModuleList) and "encoder" in key:
+        if (
+            isinstance(dict_named_module[key], torch.nn.ModuleList)
+            and "encoder" in key
+            and (
+                model.config.model_type not in EXCLUDE_FROM_TRANSFORM
+                or (
+                    model.config.model_type in EXCLUDE_FROM_TRANSFORM
+                    and all(name not in key for name in EXCLUDE_FROM_TRANSFORM[model.config.model_type])
+                )
+            )
+        ):
             modulelist_lengths.append((len(dict_named_module[key]), key))
 
     # For Albert, each transformer layer is wrapped
