@@ -69,7 +69,7 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
 
-### Accelerated inference
+### Inference
 
 #### ONNX Runtime
 
@@ -118,7 +118,8 @@ results = classifier("I love burritos!")
 
 #### Intel
 
-Here is an example on how to perform inference with the OpenVINO Runtime:
+To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
+If you want to load a PyTorch checkpoint, set `from_transformers=True` to convert your model to the OpenVINO IR (Intermediate Representation).
 
 ```diff
 - from transformers import AutoModelForSequenceClassification
