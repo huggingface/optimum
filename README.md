@@ -24,7 +24,7 @@ To achieve this, we are collaborating with the following hardware manufacturers 
 Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
 platforms.
 
-Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
+Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and OpenVINO [NNCF](https://docs.openvino.ai/latest/tmo_introduction.html).
 
 | Features                           | ONNX Runtime          |     Neural Compressor   |         OpenVINO        |
 |:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|
