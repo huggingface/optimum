@@ -26,6 +26,7 @@ ALL_AUDIO_MODELS_TO_TEST = [
     "openai/whisper-tiny",
     "patrickvonplaten/wav2vec2_tiny_random",
     "ybelkada/hubert-tiny-random",
+    "MIT/ast-finetuned-audioset-10-10-0.4593",
 ]
 
 
