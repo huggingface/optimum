@@ -73,9 +73,9 @@ Check out the examples below to see how 🤗 Optimum can be used to train and ru
 
 #### ONNX Runtime
 
-To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
+To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for graph optimization and quantization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
 
-Before applying quantization or optimization, first export our model to the ONNX format:
+Before applying quantization or optimization, first we need to load our model. To load a model and run inference with ONNX Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `ORTModelForXxx` class. If you want to load a PyTorch checkpoint, set `from_transformers=True` to convert your model to the ONNX format.
 
 ```python
 from optimum.onnxruntime import ORTModelForSequenceClassification
@@ -104,7 +104,7 @@ quantizer = ORTQuantizer.from_pretrained(ort_model)
 quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
 ```
 
-In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
+In this example, we've quantized a model from the Hugging Face Hub, in the same manner we can quantize a model hosted locally by providing the path to the directory containing the model weights. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
 
 ```python
 from optimum.onnxruntime import ORTModelForSequenceClassification
@@ -223,7 +223,7 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 #### ONNX Runtime
 
-To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
 ```diff
 - from transformers import Trainer, TrainingArguments
