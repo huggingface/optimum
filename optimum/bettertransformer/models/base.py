@@ -40,13 +40,12 @@ class BetterTransformerBaseLayer(nn.Module):
         self.num_layers = None
 
         # Get activation function
-        if hasattr(self, "_get_activation_function"):
+        for attr in KNOWN_ACTIVATION_ATTRIBUTES:
+            if hasattr(config, attr):
+                self.act_fn = getattr(config, attr)
+                break
+        if not hasattr(self, "act_fn") and hasattr(self, "_get_activation_function"):
             self.act_fn = self._get_activation_function(config)
-        else:
-            for attr in KNOWN_ACTIVATION_ATTRIBUTES:
-                if hasattr(config, attr):
-                    self.act_fn = getattr(config, attr)
-                    break
 
         # Get pos emb type
         for attr in KNOWN_POS_EMB_ATTRIBUTES:
