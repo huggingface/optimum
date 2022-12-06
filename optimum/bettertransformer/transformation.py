@@ -50,7 +50,7 @@ def replace_to_bettertransformer(model, config):
 
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
-            # we may explicitely exclude part of the model to use BetterTransformer
+            # we may explicitly exclude part of the model to use BetterTransformer
             if config.model_type not in EXCLUDE_FROM_TRANSFORM or (
                 config.model_type in EXCLUDE_FROM_TRANSFORM and name not in EXCLUDE_FROM_TRANSFORM[config.model_type]
             ):
