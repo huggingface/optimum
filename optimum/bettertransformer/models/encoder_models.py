@@ -11,16 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import TYPE_CHECKING
+
 import torch
 import torch.nn as nn
 
 from .base import BetterTransformerBaseLayer
 
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
-
 
 
 class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
@@ -1191,7 +1191,9 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
             if len(causal_attention_mask.shape) == 4:
                 causal_attention_mask = causal_attention_mask.squeeze(1)[:, 0]
             causal_attention_mask = causal_attention_mask.bool()
-            causal_attention_mask = torch.reshape(causal_attention_mask, (causal_attention_mask.shape[0], causal_attention_mask.shape[-1]))
+            causal_attention_mask = torch.reshape(
+                causal_attention_mask, (causal_attention_mask.shape[0], causal_attention_mask.shape[-1])
+            )
             seqlen = causal_attention_mask.shape[1]
             lengths = torch.sum(~causal_attention_mask, 1)
             print("causal_attention_mask.shape", causal_attention_mask.shape)
@@ -1201,7 +1203,6 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
                 hidden_states = torch._nested_tensor_from_mask(hidden_states, ~causal_attention_mask)
                 print("after the call")
             causal_attention_mask = None
-        
 
         attention_mask = None
         """
@@ -1247,7 +1248,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
-    
+
     def _get_activation_function(self, config: "PretrainedConfig"):
         if hasattr(config, "vision_config") and hasattr(config, "text_config"):
             assert config.vision_config.hidden_act == config.text_config.hidden_act

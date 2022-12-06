@@ -1,3 +1,4 @@
+import collections
 import importlib.util
 import itertools
 import os
@@ -9,10 +10,6 @@ from typing import Any, Dict, Iterable
 from packaging import version
 
 from optimum.utils import is_accelerate_available
-
-from typing import Dict
-
-import collections
 
 
 def flatten_dict(dictionary: Dict):

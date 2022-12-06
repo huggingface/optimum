@@ -16,6 +16,7 @@ import torch.nn as nn
 
 from ...utils import logging
 
+
 KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation_function"]
 KNOWN_POS_EMB_ATTRIBUTES = ["position_embedding_type"]
 KNOWN_NUM_LAYERS = ["num_hidden_layers", "num_layers", "encoder_layers", "n_layers"]
@@ -86,7 +87,9 @@ class BetterTransformerBaseLayer(nn.Module):
 
         # Check activation function
         if self.act_fn in USE_AT_OWN_RISK_ACTIVATION_FUNCTIONS:
-            logger.warning(f"Overridding {self.act_fn} activation with gelu. Use the transformed model at your own risk, the output logits could be significantly different.")
+            logger.warning(
+                f"Overridding {self.act_fn} activation with gelu. Use the transformed model at your own risk, the output logits could be significantly different."
+            )
             self.act_fn = "gelu"
         elif self.act_fn not in SUPPORTED_ACTIVATION_FUNCTIONS:
             raise ValueError(

@@ -36,7 +36,7 @@ ALL_VISION_TEXT_MODELS_TO_TEST = [
 
 ALL_ZERO_SHOT_IMAGE_CLASSIFICATION = [
     "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
-    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K" # with gelu
+    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
 ]
 
 
@@ -71,6 +71,7 @@ class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase)
         processor = AutoProcessor.from_pretrained(model_id)
         inputs = processor(images=image, text=text, return_tensors="pt")
         return inputs
+
 
 class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""

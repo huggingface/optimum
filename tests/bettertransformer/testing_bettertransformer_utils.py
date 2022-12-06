@@ -20,8 +20,8 @@ import torch
 from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer
-
 from optimum.utils.testing_utils import flatten_dict
+
 
 class BetterTransformersTestMixin:
     r"""
