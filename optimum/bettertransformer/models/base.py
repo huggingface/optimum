@@ -44,7 +44,9 @@ class BetterTransformerBaseLayer(nn.Module):
             if hasattr(config, attr):
                 self.act_fn = getattr(config, attr)
                 break
-        if not hasattr(self, "act_fn") and hasattr(self, "_get_activation_function"):
+
+        # if act_fn not found in the config, fall back to the private `_get_activation_function` if available
+        if self.act_fn is None and hasattr(self, "_get_activation_function"):
             self.act_fn = self._get_activation_function(config)
 
         # Get pos emb type
