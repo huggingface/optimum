@@ -141,7 +141,7 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
 
 #### Graphcore
 
-To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
 ```diff
 - from transformers import Trainer, TrainingArguments
@@ -178,7 +178,7 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
 
 #### Habana
 
-To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
 ```diff
 - from transformers import Trainer, TrainingArguments
