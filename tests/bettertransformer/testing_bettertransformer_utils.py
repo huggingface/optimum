@@ -123,14 +123,16 @@ class BetterTransformersTestMixin:
                 bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
                 bt_model.save_pretrained(tmpdirname)
 
-    def test_raise_autocast(self):
+    def test_raise_autocast(self, models_to_test=None, **preprocessor_kwargs):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
         `torch.cuda.amp.autocast`.
         """
+        if models_to_test is None:
+            models_to_test = self.all_models_to_test
 
-        for model_id in self.all_models_to_test:
-            inputs = self.prepare_inputs_for_class(model_id)
+        for model_id in models_to_test:
+            inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs)
             hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
             # Check for the autocast on CPU
@@ -138,13 +140,16 @@ class BetterTransformersTestMixin:
                 bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
                 _ = bt_model(**inputs)
 
-    def test_raise_train(self):
+    def test_raise_train(self, models_to_test=None, **preprocessor_kwargs):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
         `model.train()`.
         """
-        for model_id in self.all_models_to_test:
-            inputs = self.prepare_inputs_for_class(model_id)
+        if models_to_test is None:
+            models_to_test = self.all_models_to_test
+
+        for model_id in models_to_test:
+            inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs)
 
             hf_random_model = AutoModel.from_pretrained(model_id).eval()
             # Check for training mode
