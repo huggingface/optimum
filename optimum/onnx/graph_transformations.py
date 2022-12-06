@@ -82,7 +82,7 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     return model
 
 
-def replace_atenops_to_gather(model: ModelProto):
+def _replace_atenops_to_gather(model: ModelProto):
     """
     Replaces broken ATenOp nodes back to Gather nodes.
 
@@ -134,7 +134,7 @@ def _trace_upsteam_nodes(graph, name, node_input_names, node_map, initializer_ma
                         node_input_names = _trace_upsteam_nodes(
                             graph, ninput, node_input_names, node_map, initializer_map
                         )
-    # don't forget the initializers they can be terminal inputs on a path.
+    # Check if it is initializer which can be terminal inputs on a path.
     if name in initializer_map.keys():
         node_input_names.append(name)
     return node_input_names
