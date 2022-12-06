@@ -1165,13 +1165,6 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         self.is_last_layer = False
         self.norm_first = True
 
-        """
-        # support for quick gelu
-        if layer.mlp.activation_fn.__class__.__name__ == "QuickGELUActivation":
-            self.act_fn = "gelu"
-            logger.warning("Overridding quick_gelu activation with gelu. Use the transformed model at your own risk.")
-        """
-
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, *_, **__):
