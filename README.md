@@ -2,7 +2,7 @@
 
 # Hugging Face Optimum
 
-🤗 Optimum is an extension of 🤗 Transformers, providing a set of performance optimization tools enabling maximum efficiency to train and run models on targeted hardware.
+🤗 Optimum is an extension of 🤗 Transformers, providing a set of optimization tools enabling maximum efficiency to train and run models on targeted hardware.
 
 The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
 As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
@@ -10,12 +10,13 @@ As such, Optimum enables users to efficiently use any of these platforms with th
 
 ## Integration with Hardware Partners
 
-🤗 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
+Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
 
 To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
 - [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. More information [here](https://www.graphcore.ai/products/ipu).
 - [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - [HPUs](https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html) are designed to maximize training throughput and efficiency. More information [here](https://habana.ai/training/).
-- [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate end-to-end pipelines on Intel architectures. More information about [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and [OpenVINO](https://docs.openvino.ai/latest/index.html).
+
+- [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate inference on Intel architectures. More information about [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and [OpenVINO](https://docs.openvino.ai/latest/index.html).
 - More to come soon! :star:
 
 ## Optimizing models towards inference
@@ -25,12 +26,12 @@ platforms.
 
 Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html).
 
-| Features                           | ONNX Runtime          | Intel Neural Compressor |
-|:----------------------------------:|:---------------------:|:-----------------------:|
-| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |
-| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |
-| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |
-| Pruning                            |        N/A            |    :heavy_check_mark:   |
+| Features                           | ONNX Runtime          | Intel Neural Compressor |         OpenVINO        |
+|:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|
+| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
+| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
+| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |           N/A           |
+| Pruning                            |        N/A            |    :heavy_check_mark:   |    Stay tuned! :star:   |
 
 
 ## Installation
@@ -68,9 +69,76 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
 
+### Accelerated inference
+
+#### ONNX Runtime
+
+To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
+
+Before applying quantization or optimization, first export our model to the ONNX format:
+
+```python
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer
+
+model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
+save_directory = "tmp/onnx/"
+# Load a model from transformers and export it to ONNX
+tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
+# Save the onnx model and tokenizer
+ort_model.save_pretrained(save_directory)
+tokenizer.save_pretrained(save_directory)
+```
+
+Let's see now how we can apply dynamic quantization with ONNX Runtime:
+
+```python
+from optimum.onnxruntime.configuration import AutoQuantizationConfig
+from optimum.onnxruntime import ORTQuantizer
+
+# Define the quantization methodology
+qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
+quantizer = ORTQuantizer.from_pretrained(ort_model)
+# Apply dynamic quantization on the model
+quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
+```
+
+In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
+
+```python
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import pipeline, AutoTokenizer
+
+model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
+tokenizer = AutoTokenizer.from_pretrained(save_directory)
+classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+results = classifier("I love burritos!")
+```
+
+#### Intel
+
+Here is an example on how to perform inference with the OpenVINO Runtime:
+
+```diff
+- from transformers import AutoModelForSequenceClassification
++ from optimum.intel.openvino import OVModelForSequenceClassification
+  from transformers import AutoTokenizer, pipeline
+
+  # Download a tokenizer and model from the Hub and convert to OpenVINO format
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
+  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+- model = AutoModelForSequenceClassification.from_pretrained(model_id)
++ model = OVModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+
+  # Run inference!
+  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+  results = classifier("He's a dreadful magician.")
+```
+
 ### Accelerated training
 
-#### Optimum Graphcore
+#### Graphcore
 
 To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
@@ -107,7 +175,7 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
 ```
 
 
-#### Optimum Habana
+#### Habana
 
 To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
@@ -173,72 +241,3 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
   # Use ONNX Runtime for training!
   trainer.train()
 ```
-
-
-### Accelerated inference
-
-#### ONNX Runtime
-
-To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
-
-Before applying quantization or optimization, first export our model to the ONNX format:
-
-```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import AutoTokenizer
-
-model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
-save_directory = "tmp/onnx/"
-# Load a model from transformers and export it to ONNX
-tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
-ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
-# Save the onnx model and tokenizer
-ort_model.save_pretrained(save_directory)
-tokenizer.save_pretrained(save_directory)
-```
-
-Let's see now how we can apply dynamic quantization with ONNX Runtime:
-
-```python
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
-from optimum.onnxruntime import ORTQuantizer
-
-# Define the quantization methodology
-qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
-quantizer = ORTQuantizer.from_pretrained(ort_model)
-# Apply dynamic quantization on the model
-quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
-```
-
-In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
-
-```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import pipeline, AutoTokenizer
-
-model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
-tokenizer = AutoTokenizer.from_pretrained(save_directory)
-classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-results = classifier("I love burritos!")
-```
-
-#### Optimum Intel
-
-Here is an example on how to perform inference with the OpenVINO Runtime:
-
-```diff
-- from transformers import AutoModelForSequenceClassification
-+ from optimum.intel.openvino import OVModelForSequenceClassification
-  from transformers import AutoTokenizer, pipeline
-
-  # Download a tokenizer and model from the Hub and convert to OpenVINO format
-  tokenizer = AutoTokenizer.from_pretrained(model_id)
-  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
-- model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-
-  # Run inference!
-  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-  results = classifier("He's a dreadful magician.")
-```
-
