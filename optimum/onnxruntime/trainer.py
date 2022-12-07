@@ -441,7 +441,7 @@ class ORTTrainer(Trainer):
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
             )
-            self.model = deepspeed_engine.module
+            self.model = unwrap_model(deepspeed_engine)
             self.model_wrapped = deepspeed_engine
             self.deepspeed = deepspeed_engine
             self.optimizer = optimizer
@@ -472,7 +472,7 @@ class ORTTrainer(Trainer):
         self._load_optimizer_and_scheduler(resume_from_checkpoint)
 
         # Important: at this point if enabled distributed training features:
-        # self.model         is the ORTModule(Transformers Model)
+        # self.model         is the Transformers Model
         # self.model_wrapped is DDP(ORTModule(Transformers Model)), Deepspeed(ORTModule(Transformers Model)), etc.
 
         # Train!
