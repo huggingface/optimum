@@ -73,7 +73,7 @@ class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    all_models_to_test = ALL_VISION_TEXT_MODELS_TO_TEST
+    all_models_to_test = ["ybelkada/tiny-random-flava"]
 
     def prepare_inputs_for_class(self, model_id=None):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
