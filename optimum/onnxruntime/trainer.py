@@ -104,7 +104,7 @@ from .modeling_ort import (
 )
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
-from .utils import wrap_onnx_config_for_loss
+from .utils import is_onnxruntime_training_available, wrap_onnx_config_for_loss
 
 
 if is_apex_available():
@@ -118,6 +118,14 @@ if is_fairscale_available():
 
 if TYPE_CHECKING:
     import optuna
+
+if is_onnxruntime_training_available():
+    from torch_ort import ORTModule
+else:
+    raise ImportError(
+        "You need to install `onnxruntime-training` to use `ORTTrainer`. Check out "
+        "https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer#install-onnx-runtime."
+    )
 
 logger = logging.get_logger(__name__)
 
@@ -237,12 +245,12 @@ class ORTTrainer(Trainer):
         args: ORTTrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
-        eval_dataset: Optional[Dataset] = None,
-        model_init: Callable[[], PreTrainedModel] = None,
+        eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+        model_init: Optional[Callable[[], PreTrainedModel]] = None,
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
-        preprocess_logits_for_metrics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
+        preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
         onnx_model_path: Union[str, os.PathLike] = None,
     ):
 
@@ -356,7 +364,6 @@ class ORTTrainer(Trainer):
     def _inner_training_loop(
         self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None
     ):
-        from torch_ort import ORTModule
 
         self._train_batch_size = batch_size
 
@@ -807,6 +814,8 @@ class ORTTrainer(Trainer):
             raise
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
+        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
+            start_time += output.metrics[f"{metric_key_prefix}_jit_compilation_time"]
         output.metrics.update(
             speed_metrics(
                 metric_key_prefix,
@@ -894,6 +903,8 @@ class ORTTrainer(Trainer):
             raise
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
+        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
+            start_time += output.metrics[f"{metric_key_prefix}_jit_compilation_time"]
         output.metrics.update(
             speed_metrics(
                 metric_key_prefix,
@@ -1123,6 +1134,8 @@ class ORTTrainer(Trainer):
 
         if all_losses is not None:
             metrics[f"{metric_key_prefix}_loss"] = all_losses.mean().item()
+        if hasattr(self, "jit_compilation_time"):
+            metrics[f"{metric_key_prefix}_jit_compilation_time"] = self.jit_compilation_time
 
         # Prefix all keys with metric_key_prefix + '_'
         for key in list(metrics.keys()):
@@ -1319,7 +1332,15 @@ class ORTTrainer(Trainer):
             logits and labels (each being optional).
         """
 
-        has_labels = all(inputs.get(k) is not None for k in self.label_names)
+        has_labels = False if len(self.label_names) == 0 else all(inputs.get(k) is not None for k in self.label_names)
+        # For CLIP-like models capable of returning loss values.
+        # If `return_loss` is not specified or being `None` in `inputs`, we check if the default value of `return_loss`
+        # is `True` in `model.forward`.
+        return_loss = inputs.get("return_loss", None)
+        if return_loss is None:
+            return_loss = self.can_return_loss
+        loss_without_labels = True if len(self.label_names) == 0 and return_loss else False
+
         inputs = self._prepare_inputs(inputs)
 
         if ignore_keys is None:
@@ -1329,7 +1350,7 @@ class ORTTrainer(Trainer):
                 ignore_keys = []
 
         # labels may be popped when computing the loss (label smoothing for instance) so we grab them first.
-        if has_labels:
+        if has_labels or loss_without_labels:
             labels = nested_detach(tuple(inputs.get(name) for name in self.label_names))
             if len(labels) == 1:
                 labels = labels[0]
@@ -1342,7 +1363,7 @@ class ORTTrainer(Trainer):
                     "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet."
                 )
             else:
-                if has_labels:
+                if has_labels or loss_without_labels:
                     with self.compute_loss_context_manager():
                         loss, outputs = self.compute_loss_ort(model, inputs, return_outputs=True)
                     loss = torch.tensor(loss).mean()
@@ -1455,17 +1476,18 @@ class ORTTrainer(Trainer):
         )
 
     def _wrap_model(self, model, training=True, dataloader=None):
+        # TODO: torchdynamo works for inference with PyTorch in ORTTrainer, will move `inference_with_ort` to training arguments and
+        # whether be able to use ipex will depend on both `self.args.torchdynamo` and `self.args.ort_mode_eval`.
+        if self.args.torchdynamo is not None:
+            import torch._dynamo as dynamo
+
+            model = dynamo.optimize(self.args.torchdynamo)(model)
 
         # TODO: ipex only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
         # whether be able to use ipex will depend on both `self.args.use_ipex` and `self.args.ort_mode_eval`.
         if self.args.use_ipex:
             dtype = torch.bfloat16 if self.use_cpu_amp else torch.float32
             model = self.ipex_optimize_model(model, training, dtype=dtype)
-
-        # TODO: jit_mode_eval only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
-        # whether be able to use jit_mode_eval will depend on both `self.args.jit_mode_eval` and `self.args.ort_mode_eval`.
-        if self.args.jit_mode_eval:
-            model = self.torch_jit_model_eval(model, dataloader, training)
 
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(
@@ -1478,8 +1500,6 @@ class ORTTrainer(Trainer):
 
         # train/eval could be run multiple-times - if already wrapped, don't re-wrap it again
         if unwrap_model(model) is not model:
-            from torch_ort import ORTModule
-
             if not isinstance(model, ORTModule):
                 return model
 
@@ -1490,6 +1510,11 @@ class ORTTrainer(Trainer):
         # Multi-gpu training (should be after apex fp16 initialization)
         if self.args.n_gpu > 1:
             model = nn.DataParallel(model)
+
+        if self.args.jit_mode_eval:
+            start_time = time.time()
+            model = self.torch_jit_model_eval(model, dataloader, training)
+            self.jit_compilation_time = round(time.time() - start_time, 4)
 
         # Note: in torch.distributed mode, there's no point in wrapping the model
         # inside a DistributedDataParallel as we'll be under `no_grad` anyways.
