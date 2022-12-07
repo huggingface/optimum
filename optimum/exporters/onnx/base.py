@@ -372,7 +372,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         if use_past != self.use_present_in_outputs:
             logger.warning(
                 f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
-                "of use_present_in_outputs value will used for the outputs."
+                "of use_present_in_outputs value will be used for the outputs."
             )
         super().__init__(config, task=task, patching_specs=patching_specs)
 

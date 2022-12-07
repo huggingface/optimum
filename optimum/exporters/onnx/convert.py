@@ -24,7 +24,12 @@ from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import logging
 from .base import OnnxConfig
-from .utils import MIN_TORCH_VERSION, get_encoder_decoder_models_for_export, get_decoder_models_for_export, is_torch_onnx_support_available
+from .utils import (
+    MIN_TORCH_VERSION,
+    get_decoder_models_for_export,
+    get_encoder_decoder_models_for_export,
+    is_torch_onnx_support_available,
+)
 
 
 if is_torch_available():
@@ -156,7 +161,6 @@ def validate_decoder_model_outputs(
         # Validate decoder with past
         model, onnx_config = models_for_validation["decoder_with_past"]
         validate_model_outputs(onnx_config, model, decoder_with_past_onnx_model, onnx_named_outputs[1], atol)
-
 
 
 def validate_model_outputs(
@@ -476,6 +480,7 @@ def export_encoder_decoder_model(
 
     outputs = list(map(list, zip(*outputs)))
     return outputs
+
 
 def export_decoder_model(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],

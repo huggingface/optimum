@@ -27,9 +27,9 @@ from .convert import (
     export,
     export_decoder_model,
     export_encoder_decoder_model,
+    validate_decoder_model_outputs,
     validate_encoder_decoder_model_outputs,
     validate_model_outputs,
-    validate_decoder_model_outputs,
 )
 
 

@@ -33,7 +33,7 @@ from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 import onnxruntime as ort
 from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_download, hf_hub_url
 
-from ..exporters.onnx.convert import export_encoder_decoder_model as export
+from ..exporters.onnx.convert import export_encoder_decoder_model
 from ..exporters.tasks import TasksManager
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
@@ -1113,15 +1113,14 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             model_type, "onnx", task=task, model_name=model_name
         )
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
-        onnx_opset = onnx_config.DEFAULT_ONNX_OPSET
 
-        export(
-            model,
-            onnx_config,
-            onnx_opset,
-            save_dir_path.joinpath(ONNX_ENCODER_NAME),
-            save_dir_path.joinpath(ONNX_DECODER_NAME),
-            save_dir_path.joinpath(ONNX_DECODER_WITH_PAST_NAME),
+        export_encoder_decoder_model(
+            model=model,
+            config=onnx_config,
+            opset=onnx_config.DEFAULT_ONNX_OPSET,
+            encoder_output=save_dir_path.joinpath(ONNX_ENCODER_NAME),
+            decoder_output=save_dir_path.joinpath(ONNX_DECODER_NAME),
+            decoder_with_past_output=save_dir_path.joinpath(ONNX_DECODER_WITH_PAST_NAME),
         )
 
         config.save_pretrained(save_dir_path)

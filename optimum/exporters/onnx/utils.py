@@ -113,6 +113,7 @@ def get_encoder_decoder_models_for_export(
 
     return models_for_export
 
+
 def get_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     config: "OnnxConfig",
@@ -132,7 +133,10 @@ def get_decoder_models_for_export(
     """
     models_for_export = dict()
 
-    models_for_export["decoder"] = (model, config.__class__(model.config, task=config.task, use_past=False))
+    models_for_export["decoder"] = (
+        model,
+        config.__class__(model.config, task=config.task, use_past=False, use_present_in_outputs=True),
+    )
 
     if config.use_past:
         onnx_config_with_past = config.__class__.with_past(model.config, task=config.task)
