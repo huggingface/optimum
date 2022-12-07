@@ -1,0 +1,37 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Configuration
+
+The configuration classes are the way to specify how a task should be done. There are two tasks supported with the ONNX Runtime package:
+
+1. Optimization: Performed by the [`~onnxruntime.ORTOptimizer`], this task can be tweaked using an [`~onnxruntime.configuration.OptimizationConfig`].
+
+2. Quantization: Performed by the [`~onnxruntime.ORTQuantizer`], quantization can be set using a [`~onnxruntime.configuration.QuantizationConfig`]. A calibration step is required in some cases (post training static quantization), which can be specified using a [`~onnxruntime.configuration.CalibrationConfig`].
+
+## OptimizationConfig
+
+[[autodoc]] onnxruntime.configuration.OptimizationConfig
+
+[[autodoc]] onnxruntime.configuration.AutoOptimizationConfig
+
+## QuantizationConfig
+
+[[autodoc]] onnxruntime.configuration.QuantizationConfig
+
+### CalibrationConfig
+
+[[autodoc]] onnxruntime.configuration.CalibrationConfig
+
+## ORTConfig
+
+[[autodoc]] onnxruntime.configuration.ORTConfig

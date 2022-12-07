@@ -1,21 +1,21 @@
-name: Build dev documentation
+name: Build PR documentation
 
 on:
   pull_request:
+    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  build_and_package:
+  build_documentation:
     runs-on: ubuntu-latest
-    container:
-      image: huggingface/transformers-doc-builder
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
+      PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
       - uses: actions/checkout@v2
@@ -28,63 +28,96 @@ jobs:
           repository: 'huggingface/optimum'
           path: optimum
 
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v2
         with:
-          node-version: '16'
+          repository: 'huggingface/optimum-habana'
+          path: optimum-habana
 
-      - name: Set env
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-graphcore'
+          path: optimum-graphcore
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-intel'
+          path: optimum-intel
+
+      - name: Set environment variables
         run: |
-          echo "WRITE=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
+          echo "write_token=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
 
       - name: Setup environment
         run: |
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
-          pip install -e .
+          pip install .
+          pip install black
           cd ..
 
-          cd optimum
-          apt install -y libopencv-dev python3-opencv
-          pip install --upgrade protobuf
-          pip install .[dev,onnxruntime,benchmark]
-          cd ..
-
-      - name: Comment PR
-        uses: thollander/actions-comment-pull-request@v1
-        if: github.event.action == 'opened'
-
-        with:
-          message: 'The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.'
-          GITHUB_TOKEN: ${{ env.WRITE }}
-
-      - name: Find Comment
-        if: github.event.action == 'reopened'
-        uses: peter-evans/find-comment@v1
-        id: fc
-        with:
-          issue-number: ${{ env.PR_NUMBER }}
-          comment-author: HuggingFaceDocBuilderDev
-
-      - name: Update comment
-        if: github.event.action == 'reopened'
-        uses: peter-evans/create-or-update-comment@v1
-        with:
-          comment-id: ${{ steps.fc.outputs.comment-id }}
-          token: ${{ env.WRITE }}
-          edit-mode: replace
-          body: |
-            The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.
-
-      - name: Make documentation
-        env:
-          NODE_OPTIONS: --max-old-space-size=6656
+      - name: Make Graphcore documentation
         run: |
-          cd ./doc-builder
-          doc-builder build optimum ../optimum/docs/source --build_dir ../doc-build-dev --clean --version pr_$PR_NUMBER --html
+          cd optimum-graphcore
+          make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
+          sudo mv graphcore-doc-build ../optimum
+          cd ..
+
+      - name: Make Habana documentation
+        run: |
+          cd optimum-habana
+          make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER
+          sudo mv habana-doc-build ../optimum
+          cd ..
+
+      - name: Make Intel documentation
+        run: |
+          cd optimum-intel
+          make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
+          sudo mv intel-doc-build ../optimum
+          cd ..
+
+      - name: Make Optimum documentation
+        run: |
+          cd optimum
+          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER COMMIT_SHA_OPTIMUM=$COMMIT_SHA CLONE_URL=$PR_CLONE_URL
+          cd ..
+
+      - name: Combine subpackage documentation
+        run: |
+          cd optimum
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel --version pr_$PR_NUMBER
+          sudo mv optimum-doc-build ../
+          cd ..
 
       - name: Push to repositories
         run: |
-          cd doc-build-dev
-          doc-builder push optimum --doc_build_repo_id "huggingface/doc-build-dev" --token ${{ env.WRITE }} --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
+          sudo chmod -R ugo+rwx optimum-doc-build
+          cd optimum-doc-build
+          doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build-dev" --token "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" --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
         shell: bash
+
+      - name: Find doc comment
+        uses: peter-evans/find-comment@v2
+        id: find_comment
+        with:
+          issue-number: ${{ env.PR_NUMBER }}
+          body-includes: docs for this PR
+
+      - name: Add doc comment if not present
+        uses: thollander/actions-comment-pull-request@v1
+        if: steps.find_comment.outputs.comment-id == ''
+
+        with:
+          message: 'The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.'
+          GITHUB_TOKEN: ${{ env.write_token }}
+
+      - name: Update doc comment if necessary
+        if: github.event.action == 'reopened' && steps.find_comment.outputs.comment-id != ''
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          token: ${{ env.write_token }}
+          edit-mode: replace
+          body: |
+            The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.

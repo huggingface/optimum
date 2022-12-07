@@ -15,38 +15,46 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.15.0",
+    "transformers[sentencepiece]>=4.20.1",
     "torch>=1.9",
     "packaging",
     "numpy",
-    "huggingface_hub>=0.4.0",
+    "huggingface_hub>=0.8.0",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
+BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
+
 EXTRAS_REQUIRE = {
-    #  pip install -e ".[onnxruntime,dev,intel]"  git+https://github.com/huggingface/transformers.git@main --upgrade
     "onnxruntime": [
         "onnx",
         "onnxruntime>=1.9.0",
         "datasets>=1.2.1",
+        "evaluate",
         "protobuf==3.20.1",
-    ],  # "transformers[sentencepiece]>4.17.0"],
+    ],
     "onnxruntime-gpu": [
         "onnx",
         "onnxruntime-gpu>=1.9.0",
         "datasets>=1.2.1",
+        "evaluate",
         "protobuf==3.20.1",
-    ],  # "transformers[sentencepiece]>4.17.0"],
+    ],
+    "exporters": ["onnx", "onnxruntime", "timm"],
+    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm"],
     "intel": "optimum-intel",
+    "openvino": "optimum-intel[openvino]",
+    "nncf": "optimum-intel[nncf]",
+    "neural-compressor": "optimum-intel[neural-compressor]",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
-    "benchmark": ["optuna", "tqdm", "sklearn", "seqeval"],
+    "benchmark": BENCHMARK_REQUIRE,
 }
 
 setup(

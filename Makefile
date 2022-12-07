@@ -12,6 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+SHELL := /bin/bash
+CURRENT_DIR = $(shell pwd)
+DEFAULT_CLONE_URL := https://github.com/huggingface/optimum.git
+# If CLONE_URL is empty, revert to DEFAULT_CLONE_URL
+REAL_CLONE_URL = $(if $(CLONE_URL),$(CLONE_URL),$(DEFAULT_CLONE_URL))
+
 .PHONY:	style test
 
 # Run code quality checks
@@ -39,3 +45,17 @@ build_dist:
 
 pypi_upload: build_dist
 	python -m twine upload dist/*
+
+build_doc_docker_image:
+	docker build -t doc_maker --build-arg commit_sha=$(COMMIT_SHA_OPTIMUM) --build-arg clone_url=$(REAL_CLONE_URL) ./docs
+
+doc: build_doc_docker_image
+	@test -n "$(BUILD_DIR)" || (echo "BUILD_DIR is empty." ; exit 1)
+	@test -n "$(VERSION)" || (echo "VERSION is empty." ; exit 1)
+	docker run -v $(CURRENT_DIR):/doc_folder --workdir=/doc_folder doc_maker \
+	doc-builder build optimum /optimum/docs/source/ \
+		--build_dir $(BUILD_DIR) \
+		--version $(VERSION) \
+		--version_tag_suffix "" \
+		--html \
+		--clean

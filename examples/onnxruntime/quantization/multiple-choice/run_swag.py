@@ -32,14 +32,15 @@ import numpy as np
 import torch
 import transformers
 from datasets import load_dataset
-from transformers import HfArgumentParser, TrainingArguments
+from transformers import AutoTokenizer, HfArgumentParser, TrainingArguments
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
-from optimum.onnxruntime import ORTModel, ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime import ORTModelForMultipleChoice, ORTQuantizer
+from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
+from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
@@ -140,10 +141,6 @@ class OptimizationArguments:
     Arguments pertaining to what type of optimization we are going to apply on the model.
     """
 
-    opset: Optional[int] = field(
-        default=None,
-        metadata={"help": "ONNX opset version to export the model with."},
-    )
     quantization_approach: str = field(
         default="dynamic",
         metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
@@ -206,17 +203,33 @@ class OptimizationArguments:
     )
 
 
+@dataclass
+class OnnxExportArguments:
+    """
+    Arguments to decide how the ModelProto will be saved.
+    """
+
+    # TODO: currently onnxruntime put external data in different path than the model proto, which will cause problem on re-loading it.
+    # https://github.com/microsoft/onnxruntime/issues/12576
+    use_external_data_format: bool = field(
+        default=False,
+        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+    )
+
+
 def main():
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments, OnnxExportArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, optim_args = parser.parse_json_file(
+        model_args, data_args, training_args, optim_args, onnx_export_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, optim_args, onnx_export_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -240,8 +253,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
-    quantized_model_path = os.path.join(training_args.output_dir, "model-quantized.onnx")
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
     # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
@@ -310,6 +321,8 @@ def main():
         preds = np.argmax(predictions, axis=1)
         return {"accuracy": (preds == label_ids).astype(np.float32).mean().item()}
 
+    tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)
+
     apply_static_quantization = optim_args.quantization_approach == "static"
 
     # Create the quantization configuration containing all the quantization parameters
@@ -324,10 +337,11 @@ def main():
         operators_to_quantize=["MatMul", "Add"],
     )
 
+    # Export the model
+    model = ORTModelForMultipleChoice.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+
     # Create the quantizer
-    quantizer = ORTQuantizer.from_pretrained(
-        model_args.model_name_or_path, feature="multiple-choice", opset=optim_args.opset
-    )
+    quantizer = ORTQuantizer.from_pretrained(model)
 
     ranges = None
     quantization_preprocessor = None
@@ -341,7 +355,7 @@ def main():
             calibration_dataset = calibration_dataset.select(range(num_calibration_samples))
         with training_args.main_process_first(desc="Running tokenizer on the calibration dataset"):
             calibration_dataset = calibration_dataset.map(
-                partial(preprocess_function, tokenizer=quantizer.preprocessor),
+                partial(preprocess_function, tokenizer=tokenizer),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
@@ -377,15 +391,14 @@ def main():
             quantizer.partial_fit(
                 dataset=shard,
                 calibration_config=calibration_config,
-                onnx_model_path=model_path,
                 operators_to_quantize=qconfig.operators_to_quantize,
                 batch_size=optim_args.calibration_batch_size,
-                use_external_data_format=False,
+                use_external_data_format=onnx_export_args.use_external_data_format,
             )
         ranges = quantizer.compute_ranges()
 
         # Create a quantization preprocessor to determine the nodes to exclude when applying static quantization
-        quantization_preprocessor = QuantizationPreprocessor(model_path)
+        quantization_preprocessor = QuantizationPreprocessor()
         # Exclude the nodes constituting LayerNorm
         quantization_preprocessor.register_pass(ExcludeLayerNormNodes())
         # Exclude the nodes constituting GELU
@@ -397,19 +410,14 @@ def main():
         # Exclude the Add nodes followed by the Softmax operator
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
-    # Export the quantized model
-    quantizer.export(
-        onnx_model_path=model_path,
-        onnx_quantized_model_output_path=quantized_model_path,
+    # Apply quantization on the model
+    quantizer.quantize(
+        save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
+        use_external_data_format=onnx_export_args.use_external_data_format,
     )
-
-    # Create the ONNX Runtime configuration summarizing all the parameters related to ONNX IR export and quantization
-    ort_config = ORTConfig(opset=quantizer.opset, quantization=qconfig)
-    # Save the configuration
-    ort_config.save_pretrained(training_args.output_dir)
 
     # Evaluation
     if training_args.do_eval:
@@ -424,15 +432,14 @@ def main():
             eval_dataset = eval_dataset.select(range(max_eval_samples))
         with training_args.main_process_first(desc="Running tokenizer on the validation dataset"):
             eval_dataset = eval_dataset.map(
-                partial(preprocess_function, tokenizer=quantizer.preprocessor),
+                partial(preprocess_function, tokenizer=tokenizer),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
             )
 
         ort_model = ORTModel(
-            quantized_model_path,
-            quantizer._onnx_config,
+            os.path.join(training_args.output_dir, "model_quantized.onnx"),
             execution_provider=optim_args.execution_provider,
             compute_metrics=compute_metrics,
             label_names=["label"],
@@ -440,7 +447,7 @@ def main():
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
 

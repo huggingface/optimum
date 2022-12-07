@@ -1,0 +1,88 @@
+# Optimum Inference with ONNX Runtime
+
+Optimum is a utility package for building and running inference with accelerated runtime like ONNX Runtime.
+Optimum can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines
+to run accelerated inference without rewriting your APIs.
+
+## Switching from Transformers to Optimum Inference
+
+The Optimum Inference models are API compatible with Hugging Face Transformers models. This means you can just replace your `AutoModelForXxx` class with the corresponding `ORTModelForXxx` class in `optimum`. For example, this is how you can use a question answering model in `optimum`:
+
+```diff
+from transformers import AutoTokenizer, pipeline
+-from transformers import AutoModelForQuestionAnswering
++from optimum.onnxruntime import ORTModelForQuestionAnswering
+
+-model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2") # pytorch checkpoint
++model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2") # onnx checkpoint
+tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
+
+onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
+
+question = "What's my name?"
+context = "My name is Philipp and I live in Nuremberg."
+pred = onnx_qa(question, context)
+```
+
+Optimum Inference also includes methods to convert vanilla Transformers models to optimized ones. Simply pass `from_transformers=True` to the `from_pretrained()` method, and your model will be loaded and converted to ONNX on-the-fly:
+
+```python
+>>> from transformers import AutoTokenizer, pipeline
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+
+# Load the model from the hub and export it to the ONNX format
+>>> model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True)
+>>> tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+
+# Create a pipeline
+>>> onnx_classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+
+>>> result = onnx_classifier("This is a great model")
+[{'label': 'POSITIVE', 'score': 0.9998838901519775}]
+```
+
+### Working with the Hugging Face Model Hub
+
+The Optimum model classes like [`~onnxruntime.ORTModelForSequenceClassification`] are integrated with the [Hugging Face Model Hub](https://hf.co/models), which means you can not only
+load model from the Hub, but also push your models to the Hub with `push_to_hub()` method. Below is an example which downloads a vanilla Transformers model
+from the Hub and converts it to an optimum onnxruntime model and pushes it back into a new repository.
+
+<!-- TODO: Add Quantizer into example when UX improved -->
+```python
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+
+# Load the model from the hub and export it to the ONNX format
+>>> model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True)
+>>> tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+
+# Save the converted model
+>>> model.save_pretrained("a_local_path_for_convert_onnx_model")
+>>> tokenizer.save_pretrained("a_local_path_for_convert_onnx_model")
+
+# Push the onnx model to HF Hub
+>>> model.push_to_hub("a_local_path_for_convert_onnx_model", repository_id="my-onnx-repo", use_auth_token=True)
+```
+
+## Export and inference of sequence-to-sequence models
+
+Sequence-to-sequence (Seq2Seq) models, that generate a new sequence from an input, can also be used when running inference with ONNX Runtime. When Seq2Seq models are exported to the ONNX format, they are decomposed into three parts that are later combined during inference.
+Those three parts consist of the encoder, the "decoder" (which actually consists of the decoder with the language modeling head), and the "decoder" with pre-computed key/values as additional inputs.
+This specific export comes from the fact that during the first pass, the decoder has no pre-computed key/values hidden-states, while during the rest of the generation past key/values will be used to speed up sequential decoding.
+Here is an example on how you can export a T5 model to the ONNX format and run inference for a translation task:
+
+
+```python
+>>> from transformers import AutoTokenizer, pipeline
+>>> from optimum.onnxruntime import ORTModelForSeq2SeqLM
+
+# Load the model from the hub and export it to the ONNX format
+>>> model = ORTModelForSeq2SeqLM.from_pretrained("t5-small", from_transformers=True)
+>>> tokenizer = AutoTokenizer.from_pretrained("t5-small")
+
+# Create a pipeline
+>>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
+
+>>> result = onnx_translation("My name is Eustache")
+[{'translation_text': 'Mon nom est Eustache'}]
+```

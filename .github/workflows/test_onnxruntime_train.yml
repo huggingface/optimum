@@ -43,7 +43,7 @@ jobs:
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
   do-the-job:
-    name: Build docker env
+    name: Run ORTTrainer test
     needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     env:
@@ -54,14 +54,14 @@ jobs:
       - name: Build Image
         working-directory: examples/onnxruntime/training/docker
         run: |
-            docker build -f Dockerfile-ort1.11.1-cu113 -t ort11/cu11 .
+            docker build -f Dockerfile-ort1.13.1-cu116 -t ort13/cu116 .
       - name: Run Test
         run: |
             docker run --rm -p 80:8888 \
               --gpus all \
               -v $PWD:/workspace \
               --workdir=/workspace \
-              ort11/cu11:latest /bin/bash examples/onnxruntime/training/docker/run.sh
+              ort13/cu116:latest /bin/bash examples/onnxruntime/training/docker/run.sh
 
   stop-runner:
     name: Stop self-hosted EC2 runner

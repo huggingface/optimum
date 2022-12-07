@@ -1,9 +1,11 @@
 from functools import partial
 from typing import Dict, List
 
-from datasets import Dataset, Metric, load_dataset
+from datasets import Dataset, load_dataset
 from transformers import PretrainedConfig, PreTrainedTokenizerBase, TextClassificationPipeline
 from transformers.pipelines.text_classification import ClassificationFunction
+
+from evaluate import combine, evaluator
 
 from .base import DatasetProcessing
 
@@ -14,36 +16,14 @@ class TextClassificationProcessing(DatasetProcessing):
             kwargs["data_keys"]["secondary"] = None
 
         super().__init__(**kwargs)
-        self.config = kwargs["config"]
         self.label_to_id = None
+
+        if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
+            raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
 
     def load_datasets(self):
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
-
-        max_eval_samples = 100  # TODO remove this
-
-        # Labels
-        if not self.task_args["is_regression"]:
-            label_list = raw_datasets[self.eval_split].features[self.ref_keys[0]].names
-            num_labels = len(label_list)
-        else:
-            num_labels = 1
-
-        if (
-            self.config.label2id != PretrainedConfig(num_labels=num_labels).label2id
-            and not self.task_args["is_regression"]
-        ):
-            # Some have all caps in their config, some don't.
-            label_name_to_id = {k.lower(): v for k, v in self.config.label2id.items()}
-            if list(sorted(label_name_to_id.keys())) == list(sorted(label_list)):
-                self.label_to_id = {i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)}
-            else:
-                print(
-                    "Your model seems to have been trained with labels, but they don't match the dataset: ",
-                    f"model labels: {list(sorted(label_name_to_id.keys()))}, dataset labels:"
-                    f" {list(sorted(label_list))}.\nIgnoring the model labels as a result.",
-                )
 
         # Preprocessing the raw_datasets
         def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
@@ -59,8 +39,9 @@ class TextClassificationProcessing(DatasetProcessing):
             return tokenized_inputs
 
         eval_dataset = raw_datasets[self.eval_split]
-        if max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        if self.max_eval_samples is not None:
+            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
+        eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
 
         datasets_dict = {"eval": eval_dataset}
 
@@ -70,7 +51,7 @@ class TextClassificationProcessing(DatasetProcessing):
             calibration_dataset = raw_datasets[self.calibration_split].map(
                 partial(
                     preprocess_function,
-                    tokenizer=self.tokenizer,
+                    tokenizer=self.preprocessor,
                     data_keys=self.data_keys,
                 ),
                 batched=True,
@@ -79,7 +60,7 @@ class TextClassificationProcessing(DatasetProcessing):
             )
 
             columns_to_remove = raw_datasets.column_names[self.calibration_split]
-            columns_to_remove = [name for name in columns_to_remove if name not in self.tokenizer.model_input_names]
+            columns_to_remove = [name for name in columns_to_remove if name not in self.preprocessor.model_input_names]
             calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
 
             if self.num_calibration_samples is not None:
@@ -89,57 +70,21 @@ class TextClassificationProcessing(DatasetProcessing):
 
         return datasets_dict
 
-    def run_inference(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline):
-        all_labels = []
-        all_preds = []
-        for _, inputs in enumerate(eval_dataset):
-            has_labels = all(inputs.get(k) is not None for k in self.ref_keys)
-            if has_labels:
-                labels = tuple(inputs.get(name) for name in self.ref_keys)
-                if len(labels) == 1:
-                    labels = labels[0]
-                else:
-                    raise ValueError("Only one label supported.")
-            else:
-                raise ValueError("Missing labels")
+    def run_evaluation(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline, metrics: List[str]):
+        all_metrics = combine(metrics)
 
-            all_labels.append(labels)
+        task_evaluator = evaluator("text-classification")
 
-            # we manually unroll the pipeline since it is broken
-            # see https://github.com/huggingface/transformers/issues/17305
-            inps = {"text": inputs[self.data_keys["primary"]]}
-            if self.data_keys["secondary"]:
-                inps["text_pair"] = inputs[self.data_keys["secondary"]]
+        results = task_evaluator.compute(
+            model_or_pipeline=pipeline,
+            data=eval_dataset,
+            metric=all_metrics,
+            input_column=self.data_keys["primary"],
+            label_column=self.ref_keys[0],
+            label_mapping=self.config.label2id,
+        )
 
-            kwargs = {"padding": "max_length"}
-            tokenized_inputs = pipeline.preprocess(inps, **kwargs)
-            model_outputs = pipeline.forward(tokenized_inputs)
-
-            # preds is a dict. No processing function is applied as not needed for score in the regression case
-            preds = pipeline.postprocess(model_outputs, function_to_apply=ClassificationFunction.NONE)
-
-            if not self.task_args["is_regression"]:
-                # the dataset label ids may be different from the label2id of predictions
-                if self.label_to_id is not None:
-                    preds = self.config.label2id[preds["label"]]
-                    preds = self.label_to_id[preds]
-                else:
-                    preds = self.config.label2id[preds["label"]]
-            else:
-                preds = preds["score"]
-
-            all_preds.append(preds)
-
-        return all_labels, all_preds
-
-    def get_metrics(self, predictions: List, references: List, metric: Metric):
-        metrics_res = metric.compute(predictions=predictions, references=references)
-
-        # try to get a good default here
-        if not isinstance(metrics_res, dict):
-            metrics_res = {metric.name: metrics_res}
-
-        return metrics_res
+        return results
 
     def get_pipeline_kwargs(self):
         return {}

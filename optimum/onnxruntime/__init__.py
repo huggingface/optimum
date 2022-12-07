@@ -11,56 +11,83 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from enum import Enum
+from typing import TYPE_CHECKING
+
+from transformers.utils import _LazyModule
 
 
-class ORTQuantizableOperator(Enum):
-    # Common ops
-    Gather = "Gather"
-    Transpose = "Transpose"
-    EmbedLayerNormalizationQuant = "EmbedLayerNormalization"
+_import_structure = {
+    "configuration": [
+        "CalibrationConfig",
+        "AutoCalibrationConfig",
+        "QuantizationMode",
+        "AutoQuantizationConfig",
+        "OptimizationConfig",
+        "AutoOptimizationConfig",
+        "ORTConfig",
+    ],
+    "modeling_ort": [
+        "ORTModel",
+        "ORTModelForCustomTasks",
+        "ORTModelForFeatureExtraction",
+        "ORTModelForImageClassification",
+        "ORTModelForMultipleChoice",
+        "ORTModelForQuestionAnswering",
+        "ORTModelForSequenceClassification",
+        "ORTModelForTokenClassification",
+    ],
+    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq"],
+    "modeling_decoder": ["ORTModelForCausalLM"],
+    "optimization": ["ORTOptimizer"],
+    "quantization": ["ORTQuantizer"],
+    "trainer": ["ORTTrainer"],
+    "trainer_seq2seq": ["ORTSeq2SeqTrainer"],
+    "training_args": ["ORTTrainingArguments"],
+    "training_args_seq2seq": ["ORTSeq2SeqTrainingArguments"],
+    "utils": [
+        "ONNX_DECODER_NAME",
+        "ONNX_DECODER_WITH_PAST_NAME",
+        "ONNX_ENCODER_NAME",
+        "ONNX_WEIGHTS_NAME",
+        "ORTQuantizableOperator",
+    ],
+}
 
-    # QLinearOps
-    Conv = "Conv"
-    MatMul = "MatMul"
-    Add = "Add"
-    Mul = "Mul"
-    Relu = "Relu"
-    Clip = "Clip"
-    LeakyRelu = "LeakyRelu"
-    Sigmoid = "Sigmoid"
-    MaxPool = "MaxPool"
-    GlobalAveragePool = "GlobalAveragePool"
-    Split = "Split"
-    Pad = "Pad"
-    Reshape = "Reshape"
-    Squeeze = "Squeeze"
-    Unsqueeze = "Unsqueeze"
-    Resize = "Resize"
-    AveragePool = "AveragePool"
-    Concat = "Concat"
 
+# Direct imports for type-checking
+if TYPE_CHECKING:
+    from .configuration import ORTConfig
+    from .modeling_decoder import ORTModelForCausalLM
+    from .modeling_ort import (
+        ORTModel,
+        ORTModelForCustomTasks,
+        ORTModelForFeatureExtraction,
+        ORTModelForImageClassification,
+        ORTModelForMultipleChoice,
+        ORTModelForQuestionAnswering,
+        ORTModelForSequenceClassification,
+        ORTModelForTokenClassification,
+    )
+    from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
+    from .optimization import ORTOptimizer
+    from .quantization import ORTQuantizer
+    from .trainer import ORTTrainer
+    from .trainer_seq2seq import ORTSeq2SeqTrainer
+    from .training_args import ORTTrainingArguments
+    from .training_args_seq2seq import ORTSeq2SeqTrainingArguments
+    from .utils import (
+        ONNX_DECODER_NAME,
+        ONNX_DECODER_WITH_PAST_NAME,
+        ONNX_ENCODER_NAME,
+        ONNX_WEIGHTS_NAME,
+        ORTQuantizableOperator,
+    )
+else:
+    import sys
 
-AUTO_MINIMUM_SUPPORTED_ONNX_OPSET = None
-
-# This value is used to indicate ORT which axis it should use to quantize an operator "per-channel"
-ORT_DEFAULT_CHANNEL_FOR_OPERATORS = {"MatMul": 1}
-ORT_FULLY_CONNECTED_OPERATORS = ["MatMul", "Add"]
-
-
-from .configuration import ORTConfig
-from .model import ORTModel
-from .modeling_ort import (
-    ORTModelForCausalLM,
-    ORTModelForFeatureExtraction,
-    ORTModelForImageClassification,
-    ORTModelForQuestionAnswering,
-    ORTModelForSequenceClassification,
-    ORTModelForTokenClassification,
-)
-from .modeling_seq2seq import ORTModelForSeq2SeqLM
-from .optimization import ORTOptimizer
-from .quantization import ORTQuantizer
-from .trainer import ORTTrainer
-from .trainer_seq2seq import ORTSeq2SeqTrainer
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, ONNX_WEIGHTS_NAME
+    sys.modules[__name__] = _LazyModule(
+        __name__,
+        globals()["__file__"],
+        _import_structure,
+        module_spec=__spec__,
+    )
