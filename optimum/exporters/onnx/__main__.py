@@ -132,7 +132,6 @@ def main():
         )
 
     if model.config.is_encoder_decoder and args.for_ort:
-        print("onnx_config.use_past:", onnx_config.use_past)
         onnx_inputs, onnx_outputs = export_encoder_decoder_model(
             model,
             onnx_config,
