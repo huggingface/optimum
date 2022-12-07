@@ -4,9 +4,83 @@ Quantization is a technique to reduce the computational and memory cost of runni
 weights and activations with low-precision data types like 8-bit integer (INT8) instead of the usual 32-bit floating
 point (FP32).
 
-Reducing the number of bits means the resulting model requires less memory storage, and operations like
-matrix multiplication can be performed much faster with integer arithmetic. Remarkably, these performance gains can be
-realized with little to no loss in accuracy!
+Reducing the number of bits means the resulting model requires less memory storage, consumes less energy (in theory), and
+operations like matrix multiplication can be performed much faster with integer arithmetic. It also allows to run models
+on embedded devices, which sometimes only support integer data types.
 
-The basic idea behind quantization is that we can “discretize” the floating-point values in each tensor by mapping their
-range into a smaller one of fixed-point numbers, and linearly distributing all values in between.
+
+## The Theory
+
+The basic idea behing quantization is quite easy: going from the regular 32-bit floating point representation for weights
+and activations to a lower precision data type. The most considered lower precision data types are:
+
+- FP16, accumulation data type FP16
+- INT16, accumulation data type INT32
+- INT8, accumulation data type INT32
+- INT4, accumulation data type INT32
+- INT1, accumulation data type INT32
+
+TODO: note on the accumulation type.
+
+
+### How do machines represent numbers?
+
+The most fundamental unit of representation for computers is the bit. Everything in computers is represented as a
+sequence of bits, including numbers.
+
+#### Integer representation
+
+Integers are usually represented with the following bit lengths: 8, 16, 32, 64. When representing integers, two cases
+are considered:
+
+1. Unsigned (positive) integers: they are simply represented as a sequence of bits. Each bit corresponds to a power
+of two (from 0 to n-1 where n is the bit-length), and the resulting number is the sum of those powers of two.
+
+Example: `19` is represented as an unsigned int8 as `00010011` because :
+```
+19 = 0 x 2^7 + 0 x 2^6 + 0 x 2^5 + 1 x 2^4 + 0 x 2^3 + 0 x 2^2 + 1 x 2^1 + 1 x 2^0
+```
+
+2. Signed integers: it is less straightforward to represent signed integers, and multiple approachs exist, the most
+common being the two's complement. For more information, you can check the [Wikipedia page](https://en.wikipedia.org/wiki/Signed_number_representations)] on the subject.
+
+#### Real numbers representation
+
+Real numbers are usually represented with the following bit lengths: 16, 32, 64.
+The two main ways of representing numbers are:
+
+1. Fixed-point: there are fixed number of digits reserved for representing the integer part and the fractional part.
+2. Floating-point: the number of digits for representing the integer and the fractional parts can vary.
+
+The floating-point representation can represent bigger ranges of values, and this is the one we will be focusing on
+since it is the most commonly used. There are three components in the floating-point representation:
+
+1. The sign bit: this is the bit specifying the sign of the number.
+2. The exponent part
+2. The mantissa
+
+For a number x we have: `x = sign x mantissa x 2^exponent`.
+
+### Most common cases
+
+The two most common quantization cases are `float32 -> float16` and `float32 -> int8`.
+
+#### Quantization to float16
+
+Performing quantization to go from `float32` to `float16` is quite straightforward since both data types follow the same
+representation scheme. The questions to ask yourself when quantizing an operation to `float16` are:
+
+- Does my operation have a `float16` implementation?
+- Does my hardware suport `float16`? For instance, Intel CPUs do not support that type until [TODO insert generation],
+before the support is only emulated on the software side.
+- Is my operation sensitive to lower precision?
+For instance epsilon value in LayerNorm are usually very small (~ `1e-12`), but the smallest representable value in
+`float16` is ~ `6e-5`. The same applies for big values.
+
+
+## Sources
+
+- https://iq.opengenus.org/basics-of-quantization-in-ml/
+- https://tivadardanka.com/blog/neural-networks-quantization
+- https://en.wikipedia.org/wiki/Signed_number_representations
+- https://en.wikipedia.org/wiki/Integer_(computer_science)
