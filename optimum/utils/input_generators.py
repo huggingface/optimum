@@ -585,24 +585,25 @@ class DummyStableDiffusionInputGenerator(DummyInputGenerator):
         "timestep",
         "sample",
         "encoder_hidden_states",
+        "latent_sample",
+        "input_ids",
     )
 
     def __init__(
         self,
         task: str,
-        normalized_config: NormalizedVisionConfig,
+        normalized_config: NormalizedConfig,
         batch_size: int = 2,
         num_channels: int = 4,
-        width: int = 224,
-        height: int = 224,
-        timestep: int = 1,
+        width: int = 64,
+        height: int = 64,
         sequence_length: int = 77,
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
         self.task = task
-        self.hidden_size = normalized_config.hidden_size
-        self.timestep = timestep
+        self.hidden_size = getattr(normalized_config, "hidden_size", 768)
+        self.vocab_size = getattr(normalized_config, "vocab_size", 49408)
 
         if random_batch_size_range:
             low, high = random_batch_size_range
@@ -630,11 +631,15 @@ class DummyStableDiffusionInputGenerator(DummyInputGenerator):
         self.height, self.width = self.image_size
 
     def generate(self, input_name: str, framework: str = "pt"):
+        max_value = 2 if input_name != "input_ids" else self.vocab_size
         if input_name == "timestep":
-            shape = [self.timestep]
-            return self.random_int_tensor(shape, max_value=1, framework=framework)
-        if input_name == "sample":
+            shape = [self.batch_size]
+            return self.random_int_tensor(shape, max_value=max_value, framework=framework)
+        if input_name == "input_ids":
+            shape = [self.batch_size, self.sequence_length]
+            return self.random_int_tensor(shape, max_value=max_value, framework=framework).to(dtype=torch.int32)
+        if input_name == "sample" or input_name == "z" or input_name == "latent_sample":
             shape = [self.batch_size, self.num_channels, self.height, self.width]
-            return self.random_float_tensor(shape, framework=framework)
-        shape = [self.batch_size, self.sequence_length, self.hidden_size]
+        else:
+            shape = [self.batch_size, self.sequence_length, self.hidden_size]
         return self.random_float_tensor(shape, framework=framework)

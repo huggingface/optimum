@@ -248,7 +248,7 @@ class TasksManager:
         ),
         "vae-decoder": supported_tasks_mapping(
             "semantic-segmentation",
-            onnx="VaeDecoderOnnxConfig",
+            onnx="VaeOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
             "default",

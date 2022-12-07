@@ -684,7 +684,7 @@ class UNetOnnxConfig(ViTOnnxConfig):
         }
 
 
-class VaeDecoderOnnxConfig(ViTOnnxConfig):
+class VaeOnnxConfig(ViTOnnxConfig):
 
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 14
