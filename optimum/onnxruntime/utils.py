@@ -273,6 +273,7 @@ class ORTQuantizableOperator(Enum):
     AveragePool = "AveragePool"
     Concat = "Concat"
 
+
 def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -> Tuple[List[Path], List[str]]:
     """
     Get external data paths from the model and add them to the list of files to copy.
