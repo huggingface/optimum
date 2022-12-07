@@ -25,9 +25,11 @@ from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
 from .convert import (
     export,
+    export_decoder_model,
     export_encoder_decoder_model,
     validate_encoder_decoder_model_outputs,
     validate_model_outputs,
+    validate_decoder_model_outputs,
 )
 
 
@@ -130,6 +132,7 @@ def main():
         )
 
     if model.config.is_encoder_decoder and args.for_ort:
+        print("onnx_config.use_past:", onnx_config.use_past)
         onnx_inputs, onnx_outputs = export_encoder_decoder_model(
             model,
             onnx_config,
@@ -137,6 +140,14 @@ def main():
             args.output.parent.joinpath("encoder_model.onnx"),
             args.output.parent.joinpath("decoder_model.onnx"),
             args.output.parent.joinpath("decoder_with_past_model.onnx"),
+        )
+    elif args.for_ort and task.startswith("causal-lm"):
+        onnx_inputs, onnx_outputs = export_decoder_model(
+            model=model,
+            config=onnx_config,
+            opset=args.opset,
+            decoder_output=args.output.parent.joinpath("decoder_model.onnx"),
+            decoder_with_past_output=args.output.parent.joinpath("decoder_with_past_model.onnx"),
         )
     else:
         onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
@@ -159,6 +170,15 @@ def main():
                 onnx_outputs,
                 args.atol,
                 args.output.parent.joinpath("encoder_model.onnx"),
+                args.output.parent.joinpath("decoder_model.onnx"),
+                args.output.parent.joinpath("decoder_with_past_model.onnx"),
+            )
+        elif args.for_ort and task.startswith("causal-lm"):
+            validate_decoder_model_outputs(
+                onnx_config,
+                model,
+                onnx_outputs,
+                args.atol,
                 args.output.parent.joinpath("decoder_model.onnx"),
                 args.output.parent.joinpath("decoder_with_past_model.onnx"),
             )

@@ -568,6 +568,8 @@ class ORTModelDecoder(ORTModel):
 
         preprocessors = None
         if model_path.is_dir():
+            print("LOADING:", model_path / decoder_file_name)
+            print("LOADING:", decoder_with_past_path)
             model = cls.load_model(
                 decoder_path=model_path / decoder_file_name,
                 decoder_with_past_path=decoder_with_past_path,
@@ -667,6 +669,8 @@ class ORTModelDecoder(ORTModel):
             model_type, "onnx", task=task, model_name=model_name
         )
         onnx_config = onnx_config_constructor(model.config, use_present_in_outputs=True)
+        print("HERE onnx_config.use_past", onnx_config.use_past)
+        print("HERE onnx_config.use_present_in_outputs", onnx_config.use_present_in_outputs)
 
         export(
             model,
@@ -723,7 +727,7 @@ class ORTModelDecoder(ORTModel):
 
         return self
 
-
+import sys
 class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     """
     ONNX model with a causal language modeling head for ONNX Runtime inference.
@@ -748,14 +752,19 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
 
+        print("in forward")
         if past_key_values is None or self.decoder_with_past is None:
+            print("running self.decoder")
             outputs = self.decoder(input_ids=input_ids, attention_mask=attention_mask)
         else:
+            print("running self.decoder_with_past")
+            print(past_key_values)
             outputs = self.decoder_with_past(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
             )
+            sys.exit()
 
         return CausalLMOutputWithCrossAttentions(logits=outputs.logits, past_key_values=outputs.past_key_values)
 
