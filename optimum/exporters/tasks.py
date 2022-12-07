@@ -242,6 +242,14 @@ class TasksManager:
             "default",
             onnx="CLIPOnnxConfig",
         ),
+        "cliptext": supported_tasks_mapping(
+            "default",
+            onnx="CLIPTextOnnxConfig",
+        ),
+        "vae-decoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeDecoderOnnxConfig",
+        ),
         "codegen": supported_tasks_mapping(
             "default",
             # "default-with-past",
