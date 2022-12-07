@@ -273,7 +273,7 @@ class ORTQuantizableOperator(Enum):
     Concat = "Concat"
 
 
-def _get_external_data_paths(src_file_names, dst_file_names):
+def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -> Tuple[List[Path], List[str]]:
     import onnx
     from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
