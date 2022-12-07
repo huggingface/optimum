@@ -66,7 +66,7 @@ def find_files_matching_pattern(
             Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
 
     Returns:
-        `List[Path`]
+        `List[Path]`
     """
     model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
     pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
