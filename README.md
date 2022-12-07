@@ -116,7 +116,7 @@ classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
 results = classifier("I love burritos!")
 ```
 
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/overview) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime).
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/quickstart) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime).
 
 
 #### Intel
@@ -140,7 +140,7 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
   results = classifier("He's a dreadful magician.")
 ```
 
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/index) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
 
 
 ## Accelerated training
@@ -179,7 +179,7 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
   trainer.train()
 ```
 
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/habana/index) and in the [examples](https://github.com/huggingface/optimum-habana/tree/main/examples).
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/habana/quickstart) and in the [examples](https://github.com/huggingface/optimum-habana/tree/main/examples).
 
 
 #### Graphcore
@@ -218,7 +218,7 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
   trainer.train()
 ```
 
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/graphcore/index) and in the [examples](https://github.com/huggingface/optimum-graphcore/tree/main/examples).
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/graphcore/quickstart) and in the [examples](https://github.com/huggingface/optimum-graphcore/tree/main/examples).
 
 
 #### ONNX Runtime
@@ -254,4 +254,4 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
   trainer.train()
 ```
 
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/overview) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
