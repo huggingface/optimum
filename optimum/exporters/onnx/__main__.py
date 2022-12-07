@@ -20,7 +20,7 @@ from pathlib import Path
 from transformers import AutoTokenizer
 
 from ...utils import logging
-from ...utils.save_utils import maybe_save_tokenizer_or_processor_or_feature_extractor
+from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
 from .convert import (
@@ -144,7 +144,7 @@ def main():
     # Saving the model config as this is needed sometimes.
     model.config.save_pretrained(args.output.parent)
 
-    maybe_save_tokenizer_or_processor_or_feature_extractor(args.model, args.output.parent)
+    maybe_save_preprocessors(args.model, args.output.parent)
 
     if args.atol is None:
         args.atol = onnx_config.ATOL_FOR_VALIDATION
