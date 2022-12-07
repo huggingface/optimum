@@ -83,10 +83,10 @@ from .input_generators import (  # noqa
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyInputGenerator,
-    DummyStableDiffusionInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
+    DummyStableDiffusionInputGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
 )

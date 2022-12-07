@@ -15,6 +15,7 @@
 """Normalization configuration classes."""
 
 import functools
+
 from typing import TYPE_CHECKING, Callable, Dict, Type, Union
 from transformers import PretrainedConfig
 
