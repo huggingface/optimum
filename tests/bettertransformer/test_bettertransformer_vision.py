@@ -84,3 +84,16 @@ class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase
         processor = AutoProcessor.from_pretrained(model_id)
         inputs = processor(image, text, return_tensors="pt")
         return inputs
+
+
+     def  test_raise_activation_fun(self):
+        r"""
+        A tests that checks if the conversion raises an error if the model contains an activation function
+        that is not supported by `BetterTransformer`. Here we need to loop over the config files
+        """
+        for hf_random_config in self.all_models_to_test:
+            hf_random_config.vision_config.hidden_act = "silu"
+
+            hf_random_model = AutoModel.from_config(hf_random_config).eval()
+            with self.assertRaises(ValueError):
+                _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)      
