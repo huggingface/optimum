@@ -75,7 +75,7 @@ Check out the examples below to see how 🤗 Optimum can be used to train and ru
 
 To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for graph optimization and quantization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
 
-Before applying quantization or optimization, first we need to load our model. To load a model and run inference with ONNX Runtime, you can just replace [the canonical Transformers `AutoModelForXxx` class](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModel) with the corresponding [`ORTModelForXxx` class](https://huggingface.co/docs/optimum/onnxruntime/package_reference/modeling_ort#optimum.onnxruntime.ORTModel). If you want to load from a PyTorch checkpoint, set `from_transformers=True` to export your model to the ONNX format.
+Before applying quantization or optimization, first we need to load our model. To load a model and run inference with ONNX Runtime, you can just replace the canonical Transformers [`AutoModelForXxx`](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModel) class with the corresponding [`ORTModelForXxx`](https://huggingface.co/docs/optimum/onnxruntime/package_reference/modeling_ort#optimum.onnxruntime.ORTModel) class. If you want to load from a PyTorch checkpoint, set `from_transformers=True` to export your model to the ONNX format.
 
 ```python
 from optimum.onnxruntime import ORTModelForSequenceClassification
