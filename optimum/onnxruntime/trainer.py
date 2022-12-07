@@ -421,7 +421,7 @@ class ORTTrainer(Trainer):
 
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
-        model = ORTModule(self.model)
+        model = ORTModule(self.model) if not isinstance(self.model, ORTModule) else self.model
         self.model_wrapped = model
 
         if args.deepspeed:
