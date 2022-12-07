@@ -900,16 +900,16 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
         """
-        src_file_names = [self.encoder_model_path, self.decoder_model_path]
+        src_paths = [self.encoder_model_path, self.decoder_model_path]
         dst_file_names = [encoder_file_name, decoder_file_name]
         if self.use_cache:
-            src_file_names.append(self.decoder_with_past_model_path)
+            src_paths.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
 
         # add external data paths in case of large models
-        src_file_names, dst_file_names = _get_external_data_paths(src_file_names, dst_file_names)
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
 
-        for src_path, dst_file_name in zip(src_file_names, dst_file_names):
+        for src_path, dst_file_name in zip(src_paths, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)
 

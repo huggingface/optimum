@@ -301,13 +301,13 @@ class ORTModel(OptimizedModel):
             file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
                 The filename to use when saving the model.
         """
-        src_file_names = [self.model_path]
+        src_paths = [self.model_path]
         dst_file_names = [file_name]
 
         # add external data paths in case of large models
-        src_file_names, dst_file_names = _get_external_data_paths(src_file_names, dst_file_names)
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
 
-        for src_path, dst_file_name in zip(src_file_names, dst_file_names):
+        for src_path, dst_file_name in zip(src_paths, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)
 

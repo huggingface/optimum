@@ -16,7 +16,8 @@
 import importlib.util
 import os
 from enum import Enum
-from typing import Dict, Tuple, Type, Union
+from pathlib import Path
+from typing import Dict, List, Tuple, Type, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -25,6 +26,7 @@ from transformers.utils import logging
 import onnx
 import onnxruntime as ort
 import pkg_resources
+from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
 from ..utils import NormalizedTextConfig
@@ -272,12 +274,11 @@ class ORTQuantizableOperator(Enum):
     AveragePool = "AveragePool"
     Concat = "Concat"
 
-
 def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -> Tuple[List[Path], List[str]]:
-    import onnx
-    from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
-
-    model_paths = src_file_names.copy()
+    """
+    Get external data paths from the model and add them to the list of files to copy.
+    """
+    model_paths = src_paths.copy()
     for model_path in model_paths:
         # load model graph
         model = onnx.load(str(model_path), load_external_data=False)
@@ -288,6 +289,6 @@ def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -
             for tensor in model_tensors
             if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
         ]
-        src_file_names.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
+        src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
         dst_file_names.extend(model_tensors_ext)
-    return src_file_names, dst_file_names
+    return src_paths, dst_file_names
