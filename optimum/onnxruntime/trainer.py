@@ -119,13 +119,6 @@ if is_fairscale_available():
 if TYPE_CHECKING:
     import optuna
 
-if is_onnxruntime_training_available():
-    from torch_ort import ORTModule
-else:
-    raise ImportError(
-        "You need to install `onnxruntime-training` to use `ORTTrainer`. Check out "
-        "https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer#install-onnx-runtime."
-    )
 
 logger = logging.get_logger(__name__)
 
@@ -297,6 +290,11 @@ class ORTTrainer(Trainer):
             kwargs:
                 Additional keyword arguments used to hide deprecated arguments
         """
+        if not is_onnxruntime_training_available():
+            raise ImportError(
+                "You need to install `onnxruntime-training` to use `ORTTrainer` for training. Check out "
+                "https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer#install-onnx-runtime."
+            )
 
         if resume_from_checkpoint is False:
             resume_from_checkpoint = None
@@ -364,6 +362,7 @@ class ORTTrainer(Trainer):
     def _inner_training_loop(
         self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None
     ):
+        from torch_ort import ORTModule
 
         self._train_batch_size = batch_size
 
@@ -1500,6 +1499,8 @@ class ORTTrainer(Trainer):
 
         # train/eval could be run multiple-times - if already wrapped, don't re-wrap it again
         if unwrap_model(model) is not model:
+            from torch_ort import ORTModule
+
             if not isinstance(model, ORTModule):
                 return model
 
