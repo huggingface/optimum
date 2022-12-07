@@ -15,23 +15,8 @@ Optimum aims at providing more diversity towards the kind of hardware users can 
 To achieve this, we are collaborating with the following hardware manufacturers in order to provide the best transformers integration:
 - [Graphcore IPUs](https://github.com/huggingface/optimum-graphcore) - IPUs are a completely new kind of massively parallel processor to accelerate machine intelligence. More information [here](https://www.graphcore.ai/products/ipu).
 - [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - [HPUs](https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html) are designed to maximize training throughput and efficiency. More information [here](https://habana.ai/training/).
-
 - [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate inference on Intel architectures. More information about [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and [OpenVINO](https://docs.openvino.ai/latest/index.html).
 - More to come soon! :star:
-
-## Optimizing models towards inference
-
-Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
-platforms.
-
-Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with Intel [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and OpenVINO [NNCF](https://docs.openvino.ai/latest/tmo_introduction.html).
-
-| Features                           | ONNX Runtime          |     Neural Compressor   |         OpenVINO        |
-|:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|
-| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
-| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
-| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |           N/A           |
-| Pruning                            |        N/A            |    :heavy_check_mark:   |    Stay tuned! :star:   |
 
 
 ## Installation
@@ -65,6 +50,21 @@ For the accelerator-specific features, you can install them by appending `#egg=o
 python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
 ```
 
+
+## Optimizing models towards inference
+
+Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
+platforms.
+
+Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with Intel [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and OpenVINO [NNCF](https://docs.openvino.ai/latest/tmo_introduction.html).
+
+| Features                           | ONNX Runtime          |     Neural Compressor   |         OpenVINO        |
+|:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|
+| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
+| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
+| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |           N/A           |
+| Pruning                            |        N/A            |    :heavy_check_mark:   |    Stay tuned! :star:   |
+
 ## Quick tour
 
 Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
@@ -86,7 +86,7 @@ save_directory = "tmp/onnx/"
 # Load a model from transformers and export it to ONNX
 tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
-# Save the onnx model and tokenizer
+# Save the ONNX model and tokenizer
 ort_model.save_pretrained(save_directory)
 tokenizer.save_pretrained(save_directory)
 ```
