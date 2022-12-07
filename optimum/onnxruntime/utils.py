@@ -17,7 +17,7 @@ import importlib.util
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Tuple, Type, Union
+from typing import Dict, List, Tuple, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -29,7 +29,6 @@ import pkg_resources
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
-from ..utils import NormalizedTextConfig
 
 
 logger = logging.get_logger(__name__)
