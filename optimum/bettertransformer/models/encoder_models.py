@@ -1174,9 +1174,11 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         """
         super().forward_checker()
 
-        # we expect attention_mask to be None in the vision model 
-        if attention_mask is not None: 
-            raise ValueError("Please do not use attention masks when using `BetterTransformer` converted vision models") 
+        # we expect attention_mask to be None in the vision model
+        if attention_mask is not None:
+            raise ValueError(
+                "Please do not use attention masks when using `BetterTransformer` converted vision models"
+            )
 
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
