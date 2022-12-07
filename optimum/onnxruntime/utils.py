@@ -272,6 +272,7 @@ class ORTQuantizableOperator(Enum):
     AveragePool = "AveragePool"
     Concat = "Concat"
 
+
 def _get_external_data_paths(src_file_names, dst_file_names):
     import onnx
     from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
@@ -282,7 +283,11 @@ def _get_external_data_paths(src_file_names, dst_file_names):
         model = onnx.load(str(model_path), load_external_data=False)
         # filter out tensors that are not external data
         model_tensors = _get_initializer_tensors(model)
-        model_tensors_ext = [ExternalDataInfo(tensor).location for tensor in model_tensors if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL]
+        model_tensors_ext = [
+            ExternalDataInfo(tensor).location
+            for tensor in model_tensors
+            if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
+        ]
         src_file_names.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
         dst_file_names.extend(model_tensors_ext)
     return src_file_names, dst_file_names

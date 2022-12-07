@@ -44,10 +44,10 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
+    _get_external_data_paths,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
-    _get_external_data_paths
 )
 
 
@@ -905,10 +905,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if self.use_cache:
             src_file_names.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
-        
+
         # add external data paths in case of large models
         src_file_names, dst_file_names = _get_external_data_paths(src_file_names, dst_file_names)
-    
+
         for src_path, dst_file_name in zip(src_file_names, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)

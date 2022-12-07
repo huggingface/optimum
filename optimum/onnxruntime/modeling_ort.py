@@ -51,11 +51,11 @@ from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessor
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    _get_external_data_paths,
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
-    _get_external_data_paths
 )
 
 
