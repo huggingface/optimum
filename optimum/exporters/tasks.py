@@ -246,10 +246,6 @@ class TasksManager:
             "default",
             onnx="CLIPTextOnnxConfig",
         ),
-        "vae-decoder": supported_tasks_mapping(
-            "semantic-segmentation",
-            onnx="VaeOnnxConfig",
-        ),
         "codegen": supported_tasks_mapping(
             "default",
             # "default-with-past",
@@ -482,10 +478,6 @@ class TasksManager:
             "image-classification",
             onnx="ResNetOnnxConfig",
         ),
-        "unet": supported_tasks_mapping(
-            "semantic-segmentation",
-            onnx="UNetOnnxConfig",
-        ),
         "roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -530,6 +522,14 @@ class TasksManager:
             "seq2seq-lm",
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
+        ),
+        "unet": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="UNetOnnxConfig",
+        ),
+        "vae": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeOnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "whisper": supported_tasks_mapping(

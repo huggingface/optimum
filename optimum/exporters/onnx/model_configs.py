@@ -709,6 +709,7 @@ class VaeOnnxConfig(ViTOnnxConfig):
             "logits": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
 
+
 class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass
 
