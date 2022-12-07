@@ -35,7 +35,7 @@ from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device, _get_external_data_paths
 
 
 if TYPE_CHECKING:
@@ -470,14 +470,18 @@ class ORTModelDecoder(ORTModel):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
         """
-        src_paths = [self.decoder_model_path]
+        src_file_names = [self.decoder_model_path]
         dst_file_names = [decoder_file_name]
+
         if self.use_cache:
-            src_paths.append(self.decoder_with_past_model_path)
+            src_file_names.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
 
-        for src_path, dst_file_name in zip(src_paths, dst_file_names):
-            dst_path = Path(save_directory).joinpath(dst_file_name)
+        # add external data paths in case of large models
+        src_file_names, dst_file_names = _get_external_data_paths(src_file_names, dst_file_names)
+
+        for src_path, dst_file_name in zip(src_file_names, dst_file_names):
+            dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)
 
     @classmethod

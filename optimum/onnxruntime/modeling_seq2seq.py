@@ -47,6 +47,7 @@ from .utils import (
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
+    _get_external_data_paths
 )
 
 
@@ -904,20 +905,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if self.use_cache:
             src_file_names.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
-
-        import onnx
-        from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
-
-        model_paths = src_file_names.copy()
-        for model_path in model_paths:
-            # load model graph
-            model = onnx.load(str(model_path), load_external_data=False)
-            # filter out tensors that are not external data
-            model_tensors = _get_initializer_tensors(model)
-            model_tensors_ext = [ExternalDataInfo(tensor).location for tensor in model_tensors if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL]
-            src_file_names.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
-            dst_file_names.extend(model_tensors_ext)
-
+        
+        # add external data paths in case of large models
+        src_file_names, dst_file_names = _get_external_data_paths(src_file_names, dst_file_names)
+    
         for src_path, dst_file_name in zip(src_file_names, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)

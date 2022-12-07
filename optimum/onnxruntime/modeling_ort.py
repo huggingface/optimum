@@ -55,6 +55,7 @@ from .utils import (
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
+    _get_external_data_paths
 )
 
 
@@ -300,9 +301,15 @@ class ORTModel(OptimizedModel):
             file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
                 The filename to use when saving the model.
         """
-        # TODO: support models with external data
-        dst_path = Path(save_directory).joinpath(file_name)
-        shutil.copyfile(self.model_path, dst_path)
+        src_file_names = [self.model_path]
+        dst_file_names = [file_name]
+
+        # add external data paths in case of large models
+        src_file_names, dst_file_names = _get_external_data_paths(src_file_names, dst_file_names)
+
+        for src_path, dst_file_name in zip(src_file_names, dst_file_names):
+            dst_path = Path(save_directory) / dst_file_name
+            shutil.copyfile(src_path, dst_path)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
