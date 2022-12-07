@@ -534,7 +534,6 @@ class ORTModelDecoder(ORTModel):
                     fail_if_not_found=use_cache,
                 )
 
-
             decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
                 ONNX_DECODER_WITH_PAST_NAME
             )
