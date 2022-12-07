@@ -20,10 +20,10 @@ from packaging import version
 
 from ...utils import (
     DummyDecoderTextInputGenerator,
-    DummyStableDiffusionInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
+    DummyStableDiffusionInputGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
@@ -607,29 +607,6 @@ class SwinOnnxConfig(ViTOnnxConfig):
     pass
 
 
-class UNetOnnxConfig(ViTOnnxConfig):
-
-    ATOL_FOR_VALIDATION = 1e-3
-    DEFAULT_ONNX_OPSET = 14
-
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        image_size="sample_size",
-        num_channels="in_channels",
-        hidden_size="cross_attention_dim",
-        allow_new=True,
-    )
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return {
-            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
-            "timestep": {0: "steps"},
-            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
-        }
-
-
 class SegformerOnnxConfig(YolosOnnxConfig):
     pass
 
@@ -660,6 +637,77 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "image_embeds": {0: "batch_size"},
         }
 
+
+class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        vocab_size="vocab_size",
+        sequence_length="max_position_embeddings",
+        allow_new=True,
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
+            "pooler_output": {0: "batch_size", 1: "feature_dim"},
+        }
+
+
+class UNetOnnxConfig(ViTOnnxConfig):
+
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        image_size="sample_size",
+        num_channels="in_channels",
+        hidden_size="cross_attention_dim",
+        allow_new=True,
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "timestep": {0: "steps"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
+        }
+
+
+class VaeDecoderOnnxConfig(ViTOnnxConfig):
+
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_channels="latent_channels",
+        # image_size="sample_size",
+        allow_new=True,
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "logits": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
 
 class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass
