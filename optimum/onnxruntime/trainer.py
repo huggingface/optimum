@@ -450,7 +450,12 @@ class ORTTrainer(Trainer):
             self.model = unwrap_model(deepspeed_engine)
             self.model_wrapped = deepspeed_engine
             self.deepspeed = deepspeed_engine
-            self.optimizer = optimizer
+            if args.fp16:
+                from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
+                self.optimizer = FP16_Optimizer(optimizer)
+            else:
+                self.optimizer = optimizer
             self.lr_scheduler = lr_scheduler
         elif not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
@@ -1507,6 +1512,11 @@ class ORTTrainer(Trainer):
         # Mixed precision training with apex (torch < 1.6)
         if self.use_apex and training:
             model, self.optimizer = amp.initialize(model, self.optimizer, opt_level=self.args.fp16_opt_level)
+
+            if args.fp16:
+                from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
+                self.optimizer = FP16_Optimizer(self.optimizer)
 
         # Multi-gpu training (should be after apex fp16 initialization)
         if self.args.n_gpu > 1:
