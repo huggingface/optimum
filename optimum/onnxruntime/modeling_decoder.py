@@ -29,7 +29,7 @@ import onnxruntime
 from huggingface_hub import hf_hub_download
 
 from ..exporters import TasksManager
-from ..exporters.onnx.convert import export_decoder_model
+from ..exporters.onnx import export_models, get_decoder_models_for_export
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
@@ -648,12 +648,16 @@ class ORTModelDecoder(ORTModel):
         )
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
 
-        export_decoder_model(
+        output_names = [ONNX_DECODER_NAME]
+        if use_cache is True:
+            output_names.append(ONNX_DECODER_WITH_PAST_NAME)
+        export_models(
             model=model,
-            config=onnx_config,
+            onnx_config=onnx_config,
             opset=onnx_config.DEFAULT_ONNX_OPSET,
-            decoder_output=save_dir_path.joinpath(ONNX_DECODER_NAME),
-            decoder_with_past_output=save_dir_path.joinpath(ONNX_DECODER_WITH_PAST_NAME),
+            output_dir=save_dir_path,
+            fn_get_models_from_config=get_decoder_models_for_export,
+            output_names=output_names,
         )
 
         config.save_pretrained(save_dir_path)

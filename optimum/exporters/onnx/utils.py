@@ -99,17 +99,17 @@ def get_encoder_decoder_models_for_export(
 
     encoder_model = model.get_encoder()
     encoder_onnx_config = config.get_encoder_onnx_config(encoder_model.config)
-    models_for_export["encoder"] = (encoder_model, encoder_onnx_config)
+    models_for_export["encoder_model"] = (encoder_model, encoder_onnx_config)
 
     decoder_model = model.get_decoder()
     decoder_onnx_config = config.get_decoder_onnx_config(decoder_model.config, config.task, use_past=False)
-    models_for_export["decoder"] = (model, decoder_onnx_config)
+    models_for_export["decoder_model"] = (model, decoder_onnx_config)
 
     if config.use_past:
         decoder_onnx_config_with_past = config.get_decoder_onnx_config(
             decoder_model.config, config.task, use_past=True
         )
-        models_for_export["decoder_with_past"] = (model, decoder_onnx_config_with_past)
+        models_for_export["decoder_with_past_model"] = (model, decoder_onnx_config_with_past)
 
     return models_for_export
 
@@ -133,13 +133,13 @@ def get_decoder_models_for_export(
     """
     models_for_export = dict()
 
-    models_for_export["decoder"] = (
+    models_for_export["decoder_model"] = (
         model,
         config.__class__(model.config, task=config.task, use_past=False, use_present_in_outputs=True),
     )
 
     if config.use_past:
         onnx_config_with_past = config.__class__.with_past(model.config, task=config.task)
-        models_for_export["decoder_with_past"] = (model, onnx_config_with_past)
+        models_for_export["decoder_with_past_model"] = (model, onnx_config_with_past)
 
     return models_for_export

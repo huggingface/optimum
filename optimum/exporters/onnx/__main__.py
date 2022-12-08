@@ -23,14 +23,8 @@ from ...utils import logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import (
-    export,
-    export_decoder_model,
-    export_encoder_decoder_model,
-    validate_decoder_model_outputs,
-    validate_encoder_decoder_model_outputs,
-    validate_model_outputs,
-)
+from .convert import export, export_models, validate_model_outputs, validate_models_outputs
+from .utils import get_decoder_models_for_export, get_encoder_decoder_models_for_export
 
 
 logger = logging.get_logger()
@@ -132,21 +126,20 @@ def main():
         )
 
     if model.config.is_encoder_decoder and args.for_ort:
-        onnx_inputs, onnx_outputs = export_encoder_decoder_model(
-            model,
-            onnx_config,
-            args.opset,
-            args.output.parent.joinpath("encoder_model.onnx"),
-            args.output.parent.joinpath("decoder_model.onnx"),
-            args.output.parent.joinpath("decoder_with_past_model.onnx"),
+        onnx_inputs, onnx_outputs = export_models(
+            model=model,
+            onnx_config=onnx_config,
+            opset=args.opset,
+            output_dir=args.output.parent,
+            fn_get_models_from_config=get_encoder_decoder_models_for_export,
         )
     elif args.for_ort and task.startswith("causal-lm"):
-        onnx_inputs, onnx_outputs = export_decoder_model(
+        onnx_inputs, onnx_outputs = export_models(
             model=model,
-            config=onnx_config,
+            onnx_config=onnx_config,
             opset=args.opset,
-            decoder_output=args.output.parent.joinpath("decoder_model.onnx"),
-            decoder_with_past_output=args.output.parent.joinpath("decoder_with_past_model.onnx"),
+            output_dir=args.output.parent,
+            fn_get_models_from_config=get_decoder_models_for_export,
         )
     else:
         onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
@@ -163,23 +156,22 @@ def main():
 
     try:
         if model.config.is_encoder_decoder and args.for_ort:
-            validate_encoder_decoder_model_outputs(
-                onnx_config,
-                model,
-                onnx_outputs,
-                args.atol,
-                args.output.parent.joinpath("encoder_model.onnx"),
-                args.output.parent.joinpath("decoder_model.onnx"),
-                args.output.parent.joinpath("decoder_with_past_model.onnx"),
+            validate_models_outputs(
+                onnx_config=onnx_config,
+                reference_model=model,
+                onnx_named_outputs=onnx_outputs,
+                atol=args.atol,
+                output_dir=args.output.parent,
+                fn_get_models_from_config=get_encoder_decoder_models_for_export,
             )
         elif args.for_ort and task.startswith("causal-lm"):
-            validate_decoder_model_outputs(
-                onnx_config,
-                model,
-                onnx_outputs,
-                args.atol,
-                args.output.parent.joinpath("decoder_model.onnx"),
-                args.output.parent.joinpath("decoder_with_past_model.onnx"),
+            validate_models_outputs(
+                onnx_config=onnx_config,
+                reference_model=model,
+                onnx_named_outputs=onnx_outputs,
+                atol=args.atol,
+                output_dir=args.output.parent,
+                fn_get_models_from_config=get_decoder_models_for_export,
             )
         else:
             validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
