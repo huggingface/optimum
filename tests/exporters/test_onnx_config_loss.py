@@ -61,7 +61,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
 
                     # Export model from PyTorch to ONNX
-                    onnx_model_path = Path(os.path.join("VID", f"{model.config.model_type}.onnx"))
+                    onnx_model_path = Path(os.path.join(temp, f"{model.config.model_type}.onnx"))
                     opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
                     _ = export(
                         model=model,
