@@ -25,7 +25,6 @@ import onnxruntime as ort
 import pkg_resources
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
-from ..utils import NormalizedTextConfig
 
 
 logger = logging.get_logger(__name__)
