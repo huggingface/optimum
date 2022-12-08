@@ -292,7 +292,7 @@ class OnnxExportTestCase(TestCase):
                         model,
                         onnx_config,
                         onnx_config.DEFAULT_ONNX_OPSET,
-                        output_dir=tmpdirname,
+                        output_dir=Path(tmpdirname),
                         fn_get_models_from_config=get_decoder_models_for_export,
                         device=device,
                     )
@@ -302,7 +302,7 @@ class OnnxExportTestCase(TestCase):
                         model,
                         onnx_outputs,
                         atol,
-                        output_dir=tmpdirname,
+                        output_dir=Path(tmpdirname),
                         fn_get_models_from_config=get_decoder_models_for_export,
                     )
                 except (RuntimeError, ValueError) as e:
