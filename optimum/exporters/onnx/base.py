@@ -651,8 +651,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTrainingLabelsInputGenerator,)
 
     def __init__(self, config: OnnxConfig):
-        self.__dict__ = copy.deepcopy(config.__dict__)
         self._onnx_config = config
+        self.task = self._onnx_config.task
+        self._normalized_config = self._onnx_config._normalized_config
+        self._patching_specs = self._onnx_config._patching_specs
 
     @classmethod
     def from_model_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
