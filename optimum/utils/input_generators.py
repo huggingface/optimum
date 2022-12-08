@@ -609,7 +609,13 @@ class DummyTrainingLabelsInputGenerator(DummyTextInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         max_value = 1 if self.task != "seq2seq-lm" else self.vocab_size
         shape = [self.batch_size, self.sequence_length]
-        if self.task in ["default", "multiple-choice", "start_positions", "end_positions", "image-classification"]:
+        if self.task in [
+            "default",
+            "sequence-classification",
+            "multiple-choice",
+            "question-answering",
+            "image-classification",
+        ]:
             shape = [self.batch_size]
 
         return self.random_int_tensor(shape, max_value=max_value, framework=framework)

@@ -630,37 +630,29 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     """
 
     _tasks_to_extra_inputs = {
-        "default": {"labels": {0: "batch"}},
-        "masked-lm": {"labels": {0: "batch", 1: "sequence"}},
-        "causal-lm": {"labels": {0: "batch", 1: "sequence"}},
-        "seq2seq-lm": {"labels": {0: "batch", 1: "sequence"}},
-        "sequence-classification": {"labels": {0: "batch"}},
-        "token-classification": {"labels": {0: "batch", 1: "sequence"}},
-        "multiple-choice": {"labels": {0: "batch"}},
+        "default": {"labels": {0: "batch_size"}},
+        "masked-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "causal-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "sequence-classification": {"labels": {0: "batch_size"}},
+        "token-classification": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "multiple-choice": {"labels": {0: "batch_size"}},
         "question-answering": {
-            "start_positions": {0: "batch"},
-            "end_positions": {0: "batch"},
+            "start_positions": {0: "batch_size"},
+            "end_positions": {0: "batch_size"},
         },
-        "image-classification": {"labels": {0: "batch"}},
-        "seq2seq-lm": {"labels": {0: "batch", 1: "sequence"}},
+        "image-classification": {"labels": {0: "batch_size"}},
+        "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
     }
     _tasks_to_extra_outputs = {
         "default": OrderedDict({"loss": {}}),
     }
 
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTrainingLabelsInputGenerator,)
+
     def __init__(self, config: OnnxConfig):
         self.__dict__ = copy.deepcopy(config.__dict__)
         self._onnx_config = config
-        first_inputs_gen = self.dummy_inputs_generators[0]
-        self.dummy_inputs_generators.append(
-            DummyTrainingLabelsInputGenerator(
-                self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size
-            )
-        )
-        if self.task not in self._tasks_to_extra_inputs:
-            raise ValueError(
-                f"{self.task} is not a supported task, supported tasks: {', '.self._tasks_to_extra_inputs.keys()}"
-            )
 
     @classmethod
     def from_model_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
@@ -681,12 +673,33 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             common_outputs.move_to_end(key, last=False)
         return copy.deepcopy(common_outputs)
 
-    def generate_dummy_inputs(self, framework: str = "pt"):
-        dummy_inputs = self._onnx_config.generate_dummy_inputs(framework=framework)
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
+        first_inputs_gen = self._onnx_config.DUMMY_INPUT_GENERATOR_CLASSES[0](
+            self.task, self._normalized_config, **kwargs
+        )
+        dummy_inputs_generators = [
+            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size, **kwargs)
+            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES
+        ]
+
+        return dummy_inputs_generators
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = self._onnx_config.generate_dummy_inputs(framework=framework, **kwargs)
+        input_name, _ = next(iter(self._onnx_config.inputs.items()))
+        batch_size = dummy_inputs[input_name].shape[0]
+
+        if isinstance(self._onnx_config, OnnxSeq2SeqConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
+            kwargs["sequence_length"] = 1
+
+        dummy_inputs_generators = [
+            cls_(self.task, self._normalized_config, batch_size=batch_size, **kwargs)
+            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES
+        ]
 
         for input_name in self._tasks_to_extra_inputs[self.task]:
             input_was_inserted = False
-            for dummy_input_gen in self.dummy_inputs_generators:
+            for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
                     dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                     input_was_inserted = True
@@ -701,5 +714,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         return self._onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
+    @property
     def torch_to_onnx_input_map(self) -> Mapping[str, str]:
-        return self._onnx_config.torch_to_onnx_input_map()
+        return self._onnx_config.torch_to_onnx_input_map
+
+    @property
+    def values_override(self) -> Optional[Mapping[str, Any]]:
+        return self._onnx_config.values_override

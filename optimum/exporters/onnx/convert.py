@@ -401,7 +401,9 @@ def export_tensorflow(
     output_names = list(config.outputs.keys())
 
     config.patch_ops()
-    input_signature = [tf.TensorSpec.from_tensor(tensor, name=key) for key, tensor in dummy_inputs.items()]
+    input_signature = [
+        tf.TensorSpec([None] * tensor.ndim, dtype=tensor.dtype, name=key) for key, tensor in dummy_inputs.items()
+    ]
     onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature, opset=opset)
     onnx.save(onnx_model, output.as_posix())
     config.restore_ops()
