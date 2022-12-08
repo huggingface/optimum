@@ -445,14 +445,8 @@ class ORTTrainer(Trainer):
             self.model_wrapped = deepspeed_engine
             self.deepspeed = deepspeed_engine
             if args.fp16:
-                try:
-                    from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
-
-                    self.optimizer = FP16_Optimizer(optimizer)
-                except ImportError:
-                    raise ImportError(
-                        "ORTTrainer tried to instantiate ORT FP16_Optimizer but onnxruntime-training is not correctly installed!"
-                    )
+                from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+                self.optimizer = FP16_Optimizer(optimizer)
             else:
                 self.optimizer = optimizer
             self.lr_scheduler = lr_scheduler
