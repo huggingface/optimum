@@ -1,8 +1,8 @@
 # Quantization
 
 Quantization is a technique to reduce the computational and memory cost of running inference by representing the
-weights and activations with low-precision data types like 8-bit integer (INT8) instead of the usual 32-bit floating
-point (FP32).
+weights and activations with low-precision data types like 8-bit integer (`int8`) instead of the usual 32-bit floating
+point (`float32`).
 
 Reducing the number of bits means the resulting model requires less memory storage, consumes less energy (in theory), and
 operations like matrix multiplication can be performed much faster with integer arithmetic. It also allows to run models
@@ -14,27 +14,45 @@ on embedded devices, which sometimes only support integer data types.
 The basic idea behing quantization is quite easy: going from the regular 32-bit floating point representation for weights
 and activations to a lower precision data type. The most considered lower precision data types are:
 
-- FP16, accumulation data type FP16
-- INT16, accumulation data type INT32
-- INT8, accumulation data type INT32
-- INT4, accumulation data type INT32
-- INT1, accumulation data type INT32
+- `float16`, accumulation data type `float16`
+- `int16`, accumulation data type `int32`
+- `int8`, accumulation data type `int32`
+- `int4`, accumulation data type `int32`
+- `int1`, accumulation data type `int32`
 
-TODO: note on the accumulation type.
+The accumulation data type specifies the type of the result of accumulating (adding, multiplying, etc) values of the
+data type in question. For examples, let's consider:
 
+```
+C = A x B
+```
+
+where `A` is a `m x n` matrix of `int8` values, and `B` is a `n x p` matrix of `int8` values.
+
+Then for `i` in `[0, m - 1]` and `j` in `[0, p - 1]`, `C[i, j]` is an `int32` because it the sum of products of
+`int8` values.
 
 ### How do machines represent numbers?
 
+<Tip>
+
+The section is not fundamental to understand the rest. It explains in brief how numbers are represented in computers.
+Since quantization is about going from one representation to another, it can be useful to have some basics, but it is
+definitely not mandatory.
+
+</Tip>
+
 The most fundamental unit of representation for computers is the bit. Everything in computers is represented as a
-sequence of bits, including numbers.
+sequence of bits, including numbers. But the representation varies whether the numbers in question are integers or
+real numbers.
 
 #### Integer representation
 
-Integers are usually represented with the following bit lengths: 8, 16, 32, 64. When representing integers, two cases
+Integers are usually represented with the following bit lengths: `8`, `16`, `32`, `64`. When representing integers, two cases
 are considered:
 
 1. Unsigned (positive) integers: they are simply represented as a sequence of bits. Each bit corresponds to a power
-of two (from 0 to n-1 where n is the bit-length), and the resulting number is the sum of those powers of two.
+of two (from `0` to `n-1` where `n` is the bit-length), and the resulting number is the sum of those powers of two.
 
 Example: `19` is represented as an unsigned int8 as `00010011` because :
 ```
@@ -42,12 +60,13 @@ Example: `19` is represented as an unsigned int8 as `00010011` because :
 ```
 
 2. Signed integers: it is less straightforward to represent signed integers, and multiple approachs exist, the most
-common being the two's complement. For more information, you can check the [Wikipedia page](https://en.wikipedia.org/wiki/Signed_number_representations)] on the subject.
+common being the *two's complement*. For more information, you can check the
+[Wikipedia page](https://en.wikipedia.org/wiki/Signed_number_representations) on the subject.
 
 #### Real numbers representation
 
-Real numbers are usually represented with the following bit lengths: 16, 32, 64.
-The two main ways of representing numbers are:
+Real numbers are usually represented with the following bit lengths: `16`, `32`, `64`.
+The two main ways of representing real numbers are:
 
 1. Fixed-point: there are fixed number of digits reserved for representing the integer part and the fractional part.
 2. Floating-point: the number of digits for representing the integer and the fractional parts can vary.
@@ -57,34 +76,50 @@ since it is the most commonly used. There are three components in the floating-p
 
 1. The sign bit: this is the bit specifying the sign of the number.
 2. The exponent part
+  - 5 bits in `float16`
+  - 8 bits in `bfloat16`
+  - 8 bits in `float32`
+  - 11 bits in `float64`
 2. The mantissa
+  - 11 bits in `float16` (10 explictly stored)
+  - 8 bits in `bfloat16` (7 explicitly stored)
+  - 24 bits in `float32` (23 explictly stored)
+  - 53 bits in `float64` (52 explictly stored)
 
-For a number x we have: `x = sign x mantissa x 2^exponent`.
+For more information on the bits allocation for each data type, check the nice illustration on the Wikipedia page about
+the [bfloat16 floating-point format](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format).
 
-### Most common cases
+For a real number `x` we have:
+
+```
+x = sign x mantissa x (2^exponent)
+```
+
+### Quantization
 
 The two most common quantization cases are `float32 -> float16` and `float32 -> int8`.
 
-#### Quantization to float16
+#### Quantization to `float16`
 
 Performing quantization to go from `float32` to `float16` is quite straightforward since both data types follow the same
 representation scheme. The questions to ask yourself when quantizing an operation to `float16` are:
 
 - Does my operation have a `float16` implementation?
-- Does my hardware suport `float16`? For instance, Intel CPUs do not support that type until [TODO insert generation],
-before the support is only emulated on the software side.
+- Does my hardware suport `float16`? For instance, Intel CPUs [have been supporting `float16` as a storage type, but
+computation is done after converting to `float32`](https://scicomp.stackexchange.com/a/35193). Full support will come
+in Cooper Lake and Sapphire Rapids.
 - Is my operation sensitive to lower precision?
-For instance the value of epsilon in LayerNorm is usually very small (~ `1e-12`), but the smallest representable value in
+For instance the value of epsilon in `LayerNorm` is usually very small (~ `1e-12`), but the smallest representable value in
 `float16` is ~ `6e-5`, this can cause `NaN` issues.  The same applies for big values.
 
-#### Quantization to int8
+#### Quantization to `int8`
 
 Performing quantization to go from `float32` to `int8` is more tricky. Only 256 values can be represented in `int8`,
-while `float32` can represent a very wide range of values. The idea is to find the best way to project our range of`float32`
-values `[a, b]` to the `int8` space.
+while `float32` can represent a very wide range of values. The idea is to find the best way to project our range `[a, b]`
+of `float32` values  to the `int8` space.
 
-Let's consider a float `x` in `[a, b]`, then we can write, the following quantization scheme, also called the affine
-quantization scheme:
+Let's consider a float `x` in `[a, b]`, then we can write, the following quantization scheme, also called the *affine
+quantization scheme*:
 
 ```
 x = S * (x_q - Z)
@@ -95,8 +130,9 @@ where:
 - `x_q` is the quantized `int8` value associated to `x`
 - `S` and `Z` are the quantization parameters
   - `S` is the scale, and is a positive `float32`
-  - `Z` is called the zero-point, it is the `int8` value corresponding `0` in the `float32` world. This important to be
-  be able to represent exactly the value `0` because it uses everywhere throughout machine learning models.
+  - `Z` is called the zero-point, it is the `int8` value corresponding to the value `0` in the `float32` realm. This
+  important to be be able to represent exactly the value `0` because it is used everywhere throughout machine learning
+  models.
 
 
 The quantized value `x_q` of `x` in `[a, b]` can be computed as follows:
@@ -105,12 +141,18 @@ The quantized value `x_q` of `x` in `[a, b]` can be computed as follows:
 x_q = round(x/S + Z)
 ```
 
-**Note**: `float32` values outside of the `[a, b]`, are clipped to the closest representable value.
+And `float32` values outside of the `[a, b]` range are clipped to the closest representable value, so for any
+floating-point number `x`:
+
+```
+x_q = clip(round(x/S + Z), round(a/S + Z), round(b/S + Z))
+
+```
 
 This is called the *affine quantization sheme* because the mapping from `[a, b]` to `int8` is an affine one.
 
 A common special case of this scheme is the *scale quantization scheme*, where we consider a symmetric range of float values `[-a, a]`.
-In this case the integer space can be `[-127, 127]`, meaning that the `-128` is opted out of the regular `[-128, 127]` signed `int8` range.
+In this case the integer space is usally `[-127, 127]`, meaning that the `-128` is opted out of the regular `[-128, 127]` signed `int8` range.
 The reason being that having both ranges symmetric allows to have `Z = 0`. While one value out of the 256 representable
 values is lost, it can provide a speedup since a lot of addition operations can be skipped.
 
@@ -119,59 +161,62 @@ values is lost, it can provide a speedup since a lot of addition operations can 
 paper, or [Lei Mao's blog post](https://leimao.github.io/article/Neural-Networks-Quantization) on the subject.
 
 
+#### Number of quantization parameters
+
 Depending on the accuracy / latency trade-off you are targetting you can play with the granularity of the quantization parameters:
 
-- Quantization parameters can be computed on a per-tensor basis, meaning that one pair of `(S, Z)` will be used per
+- Quantization parameters can be computed on a *per-tensor* basis, meaning that one pair of `(S, Z)` will be used per
 tensor.
-- Quantization parameters can be computed on a per-channel basis, meaning that it is possible to choose a dimension of
-a tensor, and store a pair of `(S, Z)` per element along that dimension. For example for a tensor of shape
-`[B, N, H, W]`, having per-channel quantization parameters for the dimension 1 would result in having `N` pairs of
-`(S, Z)`. While this can give a better accuracy, it requires more memory.
-
+- Quantization parameters can be computed on a *per-channel* basis, meaning that it is possible to store a pair of
+`(S, Z)` per element along one of the dimensions of a tensor. For example for a tensor of shape `[B, N, H, W]`, having
+*per-channel* quantization parameters for the second dimension would result in having `N` pairs of `(S, Z)`. While this
+can give a better accuracy, it requires more memory.
 
 #### Calibration
 
-The section above described how quantization of `float32` values in a range `[a, b]` to `int8` works, but one question
-remains: how is `[a, b]` determined? That were calibration comes in to play.
+The section above described how quantization from `float32` to `int8` works, but one question
+remains: how is the `[a, b]` range of `float32` values determined? That is where calibration comes in to play.
 
 Calibration is the step during quantization where the `float32` ranges are computed. For weights it is quite easy since
-the actual range is know at quantization-time. But it is less clear for activations, and different approaches exist:
+the actual range is know at *quantization-time*. But it is less clear for activations, and different approaches exist:
 
-1. Post training dynamic quantization: the range for each activation is computed at runtime. While this gives great
-results without too much work, it can be a bit slower than static quantization because of the range computation time.
-2. Post training static quantization: the range for each activation is computed at quantization-time.
-  - Observers are put on activations to record their values
-  - A certain number of forward passes on a calibration dataset (around 200 is enough) is done
-  - The ranges for each computation are computed according to some calibration technique.
-3. Quantization aware training: the range for each activation is computed at training-time, following the same idea
-than post training static quantization. But instead of using observers, "Fake quantize" operators are used: they record
+1. Post training dynamic quantization: the range for each activation is computed at *runtime*. While this gives great
+results without too much work, it can be a bit slower than static quantization because the range is computed each time.
+It is also not an option on certain hardware.
+2. Post training static quantization: the range for each activation is computed at *quantization-time*.
+  - Observers are put on activations to record their values.
+  - A certain number of forward passes on a calibration dataset is done (around `200` examples is enough).
+  - The ranges for each computation are computed according to some *calibration technique*.
+3. Quantization aware training: the range for each activation is computed at *training-time*, following the same idea
+than post training static quantization. But "fake quantize" operators are used instead of observers: they record
 values just as observers do, but they also simulate the error induced by quantization to let the model adapt on it.
 
 
 For both post training static quantization and quantization aware training, it is necessary to define calibration
 techniques, the most common are:
 
-- Min-max: the range is `[min observed value, max observed value]`, this works well with weights.
-- Moving average min-max: the range is `[moving average min observed value, moving average max observed value]`
-- Histogram: records histogram of values along with min and max values, then chooses according to some criterion:
+- Min-max: the computed range is `[min observed value, max observed value]`, this works well with weights.
+- Moving average min-max: the computed range is `[moving average min observed value, moving average max observed value]`,
+thiw works well with activations.
+- Histogram: records a histogram of values along with min and max values, then chooses according to some criterion.
   - Entropy: the range is computed as the one minimizing the error between the full-precision and the quantized data.
-  - Mean Square Error: the range is computed as the one minimizing the Mean Square Error between the full-precision and
+  - Mean Square Error: the range is computed as the one minimizing the mean square error between the full-precision and
   the quantized data.
 
 
-#### Pratical steps to follow to quantize a model to int8
+#### Pratical steps to follow to quantize a model to `int8`
 
-To effectively quantize a model to `int8`, the steps are as follows:
+To effectively quantize a model to `int8`, the steps to follow are:
 
-1. Choose which operators to quantize. Good operators to quantize are the one dominating it terms of computation-time,
+1. Choose which operators to quantize. Good operators to quantize are the one dominating it terms of computation time,
 for instance linear projections and matrix multiplications.
-2. Try dynamic quantization, if it is fast enough stop here, otherwise follow step 3.
-3. Apply observers to your graph, which implies defining which quantization scheme to use.
-4. Perform calibration
-5. Quantize the model, meaning that we remove the observers and replace the `float32` operators to their `int8`
+2. Try dynamic quantization, if it is fast enough stop here, otherwise continue to step 3.
+3. Apply observers to your models in places where you want to quantize. It implies defining which quantization scheme to use.
+4. Perform calibration.
+5. Convert the model to its quantized form: the observers are removed and the `float32` operators are converted to their `int8`
 coutnerparts.
-6. Evaluate the quantized model: is the accuracy good enough? If yes, stop here, otherwise start again at step 3. but
-try quantization aware training this time.
+6. Evaluate the quantized model: is the accuracy good enough? If yes, stop here, otherwise start again at step 3 but
+with quantization aware training this time.
 
 
 ## Supported tools to perform quantization in 🤗 Optimum
@@ -182,21 +227,25 @@ try quantization aware training this time.
 [quantize and run ONNX models](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization) using the
 ONNX Runtime tool.
 - The `optimum.intel` package enables to [quantize](https://huggingface.co/docs/optimum/intel/optimization_inc) 🤗 Transformers
-models while respecting accuracy/latency constraints.
+models while respecting accuracy and latency constraints.
 - The `optimum.fx` package provides wrappers around the
 [PyTorch quantization functions](https://pytorch.org/docs/stable/quantization-support.html#torch-quantization-quantize-fx)
-to allow graph-mode quantization of 🤗 Transformers models in PyTorch. This is lower-level API the two mentioned above,
-giving more flexibility, but with more complexity as well.
+to allow graph-mode quantization of 🤗 Transformers models in PyTorch. This is a lower-level API compared to the two
+mentioned above, giving more flexibility, but requiring more work on your end.
 
 
 ## References
 
+- The
+[Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference](https://arxiv.org/abs/1712.05877) paper
 - The [Basics of Quantization in Machine Learning (ML) for Beginners](https://iq.opengenus.org/basics-of-quantization-in-ml/)
 blog post
 - The [How to accelerate and compress neural networks with quantization](https://tivadardanka.com/blog/neural-networks-quantization)
 blog post
 - The Wikipedia pages on integers representation [here](https://en.wikipedia.org/wiki/Integer_(computer_science)) and
 [here](https://en.wikipedia.org/wiki/Signed_number_representations)
-- The
-[Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference](https://arxiv.org/abs/1712.05877)
-paper
+- The Wikipedia pages on
+  - [bfloat16 floating-point format](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format)
+  - [Half-precision floating-point format](https://en.wikipedia.org/wiki/Half-precision_floating-point_format)
+  - [Single-precision floating-point format](https://en.wikipedia.org/wiki/Single-precision_floating-point_format)
+  - [Double-precision floating-point format](https://en.wikipedia.org/wiki/Double-precision_floating-point_format)
