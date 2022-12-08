@@ -446,6 +446,7 @@ class ORTTrainer(Trainer):
             self.deepspeed = deepspeed_engine
             if args.fp16:
                 from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
                 self.optimizer = FP16_Optimizer(optimizer)
             else:
                 self.optimizer = optimizer
@@ -1493,8 +1494,9 @@ class ORTTrainer(Trainer):
 
             if args.fp16:
                 from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
                 self.optimizer = FP16_Optimizer(self.optimizer)
-      
+
         # Multi-gpu training (should be after apex fp16 initialization)
         if self.args.n_gpu > 1:
             model = nn.DataParallel(model)
@@ -1617,11 +1619,7 @@ class ORTTrainer(Trainer):
                 optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
             if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                self.optimizer = OSS(
-                    params=optimizer_grouped_parameters,
-                    optim=optimizer_cls,
-                    **optimizer_kwargs,
-                )
+                self.optimizer = OSS(params=optimizer_grouped_parameters, optim=optimizer_cls, **optimizer_kwargs,)
             else:
                 self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
                 if optimizer_cls.__name__ == "Adam8bit":
