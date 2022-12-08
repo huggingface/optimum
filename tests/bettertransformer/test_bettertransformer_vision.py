@@ -15,9 +15,10 @@
 import unittest
 
 from PIL import Image
-from transformers import AutoFeatureExtractor, AutoProcessor
+from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 import requests
+from optimum.bettertransformer import BetterTransformer
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -90,9 +91,12 @@ class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase
         A tests that checks if the conversion raises an error if the model contains an activation function
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
-        for hf_random_config in self.all_models_to_test:
-            hf_random_config.vision_config.hidden_act = "silu"
+        from transformers import FlavaConfig
 
-            hf_random_model = AutoModel.from_config(hf_random_config).eval()
-            with self.assertRaises(ValueError):
-                _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+        hf_random_config = FlavaConfig()
+
+        hf_random_config.image_config.hidden_act = "silu"
+
+        hf_random_model = AutoModel.from_config(hf_random_config).eval()
+        with self.assertRaises(ValueError):
+            _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
