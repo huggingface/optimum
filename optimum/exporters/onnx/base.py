@@ -673,17 +673,6 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             common_outputs.move_to_end(key, last=False)
         return copy.deepcopy(common_outputs)
 
-    def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
-        first_inputs_gen = self._onnx_config.DUMMY_INPUT_GENERATOR_CLASSES[0](
-            self.task, self._normalized_config, **kwargs
-        )
-        dummy_inputs_generators = [
-            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size, **kwargs)
-            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES
-        ]
-
-        return dummy_inputs_generators
-
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = self._onnx_config.generate_dummy_inputs(framework=framework, **kwargs)
         input_name, _ = next(iter(self._onnx_config.inputs.items()))
