@@ -17,7 +17,7 @@
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
@@ -72,7 +72,10 @@ def validate_models_outputs(
     onnx_named_outputs: List[str],
     atol: float,
     output_dir: Path,
-    fn_get_models_from_config: Callable,
+    fn_get_models_from_config: Callable[
+        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
+        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
+    ],
     output_names: Optional[List[str]] = None,
 ):
     """
@@ -90,9 +93,9 @@ def validate_models_outputs(
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
         output_dir (`Path`):
             Output directory where the exported ONNX models are stored.
-        fn_get_models_from_config (`Callable`):
-            Function with signature (`PreTrainedModel`, `exporters.onnx.config.OnnxConfig`) --> `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]`
-            outputing a dictionary of submodels and downstream onnx config, for example to export the `model` in several pieces, as it is the case with encoder-decoder models.
+        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
+            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
+            as it is the case with encoder-decoder models.
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
             If None, will use the keys from the output of `fn_get_models_from_config` as names.
@@ -397,7 +400,10 @@ def export_models(
     onnx_config: OnnxConfig,
     opset: int,
     output_dir: Path,
-    fn_get_models_from_config: Callable,
+    fn_get_models_from_config: Callable[
+        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
+        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
+    ],
     output_names: Optional[List[str]] = None,
     device: str = "cpu",
 ) -> Tuple[List[List[str]], List[List[str]]]:
@@ -415,9 +421,9 @@ def export_models(
             The version of the ONNX operator set to use.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
-        fn_get_models_from_config (`Callable`):
-            Function with signature (`PreTrainedModel`, `exporters.onnx.config.OnnxConfig`) --> `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]`
-            outputing a dictionary of submodels and downstream onnx config, for example to export the `model` in several pieces, as it is the case with encoder-decoder models.
+        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
+            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
+            as it is the case with encoder-decoder models.
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
             If None, will use the keys from the output of `fn_get_models_from_config` as names.
