@@ -28,14 +28,19 @@ from optimum.exporters.onnx import (
     export_models,
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
+    get_stable_diffusion_models_for_export,
     validate_model_outputs,
     validate_models_outputs,
 )
 from parameterized import parameterized
+from optimum.utils import is_diffusers_available
 
 
 if is_torch_available() or is_tf_available():
     from optimum.exporters.tasks import TasksManager
+
+if is_diffusers_available():
+    from diffusers import StableDiffusionPipeline
 
 
 PYTORCH_EXPORT_MODELS = {
@@ -139,6 +144,10 @@ PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION = {
     ("whisper", "openai/whisper-tiny.en"),
 }
 
+
+PYTORCH_STABLE_DIFFUSION_MODEL = {
+    ("hf-internal-testing/tiny-stable-diffusion-torch"),
+}
 
 @require_onnx
 class OnnxUtilsTestCase(TestCase):
@@ -369,3 +378,31 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
         self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
+
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL)
+    @slow
+    @require_torch
+    @require_vision
+    def test_pytorch_export_for_stable_diffusion_models(self, model_name):
+        pipeline = StableDiffusionPipeline.from_pretrained(model_name)
+        output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+
+        with TemporaryDirectory() as tmpdirname:
+            onnx_inputs, onnx_outputs = export_models(
+                pipeline,
+                onnx_config=None,
+                opset=14,
+                output_dir=Path(tmpdirname),
+                fn_get_models_from_config=get_stable_diffusion_models_for_export,
+                output_names=output_names,
+                device="cpu", # TODO: Add GPU test
+            )
+            validate_models_outputs(
+                onnx_config=None,
+                reference_model=pipeline,
+                onnx_named_outputs=onnx_outputs,
+                atol=1e-3,
+                output_dir=Path(tmpdirname),
+                fn_get_models_from_config=get_stable_diffusion_models_for_export,
+                output_names=output_names,
+            )
