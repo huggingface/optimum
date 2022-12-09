@@ -689,6 +689,7 @@ class UNetOnnxConfig(ViTOnnxConfig):
             "out_sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
 
+
 class VaeOnnxConfig(ViTOnnxConfig):
 
     ATOL_FOR_VALIDATION = 1e-3

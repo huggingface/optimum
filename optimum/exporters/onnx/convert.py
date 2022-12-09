@@ -27,7 +27,7 @@ from optimum.utils import is_diffusers_available
 from ...utils import logging
 from ..tasks import TasksManager
 from .base import OnnxConfig
-from .import_utils import is_torch_onnx_support_available, MIN_TORCH_VERSION
+from .import_utils import MIN_TORCH_VERSION, is_torch_onnx_support_available
 
 
 if is_torch_available():
@@ -173,7 +173,7 @@ def validate_model_outputs(
 
     ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
-        
+
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
     for name, value in ref_outputs.items():
         # Overwriting the output name as "present" since it is the name used for the ONNX outputs

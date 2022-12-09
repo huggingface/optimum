@@ -25,12 +25,7 @@ from ...utils import logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import (
-    export,
-    export_models,
-    validate_model_outputs,
-    validate_models_outputs,
-)
+from .convert import export, export_models, validate_model_outputs, validate_models_outputs
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,

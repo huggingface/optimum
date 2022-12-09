@@ -22,7 +22,7 @@ from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import is_diffusers_available
 from ..tasks import TasksManager
-from .import_utils import ORT_QUANTIZE_MINIMUM_VERSION, MIN_TORCH_VERSION
+from .import_utils import MIN_TORCH_VERSION, ORT_QUANTIZE_MINIMUM_VERSION
 
 
 if TYPE_CHECKING:

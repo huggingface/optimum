@@ -30,6 +30,7 @@ from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
 from .import_utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
