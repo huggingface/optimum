@@ -190,7 +190,7 @@ class ORTModel(OptimizedModel):
         self.model_path = Path(model._model_path)
         self.model_name = self.model_path.name
 
-        self._preprocessors = preprocessors if preprocessors is not None else []
+        self.preprocessors = preprocessors if preprocessors is not None else []
 
         if self._device is None:
             logger.warning(
