@@ -689,6 +689,9 @@ class UNetOnnxConfig(ViTOnnxConfig):
             "out_sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
 
+    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
+        return ["sample"]
+
 
 class VaeOnnxConfig(ViTOnnxConfig):
 

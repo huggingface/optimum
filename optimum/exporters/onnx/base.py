@@ -338,6 +338,17 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return reference_model_inputs
 
+    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
+        """
+        Generate the output names for the comparison between the ONNX and the reference model.
+        Args:
+            reference_model_inputs ([`List[str]`):
+                The ONNX model output names.
+        Returns:
+            `List[str]`: The output names to compare the ONNX model with the reference model.
+        """
+        return reference_output_names
+
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
     """

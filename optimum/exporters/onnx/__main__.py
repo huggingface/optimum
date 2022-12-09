@@ -104,13 +104,14 @@ def main():
     # TODO : infer stable-diffusion when auto
     elif task == "stable-diffusion":
         pipeline = StableDiffusionPipeline.from_pretrained(args.model)
+        output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
         onnx_inputs, onnx_outputs = export_models(
             model=pipeline,
             onnx_config=None,
-            opset=args.opset,
+            opset=args.opset or 14,
             output_dir=args.output.parent,
             fn_get_models_from_config=get_stable_diffusion_models_for_export,
-            output_names=["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"],
+            output_names=output_names,
         )
         try:
             validate_models_outputs(
@@ -120,7 +121,7 @@ def main():
                 atol=args.atol or 1e-3,
                 output_dir=args.output.parent,
                 fn_get_models_from_config=get_stable_diffusion_models_for_export,
-                output_names=["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"],
+                output_names=output_names,
             )
         except ValueError:
             logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
