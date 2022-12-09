@@ -273,7 +273,7 @@ class OnnxExportTestCase(TestCase):
             model.config.pad_token_id = 0
 
         if is_torch_available():
-            from optimum.exporters.onnx.utils import TORCH_VERSION
+            from optimum.exporters.onnx.import_utils import TORCH_VERSION
 
             if not onnx_config.is_torch_support_available:
                 pytest.skip(

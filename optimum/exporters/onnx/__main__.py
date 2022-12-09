@@ -25,8 +25,18 @@ from ...utils import logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs, export_stable_diffusion_model
-from .utils import get_decoder_models_for_export, get_encoder_decoder_models_for_export
+from .convert import (
+    export,
+    export_models,
+    validate_model_outputs,
+    validate_models_outputs,
+)
+from .utils import (
+    get_decoder_models_for_export,
+    get_encoder_decoder_models_for_export,
+    get_stable_diffusion_models_for_export,
+)
+
 
 if is_diffusers_available():
     from diffusers import OnnxRuntimeModel, OnnxStableDiffusionPipeline, StableDiffusionPipeline
@@ -99,26 +109,23 @@ def main():
     # TODO : infer stable-diffusion when auto
     elif task == "stable-diffusion":
         pipeline = StableDiffusionPipeline.from_pretrained(args.model)
-
-        onnx_inputs, onnx_outputs = export_stable_diffusion_model(
-            vae=pipeline.vae,
-            unet=pipeline.unet,
-            text_encoder=pipeline.text_encoder,
+        onnx_inputs, onnx_outputs = export_models(
+            model=pipeline,
+            onnx_config=None,
             opset=args.opset,
-            save_directory=args.output.parent,
+            output_dir=args.output.parent,
+            fn_get_models_from_config=get_stable_diffusion_models_for_export,
+            output_names=["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"],
         )
-
         try:
-            onnx_pipeline = OnnxStableDiffusionPipeline(
-                vae_decoder=OnnxRuntimeModel.from_pretrained(args.output.parent / "vae_decoder"),
-                text_encoder=OnnxRuntimeModel.from_pretrained(args.output.parent / "text_encoder"),
-                unet=OnnxRuntimeModel.from_pretrained(args.output.parent / "unet"),
-                vae_encoder=None,
-                tokenizer=pipeline.tokenizer,
-                scheduler=pipeline.scheduler,
-                safety_checker=None,
-                feature_extractor=None,
-                requires_safety_checker=False,
+            validate_models_outputs(
+                onnx_config=None,
+                reference_model=pipeline,
+                onnx_named_outputs=onnx_outputs,
+                atol=args.atol or 14,
+                output_dir=args.output.parent,
+                fn_get_models_from_config=get_stable_diffusion_models_for_export,
+                output_names=["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"],
             )
         except ValueError:
             logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")

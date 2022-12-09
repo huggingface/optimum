@@ -683,6 +683,11 @@ class UNetOnnxConfig(ViTOnnxConfig):
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
         }
 
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "out_sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
 
 class VaeOnnxConfig(ViTOnnxConfig):
 
@@ -706,7 +711,7 @@ class VaeOnnxConfig(ViTOnnxConfig):
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
-            "logits": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
 
 

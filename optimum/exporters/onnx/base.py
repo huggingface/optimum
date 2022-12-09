@@ -28,8 +28,7 @@ from transformers.utils import is_torch_available
 from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, logging
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
-from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
-
+from .import_utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
@@ -233,7 +232,7 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
         if is_torch_available():
-            from .utils import TORCH_VERSION
+            from .import_utils import TORCH_VERSION
 
             return TORCH_VERSION >= self.MIN_TORCH_VERSION
         return False

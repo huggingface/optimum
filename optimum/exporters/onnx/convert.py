@@ -27,12 +27,7 @@ from optimum.utils import is_diffusers_available
 from ...utils import logging
 from ..tasks import TasksManager
 from .base import OnnxConfig
-from .utils import (
-    MIN_TORCH_VERSION,
-    get_decoder_models_for_export,
-    get_encoder_decoder_models_for_export,
-    is_torch_onnx_support_available,
-)
+from .import_utils import is_torch_onnx_support_available, MIN_TORCH_VERSION
 
 
 if is_torch_available():
@@ -165,7 +160,7 @@ def validate_model_outputs(
 
     logger.info("Validating ONNX model...")
 
-    framework = "pt" if is_torch_available() and issubclass(type(reference_model), PreTrainedModel) else "tf"
+    framework = "pt" if is_torch_available() else "tf"
     reference_model_inputs = config.generate_dummy_inputs(framework=framework)
 
     # Create ONNX Runtime session
@@ -173,11 +168,12 @@ def validate_model_outputs(
     session = InferenceSession(onnx_model.as_posix(), options, providers=["CPUExecutionProvider"])
 
     # Compute outputs from the reference model
-    if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
+    if is_torch_available():
         reference_model.to("cpu")
+
     ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
-
+        
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
     for name, value in ref_outputs.items():
         # Overwriting the output name as "present" since it is the name used for the ONNX outputs
@@ -222,7 +218,7 @@ def validate_model_outputs(
     shape_failures = []
     value_failures = []
     for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
-        if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
+        if is_torch_available():
             ref_value = ref_outputs_dict[name].detach().numpy()
         else:
             ref_value = ref_outputs_dict[name].numpy()
@@ -463,62 +459,6 @@ def export_models(
                 device=device,
             )
         )
-
-    outputs = list(map(list, zip(*outputs)))
-    return outputs
-
-
-def export_stable_diffusion_model(
-    vae: Union["ModelMixin"],
-    text_encoder: Union["PretrainedModel"],
-    unet: Union["ModelMixin"],
-    save_directory: Path,
-    opset: int,
-    device: str = "cpu",
-) -> Tuple[List[List[str]], List[List[str]]]:
-    outputs = []
-
-    # Export VAE component
-    vae.forward = lambda latent_sample: vae.decode(z=latent_sample, return_dict=False)
-    vae_config_constructor = TasksManager.get_exporter_config_constructor("vae", "onnx", task="semantic-segmentation")
-    vae_onnx_config = vae_config_constructor(vae.config)
-    outputs.append(
-        export(
-            model=vae,
-            config=vae_onnx_config,
-            opset=opset or vae_onnx_config.DEFAULT_ONNX_OPSET,
-            output=save_directory.joinpath("vae_decoder/model.onnx"),
-            device=device,
-        )
-    )
-
-    # Export text encoder component
-    text_encoder_config_constructor = TasksManager.get_exporter_config_constructor("cliptext", "onnx", task="default")
-    text_encoder_onnx_config = text_encoder_config_constructor(text_encoder.config)
-    outputs.append(
-        export(
-            model=text_encoder,
-            config=text_encoder_onnx_config,
-            opset=opset or text_encoder_onnx_config.DEFAULT_ONNX_OPSET,
-            output=save_directory.joinpath("text_encoder/model.onnx"),
-            device=device,
-        )
-    )
-
-    # Export U-NET component
-    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-        "unet", "onnx", task="semantic-segmentation"
-    )
-    unet_onnx_config = onnx_config_constructor(unet.config)
-    outputs.append(
-        export(
-            model=unet,
-            config=unet_onnx_config,
-            opset=opset or unet_onnx_config.DEFAULT_ONNX_OPSET,
-            output=save_directory.joinpath("unet/model.onnx"),
-            device=device,
-        )
-    )
 
     outputs = list(map(list, zip(*outputs)))
     return outputs

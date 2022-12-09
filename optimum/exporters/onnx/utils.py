@@ -14,10 +14,15 @@
 # limitations under the License.
 """Utility functions."""
 
+import copy
 from typing import TYPE_CHECKING, Dict, Tuple, Union
 
 import packaging
 from transformers.utils import is_tf_available, is_torch_available
+
+from ...utils import is_diffusers_available
+from ..tasks import TasksManager
+from .import_utils import ORT_QUANTIZE_MINIMUM_VERSION, MIN_TORCH_VERSION
 
 
 if TYPE_CHECKING:
@@ -29,25 +34,8 @@ if TYPE_CHECKING:
     if is_tf_available():
         from transformers.modeling_tf_utils import TFPreTrainedModel
 
-MIN_TORCH_VERSION = packaging.version.parse("1.11.0")
-TORCH_VERSION = None
-if is_torch_available():
-    import torch
-
-    TORCH_VERSION = packaging.version.parse(torch.__version__)
-
-_is_torch_onnx_support_available = is_torch_available() and (MIN_TORCH_VERSION.major, MIN_TORCH_VERSION.minor) <= (
-    TORCH_VERSION.major,
-    TORCH_VERSION.minor,
-)
-
-
-def is_torch_onnx_support_available():
-    return _is_torch_onnx_support_available
-
-
-# This is the minimal required version to support some ONNX Runtime features
-ORT_QUANTIZE_MINIMUM_VERSION = packaging.version.parse("1.4.0")
+    if is_diffusers_available():
+        from diffusers import ModelMixin, StableDiffusionPipeline
 
 
 def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
@@ -119,7 +107,7 @@ def get_decoder_models_for_export(
     config: "OnnxConfig",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
     """
-    Returns the encoder and decoder parts of the model and their subsequent onnx configs.
+    Returns the decoder parts of the model and their subsequent onnx configs.
 
     Args:
         model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
@@ -141,5 +129,46 @@ def get_decoder_models_for_export(
     if config.use_past:
         onnx_config_with_past = config.__class__.with_past(model.config, task=config.task)
         models_for_export["decoder_with_past_model"] = (model, onnx_config_with_past)
+
+    return models_for_export
+
+
+def get_stable_diffusion_models_for_export(
+    pipeline: Union["StableDiffusionPipeline"],
+    config: "OnnxConfig" = None,
+) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]]:
+    """
+    Returns the components of a Stable Diffusion model and their subsequent onnx configs.
+
+    Args:
+        pipeline ([`StableDiffusionPipeline`]):
+            The model to export.
+        config ([`~exporters.onnx.config.OnnxConfig`]):
+            The ONNX configuration associated with the exported model.
+
+    Returns:
+        `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
+        onnx configs for the encoder and decoder parts of the model.
+    """
+    models_for_export = dict()
+
+    # Text encoder
+    text_encoder_config_constructor = TasksManager.get_exporter_config_constructor("cliptext", "onnx", task="default")
+    text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
+    models_for_export["text_encoder"] = (pipeline.text_encoder, text_encoder_onnx_config)
+
+    # U-NET
+    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+        "unet", "onnx", task="semantic-segmentation"
+    )
+    unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
+    models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
+
+    # VAE
+    vae = copy.deepcopy(pipeline.vae)
+    vae.forward = lambda latent_sample: vae.decode(z=latent_sample)
+    vae_config_constructor = TasksManager.get_exporter_config_constructor("vae", "onnx", task="semantic-segmentation")
+    vae_onnx_config = vae_config_constructor(vae.config)
+    models_for_export["vae"] = (vae, vae_onnx_config)
 
     return models_for_export
