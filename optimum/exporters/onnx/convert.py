@@ -201,6 +201,9 @@ def validate_model_outputs(
     # Compute outputs from the ONNX model
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
 
+    # Create onnxruntime output names for comparison with the reference model inputs
+    onnx_named_outputs = config.output_names_for_validation(onnx_named_outputs)
+
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
     ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
     if not onnx_outputs_set.issubset(ref_outputs_set):
