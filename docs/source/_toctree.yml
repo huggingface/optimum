@@ -114,7 +114,7 @@
     - local: bettertransformer/tutorials/contribute
       title: How to add support for new architectures?
     title: Tutorials
-  title: BetterTransformer integration
+  title: BetterTransformer
   isExpanded: false
 - sections:
   - local: utils/dummy_input_generators

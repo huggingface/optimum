@@ -13,9 +13,10 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
+import importlib.util
 import os
 from enum import Enum
-from typing import Dict, Tuple, Type, Union
+from typing import Dict, Tuple, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -23,16 +24,14 @@ from transformers.utils import logging
 
 import onnx
 import onnxruntime as ort
+import pkg_resources
 
 from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
-from ..utils import NormalizedTextConfig
 
 
 logger = logging.get_logger(__name__)
 
 ONNX_WEIGHTS_NAME = "model.onnx"
-OPTIMIZED_ONNX_WEIGHTS_NAME = "optimized_model.onnx"
-QUANTIZED_ONNX_WEIGHTS_NAME = "q8_model.onnx"
 
 ONNX_ENCODER_NAME = "encoder_model.onnx"
 ONNX_DECODER_NAME = "decoder_model.onnx"
@@ -41,13 +40,31 @@ ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 
 def _is_gpu_available():
     """
-    checks if a gpu is available.
+    Checks if a gpu is available.
     """
     available_providers = ort.get_available_providers()
     if "CUDAExecutionProvider" in available_providers and torch.cuda.is_available():
         return True
     else:
         return False
+
+
+def is_onnxruntime_training_available():
+    """
+    Checks if onnxruntime-training is available.
+    """
+    path_training_dependecy = os.path.join(ort.__path__[0], "training")
+    if os.path.exists(path_training_dependecy):
+        return True
+    else:
+        return False
+
+
+def is_cupy_available():
+    """
+    Checks if onnxruntime-training is available.
+    """
+    return importlib.util.find_spec("cupy") is not None
 
 
 class ORTConfigManager:
