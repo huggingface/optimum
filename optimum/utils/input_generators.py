@@ -638,7 +638,7 @@ class DummyStableDiffusionInputGenerator(DummyInputGenerator):
         if input_name == "input_ids":
             shape = [self.batch_size, self.sequence_length]
             return self.random_int_tensor(shape, max_value=max_value, framework=framework).to(dtype=torch.int32)
-        if input_name == "sample" or input_name == "z" or input_name == "latent_sample":
+        if input_name == "sample" or input_name == "latent_sample":
             shape = [self.batch_size, self.num_channels, self.height, self.width]
         else:
             shape = [self.batch_size, self.sequence_length, self.hidden_size]
