@@ -77,16 +77,14 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
-<<<<<<< HEAD
+    # Flava:
+    "FlavaLayer": FlavaLayerBetterTransformer,
     # CLIP
     "CLIPEncoderLayer": CLIPLayerBetterTransformer,
 }
 
 EXCLUDE_FROM_TRANSFORM = {
     "clip": ["text_model"],  # text model uses causal attention, that is most likely not supported in BetterTransformer
-=======
-    "FlavaLayer": FlavaLayerBetterTransformer,
->>>>>>> e2fa9b4 (add BetterTransformer support for FlavaModel and test)
 }
 
 

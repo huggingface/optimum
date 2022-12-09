@@ -15,11 +15,12 @@
 import unittest
 
 from PIL import Image
-from transformers import AutoFeatureExtractor, AutoProcessor
+from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 import requests
 from optimum.utils.testing_utils import grid_parameters
 from parameterized import parameterized
+from optimum.bettertransformer import BetterTransformer
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -34,7 +35,7 @@ ALL_VISION_MODELS_TO_TEST = [
 
 ALL_VISION_TEXT_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-vilt-random-vqa",
-    "hf-internal-testing/tiny-random-FlavaModel",
+    "ybelkada/tiny-random-flava",
 ]
 
 ALL_ZERO_SHOT_IMAGE_CLASSIFICATION = [
@@ -135,11 +136,12 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     def test_raise_train(self, model_id, padding, max_length=20):
         super().test_raise_train([model_id], padding=padding, max_length=max_length)
 
+
 class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    all_models_to_test = ALL_VISION_TEXT_MODELS_TO_TEST
+    all_models_to_test = ["ybelkada/tiny-random-flava"]
 
     def prepare_inputs_for_class(self, model_id=None):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -150,3 +152,18 @@ class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase
         processor = AutoProcessor.from_pretrained(model_id)
         inputs = processor(image, text, return_tensors="pt")
         return inputs
+
+    def test_raise_activation_fun(self):
+        r"""
+        A tests that checks if the conversion raises an error if the model contains an activation function
+        that is not supported by `BetterTransformer`. Here we need to loop over the config files
+        """
+        from transformers import FlavaConfig
+
+        hf_random_config = FlavaConfig()
+
+        hf_random_config.image_config.hidden_act = "silu"
+
+        hf_random_model = AutoModel.from_config(hf_random_config).eval()
+        with self.assertRaises(ValueError):
+            _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)

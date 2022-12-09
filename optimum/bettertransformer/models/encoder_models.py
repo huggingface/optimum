@@ -1218,7 +1218,7 @@ class FlavaLayerBetterTransformer(BetterTransformerBaseLayer):
             flava_layer (`torch.nn.Module`):
                 The original `FlavaLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config.image_config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
