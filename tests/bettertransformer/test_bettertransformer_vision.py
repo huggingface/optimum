@@ -34,6 +34,7 @@ ALL_VISION_MODELS_TO_TEST = [
 
 ALL_VISION_TEXT_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-vilt-random-vqa",
+    "hf-internal-testing/tiny-random-FlavaModel",
 ]
 
 ALL_ZERO_SHOT_IMAGE_CLASSIFICATION = [
@@ -133,3 +134,19 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     )
     def test_raise_train(self, model_id, padding, max_length=20):
         super().test_raise_train([model_id], padding=padding, max_length=max_length)
+
+class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
+    """
+    all_models_to_test = ALL_VISION_TEXT_MODELS_TO_TEST
+
+    def prepare_inputs_for_class(self, model_id=None):
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        text = "How many cats are there?"
+
+        # Model takes image and text as input
+        processor = AutoProcessor.from_pretrained(model_id)
+        inputs = processor(image, text, return_tensors="pt")
+        return inputs

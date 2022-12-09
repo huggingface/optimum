@@ -19,6 +19,7 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     CLIPLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
+    FlavaLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,
     ViltLayerBetterTransformer,
@@ -76,12 +77,16 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
+<<<<<<< HEAD
     # CLIP
     "CLIPEncoderLayer": CLIPLayerBetterTransformer,
 }
 
 EXCLUDE_FROM_TRANSFORM = {
     "clip": ["text_model"],  # text model uses causal attention, that is most likely not supported in BetterTransformer
+=======
+    "FlavaLayer": FlavaLayerBetterTransformer,
+>>>>>>> e2fa9b4 (add BetterTransformer support for FlavaModel and test)
 }
 
 
