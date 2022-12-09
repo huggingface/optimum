@@ -77,7 +77,10 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
+<<<<<<< HEAD
     # Flava:
+=======
+>>>>>>> 137d61d (installed missing dependencies)
     "FlavaLayer": FlavaLayerBetterTransformer,
     # CLIP
     "CLIPEncoderLayer": CLIPLayerBetterTransformer,

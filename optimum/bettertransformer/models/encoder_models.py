@@ -1209,6 +1209,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         else:
             return config.hidden_act
 
+
 class FlavaLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, flava_layer, config):
         r"""
