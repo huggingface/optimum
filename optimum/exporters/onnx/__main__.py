@@ -117,7 +117,7 @@ def main():
                 onnx_config=None,
                 reference_model=pipeline,
                 onnx_named_outputs=onnx_outputs,
-                atol=args.atol or 14,
+                atol=args.atol or 1e-3,
                 output_dir=args.output.parent,
                 fn_get_models_from_config=get_stable_diffusion_models_for_export,
                 output_names=["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"],
