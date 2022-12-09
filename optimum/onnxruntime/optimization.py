@@ -75,7 +75,6 @@ class ORTOptimizer:
         onnx_model_path = []
         config = None
         if isinstance(model_or_path, ORTModel):
-
             if isinstance(model_or_path, ORTModelForConditionalGeneration):
                 onnx_model_path += [
                     model_or_path.encoder_model_path,
