@@ -1,16 +1,17 @@
-# Inference pipelines
+# Inference pipelines with the ONNX Runtime accelerator
 
-The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification, question answering and image classification.
+The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models)
+for accelerated inference on a variety of tasks such as text classification, question answering and image classification.
 
 <Tip>
 
-You can also use the [pipeline()](https://huggingface.co/docs/transformers/main/en/main_classes/pipelines#pipelines) function from Transformers and provide your Optimum model class.
+You can also use the
+[pipeline()](https://huggingface.co/docs/transformers/main/en/main_classes/pipelines#pipelines) function from
+Transformers and provide your Optimum model class.
 
 </Tip>
 
-Currently supported tasks are:
-
-**ONNX Runtime**
+Currently the supported tasks are:
 
 * `feature-extraction`
 * `text-classification`
