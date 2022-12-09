@@ -32,8 +32,8 @@ from optimum.exporters.onnx import (
     validate_model_outputs,
     validate_models_outputs,
 )
-from parameterized import parameterized
 from optimum.utils import is_diffusers_available
+from parameterized import parameterized
 
 
 if is_torch_available() or is_tf_available():
@@ -148,6 +148,7 @@ PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION = {
 PYTORCH_STABLE_DIFFUSION_MODEL = {
     ("hf-internal-testing/tiny-stable-diffusion-torch"),
 }
+
 
 @require_onnx
 class OnnxUtilsTestCase(TestCase):
@@ -395,7 +396,7 @@ class OnnxExportTestCase(TestCase):
                 output_dir=Path(tmpdirname),
                 fn_get_models_from_config=get_stable_diffusion_models_for_export,
                 output_names=output_names,
-                device="cpu", # TODO: Add GPU test
+                device="cpu",  # TODO: Add GPU test
             )
             validate_models_outputs(
                 onnx_config=None,
