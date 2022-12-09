@@ -18,9 +18,9 @@ from PIL import Image
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 import requests
+from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import grid_parameters
 from parameterized import parameterized
-from optimum.bettertransformer import BetterTransformer
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
