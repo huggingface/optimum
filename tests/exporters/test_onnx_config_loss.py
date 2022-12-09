@@ -48,13 +48,8 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
         for model in models:
             with self.subTest(model=model):
                 with tempfile.TemporaryDirectory() as tmp_dir:
-
-                    # Wrap OnnxConfig
-                    model_type = model.config.model_type.replace("_", "-")
-                    model_name = getattr(model, "name", None)
-
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                        model_type, "onnx", task="sequence-classification", model_name=model_name
+                        model, "onnx", task="sequence-classification"
                     )
                     onnx_config = onnx_config_constructor(model.config)
 
@@ -140,11 +135,8 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint)
 
             # Wrap OnnxConfig
-            model_type = model.config.model_type.replace("_", "-")
-            model_name = getattr(model, "name", None)
-
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model_type, "onnx", task="sequence-classification", model_name=model_name
+                model, "onnx", task="sequence-classification"
             )
             onnx_config = onnx_config_constructor(model.config)
             wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
@@ -194,12 +186,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             model = AutoModelForSeq2SeqLM.from_pretrained(model_checkpoint)
 
             # Wrap OnnxConfig(decoders)
-            model_type = model.config.model_type.replace("_", "-")
-            model_name = getattr(model, "name", None)
-
-            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model_type, "onnx", task="seq2seq-lm", model_name=model_name
-            )
+            onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task="seq2seq-lm")
             onnx_config = onnx_config_constructor(model.config)
 
             onnx_config_decoder = onnx_config.get_decoder_onnx_config(model.config, onnx_config.task)

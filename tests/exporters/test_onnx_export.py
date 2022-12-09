@@ -238,7 +238,7 @@ def _get_models_to_test(export_models_list):
         for name, model, *tasks in export_models_list:
             if tasks:
                 task_config_mapping = {
-                    task: TasksManager.get_exporter_config_constructor(name, "onnx", task=task)
+                    task: TasksManager.get_exporter_config_constructor(model, "onnx", task=task)
                     for _ in tasks
                     for task in _
                 }

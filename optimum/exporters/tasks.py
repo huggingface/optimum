@@ -863,14 +863,17 @@ class TasksManager:
 
     @staticmethod
     def get_exporter_config_constructor(
-        model_type: str, exporter: str, task: str = "default", model_name: Optional[str] = None
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        exporter: str,
+        task: str = "default",
+        model_name: Optional[str] = None,
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model type and task combination.
 
         Args:
-            model_type (`str`):
-                The model type to retrieve the config for.
+            model (`Union[PreTrainedModel, TFPreTrainedModel]`):
+                The instance of the model.
             exporter (`str`):
                 The exporter to use.
             task (`str`, *optional*, defaults to `"default"`):
@@ -881,6 +884,10 @@ class TasksManager:
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
+        model_type = model.config.model_type.replace("_", "-")
+        if model_name is None:
+            model_name = getattr(model, "name", None)
+
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
         if task not in model_tasks:
             raise ValueError(

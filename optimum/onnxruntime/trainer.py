@@ -1460,12 +1460,7 @@ class ORTTrainer(Trainer):
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=self.feature, model_name=model_name
-        )
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task=self.feature)
         onnx_config = onnx_config_constructor(model.config)
 
         opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
@@ -1474,8 +1469,6 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        # transformers >= 4.21.0 is required to export with specified device
-        check_min_version("4.21.0")
         _ = export(model, onnx_config, opset, model_path, device=device)
 
     def _wrap_model(self, model, training=True, dataloader=None):
