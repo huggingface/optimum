@@ -280,7 +280,6 @@ def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -
     """
     model_paths = src_paths.copy()
     for model_path in model_paths:
-        # load model graph
         model = onnx.load(str(model_path), load_external_data=False)
         # filter out tensors that are not external data
         model_tensors = _get_initializer_tensors(model)
