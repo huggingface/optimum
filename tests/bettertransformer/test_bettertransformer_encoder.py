@@ -309,7 +309,10 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     mean_tensor = torch.Tensor([avg_seqlen]).expand(batch_size)
     stdev_tensor = torch.Tensor([seqlen_stdev]).expand(batch_size)
     lengths = torch.normal(mean_tensor, stdev_tensor).to(torch.int)
-    lengths = torch.clamp(lengths, min=0, max=max_sequence_length)
+
+    # need at least a sequence length of 1 for BetterTransformer to work
+    lengths = torch.clamp(lengths, min=1, max=max_sequence_length)
+
     tokens = torch.full(
         (batch_size, max_sequence_length),
         pad_idx,

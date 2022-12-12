@@ -1583,13 +1583,13 @@ CUSTOM_TASKS_EXAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model for any custom tasks. It can be used to leverage the inference acceleration with any custom exported ONNX model.
+    ONNX Model for any custom tasks. It can be used to leverage the inference acceleration for any single-file ONNX model.
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
 class ORTModelForCustomTasks(ORTModel):
     """
-    Onnx Model for any custom tasks using encoder or decoder-only models.
+    Model for any custom tasks if the ONNX model is stored in a single file.
     """
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
@@ -1598,37 +1598,6 @@ class ORTModelForCustomTasks(ORTModel):
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_input_names = list(self.model_inputs.keys())
         self.model_output_names = list(self.model_outputs.keys())
-
-    def prepare_io_binding(self, **kwargs) -> ort.IOBinding:
-        """
-        Returns IOBinding object for an inference session. This method is created for general purpose, if the inputs and outputs
-        are determined, you can prepare data buffers directly to avoid tensor transfers across frameworks.
-        """
-
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
-
-        # Bind inputs and outputs to onnxruntime session
-        io_binding = self.model.io_binding()
-
-        # Bind inputs
-        for input_name in self.model_input_names:
-            onnx_input = kwargs.pop(input_name)
-            onnx_input = onnx_input.contiguous()
-
-            io_binding.bind_input(
-                input_name,
-                onnx_input.device.type,
-                self.device.index,
-                name_to_np_type[input_name],
-                list(onnx_input.size()),
-                onnx_input.data_ptr(),
-            )
-
-        # Bind outputs
-        for name in self.model_output_names:
-            io_binding.bind_output(name, self.device.type, device_id=self.device.index)
-
-        return io_binding
 
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(
@@ -1639,7 +1608,7 @@ class ORTModelForCustomTasks(ORTModel):
     )
     def forward(self, **kwargs):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = self.prepare_io_binding(**kwargs)
+            io_binding = IOBindingHelper.prepare_io_binding(self, **kwargs)
 
             # run inference with binding
             io_binding.synchronize_inputs()

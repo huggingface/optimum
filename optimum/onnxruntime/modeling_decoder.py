@@ -29,7 +29,7 @@ import onnxruntime
 from huggingface_hub import hf_hub_download
 
 from ..exporters import TasksManager
-from ..exporters.onnx import export
+from ..exporters.onnx import export_models, get_decoder_models_for_export
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
@@ -524,34 +524,37 @@ class ORTModelDecoder(ORTModel):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
-        if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-            decoder_with_past_file_name = ORTModelDecoder.infer_onnx_filename(
-                model_id,
-                DECODER_WITH_PAST_ONNX_FILE_PATTERN,
-                "decoder_with_past_file_name",
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-                fail_if_not_found=use_cache,
-            )
-
         decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
-        decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
-            ONNX_DECODER_WITH_PAST_NAME
-        )
-
         if decoder_file_name not in decoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime, the "
-                "ORTModelForConditionalGeneration might not behave as expected."
-            )
-        if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
-            logger.warning(
-                f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime, "
-                "the ORTModelForConditionalGeneration might not behave as expected."
+                f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
+                f"{cls.__name__} might not behave as expected."
             )
 
-        decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
+        decoder_with_past_path = None
+        if use_cache is True:
+            if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
+                decoder_with_past_file_name = ORTModelDecoder.infer_onnx_filename(
+                    model_id,
+                    DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                    "decoder_with_past_file_name",
+                    subfolder=subfolder,
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    fail_if_not_found=use_cache,
+                )
+
+            decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
+                ONNX_DECODER_WITH_PAST_NAME
+            )
+
+            if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
+                logger.warning(
+                    f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
+                    f"the {cls.__name__} might not behave as expected."
+                )
+
+            decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
 
         preprocessors = None
         if model_path.is_dir():
@@ -653,23 +656,19 @@ class ORTModelDecoder(ORTModel):
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             model_type, "onnx", task=task, model_name=model_name
         )
-        onnx_config = onnx_config_constructor(model.config, use_present_in_outputs=True)
+        onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
 
-        export(
-            model,
-            onnx_config,
-            onnx_config.DEFAULT_ONNX_OPSET,
-            save_dir_path.joinpath(ONNX_DECODER_NAME),
+        output_names = [ONNX_DECODER_NAME]
+        if use_cache is True:
+            output_names.append(ONNX_DECODER_WITH_PAST_NAME)
+        export_models(
+            model=model,
+            onnx_config=onnx_config,
+            opset=onnx_config.DEFAULT_ONNX_OPSET,
+            output_dir=save_dir_path,
+            fn_get_models_from_config=get_decoder_models_for_export,
+            output_names=output_names,
         )
-
-        if use_cache:
-            onnx_config = onnx_config_constructor(model.config, use_past=True)
-            export(
-                model,
-                onnx_config,
-                onnx_config.DEFAULT_ONNX_OPSET,
-                save_dir_path.joinpath(ONNX_DECODER_WITH_PAST_NAME),
-            )
 
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)

@@ -23,12 +23,8 @@ from ...utils import logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import (
-    export,
-    export_encoder_decoder_model,
-    validate_encoder_decoder_model_outputs,
-    validate_model_outputs,
-)
+from .convert import export, export_models, validate_model_outputs, validate_models_outputs
+from .utils import get_decoder_models_for_export, get_encoder_decoder_models_for_export
 
 
 logger = logging.get_logger()
@@ -128,15 +124,22 @@ def main():
             f"Opset {args.opset} is not sufficient to export {model.config.model_type}. "
             f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
         )
-
-    if model.config.is_encoder_decoder and args.for_ort:
-        onnx_inputs, onnx_outputs = export_encoder_decoder_model(
-            model,
-            onnx_config,
-            args.opset,
-            args.output.parent.joinpath("encoder_model.onnx"),
-            args.output.parent.joinpath("decoder_model.onnx"),
-            args.output.parent.joinpath("decoder_with_past_model.onnx"),
+    if args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
+        if model.config.is_encoder_decoder and task.startswith("causal-lm"):
+            raise ValueError(
+                f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
+                f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
+                f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
+            )
+        fn_get_models_from_config = (
+            get_encoder_decoder_models_for_export if model.config.is_encoder_decoder else get_decoder_models_for_export
+        )
+        onnx_inputs, onnx_outputs = export_models(
+            model=model,
+            onnx_config=onnx_config,
+            opset=args.opset,
+            output_dir=args.output.parent,
+            fn_get_models_from_config=fn_get_models_from_config,
         )
     else:
         onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
@@ -152,15 +155,19 @@ def main():
             args.atol = args.atol[task.replace("-with-past", "")]
 
     try:
-        if model.config.is_encoder_decoder and args.for_ort:
-            validate_encoder_decoder_model_outputs(
-                onnx_config,
-                model,
-                onnx_outputs,
-                args.atol,
-                args.output.parent.joinpath("encoder_model.onnx"),
-                args.output.parent.joinpath("decoder_model.onnx"),
-                args.output.parent.joinpath("decoder_with_past_model.onnx"),
+        if args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
+            fn_get_models_from_config = (
+                get_encoder_decoder_models_for_export
+                if model.config.is_encoder_decoder
+                else get_decoder_models_for_export
+            )
+            validate_models_outputs(
+                onnx_config=onnx_config,
+                reference_model=model,
+                onnx_named_outputs=onnx_outputs,
+                atol=args.atol,
+                output_dir=args.output.parent,
+                fn_get_models_from_config=fn_get_models_from_config,
             )
         else:
             validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
