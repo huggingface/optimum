@@ -28,7 +28,7 @@ from ..utils import CONFIG_NAME, NormalizedConfigManager
 from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
-from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
+from .modeling_seq2seq import ORTModelForConditionalGeneration
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
