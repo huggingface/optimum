@@ -1,6 +1,6 @@
 # Quantization
 
-Quantization is a technique to reduce the computational and memory cost of running inference by representing the
+Quantization is a technique to reduce the computational and memory costs of running inference by representing the
 weights and activations with low-precision data types like 8-bit integer (`int8`) instead of the usual 32-bit floating
 point (`float32`).
 
@@ -9,28 +9,28 @@ operations like matrix multiplication can be performed much faster with integer 
 on embedded devices, which sometimes only support integer data types.
 
 
-## The Theory
+## Theory
 
-The basic idea behing quantization is quite easy: going from the regular 32-bit floating point representation for weights
-and activations to a lower precision data type. The most considered lower precision data types are:
+The basic idea behind quantization is quite easy: going from high-precision representation (usually the regular 32-bit
+floating-point) for weights and activations to a lower precision data type. The most common lower precision data types
+are:
 
 - `float16`, accumulation data type `float16`
+- `bfloat16`, accumulation data type `float32`
 - `int16`, accumulation data type `int32`
 - `int8`, accumulation data type `int32`
-- `int4`, accumulation data type `int32`
-- `int1`, accumulation data type `int32`
 
 The accumulation data type specifies the type of the result of accumulating (adding, multiplying, etc) values of the
-data type in question. For examples, let's consider:
+data type in question. For example, let's consider two `int8` values `A = 127`, `B = 127`, and let's define `C` as the
+sum of `A` and `B`:
 
 ```
-C = A x B
+C = A + B
 ```
 
-where `A` is a `m x n` matrix of `int8` values, and `B` is a `n x p` matrix of `int8` values.
+Here the result is much bigger than the biggest representable value in `int8`, which is `127`. Hence the need for a larger
+precision data type to avoid a huge precision loss that would make the whole quantization process useless.
 
-Then for `i` in `[0, m - 1]` and `j` in `[0, p - 1]`, `C[i, j]` is an `int32` because it the sum of products of
-`int8` values.
 
 ### How do machines represent numbers?
 
@@ -118,7 +118,7 @@ Performing quantization to go from `float32` to `int8` is more tricky. Only 256 
 while `float32` can represent a very wide range of values. The idea is to find the best way to project our range `[a, b]`
 of `float32` values  to the `int8` space.
 
-Let's consider a float `x` in `[a, b]`, then we can write, the following quantization scheme, also called the *affine
+Let's consider a float `x` in `[a, b]`, then we can write the following quantization scheme, also called the *affine
 quantization scheme*:
 
 ```
@@ -131,7 +131,7 @@ where:
 - `S` and `Z` are the quantization parameters
   - `S` is the scale, and is a positive `float32`
   - `Z` is called the zero-point, it is the `int8` value corresponding to the value `0` in the `float32` realm. This
-  important to be be able to represent exactly the value `0` because it is used everywhere throughout machine learning
+  important to be able to represent exactly the value `0` because it is used everywhere throughout machine learning
   models.
 
 
@@ -168,8 +168,8 @@ Depending on the accuracy / latency trade-off you are targetting you can play wi
 - Quantization parameters can be computed on a *per-tensor* basis, meaning that one pair of `(S, Z)` will be used per
 tensor.
 - Quantization parameters can be computed on a *per-channel* basis, meaning that it is possible to store a pair of
-`(S, Z)` per element along one of the dimensions of a tensor. For example for a tensor of shape `[B, N, H, W]`, having
-*per-channel* quantization parameters for the second dimension would result in having `N` pairs of `(S, Z)`. While this
+`(S, Z)` per element along one of the dimensions of a tensor. For example for a tensor of shape `[N, C, H, W]`, having
+*per-channel* quantization parameters for the second dimension would result in having `C` pairs of `(S, Z)`. While this
 can give a better accuracy, it requires more memory.
 
 #### Calibration
@@ -189,7 +189,7 @@ It is also not an option on certain hardware.
   - The ranges for each computation are computed according to some *calibration technique*.
 3. Quantization aware training: the range for each activation is computed at *training-time*, following the same idea
 than post training static quantization. But "fake quantize" operators are used instead of observers: they record
-values just as observers do, but they also simulate the error induced by quantization to let the model adapt on it.
+values just as observers do, but they also simulate the error induced by quantization to let the model adapt to it.
 
 
 For both post training static quantization and quantization aware training, it is necessary to define calibration
@@ -202,6 +202,9 @@ thiw works well with activations.
   - Entropy: the range is computed as the one minimizing the error between the full-precision and the quantized data.
   - Mean Square Error: the range is computed as the one minimizing the mean square error between the full-precision and
   the quantized data.
+  - Percentile: the computed range is
+  `[p% of the observed values are bigger than this one, p% of the observed value are smaller than this one]`,
+  where `p` is the percentile value to use.
 
 
 #### Pratical steps to follow to quantize a model to `int8`
