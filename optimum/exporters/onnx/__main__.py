@@ -105,22 +105,20 @@ def main():
     elif task == "stable-diffusion":
         pipeline = StableDiffusionPipeline.from_pretrained(args.model)
         output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+        models_to_export = get_stable_diffusion_models_for_export(pipeline)
         onnx_inputs, onnx_outputs = export_models(
-            model=pipeline,
-            onnx_config=None,
+            models=models_to_export,
             opset=args.opset or 14,
             output_dir=args.output.parent,
-            fn_get_models_from_config=get_stable_diffusion_models_for_export,
             output_names=output_names,
         )
+
         try:
             validate_models_outputs(
-                onnx_config=None,
-                reference_model=pipeline,
+                models=models_to_export,
                 onnx_named_outputs=onnx_outputs,
                 atol=args.atol or 1e-3,
                 output_dir=args.output.parent,
-                fn_get_models_from_config=get_stable_diffusion_models_for_export,
                 output_names=output_names,
             )
         except ValueError:
@@ -172,15 +170,16 @@ def main():
                 f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
                 f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
             )
-        fn_get_models_from_config = (
-            get_encoder_decoder_models_for_export if model.config.is_encoder_decoder else get_decoder_models_for_export
-        )
+
+        if model.config.is_encoder_decoder:
+            models_to_export = get_encoder_decoder_models_for_export(model, onnx_config)
+        else:
+            models_to_export = get_decoder_models_for_export(model, onnx_config)
+
         onnx_inputs, onnx_outputs = export_models(
-            model=model,
-            onnx_config=onnx_config,
+            models=models_to_export,
             opset=args.opset,
             output_dir=args.output.parent,
-            fn_get_models_from_config=fn_get_models_from_config,
         )
     else:
         onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
@@ -197,18 +196,11 @@ def main():
 
     try:
         if args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
-            fn_get_models_from_config = (
-                get_encoder_decoder_models_for_export
-                if model.config.is_encoder_decoder
-                else get_decoder_models_for_export
-            )
             validate_models_outputs(
-                onnx_config=onnx_config,
-                reference_model=model,
+                models=models_to_export,
                 onnx_named_outputs=onnx_outputs,
                 atol=args.atol,
                 output_dir=args.output.parent,
-                fn_get_models_from_config=fn_get_models_from_config,
             )
         else:
             validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)

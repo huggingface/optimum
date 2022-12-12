@@ -68,15 +68,10 @@ def check_dummy_inputs_are_allowed(
 
 
 def validate_models_outputs(
-    onnx_config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    models: Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
     onnx_named_outputs: List[str],
     atol: float,
     output_dir: Path,
-    fn_get_models_from_config: Callable[
-        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
-        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
-    ],
     output_names: Optional[List[str]] = None,
 ):
     """
@@ -84,39 +79,33 @@ def validate_models_outputs(
     The following method validates the ONNX models exported using the `export_models` method.
 
     Args:
-        config ([`~OnnxConfig`]:
-            The configuration used to export the model.
-        reference_model ([`~PreTrainedModel`] or [`~TFPreTrainedModel`]):
-            The model used for the export.
+        models (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
+            A dictionnary containing the models to validate and their corresponding onnx configs.
         onnx_named_outputs (`List[str]`):
             The names of the outputs to check.
         atol (`float`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
         output_dir (`Path`):
             Output directory where the exported ONNX models are stored.
-        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
-            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
-            as it is the case with encoder-decoder models.
         output_names (`Optional[List[str]]`, defaults to `None`):
-            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
-            If None, will use the keys from the output of `fn_get_models_from_config` as names.
+            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models`.
+            If None, will use the keys from the `models` as names.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    models_for_validation = fn_get_models_from_config(reference_model, onnx_config)
 
-    if len(onnx_named_outputs) != len(models_for_validation.keys()):
+    if len(onnx_named_outputs) != len(models.keys()):
         raise ValueError(
-            f"Invalid number of ONNX named outputs. Required {len(models_for_validation.keys())}, Provided {len(onnx_named_outputs)}"
+            f"Invalid number of ONNX named outputs. Required {len(models.keys())}, Provided {len(onnx_named_outputs)}"
         )
 
-    if output_names is not None and len(output_names) != len(models_for_validation):
+    if output_names is not None and len(output_names) != len(models):
         raise ValueError(
-            f"Provided custom names {output_names} for the validation of {len(models_for_validation)} models. Please provide the same number of ONNX file names as models to export."
+            f"Provided custom names {output_names} for the validation of {len(models)} models. Please provide the same number of ONNX file names as models to export."
         )
 
-    for i, model_name in enumerate(models_for_validation.keys()):
-        submodel, sub_onnx_config = models_for_validation[model_name]
+    for i, model_name in enumerate(models.keys()):
+        submodel, sub_onnx_config = models[model_name]
         onnx_model_path = (
             output_dir.joinpath(output_names[i])
             if output_names is not None
@@ -400,14 +389,9 @@ def export_tensorflow(
 
 
 def export_models(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    onnx_config: OnnxConfig,
+    models: Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
     opset: int,
     output_dir: Path,
-    fn_get_models_from_config: Callable[
-        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
-        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
-    ],
     output_names: Optional[List[str]] = None,
     device: str = "cpu",
 ) -> Tuple[List[List[str]], List[List[str]]]:
@@ -417,20 +401,15 @@ def export_models(
     ONNX files.
 
     Args:
-        model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
-            The model to export.
-        config ([`~exporters.onnx.config.OnnxConfig`]):
-            The ONNX configuration associated with the exported model.
+        models (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
+             A dictionnary containing the models to export and their corresponding onnx configs.
         opset (`int`):
             The version of the ONNX operator set to use.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
-        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
-            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
-            as it is the case with encoder-decoder models.
         output_names (`Optional[List[str]]`, defaults to `None`):
-            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
-            If None, will use the keys from the output of `fn_get_models_from_config` as names.
+            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models`.
+            If None, will use the keys from `models` as names.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
@@ -438,16 +417,15 @@ def export_models(
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         inputs from the ONNX configuration.
     """
-    models_for_export = fn_get_models_from_config(model, onnx_config)
     outputs = []
 
-    if output_names is not None and len(output_names) != len(models_for_export):
+    if output_names is not None and len(output_names) != len(models):
         raise ValueError(
-            f"Provided custom names {output_names} for the export of {len(models_for_export)} models. Please provide the same number of names as models to export."
+            f"Provided custom names {output_names} for the export of {len(models)} models. Please provide the same number of names as models to export."
         )
 
-    for i, model_name in enumerate(models_for_export.keys()):
-        submodel, sub_onnx_config = models_for_export[model_name]
+    for i, model_name in enumerate(models.keys()):
+        submodel, sub_onnx_config = models[model_name]
         output_path = (
             output_dir.joinpath(output_names[i])
             if output_names is not None

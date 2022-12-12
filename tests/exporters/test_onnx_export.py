@@ -296,30 +296,25 @@ class OnnxExportTestCase(TestCase):
             atol = atol[task.replace("-with-past", "")]
 
         if for_ort is True and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
-            fn_get_models_from_config = (
-                get_encoder_decoder_models_for_export
-                if model.config.is_encoder_decoder
-                else get_decoder_models_for_export
-            )
+
+            if model.config.is_encoder_decoder:
+                models_to_export = get_encoder_decoder_models_for_export(model, onnx_config)
+            else:
+                models_to_export = get_decoder_models_for_export(model, onnx_config)
 
             with TemporaryDirectory() as tmpdirname:
                 try:
                     onnx_inputs, onnx_outputs = export_models(
-                        model,
-                        onnx_config,
-                        onnx_config.DEFAULT_ONNX_OPSET,
+                        models=models_to_export,
+                        opset=onnx_config.DEFAULT_ONNX_OPSET,
                         output_dir=Path(tmpdirname),
-                        fn_get_models_from_config=fn_get_models_from_config,
                         device=device,
                     )
-
                     validate_models_outputs(
-                        onnx_config,
-                        model,
-                        onnx_outputs,
-                        atol,
+                        models=models_to_export,
+                        onnx_named_outputs=onnx_outputs,
+                        atol=atol,
                         output_dir=Path(tmpdirname),
-                        fn_get_models_from_config=fn_get_models_from_config,
                     )
                 except (RuntimeError, ValueError) as e:
                     self.fail(f"{name}, {task} -> {e}")
@@ -387,23 +382,20 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_for_stable_diffusion_models(self, model_name):
         pipeline = StableDiffusionPipeline.from_pretrained(model_name)
         output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+        models_to_export = get_stable_diffusion_models_for_export(pipeline)
 
         with TemporaryDirectory() as tmpdirname:
             onnx_inputs, onnx_outputs = export_models(
-                pipeline,
-                onnx_config=None,
+                models=models_to_export,
                 opset=14,
                 output_dir=Path(tmpdirname),
-                fn_get_models_from_config=get_stable_diffusion_models_for_export,
                 output_names=output_names,
                 device="cpu",  # TODO: Add GPU test
             )
             validate_models_outputs(
-                onnx_config=None,
-                reference_model=pipeline,
+                models=models_to_export,
                 onnx_named_outputs=onnx_outputs,
                 atol=1e-3,
                 output_dir=Path(tmpdirname),
-                fn_get_models_from_config=get_stable_diffusion_models_for_export,
                 output_names=output_names,
             )
