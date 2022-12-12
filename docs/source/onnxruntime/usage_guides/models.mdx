@@ -70,10 +70,10 @@ Sequence-to-sequence (Seq2Seq) models can also be used when running inference wi
 are exported to the ONNX format, they are decomposed into three parts that are later combined during inference:
 - The encoder part of the model
 - The decoder part of the model + the language modeling head
-- The same decoder part of the + language modeling head but taking and using pre-computed key / values as inputs and
+- The same decoder part of the model + language modeling head but taking and using pre-computed key / values as inputs and
 outputs. This makes inference faster.
 
-Here is an example on how you can load a T5 model to the ONNX format and run inference for a translation task:
+Here is an example of how you can load a T5 model to the ONNX format and run inference for a translation task:
 
 
 ```python

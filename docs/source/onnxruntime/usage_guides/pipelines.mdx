@@ -56,10 +56,10 @@ There are tags on the Model Hub that allow you to filter for a model you'd like 
 <Tip>
 
 To be able to load the model with the ONNX Runtime backend, the export to ONNX needs
-to be supported for the architecture considered.
+to be supported for the considered architecture.
 
-You can check the list of the supported architectures
-[here](/exporters/onnx/package_reference/configuration#Supported_architectures).
+You can check the list of supported architectures
+[here](/exporters/onnx/package_reference/configuration#Supported-architectures).
 
 </Tip>
 
@@ -143,7 +143,7 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 The [`~pipelines.pipeline`] function can not only run inference on vanilla ONNX Runtime checkpoints - you can also use
 checkpoints optimized with the [`~optimum.onnxruntime.ORTQuantizer`] and the [`~optimum.onnxruntime.ORTOptimizer`].
 
-Below you can find two examples on how you could the [`~optimum.onnxruntime.ORTOptimizer`] and the
+Below you can find two examples of how you could use the [`~optimum.onnxruntime.ORTOptimizer`] and the
 [`~optimum.onnxruntime.ORTQuantizer`] to optimize/quantize your model and use it for inference afterwards.
 
 ### Quantizing with the `ORTQuantizer`
