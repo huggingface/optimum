@@ -202,9 +202,11 @@ thiw works well with activations.
   - Entropy: the range is computed as the one minimizing the error between the full-precision and the quantized data.
   - Mean Square Error: the range is computed as the one minimizing the mean square error between the full-precision and
   the quantized data.
-  - Percentile: the computed range is
-  `[p% of the observed values are bigger than this one, p% of the observed value are smaller than this one]`,
-  where `p` is the percentile value to use.
+  - Percentile: the range is computed using a given percentile value `p` on the observed values. The idea is to try to have
+  `p%` of the observed values in the computed range. While this is possible when doing affine quantization, it is not always
+  possible to exactly match that when doing symmetric quantization. You can check [how it is done in ONNX
+  Runtime](https://github.com/microsoft/onnxruntime/blob/2cb12caf9317f1ded37f6db125cb03ba99320c40/onnxruntime/python/tools/quantization/calibrate.py#L698)
+  for more details.
 
 
 #### Pratical steps to follow to quantize a model to `int8`
