@@ -151,7 +151,11 @@ The [`~optimum.onnxruntime.ORTQuantizer`] class currently doesn't support multi-
 [`~optimum.onnxruntime.ORTModelForSeq2SeqLM`]. If you want to quantize a Seq2Seq model, you have to quantize each
 model's component individually.
 
-**Note**: Currently, only dynamic quantization is supported for Seq2Seq model.
+<Tip warning={true}>
+
+Currently, only dynamic quantization is supported for Seq2Seq models.
+
+</Tip>
 
 1. Load seq2seq model as `ORTModelForSeq2SeqLM`.
 
