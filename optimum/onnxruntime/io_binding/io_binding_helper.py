@@ -155,7 +155,7 @@ class IOBindingHelper:
     @staticmethod
     def prepare_io_binding(ort_model: "ORTModel", **inputs) -> ort.IOBinding:
         """
-        Returns IOBinding object for an inference session. This method is created for general purpose, if the inputs and outputs
+        Returns an IOBinding object for an inference session. This method is general purpose, if the inputs and outputs
         are determined, you can prepare data buffers directly to avoid tensor transfers across frameworks.
         """
 
