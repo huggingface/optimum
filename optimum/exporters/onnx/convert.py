@@ -126,11 +126,7 @@ def validate_models_outputs(
             else output_dir.joinpath(model_name + ".onnx")
         )
         validate_model_outputs(
-            sub_onnx_config,
-            submodel,
-            onnx_model_path,
-            onnx_named_outputs[i],
-            atol,
+            sub_onnx_config, submodel, onnx_model_path, onnx_named_outputs[i], atol, input_shapes=input_shapes
         )
 
 
