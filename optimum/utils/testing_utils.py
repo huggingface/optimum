@@ -124,9 +124,13 @@ def convert_to_hf_classes(mapping_dict):
     return hf_names_dict
 
 
-def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
+def grid_parameters(parameters: Dict[str, Iterable[Any]], return_name: bool = False) -> Iterable[Dict[str, Any]]:
     """
-    Generate an iterable over the grid of all combinations of parameters
+    Generate an iterable over the grid of all combinations of parameters, with an optional test name
     """
     for params in itertools.product(*parameters.values()):
-        yield list(params)
+        if return_name is True:
+            test_name = "_".join([str(param) for param in params])
+            yield [test_name] + list(params)
+        else:
+            yield list(params)
