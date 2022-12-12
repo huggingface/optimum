@@ -31,8 +31,163 @@ C = A + B
 Here the result is much bigger than the biggest representable value in `int8`, which is `127`. Hence the need for a larger
 precision data type to avoid a huge precision loss that would make the whole quantization process useless.
 
+## Quantization
 
-### How do machines represent numbers?
+The two most common quantization cases are `float32 -> float16` and `float32 -> int8`.
+
+### Quantization to `float16`
+
+Performing quantization to go from `float32` to `float16` is quite straightforward since both data types follow the same
+representation scheme. The questions to ask yourself when quantizing an operation to `float16` are:
+
+- Does my operation have a `float16` implementation?
+- Does my hardware suport `float16`? For instance, Intel CPUs [have been supporting `float16` as a storage type, but
+computation is done after converting to `float32`](https://scicomp.stackexchange.com/a/35193). Full support will come
+in Cooper Lake and Sapphire Rapids.
+- Is my operation sensitive to lower precision?
+For instance the value of epsilon in `LayerNorm` is usually very small (~ `1e-12`), but the smallest representable value in
+`float16` is ~ `6e-5`, this can cause `NaN` issues.  The same applies for big values.
+
+### Quantization to `int8`
+
+Performing quantization to go from `float32` to `int8` is more tricky. Only 256 values can be represented in `int8`,
+while `float32` can represent a very wide range of values. The idea is to find the best way to project our range `[a, b]`
+of `float32` values  to the `int8` space.
+
+Let's consider a float `x` in `[a, b]`, then we can write the following quantization scheme, also called the *affine
+quantization scheme*:
+
+```
+x = S * (x_q - Z)
+```
+
+where:
+
+- `x_q` is the quantized `int8` value associated to `x`
+- `S` and `Z` are the quantization parameters
+  - `S` is the scale, and is a positive `float32`
+  - `Z` is called the zero-point, it is the `int8` value corresponding to the value `0` in the `float32` realm. This is
+  important to be able to represent exactly the value `0` because it is used everywhere throughout machine learning
+  models.
+
+
+The quantized value `x_q` of `x` in `[a, b]` can be computed as follows:
+
+```
+x_q = round(x/S + Z)
+```
+
+And `float32` values outside of the `[a, b]` range are clipped to the closest representable value, so for any
+floating-point number `x`:
+
+```
+x_q = clip(round(x/S + Z), round(a/S + Z), round(b/S + Z))
+
+```
+
+<Tip>
+
+Usually `round(a/S + Z)` corresponds to the smallest representable value in the considered data type, and `round(b/S + Z)`
+to the biggest one. But this can vary, for instance when using a *symmetric quantization scheme* as you will see in the next
+paragraph.
+
+</Tip>
+
+### Symmetric and affine quantization schemes
+
+The equation above is called the *affine quantization sheme* because the mapping from `[a, b]` to `int8` is an affine one.
+
+A common special case of this scheme is the *symmetric quantization scheme*, where we consider a symmetric range of float values `[-a, a]`.
+In this case the integer space is usally `[-127, 127]`, meaning that the `-128` is opted out of the regular `[-128, 127]` signed `int8` range.
+The reason being that having both ranges symmetric allows to have `Z = 0`. While one value out of the 256 representable
+values is lost, it can provide a speedup since a lot of addition operations can be skipped.
+
+**Note**: To learn how the quantization parameters `S` and `Z` are computed, you can read the
+[Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference](https://arxiv.org/abs/1712.05877)
+paper, or [Lei Mao's blog post](https://leimao.github.io/article/Neural-Networks-Quantization) on the subject.
+
+
+### Per-tensor and per-channel quantization
+
+Depending on the accuracy / latency trade-off you are targetting you can play with the granularity of the quantization parameters:
+
+- Quantization parameters can be computed on a *per-tensor* basis, meaning that one pair of `(S, Z)` will be used per
+tensor.
+- Quantization parameters can be computed on a *per-channel* basis, meaning that it is possible to store a pair of
+`(S, Z)` per element along one of the dimensions of a tensor. For example for a tensor of shape `[N, C, H, W]`, having
+*per-channel* quantization parameters for the second dimension would result in having `C` pairs of `(S, Z)`. While this
+can give a better accuracy, it requires more memory.
+
+### Calibration
+
+The section above described how quantization from `float32` to `int8` works, but one question
+remains: how is the `[a, b]` range of `float32` values determined? That is where calibration comes in to play.
+
+Calibration is the step during quantization where the `float32` ranges are computed. For weights it is quite easy since
+the actual range is know at *quantization-time*. But it is less clear for activations, and different approaches exist:
+
+1. Post training **dynamic quantization**: the range for each activation is computed on the fly at *runtime*. While this
+gives great results without too much work, it can be a bit slower than static quantization because of the overhead
+introduced by computing the range each time.
+It is also not an option on certain hardware.
+2. Post training **static quantization**: the range for each activation is computed at in advance at *quantization-time*,
+typically by passing representative data through the model and recording the activation values. In practice, the steps are:
+  1. Observers are put on activations to record their values.
+  2. A certain number of forward passes on a calibration dataset is done (around `200` examples is enough).
+  3. The ranges for each computation are computed according to some *calibration technique*.
+3. **Quantization aware training**: the range for each activation is computed at *training-time*, following the same idea
+than post training static quantization. But "fake quantize" operators are used instead of observers: they record
+values just as observers do, but they also simulate the error induced by quantization to let the model adapt to it.
+
+
+For both post training static quantization and quantization aware training, it is necessary to define calibration
+techniques, the most common are:
+
+- Min-max: the computed range is `[min observed value, max observed value]`, this works well with weights.
+- Moving average min-max: the computed range is `[moving average min observed value, moving average max observed value]`,
+thiw works well with activations.
+- Histogram: records a histogram of values along with min and max values, then chooses according to some criterion.
+  - Entropy: the range is computed as the one minimizing the error between the full-precision and the quantized data.
+  - Mean Square Error: the range is computed as the one minimizing the mean square error between the full-precision and
+  the quantized data.
+  - Percentile: the range is computed using a given percentile value `p` on the observed values. The idea is to try to have
+  `p%` of the observed values in the computed range. While this is possible when doing affine quantization, it is not always
+  possible to exactly match that when doing symmetric quantization. You can check [how it is done in ONNX
+  Runtime](https://github.com/microsoft/onnxruntime/blob/2cb12caf9317f1ded37f6db125cb03ba99320c40/onnxruntime/python/tools/quantization/calibrate.py#L698)
+  for more details.
+
+
+### Pratical steps to follow to quantize a model to `int8`
+
+To effectively quantize a model to `int8`, the steps to follow are:
+
+1. Choose which operators to quantize. Good operators to quantize are the one dominating it terms of computation time,
+for instance linear projections and matrix multiplications.
+2. Try post-training dynamic quantization, if it is fast enough stop here, otherwise continue to step 3.
+3. Try post-training static quantization which can be faster than dynamic quantization but often with a drop in terms of
+accuracy. Apply observers to your models in places where you want to quantize.
+implies defining which quantization scheme to use.
+4. Perform calibration.
+5. Convert the model to its quantized form: the observers are removed and the `float32` operators are converted to their `int8`
+coutnerparts.
+6. Evaluate the quantized model: is the accuracy good enough? If yes, stop here, otherwise start again at step 3 but
+with quantization aware training this time.
+
+## Supported tools to perform quantization in 🤗 Optimum
+
+🤗 Optimum provides APIs to perform quantization using different tools for different targets:
+
+- The `optimum.onnxruntime` package allows to
+[quantize and run ONNX models](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization) using the
+ONNX Runtime tool.
+- The `optimum.intel` package enables to [quantize](https://huggingface.co/docs/optimum/intel/optimization_inc) 🤗 Transformers
+models while respecting accuracy and latency constraints.
+- The `optimum.fx` package provides wrappers around the
+[PyTorch quantization functions](https://pytorch.org/docs/stable/quantization-support.html#torch-quantization-quantize-fx)
+to allow graph-mode quantization of 🤗 Transformers models in PyTorch. This is a lower-level API compared to the two
+mentioned above, giving more flexibility, but requiring more work on your end.
+
+## Going further: How do machines represent numbers?
 
 <Tip>
 
@@ -94,149 +249,6 @@ For a real number `x` we have:
 ```
 x = sign x mantissa x (2^exponent)
 ```
-
-### Quantization
-
-The two most common quantization cases are `float32 -> float16` and `float32 -> int8`.
-
-#### Quantization to `float16`
-
-Performing quantization to go from `float32` to `float16` is quite straightforward since both data types follow the same
-representation scheme. The questions to ask yourself when quantizing an operation to `float16` are:
-
-- Does my operation have a `float16` implementation?
-- Does my hardware suport `float16`? For instance, Intel CPUs [have been supporting `float16` as a storage type, but
-computation is done after converting to `float32`](https://scicomp.stackexchange.com/a/35193). Full support will come
-in Cooper Lake and Sapphire Rapids.
-- Is my operation sensitive to lower precision?
-For instance the value of epsilon in `LayerNorm` is usually very small (~ `1e-12`), but the smallest representable value in
-`float16` is ~ `6e-5`, this can cause `NaN` issues.  The same applies for big values.
-
-#### Quantization to `int8`
-
-Performing quantization to go from `float32` to `int8` is more tricky. Only 256 values can be represented in `int8`,
-while `float32` can represent a very wide range of values. The idea is to find the best way to project our range `[a, b]`
-of `float32` values  to the `int8` space.
-
-Let's consider a float `x` in `[a, b]`, then we can write the following quantization scheme, also called the *affine
-quantization scheme*:
-
-```
-x = S * (x_q - Z)
-```
-
-where:
-
-- `x_q` is the quantized `int8` value associated to `x`
-- `S` and `Z` are the quantization parameters
-  - `S` is the scale, and is a positive `float32`
-  - `Z` is called the zero-point, it is the `int8` value corresponding to the value `0` in the `float32` realm. This is
-  important to be able to represent exactly the value `0` because it is used everywhere throughout machine learning
-  models.
-
-
-The quantized value `x_q` of `x` in `[a, b]` can be computed as follows:
-
-```
-x_q = round(x/S + Z)
-```
-
-And `float32` values outside of the `[a, b]` range are clipped to the closest representable value, so for any
-floating-point number `x`:
-
-```
-x_q = clip(round(x/S + Z), round(a/S + Z), round(b/S + Z))
-
-```
-
-This is called the *affine quantization sheme* because the mapping from `[a, b]` to `int8` is an affine one.
-
-A common special case of this scheme is the *scale quantization scheme*, where we consider a symmetric range of float values `[-a, a]`.
-In this case the integer space is usally `[-127, 127]`, meaning that the `-128` is opted out of the regular `[-128, 127]` signed `int8` range.
-The reason being that having both ranges symmetric allows to have `Z = 0`. While one value out of the 256 representable
-values is lost, it can provide a speedup since a lot of addition operations can be skipped.
-
-**Note**: To learn how the quantization parameters `S` and `Z` are computed, you can read the
-[Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference](https://arxiv.org/abs/1712.05877)
-paper, or [Lei Mao's blog post](https://leimao.github.io/article/Neural-Networks-Quantization) on the subject.
-
-
-#### Number of quantization parameters
-
-Depending on the accuracy / latency trade-off you are targetting you can play with the granularity of the quantization parameters:
-
-- Quantization parameters can be computed on a *per-tensor* basis, meaning that one pair of `(S, Z)` will be used per
-tensor.
-- Quantization parameters can be computed on a *per-channel* basis, meaning that it is possible to store a pair of
-`(S, Z)` per element along one of the dimensions of a tensor. For example for a tensor of shape `[N, C, H, W]`, having
-*per-channel* quantization parameters for the second dimension would result in having `C` pairs of `(S, Z)`. While this
-can give a better accuracy, it requires more memory.
-
-#### Calibration
-
-The section above described how quantization from `float32` to `int8` works, but one question
-remains: how is the `[a, b]` range of `float32` values determined? That is where calibration comes in to play.
-
-Calibration is the step during quantization where the `float32` ranges are computed. For weights it is quite easy since
-the actual range is know at *quantization-time*. But it is less clear for activations, and different approaches exist:
-
-1. Post training dynamic quantization: the range for each activation is computed at *runtime*. While this gives great
-results without too much work, it can be a bit slower than static quantization because the range is computed each time.
-It is also not an option on certain hardware.
-2. Post training static quantization: the range for each activation is computed at *quantization-time*.
-  - Observers are put on activations to record their values.
-  - A certain number of forward passes on a calibration dataset is done (around `200` examples is enough).
-  - The ranges for each computation are computed according to some *calibration technique*.
-3. Quantization aware training: the range for each activation is computed at *training-time*, following the same idea
-than post training static quantization. But "fake quantize" operators are used instead of observers: they record
-values just as observers do, but they also simulate the error induced by quantization to let the model adapt to it.
-
-
-For both post training static quantization and quantization aware training, it is necessary to define calibration
-techniques, the most common are:
-
-- Min-max: the computed range is `[min observed value, max observed value]`, this works well with weights.
-- Moving average min-max: the computed range is `[moving average min observed value, moving average max observed value]`,
-thiw works well with activations.
-- Histogram: records a histogram of values along with min and max values, then chooses according to some criterion.
-  - Entropy: the range is computed as the one minimizing the error between the full-precision and the quantized data.
-  - Mean Square Error: the range is computed as the one minimizing the mean square error between the full-precision and
-  the quantized data.
-  - Percentile: the range is computed using a given percentile value `p` on the observed values. The idea is to try to have
-  `p%` of the observed values in the computed range. While this is possible when doing affine quantization, it is not always
-  possible to exactly match that when doing symmetric quantization. You can check [how it is done in ONNX
-  Runtime](https://github.com/microsoft/onnxruntime/blob/2cb12caf9317f1ded37f6db125cb03ba99320c40/onnxruntime/python/tools/quantization/calibrate.py#L698)
-  for more details.
-
-
-#### Pratical steps to follow to quantize a model to `int8`
-
-To effectively quantize a model to `int8`, the steps to follow are:
-
-1. Choose which operators to quantize. Good operators to quantize are the one dominating it terms of computation time,
-for instance linear projections and matrix multiplications.
-2. Try dynamic quantization, if it is fast enough stop here, otherwise continue to step 3.
-3. Apply observers to your models in places where you want to quantize. It implies defining which quantization scheme to use.
-4. Perform calibration.
-5. Convert the model to its quantized form: the observers are removed and the `float32` operators are converted to their `int8`
-coutnerparts.
-6. Evaluate the quantized model: is the accuracy good enough? If yes, stop here, otherwise start again at step 3 but
-with quantization aware training this time.
-
-
-## Supported tools to perform quantization in 🤗 Optimum
-
-🤗 Optimum provides APIs to perform quantization using different tools for different targets:
-
-- The `optimum.onnxruntime` package allows to
-[quantize and run ONNX models](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization) using the
-ONNX Runtime tool.
-- The `optimum.intel` package enables to [quantize](https://huggingface.co/docs/optimum/intel/optimization_inc) 🤗 Transformers
-models while respecting accuracy and latency constraints.
-- The `optimum.fx` package provides wrappers around the
-[PyTorch quantization functions](https://pytorch.org/docs/stable/quantization-support.html#torch-quantization-quantize-fx)
-to allow graph-mode quantization of 🤗 Transformers models in PyTorch. This is a lower-level API compared to the two
-mentioned above, giving more flexibility, but requiring more work on your end.
 
 
 ## References
