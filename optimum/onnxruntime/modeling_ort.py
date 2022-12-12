@@ -1582,7 +1582,7 @@ CUSTOM_TASKS_EXAMPLE = r"""
 )
 class ORTModelForCustomTasks(ORTModel):
     """
-    Onnx Model for any custom tasks using encoder or decoder-only models.
+    Model for any custom tasks if the ONNX model is stored in a single file.
     """
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
