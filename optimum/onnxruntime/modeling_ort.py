@@ -1576,7 +1576,7 @@ CUSTOM_TASKS_EXAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model for any custom tasks. It can be used to leverage the inference acceleration with custom encoder or decoder-only ONNX model.
+    ONNX Model for any custom tasks. It can be used to leverage the inference acceleration for any single-file ONNX model.
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
