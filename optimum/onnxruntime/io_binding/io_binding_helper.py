@@ -13,6 +13,7 @@
 #  limitations under the License.
 import logging
 import traceback
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -23,6 +24,9 @@ from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelp
 
 from ..utils import is_cupy_available, is_onnxruntime_training_available
 
+
+if TYPE_CHECKING:
+    from ..modeling_ort import ORTModel
 
 if is_cupy_available():
     import cupy as cp
@@ -147,3 +151,39 @@ class IOBindingHelper:
         elif isinstance(device, int):
             return device
         return 0 if device.index is None else device.index
+
+    @staticmethod
+    def prepare_io_binding(ort_model: "ORTModel", **inputs) -> ort.IOBinding:
+        """
+        Returns an IOBinding object for an inference session. This method is for general purpose, if the inputs and outputs
+        are determined, you can prepare data buffers directly to avoid tensor transfers across frameworks.
+        """
+        if not all(input_name in inputs.keys() for input_name in ort_model.model_input_names):
+            raise ValueError(
+                f"The ONNX model takes {ort_model.model_input_names} as inputs, but only {inputs.keys()} are given."
+            )
+
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(ort_model.model)
+
+        # Bind inputs and outputs to onnxruntime session
+        io_binding = ort_model.model.io_binding()
+
+        # Bind inputs
+        for input_name in ort_model.model_input_names:
+            onnx_input = inputs.pop(input_name)
+            onnx_input = onnx_input.contiguous()
+
+            io_binding.bind_input(
+                input_name,
+                onnx_input.device.type,
+                ort_model.device.index,
+                name_to_np_type[input_name],
+                list(onnx_input.size()),
+                onnx_input.data_ptr(),
+            )
+
+        # Bind outputs
+        for name in ort_model.model_output_names:
+            io_binding.bind_output(name, ort_model.device.type, device_id=ort_model.device.index)
+
+        return io_binding
