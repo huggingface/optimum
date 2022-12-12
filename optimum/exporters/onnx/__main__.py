@@ -14,12 +14,12 @@
 # limitations under the License.
 """Entry point to the optimum.exporters.onnx command line."""
 
-from argparse import ArgumentParser
+import argparse
 from pathlib import Path
 
 from transformers import AutoTokenizer
 
-from ...utils import logging
+from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
@@ -32,20 +32,48 @@ logger.setLevel(logging.INFO)
 
 
 def main():
-    parser = ArgumentParser("Hugging Face Optimum ONNX exporter")
-    parser.add_argument(
+    parser = argparse.ArgumentParser(
+        "Hugging Face Optimum ONNX exporter", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    required_group = parser.add_argument_group("Required arguments")
+    required_group.add_argument(
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
     )
-    parser.add_argument(
+    required_group.add_argument(
+        "output", type=Path, help="Path indicating the directory where to store generated ONNX model."
+    )
+
+    optional_group = parser.add_argument_group("Optional arguments")
+    optional_group.add_argument(
         "--task",
         default="auto",
-        help="The type of task to export the model with.",
+        help=(
+            "The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on the model, but are among:"
+            f" {str(list(TasksManager._TASKS_TO_AUTOMODELS.keys()))}. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder."
+        ),
     )
-    parser.add_argument("--opset", type=int, default=None, help="ONNX opset version to export the model with.")
-    parser.add_argument(
-        "--atol", type=float, default=None, help="Absolute difference tolerance when validating the model."
+    optional_group.add_argument(
+        "--for-ort",
+        action="store_true",
+        help=(
+            "This exports models ready to be run with Optimum's ORTModel. Useful for encoder-decoder models for"
+            "conditional generation. If enabled the encoder and decoder of the model are exported separately."
+        ),
     )
-    parser.add_argument(
+    optional_group.add_argument(
+        "--opset",
+        type=int,
+        default=None,
+        help="If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.",
+    )
+    optional_group.add_argument(
+        "--atol",
+        type=float,
+        default=None,
+        help="If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.",
+    )
+    optional_group.add_argument(
         "--framework",
         type=str,
         choices=["pt", "tf"],
@@ -56,7 +84,7 @@ def main():
             " or what is available in the environment."
         ),
     )
-    parser.add_argument(
+    optional_group.add_argument(
         "--pad_token_id",
         type=int,
         default=None,
@@ -65,16 +93,60 @@ def main():
             " it."
         ),
     )
-    parser.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
-    parser.add_argument(
-        "--for-ort",
-        action="store_true",
-        help=(
-            "This exports models ready to be run with optimum.onnxruntime. Useful for encoder-decoder models for"
-            "conditional generation. If enabled the encoder and decoder of the model are exported separately."
-        ),
+    optional_group.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+
+    input_group = parser.add_argument_group(
+        "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input.)"
     )
-    parser.add_argument("output", type=Path, help="Path indicating the directory where to store generated ONNX model.")
+    doc_input = " to use in the example input given to the ONNX export."
+    input_group.add_argument(
+        "--batch_size",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["batch_size"],
+        help="Text tasks only. Batch size" + doc_input,
+    )
+    input_group.add_argument(
+        "--sequence_length",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["sequence_length"],
+        help="Text tasks only. Sequence length " + doc_input,
+    )
+    input_group.add_argument(
+        "--num_choices",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["num_choices"],
+        help="Text tasks only. Num choices " + doc_input,
+    )
+    input_group.add_argument(
+        "--width", type=int, default=DEFAULT_DUMMY_SHAPES["width"], help="Image tasks only. Width " + doc_input
+    )
+    input_group.add_argument(
+        "--height", type=int, default=DEFAULT_DUMMY_SHAPES["height"], help="Image tasks only. Height " + doc_input
+    )
+    input_group.add_argument(
+        "--num_channels",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["num_channels"],
+        help="Image tasks only. Number of channels " + doc_input,
+    )
+    input_group.add_argument(
+        "--feature_size",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["feature_size"],
+        help="Audio tasks only. Feature size " + doc_input,
+    )
+    input_group.add_argument(
+        "--nb_max_frames",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["nb_max_frames"],
+        help="Audio tasks only. Maximum number of frames " + doc_input,
+    )
+    input_group.add_argument(
+        "--audio_sequence_length",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        help="Audio tasks only. Audio sequence length " + doc_input,
+    )
 
     # Retrieve CLI arguments
     args = parser.parse_args()
@@ -87,6 +159,11 @@ def main():
     task = args.task
     if task == "auto":
         task = TasksManager.infer_task_from_model(args.model)
+
+    # get input shapes
+    input_shapes = {}
+    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+        input_shapes[input_name] = getattr(args, input_name)
 
     # Allocate the model
     model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
@@ -140,9 +217,10 @@ def main():
             opset=args.opset,
             output_dir=args.output.parent,
             fn_get_models_from_config=fn_get_models_from_config,
+            input_shapes=input_shapes,
         )
     else:
-        onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
+        onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output, input_shapes=input_shapes)
 
     # Saving the model config as this is needed sometimes.
     model.config.save_pretrained(args.output.parent)
