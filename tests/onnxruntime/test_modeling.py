@@ -1282,14 +1282,14 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
 
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = (
         "t5",
         "bart",
         "mbart",
         "marian",
         "m2m_100",
         "bigbird_pegasus",
-    ]
+    )
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
