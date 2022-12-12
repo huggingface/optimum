@@ -54,5 +54,5 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
-    "xlm-roberta": "hf-internal-testing/tiny-random-XLMRobertaXLModel",
+    "xlm-roberta": "hf-internal-testing/tiny-random-xlm-roberta",
 }

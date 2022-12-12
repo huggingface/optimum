@@ -43,7 +43,7 @@ def _get_models_to_test(export_models_dict: Dict):
                     task.startswith(ort_special_task)
                     for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
                 ):
-                    models_to_test.append((f"{model_type}_{task}", model_name, task, True))
+                    models_to_test.append((f"{model_type}_{task}_forort", model_name, task, True))
 
             models_to_test.append((f"{model_type}_no_task", model_name, None, False))
 
