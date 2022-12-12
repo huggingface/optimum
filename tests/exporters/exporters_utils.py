@@ -41,7 +41,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",
     "owlvit": "google/owlvit-base-patch32",
-    # TODO why specific tasks?
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",
     # "rembert": "google/rembert",
     "resnet": "microsoft/resnet-50",

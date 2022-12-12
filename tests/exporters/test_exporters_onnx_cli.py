@@ -16,13 +16,13 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 from unittest import TestCase
 
-from transformers import is_tf_available, is_torch_available
-from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
+from transformers import is_torch_available
+from transformers.testing_utils import require_torch, require_vision
 
 from parameterized import parameterized
 
 
-if is_torch_available() or is_tf_available():
+if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
 import subprocess
@@ -32,7 +32,7 @@ from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
 def _get_models_to_test(export_models_dict: Dict):
     models_to_test = []
-    if is_torch_available() or is_tf_available():
+    if is_torch_available():
         for model_type, model_name in export_models_dict.items():
             task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
 
