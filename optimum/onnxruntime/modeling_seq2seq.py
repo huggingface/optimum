@@ -938,7 +938,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 model_id,
                 ENCODER_ONNX_FILE_PATTERN,
                 "encoder_file_name",
-                subfolder=subfolder,
+                subfolder=ENCODER_ONNX_FILE_PATTERN.replace(".onnx", ""),
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
@@ -947,7 +947,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 model_id,
                 DECODER_ONNX_FILE_PATTERN,
                 "decoder_file_name",
-                subfolder=subfolder,
+                subfolder=DECODER_ONNX_FILE_PATTERN.replace(".onnx", ""),
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
@@ -956,7 +956,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 model_id,
                 DECODER_WITH_PAST_ONNX_FILE_PATTERN,
                 "decoder_with_past_file_name",
-                subfolder=subfolder,
+                subfolder=DECODER_WITH_PAST_ONNX_FILE_PATTERN.replace(".onnx", ""),
                 use_auth_token=use_auth_token,
                 revision=revision,
                 fail_if_not_found=use_cache,
