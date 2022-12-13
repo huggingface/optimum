@@ -51,6 +51,7 @@ if is_torch_available():
         AutoModelForSpeechSeq2Seq,
         AutoModelForTokenClassification,
     )
+
     from diffusers import StableDiffusionPipeline
 
 if is_tf_available():
