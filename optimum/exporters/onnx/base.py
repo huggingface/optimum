@@ -28,7 +28,7 @@ from transformers.utils import is_torch_available
 from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, logging
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
-from .import_utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
+from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 
 
 if TYPE_CHECKING:
@@ -106,7 +106,7 @@ class OnnxConfig(ExportConfig, ABC):
     - ATOL_FOR_VALIDATION (`Union[float, Dict[str, float]]`) -- A float or a dictionary mapping task names to float,
     where the float values represent the absolute tolerance value to use during model conversion validation.
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
-    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.MIN_TORCH_VERSION`]) -- The
+    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.TORCH_MINIMUM_VERSION`]) -- The
     minimum torch version supporting the export of the model to ONNX.
 
     Args:
@@ -233,9 +233,9 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
         if is_torch_available():
-            from .import_utils import TORCH_VERSION
+            from ...utils import torch_version
 
-            return TORCH_VERSION >= self.MIN_TORCH_VERSION
+            return torch_version >= self.MIN_TORCH_VERSION
         return False
 
     @property

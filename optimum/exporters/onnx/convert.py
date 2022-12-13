@@ -22,12 +22,9 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
-from optimum.utils import is_diffusers_available
-
-from ...utils import logging
+from ...utils import logging, is_diffusers_available, is_torch_onnx_support_available, TORCH_MINIMUM_VERSION
 from ..tasks import TasksManager
 from .base import OnnxConfig
-from .import_utils import MIN_TORCH_VERSION, is_torch_onnx_support_available
 
 
 if is_torch_available():
@@ -481,12 +478,11 @@ def export(
     output.parent.mkdir(parents=True, exist_ok=True)
 
     if is_torch_available():
-
-        import torch
+        from ...utils import torch_version
 
         if not is_torch_onnx_support_available():
             raise AssertionError(
-                f"Unsupported PyTorch version, minimum required is {MIN_TORCH_VERSION}, got: {torch.__version__}"
+                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
             )
 
         if not config.is_torch_support_available:
