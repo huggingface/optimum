@@ -64,9 +64,9 @@ if TYPE_CHECKING:
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
-        ORTModelForSemanticSegmentation,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
+        ORTModelForSemanticSegmentation,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )

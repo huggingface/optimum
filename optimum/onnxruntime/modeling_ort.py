@@ -25,9 +25,9 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForImageClassification,
-    AutoModelForSemanticSegmentation,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
+    AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
 )
@@ -35,10 +35,10 @@ from transformers.file_utils import add_start_docstrings, add_start_docstrings_t
 from transformers.modeling_outputs import (
     BaseModelOutput,
     ImageClassifierOutput,
-    SemanticSegmenterOutput,
     ModelOutput,
     MultipleChoiceModelOutput,
     QuestionAnsweringModelOutput,
+    SemanticSegmenterOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
@@ -1626,7 +1626,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
 
             # converts output to namedtuple for pipelines post-processing
-            return SemanticSegmenterOutput(logits=outputs['logits'])
+            return SemanticSegmenterOutput(logits=outputs["logits"])
         else:
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = self._prepare_onnx_inputs(**kwargs)
@@ -1636,7 +1636,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
             outputs = self._prepare_onnx_outputs(onnx_outputs)
 
             # converts output to namedtuple for pipelines post-processing
-            return SemanticSegmenterOutput(logits=outputs['logits'])
+            return SemanticSegmenterOutput(logits=outputs["logits"])
 
     def _prepare_onnx_inputs(self, **kwargs):
         model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
