@@ -289,5 +289,5 @@ def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -
             if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
         ]
         src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
-        dst_file_names.extend(model_tensors_ext)
+        dst_file_names.extend(str(model_path.parent.name / tensor_name) for tensor_name in model_tensors_ext)
     return src_paths, dst_file_names

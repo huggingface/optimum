@@ -902,16 +902,17 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 the decoder model with a different name.
         """
         src_paths = [self.encoder_model_path, self.decoder_model_path]
-        dst_file_names = [encoder_file_name, decoder_file_name]
+        dst_file_names = ["encoder_model/" + encoder_file_name, "decoder_model/" + decoder_file_name]
         if self.use_cache:
             src_paths.append(self.decoder_with_past_model_path)
-            dst_file_names.append(decoder_with_past_file_name)
+            dst_file_names.append("decoder_with_past_model/" + decoder_with_past_file_name)
 
         # add external data paths in case of large models
         src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
 
         for src_path, dst_file_name in zip(src_paths, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 
     @classmethod
