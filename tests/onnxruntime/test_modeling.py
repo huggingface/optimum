@@ -1054,7 +1054,8 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.decoder, ORTDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1330,7 +1331,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1521,7 +1523,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
