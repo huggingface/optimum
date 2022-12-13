@@ -17,14 +17,19 @@
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import logging
 from .base import OnnxConfig
-from .utils import MIN_TORCH_VERSION, get_encoder_decoder_models_for_export, is_torch_onnx_support_available
+from .utils import (
+    MIN_TORCH_VERSION,
+    get_decoder_models_for_export,
+    get_encoder_decoder_models_for_export,
+    is_torch_onnx_support_available,
+)
 
 
 if is_torch_available():
@@ -61,18 +66,21 @@ def check_dummy_inputs_are_allowed(
         )
 
 
-def validate_encoder_decoder_model_outputs(
-    config: OnnxConfig,
+def validate_models_outputs(
+    onnx_config: OnnxConfig,
     reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
     onnx_named_outputs: List[str],
     atol: float,
-    encoder_onnx_model: Path,
-    decoder_onnx_model: Path,
-    decoder_with_past_onnx_model: Optional[Path] = None,
+    output_dir: Path,
+    fn_get_models_from_config: Callable[
+        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
+        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
+    ],
+    output_names: Optional[List[str]] = None,
 ):
     """
-    Validates the export by checking that the outputs from both the reference and the exported model match.
-    The following method validates the ONNX models exported using the `export_encoder_decoder_model` method.
+    Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
+    The following method validates the ONNX models exported using the `export_models` method.
 
     Args:
         config ([`~OnnxConfig`]:
@@ -83,34 +91,43 @@ def validate_encoder_decoder_model_outputs(
             The names of the outputs to check.
         atol (`float`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
-        encoder_onnx_model (`Path`):
-            The path to the exported encoder ONNX model.
-        decoder_onnx_model (`Path`):
-            The path to the exported decoder ONNX model.
-        decoder_with_past_onnx_model (`Optional[Path]`, defaults to `None`):
-            The path to the exported decoder with past ONNX model. Required when `past_key_values` are exported.
+        output_dir (`Path`):
+            Output directory where the exported ONNX models are stored.
+        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
+            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
+            as it is the case with encoder-decoder models.
+        output_names (`Optional[List[str]]`, defaults to `None`):
+            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
+            If None, will use the keys from the output of `fn_get_models_from_config` as names.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    models_for_validation = get_encoder_decoder_models_for_export(reference_model, config)
+    models_for_validation = fn_get_models_from_config(reference_model, onnx_config)
 
     if len(onnx_named_outputs) != len(models_for_validation.keys()):
         raise ValueError(
             f"Invalid number of ONNX named outputs. Required {len(models_for_validation.keys())}, Provided {len(onnx_named_outputs)}"
         )
 
-    # Validate encoder
-    model, onnx_config = models_for_validation["encoder"]
-    validate_model_outputs(onnx_config, model, encoder_onnx_model, onnx_named_outputs[0], atol)
+    if output_names is not None and len(output_names) != len(models_for_validation):
+        raise ValueError(
+            f"Provided custom names {output_names} for the validation of {len(models_for_validation)} models. Please provide the same number of ONNX file names as models to export."
+        )
 
-    # Validate decoder
-    model, onnx_config = models_for_validation["decoder"]
-    validate_model_outputs(onnx_config, model, decoder_onnx_model, onnx_named_outputs[1], atol)
-
-    if config.use_past:
-        # Validate decoder with past
-        model, onnx_config = models_for_validation["decoder_with_past"]
-        validate_model_outputs(onnx_config, model, decoder_with_past_onnx_model, onnx_named_outputs[2], atol)
+    for i, model_name in enumerate(models_for_validation.keys()):
+        submodel, sub_onnx_config = models_for_validation[model_name]
+        onnx_model_path = (
+            output_dir.joinpath(output_names[i])
+            if output_names is not None
+            else output_dir.joinpath(model_name + ".onnx")
+        )
+        validate_model_outputs(
+            sub_onnx_config,
+            submodel,
+            onnx_model_path,
+            onnx_named_outputs[i],
+            atol,
+        )
 
 
 def validate_model_outputs(
@@ -378,13 +395,16 @@ def export_tensorflow(
     return input_names, output_names
 
 
-def export_encoder_decoder_model(
+def export_models(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    config: OnnxConfig,
+    onnx_config: OnnxConfig,
     opset: int,
-    encoder_output: Path,
-    decoder_output: Path,
-    decoder_with_past_output: Optional[Path] = None,
+    output_dir: Path,
+    fn_get_models_from_config: Callable[
+        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
+        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
+    ],
+    output_names: Optional[List[str]] = None,
     device: str = "cpu",
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -399,12 +419,14 @@ def export_encoder_decoder_model(
             The ONNX configuration associated with the exported model.
         opset (`int`):
             The version of the ONNX operator set to use.
-        encoder_output (`Path`):
-            Directory to store the exported encoder ONNX model.
-        decoder_output (`Path`):
-            Directory to store the exported decoder ONNX model.
-        decoder_with_past_output (`Optional[Path]`, defaults to `None`):
-            Directory to store the exported decoder with past ONNX model. Required when `past_key_values` are exported.
+        output_dir (`Path`):
+            Output directory to store the exported ONNX models.
+        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
+            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
+            as it is the case with encoder-decoder models.
+        output_names (`Optional[List[str]]`, defaults to `None`):
+            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
+            If None, will use the keys from the output of `fn_get_models_from_config` as names.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
@@ -412,21 +434,30 @@ def export_encoder_decoder_model(
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         inputs from the ONNX configuration.
     """
-    models_for_export = get_encoder_decoder_models_for_export(model, config)
+    models_for_export = fn_get_models_from_config(model, onnx_config)
     outputs = []
 
-    # export encoder
-    model, onnx_config = models_for_export["encoder"]
-    outputs.append(export(model, onnx_config, opset, encoder_output, device=device))
+    if output_names is not None and len(output_names) != len(models_for_export):
+        raise ValueError(
+            f"Provided custom names {output_names} for the export of {len(models_for_export)} models. Please provide the same number of names as models to export."
+        )
 
-    # export decoder
-    model, onnx_config = models_for_export["decoder"]
-    outputs.append(export(model, onnx_config, opset, decoder_output, device=device))
-
-    if config.use_past:
-        # export decoder with past
-        model, onnx_config = models_for_export["decoder_with_past"]
-        outputs.append(export(model, onnx_config, opset, decoder_with_past_output, device=device))
+    for i, model_name in enumerate(models_for_export.keys()):
+        submodel, sub_onnx_config = models_for_export[model_name]
+        output_path = (
+            output_dir.joinpath(output_names[i])
+            if output_names is not None
+            else output_dir.joinpath(model_name + ".onnx")
+        )
+        outputs.append(
+            export(
+                submodel,
+                sub_onnx_config,
+                opset,
+                output_path,
+                device=device,
+            )
+        )
 
     outputs = list(map(list, zip(*outputs)))
     return outputs

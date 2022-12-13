@@ -16,8 +16,12 @@
 from contextlib import nullcontext
 from unittest import TestCase
 
+import torch
 from transformers import AutoConfig
 
+from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
+from optimum.utils.normalized_config import NormalizedConfigManager
+from optimum.utils.testing_utils import grid_parameters
 from parameterized import parameterized
 
 
@@ -42,23 +46,6 @@ DUMMY_SHAPES = {
     "nb_max_frames": [300, 500],
     "audio_sequence_length": [16000, 8000],
 }
-
-import itertools
-from typing import Any, Dict, Iterable
-
-import torch
-from transformers import AutoConfig
-
-from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
-from optimum.utils.normalized_config import NormalizedConfigManager
-
-
-def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
-    """
-    Generate an iterable over the grid of all combinations of parameters
-    """
-    for params in itertools.product(*parameters.values()):
-        yield list(params)
 
 
 class GenerateDummy(TestCase):

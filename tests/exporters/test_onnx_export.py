@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -25,9 +25,11 @@ from optimum.exporters.onnx import (
     OnnxConfig,
     OnnxConfigWithPast,
     export,
-    export_encoder_decoder_model,
-    validate_encoder_decoder_model_outputs,
+    export_models,
+    get_decoder_models_for_export,
+    get_encoder_decoder_models_for_export,
     validate_model_outputs,
+    validate_models_outputs,
 )
 from parameterized import parameterized
 
@@ -283,33 +285,34 @@ class OnnxExportTestCase(TestCase):
         if isinstance(atol, dict):
             atol = atol[task.replace("-with-past", "")]
 
-        if for_ort:
-            with NamedTemporaryFile("w") as encoder_output, NamedTemporaryFile(
-                "w"
-            ) as decoder_output, NamedTemporaryFile("w") as decoder_with_past_output:
+        if for_ort is True and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
+            fn_get_models_from_config = (
+                get_encoder_decoder_models_for_export
+                if model.config.is_encoder_decoder
+                else get_decoder_models_for_export
+            )
+
+            with TemporaryDirectory() as tmpdirname:
                 try:
-                    onnx_inputs, onnx_outputs = export_encoder_decoder_model(
+                    onnx_inputs, onnx_outputs = export_models(
                         model,
                         onnx_config,
                         onnx_config.DEFAULT_ONNX_OPSET,
-                        Path(encoder_output.name),
-                        Path(decoder_output.name),
-                        Path(decoder_with_past_output.name),
+                        output_dir=Path(tmpdirname),
+                        fn_get_models_from_config=fn_get_models_from_config,
                         device=device,
                     )
 
-                    validate_encoder_decoder_model_outputs(
+                    validate_models_outputs(
                         onnx_config,
                         model,
                         onnx_outputs,
                         atol,
-                        Path(encoder_output.name),
-                        Path(decoder_output.name),
-                        Path(decoder_with_past_output.name),
+                        output_dir=Path(tmpdirname),
+                        fn_get_models_from_config=fn_get_models_from_config,
                     )
                 except (RuntimeError, ValueError) as e:
                     self.fail(f"{name}, {task} -> {e}")
-
         else:
             with NamedTemporaryFile("w") as output:
                 try:
