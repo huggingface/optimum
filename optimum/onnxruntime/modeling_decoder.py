@@ -35,7 +35,13 @@ from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
+from .utils import (
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    _get_external_data_paths,
+    get_provider_for_device,
+    parse_device,
+)
 
 
 if TYPE_CHECKING:
@@ -475,12 +481,16 @@ class ORTModelDecoder(ORTModel):
         """
         src_paths = [self.decoder_model_path]
         dst_file_names = [decoder_file_name]
+
         if self.use_cache:
             src_paths.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
 
+        # add external data paths in case of large models
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+
         for src_path, dst_file_name in zip(src_paths, dst_file_names):
-            dst_path = Path(save_directory).joinpath(dst_file_name)
+            dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)
 
     @classmethod
