@@ -329,7 +329,7 @@ class OnnxConfig(ExportConfig, ABC):
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         """
-        Generate inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
+        Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
         Args:
             reference_model_inputs ([`Mapping[str, Tensor]`):
@@ -341,12 +341,13 @@ class OnnxConfig(ExportConfig, ABC):
 
     def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
         """
-        Generate the output names for the comparison between the ONNX and the reference model.
+        Maps the output names of the ONNX model to the output names of the reference model.
+        Useful to compare the outputs from the ONNX and the reference model when their output names differ.
         Args:
-            reference_model_inputs ([`List[str]`):
-                The ONNX model output names.
+            reference_output_names ([`List[str]`):
+                The original ONNX model output names.
         Returns:
-            `List[str]`: The output names to compare the ONNX model with the reference model.
+            `List[str]`: The corresponding reference model output names.
         """
         return reference_output_names
 

@@ -192,7 +192,7 @@ def validate_model_outputs(
     # Compute outputs from the ONNX model
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
 
-    # Create onnxruntime output names for comparison with the reference model inputs
+    # Modify the ONNX output names to match the reference model output names
     onnx_named_outputs = config.output_names_for_validation(onnx_named_outputs)
 
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
