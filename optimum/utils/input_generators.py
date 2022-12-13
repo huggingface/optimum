@@ -338,11 +338,10 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         self.hidden_size = normalized_config.hidden_size
 
     def generate(self, input_name: str, framework: str = "pt"):
-        sequence_length = 1 if input_name == "decoder_input_ids" else self.sequence_length
         if input_name == "encoder_outputs":
             return (
                 self.random_float_tensor(
-                    shape=[self.batch_size, sequence_length, self.hidden_size],
+                    shape=[self.batch_size, self.sequence_length, self.hidden_size],
                     min_value=0,
                     max_value=1,
                     framework=framework,
@@ -350,8 +349,12 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
                 None,
                 None,
             )
-
-        return super().generate(input_name, framework=framework)
+        else:
+            sequence_length = self.sequence_length
+            self.sequence_length = 1 if input_name == "decoder_input_ids" else self.sequence_length
+            generated_tensor = super().generate(input_name, framework=framework)
+            self.sequence_length = sequence_length
+            return generated_tensor
 
 
 class DummyPastKeyValuesGenerator(DummyInputGenerator):
