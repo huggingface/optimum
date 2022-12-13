@@ -267,6 +267,7 @@ class OnnxConfig(ExportConfig, ABC):
             sig = inspect.signature(model.forward)
         else:
             sig = inspect.signature(model.call)
+        print("signature:", sig)
         for param in sig.parameters:
             param_regex = re.compile(rf"{param}(\.\d*)?")
             to_insert = []
@@ -278,6 +279,8 @@ class OnnxConfig(ExportConfig, ABC):
             for name, dynamic_axes in to_insert:
                 name = self.torch_to_onnx_input_map.get(name, name)
                 ordered_inputs[name] = dynamic_axes
+        
+        print("ordered_inputs:", ordered_inputs)
         return ordered_inputs
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
