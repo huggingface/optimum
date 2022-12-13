@@ -20,10 +20,6 @@ from typing import TYPE_CHECKING, Callable, Dict, Type, Union
 from transformers import PretrainedConfig
 
 
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig
-
-
 class NormalizedConfig:
     """
     Handles the normalization of [`PretrainedConfig`] attribute names, allowing to access attributes in a general way.
@@ -33,7 +29,7 @@ class NormalizedConfig:
             The config to normalize.
     """
 
-    def __init__(self, config: Union["PretrainedConfig", Dict], allow_new: bool = False, **kwargs):
+    def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
         self.config = config if isinstance(config, PretrainedConfig) else PretrainedConfig.from_dict(config)
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
@@ -44,7 +40,7 @@ class NormalizedConfig:
                 )
 
     @classmethod
-    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
+    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[[PretrainedConfig], "NormalizedConfig"]:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):

@@ -22,7 +22,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
+from ...utils import TORCH_MINIMUM_VERSION, is_torch_onnx_support_available, logging
 from ..tasks import TasksManager
 from .base import OnnxConfig
 
@@ -31,18 +31,17 @@ if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
     from transformers.pytorch_utils import is_torch_less_than_1_11
 
+    from diffusers import ModelMixin
+
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
-
-if is_diffusers_available():
-    from diffusers import ModelMixin
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
 def check_dummy_inputs_are_allowed(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], dummy_input_names: Iterable[str]
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
 ):
     """
     Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
@@ -52,7 +51,11 @@ def check_dummy_inputs_are_allowed(
         model_inputs (`Iterable[str]`):
             The model input names.
     """
-    forward = model.forward if is_torch_available() and hasattr(model, "forward") else model.call
+    forward = (
+        model.forward
+        if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin))
+        else model.call
+    )
     forward_parameters = signature(forward).parameters
     forward_inputs_set = set(forward_parameters.keys())
     dummy_input_names = set(dummy_input_names)
@@ -65,7 +68,7 @@ def check_dummy_inputs_are_allowed(
 
 
 def validate_models_outputs(
-    models: Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+    models: Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]],
     onnx_named_outputs: List[str],
     atol: float,
     output_dir: Path,
@@ -119,7 +122,7 @@ def validate_models_outputs(
 
 def validate_model_outputs(
     config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     onnx_model: Path,
     onnx_named_outputs: List[str],
     atol: float,
@@ -146,7 +149,9 @@ def validate_model_outputs(
 
     logger.info("Validating ONNX model...")
 
-    framework = "pt" if is_torch_available() else "tf"
+    framework = (
+        "pt" if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)) else "tf"
+    )
     reference_model_inputs = config.generate_dummy_inputs(framework=framework)
 
     # Create ONNX Runtime session
@@ -154,7 +159,7 @@ def validate_model_outputs(
     session = InferenceSession(onnx_model.as_posix(), options, providers=["CPUExecutionProvider"])
 
     # Compute outputs from the reference model
-    if is_torch_available():
+    if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)):
         reference_model.to("cpu")
 
     ref_outputs = reference_model(**reference_model_inputs)
@@ -207,7 +212,7 @@ def validate_model_outputs(
     shape_failures = []
     value_failures = []
     for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
-        if is_torch_available():
+        if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)):
             ref_value = ref_outputs_dict[name].detach().numpy()
         else:
             ref_value = ref_outputs_dict[name].numpy()
@@ -238,7 +243,7 @@ def validate_model_outputs(
 
 
 def export_pytorch(
-    model: "PreTrainedModel",
+    model: Union["PreTrainedModel", "ModelMixin"],
     config: OnnxConfig,
     opset: int,
     output: Path,
@@ -386,7 +391,7 @@ def export_tensorflow(
 
 
 def export_models(
-    models: Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+    models: Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]],
     opset: int,
     output_dir: Path,
     output_names: Optional[List[str]] = None,
@@ -443,7 +448,7 @@ def export_models(
 
 
 def export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     config: OnnxConfig,
     opset: int,
     output: Path,
@@ -477,7 +482,7 @@ def export(
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    if is_torch_available():
+    if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin)):
         from ...utils import torch_version
 
         if not is_torch_onnx_support_available():
@@ -492,7 +497,7 @@ def export(
             )
         return export_pytorch(model, config, opset, output, device=device)
 
-    elif is_tf_available():
+    elif is_tf_available() and issubclass(type(model), TFPreTrainedModel):
         if device == "cuda":
             raise RuntimeError("`tf2onnx` does not support export on CUDA device.")
         return export_tensorflow(model, config, opset, output)
