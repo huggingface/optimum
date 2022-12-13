@@ -69,12 +69,19 @@ the `from_pretrained()` method, which supports different checkpoint formats.
 ```
 
 
+<<<<<<< Updated upstream
 ## Apply Dynamic Quantization
 
 The [`~optimum.onnxruntime.ORTQuantizer`] class can be used to quantize dynamically your ONNX model. Below you will
 find an easy end-to-end example on how to quantize dynamically
 [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
 
+=======
+## Dynamic Quantization example
+
+The `ORTQuantizer` class can be used to dynamically quantize your ONNX model. Below you will find an easy end-to-end example on how to dynamically quantize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
+
+>>>>>>> Stashed changes
 ```python
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForSequenceClassification
 >>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
@@ -151,12 +158,15 @@ The [`~optimum.onnxruntime.ORTQuantizer`] class currently doesn't support multi-
 [`~optimum.onnxruntime.ORTModelForSeq2SeqLM`]. If you want to quantize a Seq2Seq model, you have to quantize each
 model's component individually.
 
+<<<<<<< Updated upstream
 <Tip warning={true}>
 
 Currently, only dynamic quantization is supported for Seq2Seq models.
 
 </Tip>
 
+=======
+>>>>>>> Stashed changes
 1. Load seq2seq model as `ORTModelForSeq2SeqLM`.
 
 ```python
