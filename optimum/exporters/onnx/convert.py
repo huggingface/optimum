@@ -312,22 +312,6 @@ def export_pytorch(
         else:
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
-
-            print(type(config))
-            print(f"EXPORTING A MODEL as {output}")
-            print(dummy_inputs.keys())
-            for name, inp in dummy_inputs.items():
-                if isinstance(inp, tuple):
-                    print(name, "len:", len(inp))
-                    for inp2 in inp:
-                        print(f"        {inp2.shape if inp2 is not None else None}")
-                elif isinstance(inp, list):
-                    print(name + " (is list)", len(inp))
-                else:
-                    print(name, inp.shape)
-
-            print(type(model))
-            print("start torch.onnx.export")
             onnx_export(
                 model,
                 (dummy_inputs,),
@@ -338,7 +322,6 @@ def export_pytorch(
                 do_constant_folding=True,
                 opset_version=opset,
             )
-            print("end torch.onnx.export")
 
         config.restore_ops()
 
