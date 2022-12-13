@@ -11,12 +11,14 @@
     - local: concept_guides/quantization
       title: Quantization
     title: Conceptual guides
+    isExpanded: false
   - sections:
     - local: package_reference/modeling_base
       title: Optimized models
     - local: package_reference/benchmark
       title: Benchmark
     title: Reference
+    isExpanded: false
   title: Overview
 - sections:
   - local: onnxruntime/overview
@@ -58,6 +60,7 @@
       title: Trainer
     title: Reference
   title: ONNX Runtime
+  isExpanded: false
 - sections:
   - local: exporters/overview
     title: Overview
@@ -80,6 +83,7 @@
       title: Reference
     title: "ONNX"
   title: Exporters
+  isExpanded: false
 - sections:
   - local: torch_fx/overview
     title: Overview
@@ -100,6 +104,7 @@
       title: Optimization
     title: Reference
   title: Torch FX
+  isExpanded: false
 - sections:
   - local: bettertransformer/overview
     title: Overview
@@ -110,9 +115,11 @@
       title: How to add support for new architectures?
     title: Tutorials
   title: BetterTransformer integration
+  isExpanded: false
 - sections:
   - local: utils/dummy_input_generators
     title: Dummy input generators
   - local: utils/normalized_config
     title: Normalized configurations
   title: Utilities
+  isExpanded: false

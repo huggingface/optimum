@@ -14,7 +14,7 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-from typing import Mapping
+from typing import TYPE_CHECKING, List, Mapping
 
 from ...utils import (
     DummyAudioInputGenerator,
@@ -24,8 +24,15 @@ from ...utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+    logging,
 )
 from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+
+
+if TYPE_CHECKING:
+    from ...utils import DummyInputGenerator
+
+logger = logging.get_logger(__name__)
 
 
 class TextEncoderOnnxConfig(OnnxConfig):
@@ -85,25 +92,38 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return common_inputs
 
-    def create_dummy_input_generator_classes(self):
-        dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](
+            self.task, self._normalized_config, **kwargs
+        )
+
+        if self.use_past is True:
+            if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
+                logger.warning(
+                    f"Asked a sequence length of {kwargs['sequence_length']}, but expecting a sequence length of 1 with use_past == True. Overriding the sequence length to 1."
+                )
+            kwargs["sequence_length"] = 1
+
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
             self.task,
             self._normalized_config,
             batch_size=dummy_text_input_generator.batch_size,
-            sequence_length=1 if self.use_past else 16,
+            **kwargs,
         )
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
             self.task,
             self._normalized_config,
             batch_size=dummy_text_input_generator.batch_size,
             encoder_sequence_length=dummy_text_input_generator.sequence_length,
+            **kwargs,
         )
-        self.dummy_inputs_generators = [
+        dummy_inputs_generators = [
             dummy_text_input_generator,
             dummy_decoder_text_input_generator,
             dummy_seq2seq_past_key_values_generator,
         ]
+
+        return dummy_inputs_generators
 
 
 class VisionOnnxConfig(OnnxConfig):
