@@ -36,7 +36,7 @@ from huggingface_hub import hf_hub_download
 from ..exporters.onnx import export_models, get_encoder_decoder_models_for_export
 from ..exporters.tasks import TasksManager
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
-from ..utils.file_utils import validate_file_exists
+from ..utils.file_utils import validate_file_exists, find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_decoder import ORTDecoder
@@ -938,7 +938,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 model_id,
                 ENCODER_ONNX_FILE_PATTERN,
                 "encoder_file_name",
-                subfolder=ENCODER_ONNX_FILE_PATTERN.replace(".onnx", ""),
+                subfolder=subfolder,
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
@@ -947,7 +947,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 model_id,
                 DECODER_ONNX_FILE_PATTERN,
                 "decoder_file_name",
-                subfolder=DECODER_ONNX_FILE_PATTERN.replace(".onnx", ""),
+                subfolder=subfolder,
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
@@ -956,7 +956,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 model_id,
                 DECODER_WITH_PAST_ONNX_FILE_PATTERN,
                 "decoder_with_past_file_name",
-                subfolder=DECODER_WITH_PAST_ONNX_FILE_PATTERN.replace(".onnx", ""),
+                subfolder=subfolder,
                 use_auth_token=use_auth_token,
                 revision=revision,
                 fail_if_not_found=use_cache,
@@ -1150,6 +1150,42 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self.providers = self.encoder.session.get_providers()
 
         return self
+
+
+    @staticmethod
+    def infer_onnx_filename(
+        model_name_or_path: Union[str, Path],
+        pattern: str,
+        argument_name: str,
+        subfolder: str = "",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        fail_if_not_found: bool = True,
+    ) -> str:
+        onnx_files = find_files_matching_pattern(
+            model_name_or_path,
+            pattern,
+            glob_pattern="**/*.onnx",
+            subfolder=subfolder,
+            use_auth_token=use_auth_token,
+            revision=revision,
+        )
+
+        path = model_name_or_path
+        if subfolder != "":
+            path = f"{path}/{subfolder}"
+
+        if len(onnx_files) == 0:
+            if fail_if_not_found:
+                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+            return None
+        elif len(onnx_files) > 1:
+            if argument_name is not None:
+                raise RuntimeError(
+                    f"Too many ONNX model files were found in {path}, specify which one to load by using the "
+                    f"{argument_name} argument."
+                )
+        return onnx_files[0].parent.name + "/" + onnx_files[0].name
 
 
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):

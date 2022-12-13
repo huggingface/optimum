@@ -447,7 +447,7 @@ def export_models(
         output_name = output_names[i] if output_names is not None else Path(model_name + ".onnx")
 
         # when the model uses several ONNX files, save each in subfolders to avoid conflicting external files
-        output_path = output_dir / output_name.replace('.onnx', "") / output_name
+        output_path = output_dir / model_name / output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
             
         outputs.append(
