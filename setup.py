@@ -46,7 +46,7 @@ EXTRAS_REQUIRE = {
         "diffusers",
     ],
     "exporters": ["onnx", "onnxruntime", "timm", "diffusers"],
-    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm"],
+    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "diffusers"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
     "nncf": "optimum-intel[nncf]",
