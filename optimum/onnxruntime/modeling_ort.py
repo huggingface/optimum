@@ -1599,53 +1599,10 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-
-    def prepare_logits_buffer(self, batch_size, output_size):
-        """Prepares the buffer of logits with a 2D tensor on shape: (batch_size, config.num_labels, height, width)."""
-        height, width = output_size
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-
-        logits_shape = (batch_size, self.config.num_labels, height, width)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
-
-        return logits_shape, logits_buffer
-
-    def prepare_io_binding(
-        self,
-        pixel_values: torch.Tensor,
-    ):
-        io_binding = self.model.io_binding()
-
-        # bind pixel values
-        pixel_values = pixel_values.contiguous()
-        io_binding.bind_input(
-            "pixel_values",
-            pixel_values.device.type,
-            self.device.index,
-            self.name_to_np_type["pixel_values"],
-            tuple(pixel_values.shape),
-            pixel_values.data_ptr(),
-        )
-
-        output_size = (128, 128)  # Need to get proper output size from object or config
-        # bind logits
-        logits_shape, logits_buffer = self.prepare_logits_buffer(batch_size=pixel_values.size(0),
-                                                                 output_size=output_size)
-        io_binding.bind_output(
-            "logits",
-            logits_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["logits"],
-            logits_shape,
-            logits_buffer.data_ptr(),
-        )
-        output_shapes = {"logits": logits_shape}
-        output_buffers = {"logits": logits_buffer}
-
-        return io_binding, output_shapes, output_buffers
+        self.model_input_names = list(self.model_inputs.keys())
+        self.model_output_names = list(self.model_outputs.keys())
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
@@ -1655,33 +1612,49 @@ class ORTModelForSemanticSegmentation(ORTModel):
             checkpoint="optimum/vit-base-patch16-224",  # Probably have to modify to an onnx segmentation model
         )
     )
-    def forward(
-        self,
-        pixel_values: torch.Tensor,
-        **kwargs,
-    ):
+    def forward(self, **kwargs):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(pixel_values)
+            io_binding = IOBindingHelper.prepare_io_binding(self, **kwargs)
 
-            # run inference with binding & synchronize in case of multiple CUDA streams
+            # run inference with binding
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
+            outputs = {}
+            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
             # converts output to namedtuple for pipelines post-processing
-            return SemanticSegmenterOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+            return SemanticSegmenterOutput(logits=outputs['logits'])
         else:
             # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "pixel_values": pixel_values.cpu().detach().numpy(),
-            }
+            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
 
             # run inference
-            outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]])
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            outputs = self._prepare_onnx_outputs(onnx_outputs)
 
             # converts output to namedtuple for pipelines post-processing
-            return SemanticSegmenterOutput(logits=logits)
+            return SemanticSegmenterOutput(logits=outputs['logits'])
+
+    def _prepare_onnx_inputs(self, **kwargs):
+        model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
+        onnx_inputs = {}
+        # converts pytorch inputs into numpy inputs for onnx
+        for input in model_inputs.keys():
+            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
+
+        return onnx_inputs
+
+    def _prepare_onnx_outputs(self, onnx_outputs):
+        model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        outputs = {}
+        # converts onnxruntime outputs into tensor for standard outputs
+        for output, idx in model_outputs.items():
+            outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
+
+        return outputs
 
 
 CUSTOM_TASKS_EXAMPLE = r"""
