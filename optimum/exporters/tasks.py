@@ -170,7 +170,8 @@ class TasksManager:
         "bert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for BERT
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -180,7 +181,8 @@ class TasksManager:
         "big-bird": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for big-bird
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -228,7 +230,8 @@ class TasksManager:
         "camembert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for camembert
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -312,7 +315,8 @@ class TasksManager:
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for electra
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -472,7 +476,8 @@ class TasksManager:
         "roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for roberta
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -482,7 +487,8 @@ class TasksManager:
         "roformer": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for roformer
+            # "causal-lm",
             "sequence-classification",
             "token-classification",
             "multiple-choice",
@@ -759,6 +765,21 @@ class TasksManager:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         logger.info(f"Automatic task detection to {inferred_task_name}.")
         return inferred_task_name
+
+    @staticmethod
+    def get_all_tasks():
+        """
+        Retrieves all the possible tasks.
+
+        Returns:
+            `List`: all the possible tasks.
+        """
+        tasks = []
+        if is_torch_available():
+            tasks = list(TasksManager._TASKS_TO_AUTOMODELS.keys())
+        else:
+            tasks = list(TasksManager._TASKS_TO_TF_AUTOMODELS)
+        return tasks
 
     @staticmethod
     def get_model_from_task(

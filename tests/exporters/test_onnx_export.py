@@ -104,7 +104,7 @@ PYTORCH_EXPORT_MODELS = {
     # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
     ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
     # Not using google/long-t5-local-base because it takes too much time for testing.
-    ("longt5", "hf-internal-testing/tiny-random-longt5"),
+    ("longt5", "hf-internal-testing/tiny-random-LongT5Model"),
     ("whisper", "openai/whisper-tiny.en"),
     ("swin", "microsoft/swin-base-patch4-window12-384-in22k"),
 }

@@ -30,7 +30,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "levit": "facebook/levit-128S",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "microsoft/layoutlmv3-base",
-    "longt5": "hf-internal-testing/tiny-random-longt5",
+    "longt5": "hf-internal-testing/tiny-random-LongT5Model",
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "Helsinki-NLP/opus-mt-en-de",
