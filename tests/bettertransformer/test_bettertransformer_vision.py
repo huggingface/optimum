@@ -109,7 +109,7 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
             }
         )
     )
-    def test_logits(self, model_id, padding, max_length=20):
+    def test_logits(self, test_name: str, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
 
     @parameterized.expand(
@@ -120,7 +120,7 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
             }
         )
     )
-    def test_raise_autocast(self, model_id, padding, max_length=20):
+    def test_raise_autocast(self, test_name: str, model_id, padding, max_length=20):
         super().test_raise_autocast([model_id], padding=padding, max_length=max_length)
 
     @parameterized.expand(
@@ -131,5 +131,5 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
             }
         )
     )
-    def test_raise_train(self, model_id, padding, max_length=20):
+    def test_raise_train(self, test_name: str, model_id, padding, max_length=20):
         super().test_raise_train([model_id], padding=padding, max_length=max_length)
