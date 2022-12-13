@@ -51,6 +51,8 @@ if is_torch_available():
         AutoModelForSpeechSeq2Seq,
         AutoModelForTokenClassification,
     )
+    from diffusers import StableDiffusionPipeline
+
 if is_tf_available():
     from transformers.models.auto import (
         TFAutoModel,
@@ -129,6 +131,7 @@ class TasksManager:
             "masked-im": AutoModelForMaskedImageModeling,
             "semantic-segmentation": AutoModelForSemanticSegmentation,
             "speech2seq-lm": AutoModelForSpeechSeq2Seq,
+            "stable-diffusion": StableDiffusionPipeline,
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -766,16 +769,21 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            transformers_info = model_info.transformersInfo
-            if transformers_info is None or transformers_info.get("auto_model") is None:
-                raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
-            auto_model_class_name = transformers_info["auto_model"]
-            if not auto_model_class_name.startswith("TF"):
-                auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-            for task_name, class_ in tasks_to_automodels.items():
-                if class_.__name__ == auto_model_class_name:
-                    inferred_task_name = task_name
-                    break
+            if model_info.library_name == "diffusers":
+                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
+                if "stable-diffusion" in model_info.tags:
+                    inferred_task_name = "stable-diffusion"
+            else:
+                transformers_info = model_info.transformersInfo
+                if transformers_info is None or transformers_info.get("auto_model") is None:
+                    raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
+                auto_model_class_name = transformers_info["auto_model"]
+                if not auto_model_class_name.startswith("TF"):
+                    auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
+                for task_name, class_ in tasks_to_automodels.items():
+                    if class_.__name__ == auto_model_class_name:
+                        inferred_task_name = task_name
+                        break
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         logger.info(f"Automatic task detection to {inferred_task_name}.")

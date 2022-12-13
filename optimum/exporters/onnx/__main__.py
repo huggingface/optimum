@@ -32,7 +32,7 @@ from .utils import (
 
 
 if is_diffusers_available():
-    from diffusers import OnnxRuntimeModel, OnnxStableDiffusionPipeline, StableDiffusionPipeline
+    from diffusers import StableDiffusionPipeline
 
 logger = logging.get_logger()
 logger.setLevel(logging.INFO)
@@ -99,11 +99,13 @@ def main():
             raise KeyError(
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
-    # TODO : infer stable-diffusion when auto
-    elif task == "stable-diffusion":
-        pipeline = StableDiffusionPipeline.from_pretrained(args.model)
+
+    # Allocate the model
+    model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
+
+    if task == "stable-diffusion":
         output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
-        models_to_export = get_stable_diffusion_models_for_export(pipeline)
+        models_to_export = get_stable_diffusion_models_for_export(model)
         onnx_inputs, onnx_outputs = export_models(
             models=models_to_export,
             opset=args.opset or 14,
@@ -125,8 +127,6 @@ def main():
         logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
         return
 
-    # Allocate the model
-    model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
     model_type = model.config.model_type.replace("_", "-")
     model_name = getattr(model, "name", None)
 
