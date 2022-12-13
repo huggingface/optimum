@@ -1,12 +1,29 @@
+import collections
 import importlib.util
+import itertools
 import os
 import subprocess
 import sys
 import unittest
+from typing import Any, Dict, Iterable
 
 from packaging import version
 
 from optimum.utils import is_accelerate_available
+
+
+def flatten_dict(dictionary: Dict):
+    """
+    Flatten a nested dictionaries as a flat dictionary.
+    """
+    items = []
+    for k, v in dictionary.items():
+        new_key = k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 
 def require_accelerate(test_case):
@@ -105,3 +122,12 @@ def convert_to_hf_classes(mapping_dict):
 
         hf_names_dict[fast_layer_key] = hf_class
     return hf_names_dict
+
+
+def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
+    """
+    Generates an iterable over the grid of all combinations of parameters, adding a test name as the first item in the yielded list
+    """
+    for params in itertools.product(*parameters.values()):
+        test_name = "_".join([str(param) for param in params])
+        yield [test_name] + list(params)
