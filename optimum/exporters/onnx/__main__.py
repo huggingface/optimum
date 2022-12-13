@@ -143,6 +143,10 @@ def main():
             if isinstance(args.atol, dict):
                 args.atol = args.atol[task.replace("-with-past", "")]
 
+        # Saving the model config and preprocessor as this is needed sometimes.
+        model.config.save_pretrained(args.output.parent)
+        maybe_save_preprocessors(args.model, args.output.parent)
+
     if task == "stable-diffusion" or (
         args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
     ):
@@ -151,6 +155,8 @@ def main():
             args.atol = args.atol or 1e-3
             output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
             models_to_export = get_stable_diffusion_models_for_export(model)
+            # Saving the model preprocessor as this is needed sometimes.
+            model.tokenizer.save_pretrained(args.output.parent.joinpath("tokenizer"))
         else:
             if model.config.is_encoder_decoder and task.startswith("causal-lm"):
                 raise ValueError(
@@ -172,11 +178,6 @@ def main():
         )
     else:
         onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
-
-    # Saving the model config as this is needed sometimes.
-    model.config.save_pretrained(args.output.parent)
-
-    maybe_save_preprocessors(args.model, args.output.parent)
 
     try:
         if task == "stable-diffusion" or (
