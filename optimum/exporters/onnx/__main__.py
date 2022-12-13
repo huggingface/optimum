@@ -19,9 +19,7 @@ from pathlib import Path
 
 from transformers import AutoTokenizer
 
-from optimum.utils import is_diffusers_available
-
-from ...utils import logging
+from ...utils import is_diffusers_available, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast

@@ -22,6 +22,7 @@ from .import_utils import (
     is_diffusers_available,
     is_onnxruntime_available,
     is_pydantic_available,
+    is_torch_onnx_support_available,
     torch_version,
 )
 from .input_generators import (
