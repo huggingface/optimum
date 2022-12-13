@@ -16,6 +16,7 @@
 
 import copy
 import dataclasses
+import enum
 import inspect
 import itertools
 import re
@@ -352,7 +353,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: List[PatchingSpec] = None,
+        patching_specs: Optional[List[PatchingSpec]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -483,12 +484,125 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
 
+class ConfigBehavior(str, enum.Enum):
+    MONOLITH = "monolith"
+    ENCODER = "encoder"
+    DECODER = "decoder"
+
+
 class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
     Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
     """
 
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        patching_specs: Optional[List[PatchingSpec]] = None,
+        use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+    ):
+        super().__init__(
+            config,
+            task=task,
+            patching_specs=patching_specs,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+        )
+        self._behavior = behavior
+        self._inputs_to_use = {
+            ConfigBehavior.ENCODER: self.inputs_for_encoder,
+            ConfigBehavior.DECODER: self.inputs_for_decoder,
+        }
+
+    def __getattribute__(self, name):
+        if name == "inputs" and self._behavior is not ConfigBehavior.MONOLITH:
+            return self._inputs_to_use[self._behavior]
+        return super().__getattribute__(name)
+
+    def _for_version(
+        self,
+        behavior: ConfigBehavior,
+        task: Optional[str] = None,
+        use_past: Optional[bool] = None,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+    ) -> "OnnxSeq2SeqConfigWithPast":
+        task = task if task is not None else self.task
+        use_past = use_past if use_past is not None else self.use_past
+        return self.__class__(
+            self._config,
+            task=task,
+            patching_specs=self._patching_specs,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+            behavior=behavior,
+        )
+
+    def for_encoder(
+        self,
+        task: Optional[str] = None,
+        use_past: Optional[bool] = None,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+    ) -> "OnnxSeq2SeqConfigWithPast":
+        """
+        Produces the same configuration but adatpted for exporting only the encoder part of the model.
+        """
+        return self._for_version(
+            ConfigBehavior.ENCODER,
+            task=task,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+        )
+
+    def for_decoder(
+        self,
+        task: Optional[str] = None,
+        use_past: Optional[bool] = None,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+    ) -> "OnnxSeq2SeqConfigWithPast":
+        """
+        Produces the same configuration but adapted for exporting only the decoder part of the model.
+        """
+        return self._for_version(
+            ConfigBehavior.DECODER,
+            task=task,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+        )
+
+    @property
+    @abstractmethod
+    def inputs_for_encoder(self) -> Mapping[str, Mapping[int, str]]:
+        """
+        Mapping containing the axis definition of the input tensors to provide to the encoder part of the model.
+
+        Returns:
+            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def inputs_for_decoder(self) -> Mapping[str, Mapping[int, str]]:
+        """
+        Mapping containing the axis definition of the input tensors to provide to the deocder part of the model.
+
+        Returns:
+            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
+        """
+        raise NotImplementedError()
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:

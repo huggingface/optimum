@@ -53,55 +53,55 @@ if TYPE_CHECKING:
 logger = logging.get_logger(__name__)
 
 
-class Seq2SeqEncoderOnnxConfig(TextEncoderOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return {
-            "input_ids": {0: "batch_size", 1: "sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "sequence_length"},
-        }
-
-
-class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyTextInputGenerator,
-        DummySeq2SeqDecoderTextInputGenerator,
-        DummySeq2SeqPastKeyValuesGenerator,
-    )
-
-    USE_PRESENT_IN_OUTPUTS = True
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
-            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
-
-        return common_inputs
-
-    @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
-        return {
-            "decoder_input_ids": "input_ids",
-            "encoder_outputs": "encoder_hidden_states",
-            "attention_mask": "encoder_attention_mask",
-        }
-
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-        reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
-
-        return reference_model_inputs
+# class Seq2SeqEncoderOnnxConfig(TextEncoderOnnxConfig):
+#     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+#
+#     @property
+#     def inputs(self) -> Mapping[str, Mapping[int, str]]:
+#         return {
+#             "input_ids": {0: "batch_size", 1: "sequence_length"},
+#             "attention_mask": {0: "batch_size", 1: "sequence_length"},
+#         }
+#
+#
+# class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
+#     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+#
+#     DUMMY_INPUT_GENERATOR_CLASSES = (
+#         DummyTextInputGenerator,
+#         DummySeq2SeqDecoderTextInputGenerator,
+#         DummySeq2SeqPastKeyValuesGenerator,
+#     )
+#
+#     USE_PRESENT_IN_OUTPUTS = True
+#
+#     @property
+#     def inputs(self) -> Mapping[str, Mapping[int, str]]:
+#         common_inputs = {
+#             "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
+#             "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
+#             "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+#         }
+#
+#         if self.use_past_in_inputs:
+#             self.add_past_key_values(common_inputs, direction="inputs")
+#
+#         return common_inputs
+#
+#     @property
+#     def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+#         return {
+#             "decoder_input_ids": "input_ids",
+#             "encoder_outputs": "encoder_hidden_states",
+#             "attention_mask": "encoder_attention_mask",
+#         }
+#
+#     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+#         reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+#         reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+#         reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
+#
+#         return reference_model_inputs
 
 
 class BertOnnxConfig(TextEncoderOnnxConfig):
@@ -311,12 +311,12 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
     )
 
     def get_encoder_onnx_config(self, config: "PretrainedConfig") -> Seq2SeqEncoderOnnxConfig:
-        return Seq2SeqEncoderOnnxConfig(config, task="default")
+        return self.for_encoder(task="default", use_past=False)
 
     def get_decoder_onnx_config(
         self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
     ) -> T5DecoderOnnxConfig:
-        return T5DecoderOnnxConfig(config, task, use_past=use_past)
+        return self.for_decoder(use_present_in_outputs=True, use_past_in_inputs=use_past)
 
 
 class MT5OnnxConfig(T5OnnxConfig):
