@@ -25,10 +25,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, 
 
 from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, logging
+from ...utils import DEFAULT_DUMMY_SHAPES
+from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
+from ...utils import DummyInputGenerator, logging
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
-from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 
 
 if TYPE_CHECKING:

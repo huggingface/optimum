@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Dict, Tuple, Union
 import packaging
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import is_diffusers_available, ORT_QUANTIZE_MINIMUM_VERSION, TORCH_MINIMUM_VERSION
+from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, TORCH_MINIMUM_VERSION, is_diffusers_available
 from ..tasks import TasksManager
 
 

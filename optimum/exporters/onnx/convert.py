@@ -22,7 +22,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import logging, is_diffusers_available, is_torch_onnx_support_available, TORCH_MINIMUM_VERSION
+from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
 from ..tasks import TasksManager
 from .base import OnnxConfig
 
