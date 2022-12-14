@@ -50,8 +50,8 @@ DEFAULT_DUMMY_SHAPES = {
     "sequence_length": 16,
     "num_choices": 4,
     # image
-    "width": 224,
-    "height": 224,
+    "width": 64,
+    "height": 64,
     "num_channels": 3,
     # audio
     "feature_size": 80,
@@ -311,6 +311,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         "decoder_input_ids",
         "decoder_attention_mask",
         "encoder_outputs",
+        "encoder_hidden_states",
     )
 
     def __init__(
@@ -338,7 +339,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         self.hidden_size = normalized_config.hidden_size
 
     def generate(self, input_name: str, framework: str = "pt"):
-        if input_name == "encoder_outputs":
+        if input_name == "encoder_outputs" or input_name == "encoder_hidden_states":
             return (
                 self.random_float_tensor(
                     shape=[self.batch_size, self.sequence_length, self.hidden_size],
@@ -501,6 +502,8 @@ class DummyVisionInputGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = (
         "pixel_values",
         "pixel_mask",
+        "sample",
+        "latent_sample",
     )
 
     def __init__(
@@ -576,33 +579,23 @@ class DummyAudioInputGenerator(DummyInputGenerator):
             )
 
 
-class DummyStableDiffusionInputGenerator(DummyInputGenerator):
+class DummyTimestepInputGenerator(DummyInputGenerator):
     """
-    Generates dummy stable diffusion model inputs.
+    Generates dummy time step inputs.
     """
 
     SUPPORTED_INPUT_NAMES = (
         "timestep",
-        "sample",
-        "encoder_hidden_states",
-        "latent_sample",
-        "input_ids",
     )
 
     def __init__(
         self,
         task: str,
         normalized_config: NormalizedConfig,
-        batch_size: int = 2,
-        num_channels: int = 4,
-        width: int = 64,
-        height: int = 64,
-        sequence_length: int = 77,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
-        random_sequence_length_range: Optional[Tuple[int, int]] = None,
     ):
         self.task = task
-        self.hidden_size = getattr(normalized_config, "hidden_size", 768)
         self.vocab_size = getattr(normalized_config, "vocab_size", 49408)
 
         if random_batch_size_range:
@@ -611,35 +604,6 @@ class DummyStableDiffusionInputGenerator(DummyInputGenerator):
         else:
             self.batch_size = batch_size
 
-        if random_sequence_length_range:
-            low, high = random_sequence_length_range
-            self.sequence_length = random.randint(low, high)
-        else:
-            self.sequence_length = sequence_length
-
-        if normalized_config.has_attribute("num_channels"):
-            self.num_channels = normalized_config.num_channels
-        else:
-            self.num_channels = num_channels
-
-        if normalized_config.has_attribute("image_size"):
-            self.image_size = normalized_config.image_size
-        else:
-            self.image_size = (width, height)
-        if not isinstance(self.image_size, (tuple, list)):
-            self.image_size = (self.image_size, self.image_size)
-        self.height, self.width = self.image_size
-
     def generate(self, input_name: str, framework: str = "pt"):
-        max_value = 2 if input_name != "input_ids" else self.vocab_size
-        if input_name == "timestep":
-            shape = [self.batch_size]
-            return self.random_int_tensor(shape, max_value=max_value, framework=framework)
-        if input_name == "input_ids":
-            shape = [self.batch_size, self.sequence_length]
-            return self.random_int_tensor(shape, max_value=max_value, framework=framework).to(dtype=torch.int32)
-        if input_name == "sample" or input_name == "latent_sample":
-            shape = [self.batch_size, self.num_channels, self.height, self.width]
-        else:
-            shape = [self.batch_size, self.sequence_length, self.hidden_size]
-        return self.random_float_tensor(shape, framework=framework)
+        shape = [self.batch_size]
+        return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)

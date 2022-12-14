@@ -23,7 +23,7 @@ from ...utils import (
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
-    DummyStableDiffusionInputGenerator,
+    DummyTimestepInputGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
@@ -645,8 +645,6 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
         allow_new=True,
     )
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
-
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
@@ -660,6 +658,14 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
             "pooler_output": {0: "batch_size", 1: "feature_dim"},
         }
 
+    def generate_dummy_inputs(self, framework: str = "pt"):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        if framework == "pt":
+            import torch
+
+            dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
+        return dummy_inputs
+
 
 class UNetOnnxConfig(ViTOnnxConfig):
 
@@ -670,11 +676,12 @@ class UNetOnnxConfig(ViTOnnxConfig):
         image_size="sample_size",
         num_channels="in_channels",
         hidden_size="cross_attention_dim",
+        vocab_size="norm_num_groups",
         allow_new=True,
     )
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
-
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyTimestepInputGenerator, DummySeq2SeqDecoderTextInputGenerator)
+    
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
@@ -692,6 +699,10 @@ class UNetOnnxConfig(ViTOnnxConfig):
     def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
         return ["sample"]
 
+    def generate_dummy_inputs(self, framework: str = "pt"):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
+        return dummy_inputs
 
 class VaeOnnxConfig(ViTOnnxConfig):
 
@@ -700,11 +711,10 @@ class VaeOnnxConfig(ViTOnnxConfig):
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         num_channels="latent_channels",
-        # image_size="sample_size",
         allow_new=True,
     )
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyStableDiffusionInputGenerator,)
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:

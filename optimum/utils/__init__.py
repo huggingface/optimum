@@ -34,9 +34,9 @@ from .input_generators import (
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
-    DummyStableDiffusionInputGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+    DummyTimestepInputGenerator,
 )
 from .normalized_config import (
     NormalizedConfig,
