@@ -296,7 +296,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
             }
         )
     )
-    def test_logits(self, model_id, padding, max_length=20):
+    def test_logits(self, test_name: str, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
 
 
