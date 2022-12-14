@@ -35,8 +35,8 @@ from .input_generators import (
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
-    DummyVisionInputGenerator,
     DummyTimestepInputGenerator,
+    DummyVisionInputGenerator,
 )
 from .normalized_config import (
     NormalizedConfig,

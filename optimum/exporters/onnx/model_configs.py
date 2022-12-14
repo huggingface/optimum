@@ -23,8 +23,8 @@ from ...utils import (
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
-    DummyTimestepInputGenerator,
     DummyTextInputGenerator,
+    DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
     NormalizedSeq2SeqConfig,
@@ -680,8 +680,12 @@ class UNetOnnxConfig(ViTOnnxConfig):
         allow_new=True,
     )
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyTimestepInputGenerator, DummySeq2SeqDecoderTextInputGenerator)
-    
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyVisionInputGenerator,
+        DummyTimestepInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
+    )
+
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
@@ -703,6 +707,7 @@ class UNetOnnxConfig(ViTOnnxConfig):
         dummy_inputs = super().generate_dummy_inputs(framework=framework)
         dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
         return dummy_inputs
+
 
 class VaeOnnxConfig(ViTOnnxConfig):
 

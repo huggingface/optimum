@@ -584,9 +584,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     Generates dummy time step inputs.
     """
 
-    SUPPORTED_INPUT_NAMES = (
-        "timestep",
-    )
+    SUPPORTED_INPUT_NAMES = ("timestep",)
 
     def __init__(
         self,
