@@ -45,7 +45,11 @@ def _get_models_to_test(export_models_dict: Dict):
                 ):
                     models_to_test.append((f"{model_type}_{task}_forort", model_name, task, True))
 
-            models_to_test.append((f"{model_type}_no_task", model_name, None, False))
+            # TODO: segformer task can not be automatically inferred
+            # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
+            # TODO: perceiver auto-infers default, but we don't support it (why?)
+            if model_type not in ["segformer", "xlm-roberta", "perceiver"]:
+                models_to_test.append((f"{model_type}_no_task", model_name, None, False))
 
         return sorted(models_to_test)
     else:

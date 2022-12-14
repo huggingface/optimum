@@ -461,6 +461,7 @@ class TasksManager:
         ),
         "owlvit": supported_tasks_mapping(
             "default",
+            "zero-shot-object-detection",
             onnx="OwlViTOnnxConfig",
         ),
         "perceiver": supported_tasks_mapping(

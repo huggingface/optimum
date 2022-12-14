@@ -41,7 +41,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",
     "owlvit": "google/owlvit-base-patch32",
-    "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",
+    "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
     # "rembert": "google/rembert",
     "resnet": "microsoft/resnet-50",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
