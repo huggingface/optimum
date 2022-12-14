@@ -30,8 +30,6 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[tests,onnxruntime]
-        pip install diffusers
-        pip freeze
     - name: Test with pytest
       working-directory: tests
       run: |

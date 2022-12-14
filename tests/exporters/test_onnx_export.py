@@ -298,20 +298,20 @@ class OnnxExportTestCase(TestCase):
         if for_ort is True and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
 
             if model.config.is_encoder_decoder:
-                models_to_export = get_encoder_decoder_models_for_export(model, onnx_config)
+                models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
             else:
-                models_to_export = get_decoder_models_for_export(model, onnx_config)
+                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
 
             with TemporaryDirectory() as tmpdirname:
                 try:
                     onnx_inputs, onnx_outputs = export_models(
-                        models=models_to_export,
+                        models_and_onnx_configs=models_and_onnx_configs,
                         opset=onnx_config.DEFAULT_ONNX_OPSET,
                         output_dir=Path(tmpdirname),
                         device=device,
                     )
                     validate_models_outputs(
-                        models=models_to_export,
+                        models_and_onnx_configs=models_and_onnx_configs,
                         onnx_named_outputs=onnx_outputs,
                         atol=atol,
                         output_dir=Path(tmpdirname),
@@ -382,18 +382,18 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_for_stable_diffusion_models(self, model_name):
         pipeline = StableDiffusionPipeline.from_pretrained(model_name)
         output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
-        models_to_export = get_stable_diffusion_models_for_export(pipeline)
+        models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
 
         with TemporaryDirectory() as tmpdirname:
             onnx_inputs, onnx_outputs = export_models(
-                models=models_to_export,
+                models_and_onnx_configs=models_and_onnx_configs,
                 opset=14,
                 output_dir=Path(tmpdirname),
                 output_names=output_names,
                 device="cpu",  # TODO: Add GPU test
             )
             validate_models_outputs(
-                models=models_to_export,
+                models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
                 atol=1e-3,
                 output_dir=Path(tmpdirname),

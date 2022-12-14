@@ -154,7 +154,7 @@ def main():
             args.opset = args.opset or 14
             args.atol = args.atol or 1e-3
             output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
-            models_to_export = get_stable_diffusion_models_for_export(model)
+            models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
             # Saving the model preprocessor as this is needed sometimes.
             model.tokenizer.save_pretrained(args.output.parent.joinpath("tokenizer"))
         else:
@@ -165,13 +165,13 @@ def main():
                     f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
                 )
             if model.config.is_encoder_decoder:
-                models_to_export = get_encoder_decoder_models_for_export(model, onnx_config)
+                models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
             else:
-                models_to_export = get_decoder_models_for_export(model, onnx_config)
+                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
             output_names = None
 
         onnx_inputs, onnx_outputs = export_models(
-            models=models_to_export,
+            models_and_onnx_configs=models_and_onnx_configs,
             opset=args.opset,
             output_dir=args.output.parent,
             output_names=output_names,
@@ -184,7 +184,7 @@ def main():
             args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
         ):
             validate_models_outputs(
-                models=models_to_export,
+                models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
                 atol=args.atol,
                 output_dir=args.output.parent,

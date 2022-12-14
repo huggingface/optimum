@@ -1099,9 +1099,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         output_names = [ONNX_ENCODER_NAME, ONNX_DECODER_NAME]
         if use_cache is True:
             output_names.append(ONNX_DECODER_WITH_PAST_NAME)
-        models_to_export = get_encoder_decoder_models_for_export(model, onnx_config)
+        models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
         export_models(
-            models=models_to_export,
+            models_and_onnx_configs=models_and_onnx_configs,
             opset=onnx_config.DEFAULT_ONNX_OPSET,
             output_dir=save_dir_path,
             output_names=output_names,
