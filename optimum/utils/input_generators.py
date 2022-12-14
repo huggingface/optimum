@@ -339,7 +339,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         self.hidden_size = normalized_config.hidden_size
 
     def generate(self, input_name: str, framework: str = "pt"):
-        if input_name == "encoder_outputs" or input_name == "encoder_hidden_states":
+        if input_name in ["encoder_outputs", "encoder_hidden_states"]:
             return (
                 self.random_float_tensor(
                     shape=[self.batch_size, self.sequence_length, self.hidden_size],
@@ -594,7 +594,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
     ):
         self.task = task
-        self.vocab_size = getattr(normalized_config, "vocab_size", 49408)
+        self.vocab_size = normalized_config.vocab_size
 
         if random_batch_size_range:
             low, high = random_batch_size_range
