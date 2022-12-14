@@ -485,6 +485,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
 
 class ConfigBehavior(str, enum.Enum):
+    """
+    Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`]:
+        - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
+        - ENCODER: the config can be used to export the encoder part of the seq2seq model.
+        - DECODER: the config can be used to export the decoder part of the seq2seq model.
+    """
     MONOLITH = "monolith"
     ENCODER = "encoder"
     DECODER = "decoder"
@@ -519,6 +525,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         self.override_attributes_for_behavior()
 
     def override_attributes_for_behavior(self):
+        """Override this to specify custom attribute change for a given behavior."""
         if self._behavior is ConfigBehavior.ENCODER:
             self.task = "default"
         if self._behavior is ConfigBehavior.DECODER:
@@ -528,6 +535,18 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def with_behavior(
         self, behavior: Union[str, ConfigBehavior], use_past: bool = False
     ) -> "OnnxSeq2SeqConfigWithPast":
+        """
+        Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
+
+        Args:
+            behavior ([`ConfigBehavior`]):
+                The behavior to use for the new instance.
+            use_past (`bool`, defaults to `False`):
+                Whether or not the new instance should use past.
+
+        Returns:
+            `OnnxSeq2SeqConfigWithPast`
+        """
         if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
             behavior = ConfigBehavior(behavior)
         return self.__class__(
