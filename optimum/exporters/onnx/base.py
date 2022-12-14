@@ -491,6 +491,7 @@ class ConfigBehavior(str, enum.Enum):
         - ENCODER: the config can be used to export the encoder part of the seq2seq model.
         - DECODER: the config can be used to export the decoder part of the seq2seq model.
     """
+
     MONOLITH = "monolith"
     ENCODER = "encoder"
     DECODER = "decoder"
