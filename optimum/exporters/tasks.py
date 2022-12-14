@@ -50,6 +50,7 @@ if is_torch_available():
         AutoModelForSequenceClassification,
         AutoModelForSpeechSeq2Seq,
         AutoModelForTokenClassification,
+        AutoModelForZeroShotObjectDetection,
     )
 if is_tf_available():
     from transformers.models.auto import (
@@ -129,6 +130,7 @@ class TasksManager:
             "masked-im": AutoModelForMaskedImageModeling,
             "semantic-segmentation": AutoModelForSemanticSegmentation,
             "speech2seq-lm": AutoModelForSpeechSeq2Seq,
+            "zero-shot-object-detection": AutoModelForZeroShotObjectDetection,
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -326,7 +328,6 @@ class TasksManager:
         "flaubert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -529,7 +530,8 @@ class TasksManager:
         "xlm": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for xlm
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -539,7 +541,8 @@ class TasksManager:
         "xlm-roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for xlm-roberta
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
