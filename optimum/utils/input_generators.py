@@ -350,11 +350,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
                 None,
             )
         else:
-            sequence_length = self.sequence_length
-            self.sequence_length = 1 if input_name == "decoder_input_ids" else self.sequence_length
-            generated_tensor = super().generate(input_name, framework=framework)
-            self.sequence_length = sequence_length
-            return generated_tensor
+            return super().generate(input_name, framework=framework)
 
 
 class DummyPastKeyValuesGenerator(DummyInputGenerator):
