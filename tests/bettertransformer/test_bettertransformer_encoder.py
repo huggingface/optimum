@@ -150,7 +150,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         hf_model = AutoModel.from_pretrained(model_name).eval()
         bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
-        BATCH_SIZE = 1
+        BATCH_SIZE = 8
         SEQ_LEN = 16
         MAX_SEQ_LEN = 32
         STD_SEQ_LEN = 10  # let's take a large sequence length standard deviation
@@ -158,6 +158,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         N_REPEAT = 10
 
         input_ids, _, attention_mask = get_batch(BATCH_SIZE, SEQ_LEN, MAX_SEQ_LEN, STD_SEQ_LEN, VOCAB_SIZE)
+        for i in range(1, BATCH_SIZE):
+            attention_mask[i, SEQ_LEN // 4 :] = 0
 
         mean_hf_time = 0
         mean_bt_time = 0
