@@ -68,7 +68,9 @@ def check_dummy_inputs_are_allowed(
 
 
 def validate_models_outputs(
-    models_and_onnx_configs: Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+    models_and_onnx_configs: Dict[
+        str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+    ],
     onnx_named_outputs: List[str],
     atol: float,
     output_dir: Path,
@@ -391,7 +393,9 @@ def export_tensorflow(
 
 
 def export_models(
-    models_and_onnx_configs: Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+    models_and_onnx_configs: Dict[
+        str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+    ],
     opset: int,
     output_dir: Path,
     output_names: Optional[List[str]] = None,
