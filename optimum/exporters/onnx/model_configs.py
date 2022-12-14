@@ -417,7 +417,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             kwargs["encoder_sequence_length"] = dummy_text_input_generator.sequence_length
 
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
-            self.task, self._normalized_config, **kwargs
+            self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
         )
         dummy_inputs_generators = [
             dummy_text_input_generator,
