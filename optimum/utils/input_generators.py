@@ -349,8 +349,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
                 None,
                 None,
             )
-        else:
-            return super().generate(input_name, framework=framework)
+        return super().generate(input_name, framework=framework)
 
 
 class DummyPastKeyValuesGenerator(DummyInputGenerator):

@@ -278,7 +278,6 @@ class OnnxConfig(ExportConfig, ABC):
             for name, dynamic_axes in to_insert:
                 name = self.torch_to_onnx_input_map.get(name, name)
                 ordered_inputs[name] = dynamic_axes
-
         return ordered_inputs
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
@@ -411,7 +410,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         dummy_inputs = {}
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
-
         if self.use_past:
             input_names.append("past_key_values")
         for input_name in input_names:
