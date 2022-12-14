@@ -12,15 +12,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
+from typing import Dict
 from unittest import TestCase
 from unittest.mock import patch
 
 import pytest
 from transformers import AutoConfig, is_tf_available, is_torch_available
-from transformers.testing_utils import require_onnx, require_tf, require_torch, require_vision, slow
+from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
 
+from exporters_utils import (
+    PYTORCH_EXPORT_MODELS_TINY,
+    TENSORFLOW_EXPORT_MODELS,
+    VALIDATE_EXPORT_ON_SHAPES_FAST,
+    VALIDATE_EXPORT_ON_SHAPES_SLOW,
+)
 from optimum.exporters.onnx import (
     OnnxConfig,
     OnnxConfigWithPast,
@@ -31,113 +39,12 @@ from optimum.exporters.onnx import (
     validate_model_outputs,
     validate_models_outputs,
 )
+from optimum.utils.testing_utils import grid_parameters
 from parameterized import parameterized
 
 
 if is_torch_available() or is_tf_available():
     from optimum.exporters.tasks import TasksManager
-
-
-PYTORCH_EXPORT_MODELS = {
-    ("albert", "albert-base-v2"),
-    ("bert", "bert-base-cased"),
-    ("big-bird", "google/bigbird-roberta-base"),
-    ("ibert", "kssteven/ibert-roberta-base"),
-    ("camembert", "camembert-base"),
-    ("clip", "openai/clip-vit-base-patch32"),
-    ("convbert", "YituTech/conv-bert-base"),
-    # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
-    ("codegen", "hf-internal-testing/tiny-random-codegen"),
-    # Not using microsoft/deberta-base because it takes too much time for testing.
-    ("deberta", "hf-internal-testing/tiny-random-deberta"),
-    # Not using microsoft/deberta-v2-xlarge because it takes too much time for testing.
-    ("deberta-v2", "hf-internal-testing/tiny-random-deberta-v2"),
-    ("convnext", "facebook/convnext-tiny-224"),
-    # Not using facebook/detr-resnet-50 because it takes too much time for testing.
-    ("detr", "hf-internal-testing/tiny-random-detr"),
-    ("distilbert", "distilbert-base-cased"),
-    ("electra", "google/electra-base-generator"),
-    ("resnet", "microsoft/resnet-50"),
-    ("roberta", "roberta-base"),
-    ("roformer", "junnyu/roformer_chinese_base"),
-    ("squeezebert", "squeezebert/squeezebert-uncased"),
-    ("mobilebert", "google/mobilebert-uncased"),
-    ("mobilevit", "apple/mobilevit-small"),
-    ("xlm", "xlm-clm-ende-1024"),
-    # Not using xlm-roberta-base because it takes too much time for testing.
-    ("xlm-roberta", "Unbabel/xlm-roberta-comet-small"),
-    ("layoutlm", "microsoft/layoutlm-base-uncased"),
-    # ("layoutlmv2", "microsoft/layoutlmv2-base-uncased"),
-    ("layoutlmv3", "microsoft/layoutlmv3-base"),
-    ("groupvit", "nvidia/groupvit-gcc-yfcc"),
-    ("levit", "facebook/levit-128S"),
-    ("owlvit", "google/owlvit-base-patch32"),
-    ("vit", "google/vit-base-patch16-224"),
-    ("deit", "facebook/deit-small-patch16-224"),
-    ("beit", "microsoft/beit-base-patch16-224"),
-    ("data2vec-text", "facebook/data2vec-text-base"),
-    ("data2vec-vision", "facebook/data2vec-vision-base"),
-    # Not using deepmind/language-perceiver because it takes too much time for testing.
-    ("perceiver", "hf-internal-testing/tiny-random-language_perceiver", ("masked-lm", "sequence-classification")),
-    # Not using deepmind/vision-perceiver-conv because it takes too much time for testing.
-    ("perceiver", "hf-internal-testing/tiny-random-vision_perceiver_conv", ("image-classification",)),
-    # TODO: longformer
-    # ("longformer", "allenai/longformer-base-4096"),
-    ("yolos", "hustvl/yolos-tiny"),
-    ("segformer", "nvidia/segformer-b0-finetuned-ade-512-512"),
-    # Not using bigscience/bloom-560m because it goes OOM.
-    ("bloom", "hf-internal-testing/tiny-random-bloom"),
-    ("gpt2", "gpt2"),
-    ("gptj", "anton-l/gpt-j-tiny-random"),
-    ("gpt-neo", "EleutherAI/gpt-neo-125M"),
-    ("bart", "facebook/bart-base"),
-    ("mbart", "sshleifer/tiny-mbart"),
-    ("t5", "t5-small"),
-    ("marian", "Helsinki-NLP/opus-mt-en-de"),
-    # Not using google/mt5-small because it takes too much time for testing.
-    ("mt5", "lewtun/tiny-random-mt5"),
-    # Not using facebook/m2m100_418M because it takes too much time for testing.
-    ("m2m-100", "hf-internal-testing/tiny-random-m2m_100"),
-    ("blenderbot-small", "facebook/blenderbot_small-90M"),
-    # Not using facebook/blenderbot-400M-distill because it takes too much time for testing, and might cause OOM.
-    ("blenderbot", "facebook/blenderbot-90M"),
-    # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
-    ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
-    # Not using google/long-t5-local-base because it takes too much time for testing.
-    ("longt5", "hf-internal-testing/tiny-random-longt5"),
-    ("whisper", "openai/whisper-tiny.en"),
-    ("swin", "microsoft/swin-base-patch4-window12-384-in22k"),
-}
-
-
-TENSORFLOW_EXPORT_MODELS = {
-    ("albert", "hf-internal-testing/tiny-albert"),
-    ("bert", "bert-base-cased"),
-    ("camembert", "camembert-base"),
-    ("distilbert", "distilbert-base-cased"),
-    ("roberta", "roberta-base"),
-}
-
-PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION = {
-    ("bart", "facebook/bart-base", ("seq2seq-lm", "seq2seq-lm-with-past")),
-    ("mbart", "sshleifer/tiny-mbart", ("seq2seq-lm", "seq2seq-lm-with-past")),
-    ("t5", "t5-small"),
-    ("marian", "Helsinki-NLP/opus-mt-en-de", ("seq2seq-lm", "seq2seq-lm-with-past")),
-    # Not using google/mt5-small because it takes too much time for testing.
-    ("mt5", "lewtun/tiny-random-mt5"),
-    # Not using facebook/m2m100_418M because it takes too much time for testing.
-    (
-        "m2m-100",
-        "hf-internal-testing/tiny-random-m2m_100",
-    ),
-    # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
-    (
-        "bigbird-pegasus",
-        "hf-internal-testing/tiny-random-bigbird_pegasus",
-        ("seq2seq-lm", "seq2seq-lm-with-past"),
-    ),
-    ("whisper", "openai/whisper-tiny.en"),
-}
 
 
 @require_onnx
@@ -222,27 +129,35 @@ class OnnxConfigWithPastTestCase(TestCase):
                 )
 
 
-def _get_models_to_test(export_models_list):
+def _get_models_to_test(export_models_dict):
     models_to_test = []
     if is_torch_available() or is_tf_available():
-        for name, model, *tasks in export_models_list:
-            if tasks:
-                task_config_mapping = {
-                    task: TasksManager.get_exporter_config_constructor(name, "onnx", task=task)
-                    for _ in tasks
-                    for task in _
-                }
-            else:
-                task_config_mapping = TasksManager.get_supported_tasks_for_model_type(name, "onnx")
+        for model_type, model_name in export_models_dict.items():
+            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
 
-            for task, onnx_config_class_constructor in task_config_mapping.items():
-                models_to_test.append((f"{name}_{task}", name, model, task, onnx_config_class_constructor))
+            for task in task_config_mapping.keys():
+
+                onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                    model_type, "onnx", task=task, model_name=model_name
+                )
+
+                models_to_test.append(
+                    (f"{model_type}_{task}", model_type, model_name, task, onnx_config_constructor, False)
+                )
+
+                if any(
+                    task.startswith(ort_special_task)
+                    for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
+                ):
+                    models_to_test.append(
+                        (f"{model_type}_{task}_forort", model_type, model_name, task, onnx_config_constructor, True)
+                    )
         return sorted(models_to_test)
     else:
         # Returning some dummy test that should not be ever called because of the @require_torch / @require_tf
         # decorators.
         # The reason for not returning an empty list is because parameterized.expand complains when it's empty.
-        return [("dummy", "dummy", "dummy", "dummy", OnnxConfig.from_model_config)]
+        return [("dummy", "dummy", "dummy", "dummy", OnnxConfig.from_model_config, "dummy")]
 
 
 class OnnxExportTestCase(TestCase):
@@ -251,7 +166,15 @@ class OnnxExportTestCase(TestCase):
     """
 
     def _onnx_export(
-        self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu", for_ort=False
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        onnx_config_class_constructor,
+        shapes_to_validate: Dict,
+        for_ort: bool,
+        device="cpu",
     ):
         model_class = TasksManager.get_model_class_for_task(task)
         config = AutoConfig.from_pretrained(model_name)
@@ -303,69 +226,107 @@ class OnnxExportTestCase(TestCase):
                         device=device,
                     )
 
-                    validate_models_outputs(
-                        onnx_config,
-                        model,
-                        onnx_outputs,
-                        atol,
-                        output_dir=Path(tmpdirname),
-                        fn_get_models_from_config=fn_get_models_from_config,
-                    )
+                    input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True)
+                    for input_shapes in input_shapes_iterator:
+                        validate_models_outputs(
+                            onnx_config,
+                            model,
+                            onnx_outputs,
+                            atol,
+                            output_dir=Path(tmpdirname),
+                            fn_get_models_from_config=fn_get_models_from_config,
+                            input_shapes=input_shapes,
+                        )
                 except (RuntimeError, ValueError) as e:
-                    self.fail(f"{name}, {task} -> {e}")
+                    self.fail(f"{model_type}, {task} -> {e}")
         else:
             with NamedTemporaryFile("w") as output:
                 try:
                     onnx_inputs, onnx_outputs = export(
                         model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
                     )
-                    validate_model_outputs(
-                        onnx_config,
-                        model,
-                        Path(output.name),
-                        onnx_outputs,
-                        atol,
-                    )
+
+                    input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
+                    for input_shapes in input_shapes_iterator:
+                        validate_model_outputs(
+                            onnx_config,
+                            model,
+                            Path(output.name),
+                            onnx_outputs,
+                            atol,
+                            input_shapes=input_shapes,
+                        )
                 except (RuntimeError, ValueError) as e:
-                    self.fail(f"{name}, {task} -> {e}")
+                    self.fail(f"{model_type}, {task} -> {e}")
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
-    @slow
+    def test_all_models_are_tested(self):
+        # make sure we test all models
+        missing_models_set = set(TasksManager._SUPPORTED_MODEL_TYPE.keys()) - set(PYTORCH_EXPORT_MODELS_TINY.keys())
+        if len(missing_models_set) > 0:
+            self.fail(f"Not testing all models. Missing models: {missing_models_set}")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
-    def test_pytorch_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
-
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS))
-    @slow
-    @require_torch
-    @require_vision
-    def test_pytorch_export_on_cuda(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, device="cuda")
-
-    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION))
-    @slow
-    @require_torch
-    @require_vision
-    def test_pytorch_export_for_encoder_decoder_models_for_conditional_generation(
-        self, test_name, name, model_name, task, onnx_config_class_constructor
+    def test_pytorch_export(
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        for_ort: bool,
     ):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, for_ort=True)
+        if os.environ.get("RUN_SLOW", False):
+            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_SLOW
+        else:
+            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_FAST
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION))
-    @slow
-    @require_torch
-    @require_vision
-    def test_pytorch_export_for_encoder_decoder_models_for_conditional_generation_on_cuda(
-        self, test_name, name, model_name, task, onnx_config_class_constructor
-    ):
         self._onnx_export(
-            test_name, name, model_name, task, onnx_config_class_constructor, device="cuda", for_ort=True
+            test_name,
+            name,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            shapes_to_validate=shapes_to_validate,
+            for_ort=for_ort,
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @require_torch_gpu
+    def test_pytorch_export_on_cuda(
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        for_ort: bool,
+    ):
+        if os.environ.get("RUN_SLOW", False):
+            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_SLOW
+        else:
+            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_FAST
+
+        self._onnx_export(
+            test_name,
+            name,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            device="cuda",
+            shapes_to_validate=shapes_to_validate,
+            for_ort=for_ort,
         )
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow
     @require_tf
     @require_vision
-    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
+    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor, for_ort: bool):
+        if for_ort == True:
+            return 0
+
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, for_ort=for_ort)

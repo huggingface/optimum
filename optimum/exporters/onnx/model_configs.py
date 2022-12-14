@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
 from packaging import version
 
 from ...utils import (
+    DEFAULT_DUMMY_SHAPES,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
@@ -332,9 +333,9 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedSeq2SeqConfig,
-        batch_size: int = 2,
-        sequence_length: int = 16,
-        num_choices: int = 4,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
@@ -408,7 +409,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             kwargs["sequence_length"] = 1
 
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
-            self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
+            self.task, self._normalized_config, **kwargs
         )
         task = "default" if self.task != "causal-lm" else "causal-lm"
         kwargs = {}
@@ -416,7 +417,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             kwargs["encoder_sequence_length"] = dummy_text_input_generator.sequence_length
 
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
-            self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
+            self.task, self._normalized_config, **kwargs
         )
         dummy_inputs_generators = [
             dummy_text_input_generator,
@@ -494,12 +495,12 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
                     }
         return common_outputs
 
-    def generate_dummy_inputs(self, framework: str = "pt"):
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         # This will handle the attention mask padding when Bart is used for causal-lm.
         if self.task == "causal-lm":
             self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
 
-        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
 
         # if self.use_past and self.task in ["default", "seq2seq-lm"]:
         #     attention_mask_length = dummy_inputs["decoder_attention_mask"].shape[1]
@@ -748,9 +749,9 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
             # "attention_mask": dynamic_axis,
         }
 
-    def generate_dummy_inputs(self, framework: str = "pt"):
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         self.is_generating_dummy_inputs = True
-        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         specialized_inputs_name = self.inputs_name
         self.is_generating_dummy_inputs = True
         dummy_inputs[self.inputs_name] = dummy_inputs.pop(specialized_inputs_name)
