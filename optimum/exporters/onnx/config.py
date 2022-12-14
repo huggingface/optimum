@@ -27,10 +27,11 @@ from ...utils import (
     DummyVisionInputGenerator,
     logging,
 )
-from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast, ConfigBehavior
 
 
 if TYPE_CHECKING:
+    from transformers import PretrainedConfig
     from ...utils import DummyInputGenerator
 
 logger = logging.get_logger(__name__)
@@ -94,13 +95,23 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return common_inputs
 
+    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> "TextSeq2SeqOnnxConfig":
+        return self.for_encoder(task="default", use_past=False)
+
+    def get_decoder_onnx_config(
+        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
+    ) -> "TextSeq2SeqOnnxConfig":
+        return self.for_decoder(use_past_in_inputs=use_past, use_present_in_outputs=True)
+
     @property
     def torch_to_onnx_input_map(self) -> Mapping[str, str]:
-        return {
-            "decoder_input_ids": "input_ids",
-            "encoder_outputs": "encoder_hidden_states",
-            "attention_mask": "encoder_attention_mask",
-        }
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -146,10 +157,10 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return dummy_inputs_generators
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-        reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
-
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+            reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
         return reference_model_inputs
 
 
@@ -180,6 +191,31 @@ class AudioOnnxConfig(OnnxConfig):
 class TextAndAudioOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyAudioInputGenerator,
-        DummyDecoderTextInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
     )
+
+    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> "TextAndAudioOnnxConfig":
+        return self.for_encoder(task="default", use_past=False)
+
+    def get_decoder_onnx_config(
+        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
+    ) -> "TextAndAudioOnnxConfig":
+        return self.for_decoder(use_past_in_inputs=use_past, use_present_in_outputs=True)
+
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs
