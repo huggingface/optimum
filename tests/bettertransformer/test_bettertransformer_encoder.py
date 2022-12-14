@@ -150,7 +150,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         hf_model = AutoModel.from_pretrained(model_name).eval()
         bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
-        BATCH_SIZE = 1
+        BATCH_SIZE = 8
         SEQ_LEN = 16
         MAX_SEQ_LEN = 32
         STD_SEQ_LEN = 10  # let's take a large sequence length standard deviation
@@ -158,6 +158,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         N_REPEAT = 10
 
         input_ids, _, attention_mask = get_batch(BATCH_SIZE, SEQ_LEN, MAX_SEQ_LEN, STD_SEQ_LEN, VOCAB_SIZE)
+        for i in range(1, BATCH_SIZE):
+            attention_mask[i, SEQ_LEN // 4 :] = 0
 
         mean_hf_time = 0
         mean_bt_time = 0
@@ -296,7 +298,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
             }
         )
     )
-    def test_logits(self, test_name: str, model_id, padding, max_length=20):
+    def test_logits(self, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
 
 
@@ -309,10 +311,7 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     mean_tensor = torch.Tensor([avg_seqlen]).expand(batch_size)
     stdev_tensor = torch.Tensor([seqlen_stdev]).expand(batch_size)
     lengths = torch.normal(mean_tensor, stdev_tensor).to(torch.int)
-
-    # need at least a sequence length of 1 for BetterTransformer to work
-    lengths = torch.clamp(lengths, min=1, max=max_sequence_length)
-
+    lengths = torch.clamp(lengths, min=0, max=max_sequence_length)
     tokens = torch.full(
         (batch_size, max_sequence_length),
         pad_idx,
