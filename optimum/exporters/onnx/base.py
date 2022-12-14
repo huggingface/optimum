@@ -341,7 +341,7 @@ class OnnxConfig(ExportConfig, ABC):
 
     def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
         """
-        Maps the output names of the ONNX model to the output names of the reference model.
+        Returns the output names of the reference model corresponding to the output names of the ONNX model.
         Useful to compare the outputs from the ONNX and the reference model when their output names differ.
         Args:
             reference_output_names ([`List[str]`):
