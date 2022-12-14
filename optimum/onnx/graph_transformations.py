@@ -180,6 +180,11 @@ def _get_all_inputs(model_list: List[ModelProto]):
     return inputs
 
 
+def _get_onnx_opset(model: ModelProto):
+    opset_import = model.opset_import[0]
+    return getattr(opset_import, "version")
+
+
 def merge_decoders(
     decoder: ModelProto,
     decoder_with_past: ModelProto,
@@ -234,7 +239,16 @@ def merge_decoders(
         all_inputs + [use_cache],
         no_past_branch.output,
     )
-    merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name)
+    merged_model = onnx.helper.make_model(
+        merged_graph,
+        producer_name=producer_name,
+        opset_imports=[
+            onnx.helper.make_opsetid(
+                domain=onnx.defs.ONNX_DOMAIN,
+                version=_get_onnx_opset(decoder),
+            )
+        ],
+    )
     onnx.checker.check_model(merged_model)
 
     return merged_model
