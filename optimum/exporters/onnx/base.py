@@ -516,93 +516,27 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_present_in_outputs=use_present_in_outputs,
         )
         self._behavior = behavior
-        self._inputs_to_use = {
-            ConfigBehavior.ENCODER: self.inputs_for_encoder,
-            ConfigBehavior.DECODER: self.inputs_for_decoder,
-        }
+        self.override_attributes_for_behavior()
 
-    def __getattribute__(self, name):
-        if name == "inputs" and self._behavior is not ConfigBehavior.MONOLITH:
-            return self._inputs_to_use[self._behavior]
-        return super().__getattribute__(name)
+    def override_attributes_for_behavior(self):
+        if self._behavior is ConfigBehavior.ENCODER:
+            self.task = "default"
+        if self._behavior is ConfigBehavior.DECODER:
+            self.use_past_in_inputs = self.use_past
+            self.use_present_in_outputs = True
 
-    def _for_version(
-        self,
-        behavior: ConfigBehavior,
-        task: Optional[str] = None,
-        use_past: Optional[bool] = None,
-        use_past_in_inputs: Optional[bool] = None,
-        use_present_in_outputs: Optional[bool] = None,
+    def with_behavior(
+        self, behavior: Union[str, ConfigBehavior], use_past: bool = False
     ) -> "OnnxSeq2SeqConfigWithPast":
-        task = task if task is not None else self.task
-        use_past = use_past if use_past is not None else self.use_past
+        if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
+            behavior = ConfigBehavior(behavior)
         return self.__class__(
             self._config,
-            task=task,
+            task=self.task,
             patching_specs=self._patching_specs,
             use_past=use_past,
-            use_past_in_inputs=use_past_in_inputs,
-            use_present_in_outputs=use_present_in_outputs,
             behavior=behavior,
         )
-
-    def for_encoder(
-        self,
-        task: Optional[str] = None,
-        use_past: Optional[bool] = None,
-        use_past_in_inputs: Optional[bool] = None,
-        use_present_in_outputs: Optional[bool] = None,
-    ) -> "OnnxSeq2SeqConfigWithPast":
-        """
-        Produces the same configuration but adatpted for exporting only the encoder part of the model.
-        """
-        return self._for_version(
-            ConfigBehavior.ENCODER,
-            task=task,
-            use_past=use_past,
-            use_past_in_inputs=use_past_in_inputs,
-            use_present_in_outputs=use_present_in_outputs,
-        )
-
-    def for_decoder(
-        self,
-        task: Optional[str] = None,
-        use_past: Optional[bool] = None,
-        use_past_in_inputs: Optional[bool] = None,
-        use_present_in_outputs: Optional[bool] = None,
-    ) -> "OnnxSeq2SeqConfigWithPast":
-        """
-        Produces the same configuration but adapted for exporting only the decoder part of the model.
-        """
-        return self._for_version(
-            ConfigBehavior.DECODER,
-            task=task,
-            use_past=use_past,
-            use_past_in_inputs=use_past_in_inputs,
-            use_present_in_outputs=use_present_in_outputs,
-        )
-
-    @property
-    @abstractmethod
-    def inputs_for_encoder(self) -> Mapping[str, Mapping[int, str]]:
-        """
-        Mapping containing the axis definition of the input tensors to provide to the encoder part of the model.
-
-        Returns:
-            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
-        """
-        raise NotImplementedError()
-
-    @property
-    @abstractmethod
-    def inputs_for_decoder(self) -> Mapping[str, Mapping[int, str]]:
-        """
-        Mapping containing the axis definition of the input tensors to provide to the deocder part of the model.
-
-        Returns:
-            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
-        """
-        raise NotImplementedError()
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -642,43 +576,3 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
         flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
-
-    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> OnnxConfig:
-        """
-        Returns ONNX encoder config for `Seq2Seq` models. Implement the method to export the encoder
-        of the model separately.
-
-        Args:
-            config (`PretrainedConfig`):
-                The encoder model's configuration to use when exporting to ONNX.
-
-        Returns:
-            `OnnxConfig`: An instance of the ONNX configuration object.
-        """
-        raise NotImplementedError(
-            f"{config.model_type} encoder export is not supported yet. ",
-            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
-        )
-
-    def get_decoder_onnx_config(
-        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
-    ) -> OnnxConfig:
-        """
-        Returns ONNX decoder config for `Seq2Seq` models. Implement the method to export the decoder
-        of the model separately.
-
-        Args:
-            config (`PretrainedConfig`):
-                The decoder model's configuration to use when exporting to ONNX.
-            task (`str`, defaults to `"default"`):
-                The task the model should be exported for.
-            use_past (`bool`, defaults to `False`):
-                Whether to export the model with past_key_values.
-
-        Returns:
-            `OnnxConfig`: An instance of the ONNX configuration object.
-        """
-        raise NotImplementedError(
-            f"{config.model_type} decoder export is not supported yet. ",
-            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
-        )

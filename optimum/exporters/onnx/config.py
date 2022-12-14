@@ -14,12 +14,11 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-from typing import TYPE_CHECKING, List, Mapping, Any
+from typing import TYPE_CHECKING, Any, List, Mapping
 
 from ...utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
-    DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
@@ -27,11 +26,12 @@ from ...utils import (
     DummyVisionInputGenerator,
     logging,
 )
-from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast, ConfigBehavior
+from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
+
     from ...utils import DummyInputGenerator
 
 logger = logging.get_logger(__name__)
@@ -76,34 +76,6 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def inputs_for_encoder(self) -> Mapping[str, Mapping[int, str]]:
-        return {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-
-    @property
-    def inputs_for_decoder(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
-            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
-
-        return common_inputs
-
-    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> "TextSeq2SeqOnnxConfig":
-        return self.for_encoder(task="default", use_past=False)
-
-    def get_decoder_onnx_config(
-        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
-    ) -> "TextSeq2SeqOnnxConfig":
-        return self.for_decoder(use_past_in_inputs=use_past, use_present_in_outputs=True)
-
-    @property
     def torch_to_onnx_input_map(self) -> Mapping[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
             return {
@@ -115,19 +87,24 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-        if self.use_past_in_inputs:
-            # Are we sure of this?
-            common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
-            common_inputs["decoder_input_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+        common_inputs = {}
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
+        common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
 
@@ -188,20 +165,33 @@ class AudioOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
 
 
-class TextAndAudioOnnxConfig(OnnxSeq2SeqConfigWithPast):
+class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyAudioInputGenerator,
         DummySeq2SeqDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
     )
 
-    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> "TextAndAudioOnnxConfig":
-        return self.for_encoder(task="default", use_past=False)
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {}
 
-    def get_decoder_onnx_config(
-        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
-    ) -> "TextAndAudioOnnxConfig":
-        return self.for_decoder(use_past_in_inputs=use_past, use_present_in_outputs=True)
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_features"] = ({0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},)
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        return common_inputs
 
     @property
     def torch_to_onnx_input_map(self) -> Mapping[str, str]:

@@ -25,17 +25,15 @@ from ...utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
-    NormalizedConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
     logging,
 )
-from .base import OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from .base import ConfigBehavior, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
-    AudioOnnxConfig,
-    TextAndAudioOnnxConfig,
+    AudioToTextOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
     TextEncoderOnnxConfig,
@@ -51,57 +49,6 @@ if TYPE_CHECKING:
     from .base import PatchingSpec
 
 logger = logging.get_logger(__name__)
-
-
-class Seq2SeqEncoderOnnxConfig(TextEncoderOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return {
-            "input_ids": {0: "batch_size", 1: "sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "sequence_length"},
-        }
-
-
-class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyTextInputGenerator,
-        DummySeq2SeqDecoderTextInputGenerator,
-        DummySeq2SeqPastKeyValuesGenerator,
-    )
-
-    USE_PRESENT_IN_OUTPUTS = True
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
-            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
-
-        return common_inputs
-
-    @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
-        return {
-            "decoder_input_ids": "input_ids",
-            "encoder_outputs": "encoder_hidden_states",
-            "attention_mask": "encoder_attention_mask",
-        }
-
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-        reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
-
-        return reference_model_inputs
 
 
 class BertOnnxConfig(TextEncoderOnnxConfig):
@@ -386,20 +333,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def inputs_for_default_and_seq2seq_lm(self):
-        common_inputs = {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-        if self.use_past_in_inputs:
-            common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
-        else:
-            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
-
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
-        return common_inputs
+        return super().inputs
 
     @property
     def inputs_for_causal_lm(self):
@@ -490,7 +424,6 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
 
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        from .base import ConfigBehavior
         if self._behavior is ConfigBehavior.ENCODER:
             # TODO: check why the attention mask is not present in the exported model
             reference_model_inputs.pop("attention_mask")
@@ -694,39 +627,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
-class WhisperOnnxConfig(TextAndAudioOnnxConfig):
+class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     ATOL_FOR_VALIDATION = 1e-3
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
-        }
-        if self.use_past_in_inputs:
-            common_inputs["decoder_input_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
-
-        return common_inputs
-
-    @property
-    def inputs_for_encoder(self) -> Mapping[str, Mapping[int, str]]:
-        return {
-            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
-        }
-
-    @property
-    def inputs_for_decoder(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
-            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
-
-        return common_inputs
