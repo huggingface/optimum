@@ -15,10 +15,10 @@ import copy
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Set, Tuple
 
-import numpy as np
-
 import onnx
 from onnx import ModelProto, ValueInfoProto
+from onnxsim import simplify
+from onnxsim.model_info import print_simplifying_info
 
 
 def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
@@ -84,7 +84,7 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     return model
 
 
-def _replace_atenops_to_gather(model: ModelProto):
+def replace_atenops_to_gather(model: ModelProto):
     """
     Replaces broken ATenOp nodes back to Gather nodes.
 
@@ -185,11 +185,22 @@ def _get_onnx_opset(model: ModelProto):
     return getattr(opset_import, "version")
 
 
+def simplify_onnx_graph(model: ModelProto, print_info: bool = True) -> ModelProto:
+
+    model_simp, check = simplify(model)
+    assert check, "Simplified ONNX model could not be validated."
+    if print_info:
+        print_simplifying_info(model, model_simp)
+
+    return model_simp
+
+
 def merge_decoders(
     decoder: ModelProto,
     decoder_with_past: ModelProto,
-    model_name: str = "merged",
+    graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
+    simplify_graph: bool = True,
 ) -> ModelProto:
     """
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
@@ -201,6 +212,10 @@ def merge_decoders(
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
     """
+    if simplify_graph:
+        decoder = simplify_onnx_graph(decoder)
+        decoder_with_past = simplify_onnx_graph(decoder_with_past)
+
     _unify_onnx_outputs(decoder, decoder_with_past)
     all_inputs = _get_all_inputs([decoder, decoder_with_past])
 
@@ -235,7 +250,7 @@ def merge_decoders(
     )
     merged_graph = onnx.helper.make_graph(
         [if_node],
-        model_name,
+        graph_name,
         all_inputs + [use_cache],
         no_past_branch.output,
     )

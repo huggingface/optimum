@@ -58,5 +58,22 @@ class WeightSharingTestCase(TestCase):
             )
 
 
+class OnnxMergingTestCase(TestCase):
+    SUPPORTED_DECODER_ARCHITECTURES = ("gpt2",)
+    SUPPORTED_SEQ2SEQ_ARCHITECTURES = (
+        "t5",
+        "bart",
+    )
+
+    def test_merged_decoder(self):
+        pass
+
+    def test_merged_seq2seq(self):
+        pass
+
+    def test_merged_gpu(self):
+        pass
+
+
 if __name__ == "__main__":
     unittest.main()
