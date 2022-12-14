@@ -10,14 +10,20 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-# Trainer
+# How to accelerate training
+
+===== TODO: add more conceptual explanation of ONNX Runtime training.
 
 The [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] classes provide APIs for training PyTorch models with __[ONNX Runtime (ORT)](https://onnxruntime.ai/)__.
 Taking ONNX Runtime as backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] optimize the computation graph and the memory usage. They also support
 mixed precision training implemented by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve
-__lower latency, higher throughput, and larger maximum batch size__ while training large transformers models.
+__lower latency, higher throughput, and larger maximum batch size__ while training models in 🤗Transformers.
 
-## Prerequisite
+## Performance
+
+===== TODO: add ONNX Runtime training benchmark results.
+
+## Start by setting up the environment
 
 To use ONNX Runtime for training, you need a machine with at least one NVIDIA or AMD GPU.
 
