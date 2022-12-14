@@ -246,7 +246,7 @@ class TasksManager:
             "default",
             onnx="CLIPOnnxConfig",
         ),
-        "cliptext": supported_tasks_mapping(
+        "clip_text_model": supported_tasks_mapping(
             "default",
             onnx="CLIPTextOnnxConfig",
         ),

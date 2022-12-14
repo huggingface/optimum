@@ -149,7 +149,7 @@ def get_stable_diffusion_models_for_export(
     models_for_export = dict()
 
     # Text encoder
-    text_encoder_config_constructor = TasksManager.get_exporter_config_constructor("cliptext", "onnx", task="default")
+    text_encoder_config_constructor = TasksManager.get_exporter_config_constructor("clip_text_model", "onnx", task="default")
     text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
     models_for_export["text_encoder"] = (pipeline.text_encoder, text_encoder_onnx_config)
 
