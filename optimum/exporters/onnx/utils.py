@@ -135,9 +135,10 @@ def get_decoder_models_for_export(
     """
     models_for_export = {}
 
-    models_for_export["decoder_model"] = onnx_config_with_past = config.__class__(
+    onnx_config = config.__class__(
         model.config, task=config.task, use_past_in_inputs=False, use_present_in_outputs=True
     )
+    models_for_export["decoder_model"] = (model, onnx_config)
 
     if config.use_past:
         onnx_config_with_past = config.__class__(model.config, task=config.task, use_past=True)
