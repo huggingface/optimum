@@ -28,7 +28,8 @@ More specifically, a model that has an encoder block with a MultiHead-Attention 
 
 ### Step 1: Identifying the source layer to change
 
-First, go to `optimum/bettertransformer/__init__.py` and you'll see the dictionary `BETTER_TRANFORMER_LAYERS_MAPPING_DICT`. This should contain the mapping between the Module that can be converted to its `BetterTransformer` equivalent.
+First, go to `optimum/bettertransformer/__init__.py` and you'll see the dictionary `BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING`. This should contain the mapping between a model type, and the `Tuple[str, BetterTransformerBaseLayer]` composed of the name of the `nn.Module` that can be converted to its `BetterTransformer` equivalent, and effectively the equivalent `BetterTransformer` layer class.
+
 Let us try to do it step by step for `Bert`, first we need to identify the layers that needs to be replaced:
 ```python
 >>> from transformers import AutoModel
@@ -72,7 +73,8 @@ Let us try to do it step by step for `Bert`, first we need to identify the layer
   )
 )
 ```
-You can clearly see that the layers that needs to be replaced are the `BertLayer` modules since it contains the whole encoder layer module.
+
+You can clearly see that the layers that need to be replaced are the `BertLayer` modules since they contain the whole encoder layer module.
 
 ### Step 2: Building the `xxxLayerBetterTransformer` module
 
@@ -89,7 +91,9 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, bert_layer, config):
 ...
 ```
+
 Now, make sure to fill all the necessary attributes, the list of attributes are:
+
 - `in_proj_weight`
 - `in_proj_bias`
 - `out_proj_weight`
@@ -105,7 +109,9 @@ Now, make sure to fill all the necessary attributes, the list of attributes are:
 - `norm2_bias` 
 - `num_heads`
 - `embed_dim`
+
 Note that these attributes correspond to all the components that are necessary to run a Transformer Encoder module, check the figure 1 on the ["Attention Is All You Need"](https://arxiv.org/pdf/1706.03762.pdf) paper.
+
 Once you filled all these attributes (sometimes the `query`, `key` and `value` layers needs to be "contigufied", check the [`modeling_encoder.py`](https://github.com/huggingface/optimum/blob/main/optimum/bettertransformer/models/encoder_models.py) file to understand more.)
 
 Make sure also to add the lines:
@@ -174,4 +180,14 @@ The best way to reproduce this experiment on your own model is to try it by get 
 
 ### Step 4: Sanity check!
 
-As a last step, make sure to update the `BETTER_TRANFORMER_LAYERS_MAPPING_DICT` dictionary in  `optimum/bettertransformer/__init__.py` with the correct names, and you should be ready to convert your model. Try it out with the conversion method that is presented in the [tutorials sections](../tutorials/convert)!
+As a last step, make sure to update the `BETTER_TRANSFORMER_MODEL_MAPPING` dictionary in  `optimum/bettertransformer/__init__.py` with the correct names, and you should be ready to convert your model. For example, for Bert that would be:
+
+```
+BETTER_TRANSFORMER_MODEL_MAPPING = {
+  ...
+  "bert": ("BertLayer", BertLayerBetterTransformer),
+  ...
+}
+```
+
+Try it out with the conversion method that is presented in the [tutorials sections](../tutorials/convert)!
