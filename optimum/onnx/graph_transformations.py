@@ -22,8 +22,12 @@ from onnxsim.model_info import print_simplifying_info
 
 
 def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
+    return _find_duplicate_initializers(model.graph.initializer)
+
+
+def _find_duplicate_initializers(initializers) -> DefaultDict[Tuple[int, bytes], Set[str]]:
     duplicates = defaultdict(set)
-    for initializer in model.graph.initializer:
+    for initializer in initializers:
         for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
             tensor_data = getattr(initializer, data_attr)
             if tensor_data:
@@ -33,11 +37,16 @@ def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
     return duplicates
 
 
-def _create_name_sharing_dict(duplicate_weights: DefaultDict[Tuple[int, bytes], Set[str]]) -> Dict[str, str]:
+def _create_name_sharing_dict(
+    duplicate_weights: DefaultDict[Tuple[int, bytes], Set[str]], suffix: str = None
+) -> Dict[str, str]:
     def _create_name_sharing_dict_for_duplicates(duplicates: Set[str]) -> Dict[str, str]:
         common_name = duplicates.pop()
         duplicates.add(common_name)
-        return {k: common_name for k in duplicates}
+        if suffix:
+            return {k: common_name + "_" + suffix for k in duplicates}
+        else:
+            return {k: common_name for k in duplicates}
 
     name_sharing_dict = {}
     for duplicates in duplicate_weights.values():
@@ -195,19 +204,45 @@ def simplify_onnx_graph(model: ModelProto, print_info: bool = True) -> ModelProt
     return model_simp
 
 
+def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str = None):
+
+    all_initializers = list()
+    for model in models:
+        all_initializers += list(model.graph.initializer)
+
+    duplicates = _find_duplicate_initializers(all_initializers)
+    name_sharing_dict = _create_name_sharing_dict(duplicates, suffix=suffix)
+    for model in models:
+        _replace_input_names(model, name_sharing_dict)
+
+    deduplicated_initializers = list()
+    deduplicated_name = list()
+
+    for initializer in all_initializers:
+        if name_sharing_dict[initializer.name] not in deduplicated_name:
+            deduplicated_name.append(name_sharing_dict[initializer.name])
+            initializer.name = name_sharing_dict[initializer.name]
+            deduplicated_initializers.append(initializer)
+
+    return deduplicated_initializers
+
+
 def merge_decoders(
     decoder: ModelProto,
     decoder_with_past: ModelProto,
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
-    simplify_graph: bool = True,
+    simplify_graph: bool = False,
 ) -> ModelProto:
     """
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
     Args:
-        decoder (`~onnx.ModelProto`): The decoder ONNX model.
-        decoder_with_past (`~onnx.ModelProto`): The decoder with past ONNX model.
+        decoder (`~onnx.ModelProto`): Decoder ONNX model.
+        decoder_with_past (`~onnx.ModelProto`): Decoder with past ONNX model.
+        graph_name (`~str`): Name of the parent graph(graph of the control flow node).
+        producer_name (`~str`): Graph producer name.
+        simplify_graph (`~bool`): Whether to use onnx-simplifier to simplify subgraphs.
 
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
@@ -218,6 +253,7 @@ def merge_decoders(
 
     _unify_onnx_outputs(decoder, decoder_with_past)
     all_inputs = _get_all_inputs([decoder, decoder_with_past])
+    deduplicated_initializers = _deduplicated_cross_model_initializers([decoder, decoder_with_past], suffix=graph_name)
 
     # Make subgraphs
     no_past_branch = onnx.helper.make_graph(
@@ -225,34 +261,36 @@ def merge_decoders(
         name="no_past",
         inputs=[],
         outputs=decoder.graph.output,
-        initializer=decoder.graph.initializer,
+        initializer=[],
     )
     with_past_branch = onnx.helper.make_graph(
         nodes=decoder_with_past.graph.node,
         name="with_past",
         inputs=[],
         outputs=decoder_with_past.graph.output,
-        initializer=decoder_with_past.graph.initializer,
+        initializer=[],
     )
 
     # Merge subgraphs with a `If` node
     use_cache = onnx.helper.make_tensor_value_info(
-        "use_cache",
-        onnx.TensorProto.BOOL,
-        [1],
+        name="use_cache",
+        elem_type=onnx.TensorProto.BOOL,
+        shape=[1],
     )
     if_node = onnx.helper.make_node(
         "If",
         inputs=["use_cache"],
         outputs=[output.name for output in no_past_branch.output],
+        name="optimum::if",
         then_branch=with_past_branch,
         else_branch=no_past_branch,
     )
     merged_graph = onnx.helper.make_graph(
-        [if_node],
-        graph_name,
-        all_inputs + [use_cache],
-        no_past_branch.output,
+        nodes=[if_node],
+        name=graph_name,
+        inputs=all_inputs + [use_cache],
+        outputs=no_past_branch.output,
+        initializer=deduplicated_initializers,
     )
     merged_model = onnx.helper.make_model(
         merged_graph,
