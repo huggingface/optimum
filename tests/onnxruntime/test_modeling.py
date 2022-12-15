@@ -28,6 +28,7 @@ from transformers import (
     AutoModelForImageClassification,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
+    AutoModelForSemanticSegmentation,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
@@ -1279,7 +1280,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
 class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "vit": "hf-internal-testing/tiny-random-vit",  # Probably have to modify to an onnx segmentation model
+        "vit": "optimum/segformer-b0-finetuned-ade-512-512",
     }
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -1298,7 +1299,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        trfs_model = AutoModelForImageClassification.from_pretrained(model_id)
+        trfs_model = AutoModelForSemanticSegmentation.from_pretrained(model_id)
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
