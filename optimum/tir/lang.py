@@ -4,20 +4,12 @@ from typing import NamedTuple
 from iree.compiler import InputType
 
 
-class TirTarget(Enum):
+class TirTarget(str, Enum):
     INTERPRETED_CPU = "vmvx"
     COMPILED_CPU = "llvm-cpu"
     COMPILED_GPU = "vulkan"
     COMPILED_CUDA = "cuda"
     COMPILED_ROCM = "rocm"
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.value == other
-        elif isinstance(other, TirTarget):
-            return self.value == other.value
-        else:
-            return self == other
 
 
 TirFrontendInfo = NamedTuple("TirFrontendInfo", [("name", str), ("dialect", InputType)])
@@ -26,4 +18,5 @@ TirFrontendInfo = NamedTuple("TirFrontendInfo", [("name", str), ("dialect", Inpu
 class TirFrontend(Enum):
     PYTORCH = TirFrontendInfo("pytorch", InputType.TM_TENSOR)
     TENSORFLOW = TirFrontendInfo("tensorflow", InputType.MHLO)
+    TFLITE = TirFrontendInfo("tflite", InputType.TOSA)
     JAX = TirFrontendInfo("jax", InputType.XLA)
