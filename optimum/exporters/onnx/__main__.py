@@ -148,8 +148,6 @@ def main():
         args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
     ):
         if task == "stable-diffusion":
-            args.opset = args.opset or 14
-            args.atol = args.atol or 1e-3
             output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
             models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
             # Saving the model preprocessor as this is needed sometimes.
@@ -174,7 +172,7 @@ def main():
             output_names=output_names,
         )
     else:
-        onnx_inputs, onnx_outputs = export(model, onnx_config, args.opset, args.output)
+        onnx_inputs, onnx_outputs = export(model=model, config=onnx_config, output=args.output, opset=args.opset)
 
     try:
         if task == "stable-diffusion" or (
@@ -188,7 +186,14 @@ def main():
                 output_names=output_names,
             )
         else:
-            validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
+            validate_model_outputs(
+                config=onnx_config,
+                reference_model=model,
+                onnx_model=args.output,
+                onnx_named_outputs=onnx_outputs,
+                atol=args.atol,
+            )
+
     except ValueError:
         logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
         return

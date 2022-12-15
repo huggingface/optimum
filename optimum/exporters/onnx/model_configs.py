@@ -639,6 +639,9 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
 
 class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         vocab_size="vocab_size",
         sequence_length="max_position_embeddings",
@@ -668,7 +671,6 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
 
 
 class UNetOnnxConfig(ViTOnnxConfig):
-
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 14
 
@@ -710,7 +712,6 @@ class UNetOnnxConfig(ViTOnnxConfig):
 
 
 class VaeOnnxConfig(ViTOnnxConfig):
-
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 14
 

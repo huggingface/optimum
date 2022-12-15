@@ -72,8 +72,8 @@ def validate_models_outputs(
         str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
     ],
     onnx_named_outputs: List[str],
-    atol: float,
     output_dir: Path,
+    atol: Optional[float] = None,
     output_names: Optional[List[str]] = None,
 ):
     """
@@ -85,10 +85,10 @@ def validate_models_outputs(
             A dictionnary containing the models to validate and their corresponding onnx configs.
         onnx_named_outputs (`List[str]`):
             The names of the outputs to check.
-        atol (`float`):
-            The absolute tolerance in terms of outputs difference between the reference and the exported model.
         output_dir (`Path`):
             Output directory where the exported ONNX models are stored.
+        atol (`float`, defaults to `None`):
+            The absolute tolerance in terms of outputs difference between the reference and the exported model.
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
             If None, will use the keys from the `models_and_onnx_configs` as names.
@@ -114,11 +114,11 @@ def validate_models_outputs(
             else output_dir.joinpath(model_name + ".onnx")
         )
         validate_model_outputs(
-            sub_onnx_config,
-            submodel,
-            onnx_model_path,
-            onnx_named_outputs[i],
-            atol,
+            config=sub_onnx_config,
+            reference_model=submodel,
+            onnx_model=onnx_model_path,
+            onnx_named_outputs=onnx_named_outputs[i],
+            atol=atol,
         )
 
 
@@ -127,7 +127,7 @@ def validate_model_outputs(
     reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     onnx_model: Path,
     onnx_named_outputs: List[str],
-    atol: float,
+    atol: Optional[float] = None,
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
@@ -141,7 +141,7 @@ def validate_model_outputs(
             The path to the exported model.
         onnx_named_outputs (`List[str]`):
             The names of the outputs to check.
-        atol (`float`):
+        atol (`float`, defaults to `None`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
 
     Raises:
@@ -150,6 +150,9 @@ def validate_model_outputs(
     from onnxruntime import InferenceSession, SessionOptions
 
     logger.info("Validating ONNX model...")
+
+    if atol is None:
+        atol = config.ATOL_FOR_VALIDATION
 
     framework = (
         "pt" if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)) else "tf"
@@ -396,8 +399,8 @@ def export_models(
     models_and_onnx_configs: Dict[
         str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
     ],
-    opset: int,
     output_dir: Path,
+    opset: Optional[int] = None,
     output_names: Optional[List[str]] = None,
     device: str = "cpu",
 ) -> Tuple[List[List[str]], List[List[str]]]:
@@ -409,10 +412,10 @@ def export_models(
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
              A dictionnary containing the models to export and their corresponding onnx configs.
-        opset (`int`):
-            The version of the ONNX operator set to use.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
+        opset (`int`, defaults to `None`):
+            The version of the ONNX operator set to use.
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
             If None, will use the keys from `models_and_onnx_configs` as names.
@@ -439,10 +442,10 @@ def export_models(
         )
         outputs.append(
             export(
-                submodel,
-                sub_onnx_config,
-                opset,
-                output_path,
+                model=submodel,
+                config=sub_onnx_config,
+                output=output_path,
+                opset=opset,
                 device=device,
             )
         )
@@ -454,8 +457,8 @@ def export_models(
 def export(
     model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     config: OnnxConfig,
-    opset: int,
     output: Path,
+    opset: Optional[int] = None,
     device: str = "cpu",
 ) -> Tuple[List[str], List[str]]:
     """
@@ -466,10 +469,10 @@ def export(
             The model to export.
         config ([`~exporters.onnx.config.OnnxConfig`]):
             The ONNX configuration associated with the exported model.
-        opset (`int`):
-            The version of the ONNX operator set to use.
         output (`Path`):
             Directory to store the exported ONNX model.
+        opset (`int`, defaults to `None`):
+            The version of the ONNX operator set to use.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
@@ -485,6 +488,9 @@ def export(
         )
 
     output.parent.mkdir(parents=True, exist_ok=True)
+
+    if opset is None:
+        opset = config.DEFAULT_ONNX_OPSET
 
     if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin)):
         from ...utils import torch_version

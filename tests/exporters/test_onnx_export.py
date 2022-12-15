@@ -322,14 +322,18 @@ class OnnxExportTestCase(TestCase):
             with NamedTemporaryFile("w") as output:
                 try:
                     onnx_inputs, onnx_outputs = export(
-                        model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
+                        model=model,
+                        config=onnx_config,
+                        opset=onnx_config.DEFAULT_ONNX_OPSET,
+                        output=Path(output.name),
+                        device=device,
                     )
                     validate_model_outputs(
-                        onnx_config,
-                        model,
-                        Path(output.name),
-                        onnx_outputs,
-                        atol,
+                        config=onnx_config,
+                        reference_model=model,
+                        onnx_model=Path(output.name),
+                        onnx_named_outputs=onnx_outputs,
+                        atol=atol,
                     )
                 except (RuntimeError, ValueError) as e:
                     self.fail(f"{name}, {task} -> {e}")
