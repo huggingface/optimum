@@ -50,7 +50,6 @@ if is_torch_available():
         AutoModelForSequenceClassification,
         AutoModelForSpeechSeq2Seq,
         AutoModelForTokenClassification,
-        AutoModelForZeroShotObjectDetection,
     )
 if is_tf_available():
     from transformers.models.auto import (
