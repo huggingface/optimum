@@ -291,3 +291,11 @@ def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -
         src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
         dst_file_names.extend(str(model_path.parent.name / tensor_name) for tensor_name in model_tensors_ext)
     return src_paths, dst_file_names
+
+
+def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
+    """
+    Check if the model uses external data.
+    """
+    model_tensors = _get_initializer_tensors(model)
+    return any(tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL for tensor in model_tensors)

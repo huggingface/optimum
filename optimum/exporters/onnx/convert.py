@@ -31,6 +31,8 @@ from .utils import (
     is_torch_onnx_support_available,
 )
 
+from ...onnxruntime.utils import check_model_uses_external_data
+
 
 if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
@@ -323,6 +325,20 @@ def export_pytorch(
                 do_constant_folding=True,
                 opset_version=opset,
             )
+
+            # check if external data was exported
+            import onnx
+            onnx_model = onnx.load(str(output), load_external_data=False)
+            model_uses_external_data = check_model_uses_external_data(onnx_model)
+
+            from onnx.external_data_helper import convert_model_to_external_data
+
+            if True:
+                logger.info("Saving external data to one file...")
+                convert_model_to_external_data(onnx_model, all_tensors_to_one_file=True, size_threshold=0, convert_attribute=False)
+                onnx.save(onnx_model, str(output),
+                save_as_external_data=True, all_tensors_to_one_file=True,
+                size_threshold=0, convert_attribute=False)
 
         config.restore_ops()
 
