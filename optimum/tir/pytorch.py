@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Dict, List, Union, Optional, Sequence
 from inspect import signature
 
 import torch
-from iree.compiler import InputType
+from iree.compiler import InputType, compile_str as iree_compile_str
 from iree_torch import compile_to_vmfb, load_vmfb
 from iree._runtime import VmModule, HalDevice
 from torch import nn
@@ -46,6 +47,39 @@ class TorchDispatcher(TirDispatcher):
         model_call_signature = signature(model.forward)
         return list(model_call_signature.parameters.keys())
 
+    @staticmethod
+    def internal_compile_to_vmfb(
+        mlir_module,
+        target_backend: str,
+        extra_args: List[str] = None,
+        cuda_llvm_target_arch: str = None
+    ):
+        """
+        This method is copy/pasted from torch-mlir but adds `extra-args` to give some more argument to the compiler.
+        :param mlir_module:
+        :param target_backend:
+        :param extra_args:
+        :param cuda_llvm_target_arch:
+        :return:
+        """
+        extra_args = extra_args or []
+        if cuda_llvm_target_arch is not None:
+            arch_flag = f"--iree-hal-cuda-llvm-target-arch={cuda_llvm_target_arch}"
+            extra_args.append(arch_flag)
+
+        # Here, mlir_module is typically going to be coming from the Torch-MLIR
+        # MLIR CAPI assembly. We convert to bytecode to cross the border into the
+        # IREE MLIR CAPI assembly.
+        bytecode_stream = BytesIO()
+        mlir_module.operation.write_bytecode(bytecode_stream)
+        bytecode = bytecode_stream.getvalue()
+        return iree_compile_str(
+            bytecode,
+            target_backends=[target_backend],
+            input_type=InputType.TM_TENSOR,
+            extra_args=extra_args
+        )
+
     def validate_forward_inputs(self, *args, **kwargs):
         parameters = self._parameters.copy()
 
@@ -66,10 +100,11 @@ class TorchDispatcher(TirDispatcher):
         return curated_inputs
 
     def export_model_to_mlir(
-        self,
-        model: Union[nn.Module, PreTrainedModel],
-        examples: Optional = None,
-        dynamic_axes: List[int] = None
+            self,
+            model: Union[nn.Module, PreTrainedModel],
+            target: TirTarget,
+            examples: Optional = None,
+            dynamic_axes: List[int] = None
     ):
         return torch_mlir_compile(
             model,
@@ -88,12 +123,23 @@ class TorchDispatcher(TirDispatcher):
                 cuda_target_arch = f"sm_{cuda_device_props.major}{cuda_device_props.minor}"
                 LOGGER.debug(f"Inferred CUDA Target: {cuda_target_arch}")
             else:
-                cuda_target_arch = None
-        else:
+                # cuda_target_arch = None
+                cuda_target_arch = "sm_89"
+                extra_args = [
+                    "--iree-hal-cuda-disable-loop-nounroll-wa",
+                ]
+        elif target == TirTarget.COMPILED_CPU:
             cuda_target_arch = None
+            extra_args = [
+                "--iree-llvm-target-cpu-features=host",
+                "--iree-flow-demote-i64-to-i32",
+            ]
+        else:
+            cuda_target_arch = extra_args = None
 
-        vmfb = compile_to_vmfb(mlir_module, target.value, cuda_llvm_target_arch=cuda_target_arch)
-        return load_vmfb(vmfb, target.value)
+        vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, target.value, extra_args, cuda_target_arch)
+        module = load_vmfb(vmfb, target.value)
+        return module.forward
 
 
 class TorchCompiler:

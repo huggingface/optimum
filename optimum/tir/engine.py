@@ -18,18 +18,18 @@ class TirDispatcher(ABC):
     __slots__ = ("_model", "_target", "_executor", "_cache", "_parameters")
 
     @staticmethod
-    def for_frontend(frontend: TirFrontend, model, target: TirTarget) -> "TirDispatcher":
+    def for_frontend(frontend: TirFrontend, model, target: TirTarget, use_tflite_for_tf: bool) -> "TirDispatcher":
         if frontend == TirFrontend.PYTORCH:
             from .pytorch import TorchDispatcher
             return TorchDispatcher(model, target)
-        elif frontend == TirFrontend.TENSORFLOW:
+        elif frontend in {TirFrontend.TENSORFLOW, TirFrontend.TFLITE}:
             from .tensorflow import TensorflowDispatcher
-            return TensorflowDispatcher(model, target)
+            return TensorflowDispatcher(model, target, use_tflite_for_tf)
         else:
             raise NotImplementedError()
 
     @abstractmethod
-    def export_model_to_mlir(self, model, examples: Optional = None, dynamic_axes: List[int] = None):
+    def export_model_to_mlir(self, model, target: TirTarget, examples: Optional = None, dynamic_axes: List[int] = None):
         raise NotImplementedError()
 
     @abstractmethod
@@ -70,39 +70,52 @@ class TirDispatcher(ABC):
             dispatch = self._cache[key]
         else:
             TirDispatcher.LOGGER.debug(f"Cache miss for dispatch key: {key}.")
-            exported_module = self.export_model_to_mlir(self._model, curated_args)
+            exported_module = self.export_model_to_mlir(self._model, self._target, curated_args)
             dispatch = self.compile_from_mlir(exported_module, self._target)
             self._cache[key] = dispatch
 
-        return dispatch({"input_ids": curated_args[0], "attention_mask": curated_args[1]})
+        # TODO : Remove this dict because it's TensorFlow only.
+        # return dispatch({"input_ids": curated_args[0], "attention_mask": curated_args[1]})
+        return dispatch(*curated_args)
 
 
 class TirEngine:
 
     LOGGER = get_logger("TirEngine")
 
-    __slots__ = ("_model", "_target", "_frontend", "_dispatcher")
+    __slots__ = ("_model", "_target", "_frontend", "_dispatcher", "_export_tf_to_tflite")
 
     def __init__(
         self,
         model: Union["transformers.PreTrainedModel", "transformers.TFPreTrainedModel"],
         target: TirTarget = TirTarget.COMPILED_CPU,
+        export_tf_to_tflite: bool = True
     ):
         self._model = model
         self._target = target
         self._dispatcher = None
+        self._export_tf_to_tflite = export_tf_to_tflite
 
         if self._model.framework == "pt":
             TirEngine.LOGGER.info(f"TirEngine initializing frontend for PyTorch.")
             self._frontend = TirFrontend.PYTORCH
         else:
-            TirEngine.LOGGER.info(f"TirEngine initializing frontend for Tensorflow.")
-            self._frontend = TirFrontend.TENSORFLOW
+            if export_tf_to_tflite:
+                TirEngine.LOGGER.info(f"TirEngine initializing frontend for TFLite.")
+                self._frontend = TirFrontend.TFLITE
+            else:
+                TirEngine.LOGGER.info(f"TirEngine initializing frontend for Tensorflow.")
+                self._frontend = TirFrontend.TENSORFLOW
 
     def __enter__(self) -> 'TirEngine':
         if self._dispatcher is None:
             TirEngine.LOGGER.debug("Creating empty compilation dispatcher.")
-            self._dispatcher = TirDispatcher.for_frontend(self._frontend, self._model, self._target)
+            self._dispatcher = TirDispatcher.for_frontend(
+                self._frontend,
+                self._model,
+                self._target,
+                self._export_tf_to_tflite
+            )
         else:
             # this branch covers the case
             # with TirEngine.from_precompiled(...) as engine:
