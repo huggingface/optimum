@@ -89,7 +89,7 @@ MODEL_NAMES = {
 }
 
 SEED = 42
-
+import onnx
 
 class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -100,6 +100,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
+        self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
     def test_load_model_from_local_path(self):
@@ -451,6 +452,38 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModel.from_pretrained(tmpdirname, file_name=test_model_name)
 
             self.assertEqual(model.model_name, test_model_name)
+
+    def test_save_seq2seq_model_with_external_data(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+
+            from transformers.modeling_utils import no_init_weights
+            from transformers import MBartForConditionalGeneration, AutoConfig
+
+            # randomly intialize large model
+            config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
+            with no_init_weights():
+                model = MBartForConditionalGeneration(config)
+
+            # save transformers model to be able to load it with `ORTModel...`
+            model.save_pretrained(tmpdirname)
+
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
+            model.save_pretrained(tmpdirname + "/onnx")
+            
+            # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
+            folder_contents = os.listdir(tmpdirname + "/onnx")
+            self.assertTrue(CONFIG_NAME in folder_contents)
+            self.assertTrue("encoder_model/" + ONNX_ENCODER_NAME in folder_contents) 
+            self.assertTrue("decoder_model/" + ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue("decoder_with_past_model/" + ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+
+            # try loading models to check if they are valid
+            try:
+                onnx.load(tmpdirname + "/onnx/encoder_model/" + ONNX_ENCODER_NAME)
+                onnx.load(tmpdirname + "/onnx/decoder_model/" + ONNX_DECODER_NAME)
+                onnx.load(tmpdirname + "/onnx/decoder_with_past_model/" + ONNX_DECODER_WITH_PAST_NAME)
+            except Exception as e:
+                self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
 
     @require_hf_token
     def test_save_model_from_hub(self):
