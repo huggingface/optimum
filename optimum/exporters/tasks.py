@@ -577,6 +577,8 @@ class TasksManager:
             onnx="SwinOnnxConfig",
         ),
     }
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip_text_model"}
+    _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
     def get_supported_tasks_for_model_type(
@@ -602,7 +604,7 @@ class TasksManager:
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
+                f"Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
