@@ -1593,7 +1593,6 @@ class ORTModelForSemanticSegmentation(ORTModel):
     Semantic Segmentation model for ONNX.
     """
 
-    export_feature = "image-segmentation"
     auto_model_class = AutoModelForSemanticSegmentation
 
     def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
