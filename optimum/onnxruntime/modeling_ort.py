@@ -1608,7 +1608,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
         + SEMANTIC_SEGMENTATION_EXAMPLE.format(
             processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForSemanticSegmentation",
-            checkpoint="optimum/segformer-b0-finetuned-ade-512-512"
+            checkpoint="optimum/segformer-b0-finetuned-ade-512-512",
         )
     )
     def forward(self, **kwargs):

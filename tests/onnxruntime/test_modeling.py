@@ -1348,7 +1348,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-segmentation"", model=onnx_model, feature_extractor=preprocessor, device=0)
+        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
         # check model device
