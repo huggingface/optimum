@@ -529,6 +529,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         """Override this to specify custom attribute change for a given behavior."""
         if self._behavior is ConfigBehavior.ENCODER:
             self.task = "default"
+            self.use_past_in_inputs = False
+            self.use_present_in_outputs = False
         if self._behavior is ConfigBehavior.DECODER:
             self.use_past_in_inputs = self.use_past
             self.use_present_in_outputs = True
