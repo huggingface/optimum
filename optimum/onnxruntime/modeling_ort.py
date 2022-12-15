@@ -350,7 +350,7 @@ class ORTModel(OptimizedModel):
                     f"Too many ONNX model files were found in {path}, specify which one to load by using the "
                     f"{argument_name} argument."
                 )
-        return onnx_files[0].name
+        return onnx_files[0]
 
     @classmethod
     def _from_pretrained(

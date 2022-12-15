@@ -939,7 +939,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_path = Path(model_id)
 
         if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
-            encoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            encoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 ENCODER_ONNX_FILE_PATTERN,
                 "encoder_file_name",
@@ -947,8 +947,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
+        else:
+            encoder_path = model_path / subfolder / encoder_file_name
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            decoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            decoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 DECODER_ONNX_FILE_PATTERN,
                 "decoder_file_name",
@@ -956,8 +958,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
+        else:
+            decoder_path = model_path / subfolder / decoder_file_name
         if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-            decoder_with_past_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 DECODER_WITH_PAST_ONNX_FILE_PATTERN,
                 "decoder_with_past_file_name",
@@ -966,6 +970,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 revision=revision,
                 fail_if_not_found=use_cache,
             )
+        else:
+            decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
             ONNX_ENCODER_NAME
@@ -977,30 +983,30 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
         )
 
-        if encoder_file_name not in encoder_regular_onnx_filenames:
+        if encoder_path.name not in encoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {encoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                f"The ONNX file {encoder_path.name} is not a regular name used in optimum.onnxruntime, the "
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        if decoder_file_name not in decoder_regular_onnx_filenames:
+        if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime, the "
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
-        if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
+        if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime, "
+                f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime, "
                 "the ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
+        decoder_with_past_path = decoder_with_past_path if use_cache else None
 
         preprocessors = None
         if model_path.is_dir():
             model = cls.load_model(
-                encoder_path=model_path / encoder_file_name,
-                decoder_path=model_path / decoder_file_name,
+                encoder_path=encoder_path,
+                decoder_path=decoder_path,
                 decoder_with_past_path=decoder_with_past_path,
                 provider=provider,
                 session_options=session_options,
@@ -1010,9 +1016,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
-                "last_encoder_model_name": encoder_file_name,
-                "last_decoder_model_name": decoder_file_name,
-                "last_decoder_with_past_model_name": decoder_with_past_file_name if use_cache else None,
+                "last_encoder_model_name": encoder_path.name,
+                "last_decoder_model_name": decoder_path.name,
+                "last_decoder_with_past_model_name": decoder_with_past_path.name if use_cache else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -1155,42 +1161,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self.providers = self.encoder.session.get_providers()
 
         return self
-
-
-    @staticmethod
-    def infer_onnx_filename(
-        model_name_or_path: Union[str, Path],
-        pattern: str,
-        argument_name: str,
-        subfolder: str = "",
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        fail_if_not_found: bool = True,
-    ) -> str:
-        onnx_files = find_files_matching_pattern(
-            model_name_or_path,
-            pattern,
-            glob_pattern="**/*.onnx",
-            subfolder=subfolder,
-            use_auth_token=use_auth_token,
-            revision=revision,
-        )
-
-        path = model_name_or_path
-        if subfolder != "":
-            path = f"{path}/{subfolder}"
-
-        if len(onnx_files) == 0:
-            if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
-            return None
-        elif len(onnx_files) > 1:
-            if argument_name is not None:
-                raise RuntimeError(
-                    f"Too many ONNX model files were found in {path}, specify which one to load by using the "
-                    f"{argument_name} argument."
-                )
-        return onnx_files[0].parent.name + "/" + onnx_files[0].name
 
 
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
