@@ -1580,7 +1580,6 @@ SEMANTIC_SEGMENTATION_EXAMPLE = r"""
     >>> pred = onnx_image_segmenter(url)
     ```
 """
-# Probably have to modify urls above to an image that can be segmented to the chosen onnx segmentation model
 
 
 @add_start_docstrings(
@@ -1609,7 +1608,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
         + SEMANTIC_SEGMENTATION_EXAMPLE.format(
             processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForSemanticSegmentation",
-            checkpoint="optimum/vit-base-patch16-224",  # Probably have to modify to an onnx segmentation model
+            checkpoint="optimum/segformer-b0-finetuned-ade-512-512"
         )
     )
     def forward(self, **kwargs):
