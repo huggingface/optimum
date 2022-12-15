@@ -313,6 +313,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](
             self.task, self._normalized_config, **kwargs
         )
+        task = "default" if self.task != "causal-lm" else "causal-lm"
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1][task](
             self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
         )
