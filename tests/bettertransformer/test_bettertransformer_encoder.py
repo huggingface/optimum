@@ -20,9 +20,8 @@ import torch
 import transformers
 from transformers import AutoModel, AutoTokenizer
 
-from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
+from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils.testing_utils import (
-    convert_to_hf_classes,
     grid_parameters,
     is_torch_greater_than_113,
     require_accelerate,
@@ -80,37 +79,12 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         }
         return input_dict
 
-    def _loop_all_classes(self):
-        r"""
-        An utility function to automatically loop over all classes to test.
-        this is a generator that will generate random config class for each
-        model to test.
-        """
-        for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
-            if layer_class == "EncoderLayer":
-                # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
-                class_name = "FSMT"
-            elif layer_class == "TransformerBlock":
-                # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-                class_name = "DistilBert"
-            elif "EncoderLayer" in layer_class:
-                class_name = layer_class[:-12]
-            else:
-                class_name = layer_class[:-5]
-            random_config = getattr(transformers, class_name + "Config")
-            yield random_config()
-
     def test_dict_class_consistency(self):
-        r"""
-        A test to check if the modified dictionnary is consistent (same number of keys + successfully import
-        the correct `PreTrainedModel` module). This also checks if the list of models to test has the same
-        number of classes than the list of convertable models.
         """
-        for keys in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
-            self.assertTrue(("Layer" in keys) or ("Block" in keys))
-
-        ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
-        self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()))
+        A test to check BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING has good names.
+        """
+        for model_type, item in BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.items():
+            self.assertTrue(("Layer" in item[0]) or ("Block" in item[0]))
 
     def test_raise_pos_emb(self):
         r"""
@@ -124,17 +98,31 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
             hf_model = AutoModel.from_config(random_config).eval()
             _ = BetterTransformer.transform(hf_model, keep_original_model=False)
 
-    def test_raise_activation_fun(self):
+    @parameterized.expand(BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.keys())
+    def test_raise_activation_fun(self, model_type: str):
         r"""
         A tests that checks if the conversion raises an error if the model contains an activation function
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
-        for hf_random_config in self._loop_all_classes():
-            hf_random_config.hidden_act = "silu"
+        layer_class = BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING[model_type][0]
 
-            hf_random_model = AutoModel.from_config(hf_random_config).eval()
-            with self.assertRaises(ValueError):
-                _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+        if layer_class == "EncoderLayer":
+            # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
+            class_name = "FSMT"
+        elif layer_class == "TransformerBlock":
+            # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
+            class_name = "DistilBert"
+        elif "EncoderLayer" in layer_class:
+            class_name = layer_class[:-12]
+        else:
+            class_name = layer_class[:-5]
+
+        hf_random_config = getattr(transformers, class_name + "Config")()  # random config class for the model to test
+        hf_random_config.hidden_act = "silu"
+
+        hf_random_model = AutoModel.from_config(hf_random_config).eval()
+        with self.assertRaises(ValueError):
+            _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
     @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
     @torch.no_grad()

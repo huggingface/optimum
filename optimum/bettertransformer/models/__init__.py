@@ -28,61 +28,49 @@ from .encoder_models import (
 )
 
 
-BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
-    # Bert Family
-    "BertGenerationLayer": BertLayerBetterTransformer,
-    "BertLayer": BertLayerBetterTransformer,
-    "CamembertLayer": BertLayerBetterTransformer,
-    "Data2VecTextLayer": BertLayerBetterTransformer,
-    "ElectraLayer": BertLayerBetterTransformer,
-    "ErnieLayer": BertLayerBetterTransformer,
-    "LayoutLMLayer": BertLayerBetterTransformer,
-    "MarkupLMLayer": BertLayerBetterTransformer,
-    "RemBertLayer": BertLayerBetterTransformer,
-    "RobertaLayer": BertLayerBetterTransformer,
-    "SplinterLayer": BertLayerBetterTransformer,
-    "TapasLayer": BertLayerBetterTransformer,
-    "XLMRobertaLayer": BertLayerBetterTransformer,
-    # Albert Family
-    "AlbertLayer": AlbertLayerBetterTransformer,
-    # Bart family
-    "BartEncoderLayer": BartEncoderLayerBetterTransformer,
-    "MBartEncoderLayer": MBartEncoderLayerBetterTransformer,
-    "M2M100EncoderLayer": MBartEncoderLayerBetterTransformer,
-    # "PLBartEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # "MarianEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # "TimeSeriesTransformerEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # "BlenderbotSmallEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # T5 family - needs to check compatibility first
-    # "T5Block": t5.T5LayerBetterTransformer,
-    # Some models cannot be tested such as:
-    # "QDQBertLayer": BertLayerBetterTransformer, --> needs torch quantization
-    # "RealmLayer": BertLayerBetterTransformer, --> not mapped in AutoModel
-    # DistilBert:
-    "TransformerBlock": DistilBertLayerBetterTransformer,
-    # WhisperModel
-    "WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer,
-    # Wav2vec2 family:
-    "HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    # "UniSpeechEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    # "Data2VecAudioEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    # ViT Family:
-    "DeiTLayer": ViTLayerBetterTransformer,
-    "ViTLayer": ViTLayerBetterTransformer,
-    "ViTMAELayer": ViTLayerBetterTransformer,
-    "ViTMSNLayer": ViTLayerBetterTransformer,
-    "YolosLayer": ViTLayerBetterTransformer,
-    # FSMTModel:
-    "EncoderLayer": FSMTEncoderLayerBetterTransformer,
-    "ViltLayer": ViltLayerBetterTransformer,
-    # CLIP
-    "CLIPEncoderLayer": CLIPLayerBetterTransformer,
-}
+class BetterTransformerManager:
+    BETTER_TRANSFORMER_MODEL_MAPPING = {
+        "bert": ("BertLayer", BertLayerBetterTransformer),
+        "bert-generation": ("BertGenerationLayer", BertLayerBetterTransformer),
+        "bart": ("BertLayer", BertLayerBetterTransformer),
+        "camembert": ("CamembertLayer", BertLayerBetterTransformer),
+        "data2vec-text": ("Data2VecTextLayer", BertLayerBetterTransformer),
+        "electra": ("ElectraLayer", BertLayerBetterTransformer),
+        "ernie": ("ErnieLayer", BertLayerBetterTransformer),
+        "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),
+        "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
+        "rembert": ("RemBertLayer", BertLayerBetterTransformer),
+        "roberta": ("RobertaLayer", BertLayerBetterTransformer),
+        "splinter": ("SplinterLayer", BertLayerBetterTransformer),
+        "tapas": ("TapasLayer", BertLayerBetterTransformer),
+        "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
+        "albert": ("AlbertLayer", AlbertLayerBetterTransformer),
+        "bart": ("BartEncoderLayer", BartEncoderLayerBetterTransformer),
+        "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
+        "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
+        "distilbert": ("TransformerBlock", DistilBertLayerBetterTransformer),
+        "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
+        "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
+        "wav2vec2": ("Wav2Vec2EncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
+        "deit": ("DeiTLayer", ViTLayerBetterTransformer),
+        "vit": ("ViTLayer", ViTLayerBetterTransformer),
+        "vit_mae": ("ViTMAELayer", ViTLayerBetterTransformer),
+        "vit_msn": ("ViTMSNLayer", ViTLayerBetterTransformer),
+        "yolos": ("YolosLayer", ViTLayerBetterTransformer),
+        "fsmt_decoder": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
+        "vilt": ("ViltLayer", ViltLayerBetterTransformer),
+        "clip": ("CLIPEncoderLayer", CLIPLayerBetterTransformer),
+    }
 
-EXCLUDE_FROM_TRANSFORM = {
-    "clip": ["text_model"],  # text model uses causal attention, that is most likely not supported in BetterTransformer
-}
+    EXCLUDE_FROM_TRANSFORM = {
+        "clip": [
+            "text_model"
+        ],  # text model uses causal attention, that is most likely not supported in BetterTransformer
+    }
+
+    CAN_NOT_BE_SUPPORTED = {
+        "t5": "message here",
+    }
 
 
 class warn_uncompatible_save(object):

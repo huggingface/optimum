@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 
 from ..utils import check_if_pytorch_greater, is_accelerate_available
-from .models import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, EXCLUDE_FROM_TRANSFORM, warn_uncompatible_save
+from .models import BetterTransformerManager, warn_uncompatible_save
 
 
 if is_accelerate_available():
@@ -51,8 +51,9 @@ def replace_to_bettertransformer(model, config):
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
             # we may explicitly exclude part of the model to use BetterTransformer
-            if config.model_type not in EXCLUDE_FROM_TRANSFORM or (
-                config.model_type in EXCLUDE_FROM_TRANSFORM and name not in EXCLUDE_FROM_TRANSFORM[config.model_type]
+            if config.model_type not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM or (
+                config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
+                and name not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
             ):
                 replace_to_bettertransformer(module, config)
 
@@ -68,12 +69,15 @@ def replace_to_bettertransformer(model, config):
                 " please pass a model that is not loaded in 8-bit.",
             )
 
-        class_name = module.__class__.__name__
-        is_bt_compatible = class_name in BETTER_TRANFORMER_LAYERS_MAPPING_DICT
-
-        if is_bt_compatible:
-            fast_module = BETTER_TRANFORMER_LAYERS_MAPPING_DICT[class_name](module, config)
-            model._modules[name] = fast_module
+        # replace the module if it is a transformer layer compatible with bettertransformer
+        if (
+            module.__class__.__name__
+            == BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING[config.model_type][0]
+        ):
+            bettertransformer_module = BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING[config.model_type][1](
+                module, config
+            )
+            model._modules[name] = bettertransformer_module
     return model
 
 
@@ -98,10 +102,13 @@ def set_last_layer(model: torch.nn.Module):
             isinstance(dict_named_module[key], torch.nn.ModuleList)
             and "encoder" in key
             and (
-                model.config.model_type not in EXCLUDE_FROM_TRANSFORM
+                model.config.model_type not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
                 or (
-                    model.config.model_type in EXCLUDE_FROM_TRANSFORM
-                    and all(name not in key for name in EXCLUDE_FROM_TRANSFORM[model.config.model_type])
+                    model.config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
+                    and all(
+                        name not in key
+                        for name in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[model.config.model_type]
+                    )
                 )
             )
         ):
@@ -117,7 +124,6 @@ def set_last_layer(model: torch.nn.Module):
             if "LayerBetterTransformer" in module.__class__.__name__:
                 setattr(module, "is_last_layer", True)
                 return
-        raise NotImplementedError(ERROR_MESSAGE.format(model_name=model.__class__.__name__))
     else:
         for key in dict_named_module.keys():
             if isinstance(dict_named_module[key], torch.nn.ModuleList) and all(
@@ -125,7 +131,10 @@ def set_last_layer(model: torch.nn.Module):
             ):
                 setattr(dict_named_module[key][-1], "is_last_layer", True)
                 return
-        raise NotImplementedError(ERROR_MESSAGE.format(model_name=model.__class__.__name__))
+
+    raise Exception(
+        f"The transformation of the model {model.__class__.__name__} to BetterTransformer failed while it should not. Please fill a bug report at https://github.com/huggingface/optimum/issues."
+    )
 
 
 class BetterTransformer(object):
@@ -143,18 +152,18 @@ class BetterTransformer(object):
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
     )
     def transform(
-        model: torch.nn.Module, keep_original_model: bool = False, max_memory: Optional[dict] = None, **kwargs
+        model: torch.nn.Module, keep_original_model: bool = False, max_memory: Optional[Dict] = None, **kwargs
     ) -> torch.nn.Module:
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
 
         Args:
-            model, (`torch.nn.Module`):
+            model (`torch.nn.Module`):
                 Original `transformers` model
-            keep_original_model (`bool`, *optional*):
+            keep_original_model (`bool`, defaults to `False`):
                 whether to keep or override the original model - essentially
                 for memory efficiency reasons
-            max_memory (`dict`, *optional*):
+            max_memory (`Optional[Dict]`, defaults to `None`):
                 Same argument as `max_memory` argument from `.from_pretrained` function
                 in `transformers`.
         Returns:
@@ -166,6 +175,19 @@ class BetterTransformer(object):
             load_accelerate = True
         else:
             load_accelerate = False
+
+        if model.config.model_type in BetterTransformerManager.CAN_NOT_BE_SUPPORTED:
+            raise ValueError(
+                f"The model type {model.config.model_type} can not be supported to be used with BetterTransformer. The identified reason is:"
+                f" {BetterTransformerManager.CAN_NOT_BE_SUPPORTED[model.config.model_type]}. Currently supported models are:"
+                f" {BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.keys()}."
+            )
+        if model.config.model_type not in BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING:
+            raise NotImplementedError(
+                f"The model type {model.config.model_type} is not yet supported supported to be used with BetterTransformer. Feel free"
+                f" to open an issue at https://github.com/huggingface/optimum/issues if you would like this model type to be supported."
+                f" Currently supported models are: {BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.keys()}."
+            )
 
         hf_config = model.config
 
