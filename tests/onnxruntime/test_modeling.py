@@ -1328,7 +1328,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
         outputs = pipe(url)
 
         self.assertEqual(pipe.device, onnx_model.device)
-        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(outputs[0]["mask"] is not None)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
         gc.collect()
@@ -1338,9 +1338,8 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
         pipe = pipeline("image-segmentation")
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
-
         # compare model output class
-        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(outputs[0]["mask"] is not None)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
@@ -1356,7 +1355,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
 
         # compare model output class
-        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(outputs[0]["mask"] is not None)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
         gc.collect()

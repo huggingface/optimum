@@ -4,6 +4,7 @@ from transformers import (
     AutomaticSpeechRecognitionPipeline,
     FeatureExtractionPipeline,
     ImageClassificationPipeline,
+    ImageSegmentationPipeline,
     Pipeline,
     PreTrainedTokenizer,
     QuestionAnsweringPipeline,
@@ -30,6 +31,7 @@ if is_onnxruntime_available():
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
         ORTModelForQuestionAnswering,
+        ORTModelForSemanticSegmentation,
         ORTModelForSeq2SeqLM,
         ORTModelForSequenceClassification,
         ORTModelForSpeechSeq2Seq,
@@ -48,6 +50,12 @@ if is_onnxruntime_available():
             "impl": ImageClassificationPipeline,
             "class": (ORTModelForImageClassification,) if is_onnxruntime_available() else (),
             "default": "google/vit-base-patch16-224",
+            "type": "image",
+        },
+        "image-segmentation": {
+            "impl": ImageSegmentationPipeline,
+            "class": (ORTModelForSemanticSegmentation,) if is_onnxruntime_available() else (),
+            "default": "nvidia/segformer-b0-finetuned-ade-512-512",
             "type": "image",
         },
         "question-answering": {
