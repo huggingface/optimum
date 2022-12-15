@@ -130,7 +130,6 @@ class TasksManager:
             "masked-im": AutoModelForMaskedImageModeling,
             "semantic-segmentation": AutoModelForSemanticSegmentation,
             "speech2seq-lm": AutoModelForSpeechSeq2Seq,
-            "zero-shot-object-detection": AutoModelForZeroShotObjectDetection,
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -459,11 +458,12 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        "owlvit": supported_tasks_mapping(
-            "default",
-            "zero-shot-object-detection",
-            onnx="OwlViTOnnxConfig",
-        ),
+        # TODO: owlvit is actually not yet supported in exporters
+        # "owlvit": supported_tasks_mapping(
+        #     "default",
+        #     "zero-shot-object-detection",
+        #     onnx="OwlViTOnnxConfig",
+        # ),
         "perceiver": supported_tasks_mapping(
             "masked-lm",
             "image-classification",

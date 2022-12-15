@@ -40,8 +40,11 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",
-    "owlvit": "google/owlvit-base-patch32",
-    "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
+    # "owlvit": "google/owlvit-base-patch32",
+    "perceiver": {
+        "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "sequence-classification"],
+        "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
+    },
     # "rembert": "google/rembert",
     "resnet": "microsoft/resnet-50",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
