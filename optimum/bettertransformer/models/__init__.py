@@ -62,9 +62,8 @@ class BetterTransformerManager:
     }
 
     EXCLUDE_FROM_TRANSFORM = {
-        "clip": [
-            "text_model"
-        ],  # text model uses causal attention, that is most likely not supported in BetterTransformer
+        # clip's text model uses causal attention, that is most likely not supported in BetterTransformer
+        "clip": ["text_model"],
     }
 
     CAN_NOT_BE_SUPPORTED = {
