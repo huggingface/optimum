@@ -31,9 +31,6 @@ from .utils import (
 )
 
 
-if is_diffusers_available():
-    from diffusers import StableDiffusionPipeline
-
 logger = logging.get_logger()
 logger.setLevel(logging.INFO)
 
