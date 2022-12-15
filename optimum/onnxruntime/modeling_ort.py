@@ -1543,8 +1543,8 @@ class ORTModelForImageClassification(ORTModel):
             return ImageClassifierOutput(logits=logits)
 
 
-IMAGE_SEGMENTATION_EXAMPLE = r"""
-    Example of image segmentation:
+SEMANTIC_SEGMENTATION_EXAMPLE = r"""
+    Example of semantic segmentation:
 
     ```python
     >>> import requests
@@ -1585,13 +1585,13 @@ IMAGE_SEGMENTATION_EXAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model for image-segmentation tasks.
+    Onnx Model with an all-MLP decode head on top e.g. for ADE20k, CityScapes.
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
 class ORTModelForSemanticSegmentation(ORTModel):
     """
-    Image Segmentation model for ONNX.
+    Semantic Segmentation model for ONNX.
     """
 
     export_feature = "image-segmentation"
@@ -1606,7 +1606,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
-        + IMAGE_SEGMENTATION_EXAMPLE.format(
+        + SEMANTIC_SEGMENTATION_EXAMPLE.format(
             processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForSemanticSegmentation",
             checkpoint="optimum/vit-base-patch16-224",  # Probably have to modify to an onnx segmentation model
