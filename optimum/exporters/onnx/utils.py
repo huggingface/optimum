@@ -116,7 +116,12 @@ def get_decoder_models_for_export(
     config: "OnnxConfig",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
     """
-    Returns the encoder and decoder parts of the model and their subsequent onnx configs.
+    Returns two versions of the decoder that can be used together to perform fast generation:
+
+        1. The first one takes regular inputs, and outputs the result along with past key/values.
+        2. The second one takes regular inputs and past key/values, and outputs the result along with the updated past
+        key/values.
+
 
     Args:
         model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
@@ -125,15 +130,17 @@ def get_decoder_models_for_export(
             The ONNX configuration associated with the exported model.
 
     Returns:
-        `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
+        `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]: A Dict containing the model and
         onnx configs for the encoder and decoder parts of the model.
     """
     models_for_export = {}
 
-    models_for_export["decoder_model"] = (model, config.with_behavior("decoder", use_past=False))
+    models_for_export["decoder_model"] = onnx_config_with_past = config.__class__(
+        model.config, task=config.task, use_past_in_inputs=False, use_present_in_outputs=True
+    )
 
     if config.use_past:
-        onnx_config_with_past = config.with_behavior("decoder", use_past=True)
+        onnx_config_with_past = config.__class__(model.config, task=config.task, use_past=True)
         models_for_export["decoder_with_past_model"] = (model, onnx_config_with_past)
 
     return models_for_export

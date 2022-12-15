@@ -177,7 +177,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs = {}
 
         if self._behavior is not ConfigBehavior.DECODER:
-            common_inputs["input_features"] = ({0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},)
+            common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
             if self.use_past_in_inputs:
