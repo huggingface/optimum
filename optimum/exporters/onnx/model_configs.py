@@ -763,6 +763,7 @@ class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         allow_new=True,
         MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+        image_size="input_size",
     )
     DEFAULT_ONNX_OPSET = 12
 
