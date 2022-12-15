@@ -68,7 +68,9 @@ class BetterTransformerManager:
     }
 
     CAN_NOT_BE_SUPPORTED = {
-        "t5": "message here",
+        "deberta-v2": "deberta-v2 does not use a regular attention mechanism, which is not suppored in PyTorch's BetterTransformer.",
+        "glpn": "glpn has a convolutional layer present in the FFN network, which is not suppored in PyTorch's BetterTransformer.",
+        "t5": "t5 uses attention bias, which is not suppored in PyTorch's BetterTransformer.",
     }
 
 
