@@ -87,6 +87,7 @@ MODEL_NAMES = {
     "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
     "whisper": "openai/whisper-tiny.en",
 }
 
@@ -1280,7 +1281,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
 class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "vit": "optimum/segformer-b0-finetuned-ade-512-512",
+        "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
     }
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
