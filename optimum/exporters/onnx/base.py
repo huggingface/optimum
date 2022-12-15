@@ -418,6 +418,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 if dummy_input_gen.supports_input(input_name):
                     if input_name == "decoder_input_ids" and self.use_past is True:
                         sequence_length = dummy_input_gen.sequence_length
+                        if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
+                            logger.info(
+                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 will be used with use_past ==True for `decoder_input_ids`."
+                            )
                         dummy_input_gen.sequence_length = 1
                         dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                         dummy_input_gen.sequence_length = sequence_length
