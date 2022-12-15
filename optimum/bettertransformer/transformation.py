@@ -149,7 +149,7 @@ class BetterTransformer(object):
         Conversion script from `transformers` model to its BetterTransformers version
 
         Args:
-            model, (`torch.nn.Module`):
+            model (`torch.nn.Module`):
                 Original `transformers` model
             keep_original_model (`bool`, *optional*):
                 whether to keep or override the original model - essentially
