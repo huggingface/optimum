@@ -57,7 +57,7 @@ class BetterTransformerManager:
         "vit_mae": ("ViTMAELayer", ViTLayerBetterTransformer),
         "vit_msn": ("ViTMSNLayer", ViTLayerBetterTransformer),
         "yolos": ("YolosLayer", ViTLayerBetterTransformer),
-        "fsmt_decoder": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
+        "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
         "vilt": ("ViltLayer", ViltLayerBetterTransformer),
         "clip": ("CLIPEncoderLayer", CLIPLayerBetterTransformer),
     }
