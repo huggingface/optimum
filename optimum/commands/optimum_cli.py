@@ -28,12 +28,7 @@ def main():
     ExportCommand.register_subcommand(commands_parser)
     EnvironmentCommand.register_subcommand(commands_parser)
 
-    # Let's go
     args = parser.parse_args()
-
-    # print("args:", args)
-    # print("sys.argv:", ' '.join(sys.argv[3:]))
-    # print("args.func:", args.func)
 
     if not hasattr(args, "func"):
         parser.print_help()
