@@ -103,7 +103,8 @@ def replace_atenops_to_gather(model: ModelProto):
     Replaces broken ATenOp nodes back to Gather nodes.
 
     Args:
-        model (`~onnx.ModelProto`): The ONNX model to fix.
+        model (`onnx.ModelProto`): 
+            The ONNX model to fix.
         inplace (`bool`, defaults to False): Whether to perform this transformation inplace.
 
     Returns:
