@@ -141,7 +141,7 @@ def validate_model_outputs(
             The path to the exported model.
         onnx_named_outputs (`List[str]`):
             The names of the outputs to check.
-        atol (`float`, defaults to `None`):
+        atol (`Optional[float]`, defaults to `None`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
 
     Raises:
