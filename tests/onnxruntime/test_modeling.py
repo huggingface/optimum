@@ -473,9 +473,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
             folder_contents = os.listdir(tmpdirname + "/onnx")
             self.assertTrue(CONFIG_NAME in folder_contents)
-            self.assertTrue("encoder_model/" + ONNX_ENCODER_NAME in folder_contents) 
-            self.assertTrue("decoder_model/" + ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue("decoder_with_past_model/" + ONNX_DECODER_WITH_PAST_NAME in folder_contents)
 
             # try loading models to check if they are valid
             try:
