@@ -150,7 +150,7 @@ def _get_models_to_test(export_models_dict):
                     for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
                 ):
                     models_to_test.append(
-                        (f"{model_type}_{task}_forort", model_type, model_name, task, onnx_config_constructor, True)
+                        (f"{model_type}_{task}_for_ort", model_type, model_name, task, onnx_config_constructor, True)
                     )
         return sorted(models_to_test)
     else:
