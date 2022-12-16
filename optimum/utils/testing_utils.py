@@ -97,36 +97,10 @@ def require_ort_training(test_case):
     )(test_case)
 
 
-def convert_to_hf_classes(mapping_dict):
-    r"""
-    Utility function useful in the context of testing `BetterTransformers` integration.
-    """
-    import transformers
-
-    hf_names_dict = {}
-    for fast_layer_key in mapping_dict.keys():
-        if fast_layer_key == "TransformerBlock":
-            # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-            prefix = "DistilBert"
-        # For enc-decoder models the prefix is different
-        elif "EncoderLayer" in fast_layer_key:
-            prefix = fast_layer_key[:-12]
-        else:
-            prefix = fast_layer_key[:-5]
-
-        # some `PreTrainedModel` models are not registerd in the auto mapping
-        if hasattr(transformers, prefix + "PreTrainedModel"):
-            hf_class = getattr(transformers, prefix + "PreTrainedModel")
-        else:
-            hf_class = getattr(transformers, prefix + "Model")
-
-        hf_names_dict[fast_layer_key] = hf_class
-    return hf_names_dict
-
-
 def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
     """
-    Generate an iterable over the grid of all combinations of parameters
+    Generates an iterable over the grid of all combinations of parameters, adding a test name as the first item in the yielded list
     """
     for params in itertools.product(*parameters.values()):
-        yield list(params)
+        test_name = "_".join([str(param) for param in params])
+        yield [test_name] + list(params)

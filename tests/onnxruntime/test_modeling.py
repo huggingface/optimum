@@ -28,6 +28,7 @@ from transformers import (
     AutoModelForImageClassification,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
+    AutoModelForSemanticSegmentation,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
@@ -52,6 +53,7 @@ from optimum.onnxruntime import (
     ORTModelForImageClassification,
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
+    ORTModelForSemanticSegmentation,
     ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
     ORTModelForSpeechSeq2Seq,
@@ -63,7 +65,7 @@ from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
 from optimum.onnxruntime.modeling_seq2seq import ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME
-from optimum.utils.testing_utils import require_hf_token
+from optimum.utils.testing_utils import grid_parameters, require_hf_token
 from parameterized import parameterized
 
 
@@ -85,6 +87,7 @@ MODEL_NAMES = {
     "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
     "whisper": "openai/whisper-tiny.en",
 }
 
@@ -1013,6 +1016,11 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
 class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = ("gpt2",)
 
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [False, True],
+    }
+
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], from_transformers=True)
@@ -1042,14 +1050,15 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_to_transformers(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.decoder, ORTDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1069,10 +1078,10 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_pipeline_ort_model(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -1276,6 +1285,116 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         gc.collect()
 
 
+class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
+    }
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_compare_to_transformers(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        trfs_model = AutoModelForSemanticSegmentation.from_pretrained(model_id)
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=image, return_tensors="pt")
+        onnx_outputs = onnx_model(**inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
+
+        with torch.no_grad():
+            trtfs_outputs = trfs_model(**inputs)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_ort_model(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
+
+    @pytest.mark.run_in_series
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("image-segmentation")
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+        # compare model output class
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor, device=0)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+
+        # compare model output class
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=False
+        )
+        set_seed(SEED)
+        io_model = ORTModelForSemanticSegmentation.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=True
+        )
+
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (
         "t5",
@@ -1285,6 +1404,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         "m2m_100",
         "bigbird_pegasus",
     )
+
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [False, True],
+    }
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -1312,15 +1436,16 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_to_transformers(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1341,10 +1466,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_pipeline_text_generation(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_pipeline_text_generation(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
         tokenizer = get_preprocessor(model_id)
 
         # Text2Text generation
@@ -1470,6 +1595,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = ("whisper",)
 
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [False, True],
+    }
+
     def _generate_random_audio_data(self):
         np.random.seed(10)
         t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
@@ -1498,15 +1628,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_to_transformers(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1530,10 +1661,10 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_pipeline_speech_recognition(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_pipeline_speech_recognition(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
         processor = get_preprocessor(model_id)
 
         # Speech recogition generation

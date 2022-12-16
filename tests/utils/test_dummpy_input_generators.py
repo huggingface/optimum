@@ -59,7 +59,9 @@ class GenerateDummy(TestCase):
             }
         )
     )
-    def test_text_models(self, model_name: str, batch_size: int, num_choices: int, sequence_length: int):
+    def test_text_models(
+        self, test_name: str, model_name: str, batch_size: int, num_choices: int, sequence_length: int
+    ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
         normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
@@ -102,7 +104,9 @@ class GenerateDummy(TestCase):
             }
         )
     )
-    def test_vision_models(self, model_name: str, batch_size: int, num_channels: int, height: int, width: int):
+    def test_vision_models(
+        self, test_name: str, model_name: str, batch_size: int, num_channels: int, height: int, width: int
+    ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
         normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
@@ -135,7 +139,13 @@ class GenerateDummy(TestCase):
         )
     )
     def test_audio_models(
-        self, model_name: str, batch_size: int, feature_size: int, nb_max_frames: int, audio_sequence_length: int
+        self,
+        test_name: str,
+        model_name: str,
+        batch_size: int,
+        feature_size: int,
+        nb_max_frames: int,
+        audio_sequence_length: int,
     ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)

@@ -86,7 +86,12 @@ def main():
     # Infer the task
     task = args.task
     if task == "auto":
-        task = TasksManager.infer_task_from_model(args.model)
+        try:
+            task = TasksManager.infer_task_from_model(args.model)
+        except KeyError as e:
+            raise KeyError(
+                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
 
     # Allocate the model
     model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)

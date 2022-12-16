@@ -71,7 +71,7 @@ PYTORCH_EXPORT_MODELS = {
     ("layoutlmv3", "microsoft/layoutlmv3-base"),
     ("groupvit", "nvidia/groupvit-gcc-yfcc"),
     ("levit", "facebook/levit-128S"),
-    ("owlvit", "google/owlvit-base-patch32"),
+    # ("owlvit", "google/owlvit-base-patch32"),
     ("vit", "google/vit-base-patch16-224"),
     ("deit", "facebook/deit-small-patch16-224"),
     ("beit", "microsoft/beit-base-patch16-224"),
@@ -104,7 +104,7 @@ PYTORCH_EXPORT_MODELS = {
     # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
     ("bigbird-pegasus", "hf-internal-testing/tiny-random-bigbird_pegasus"),
     # Not using google/long-t5-local-base because it takes too much time for testing.
-    ("longt5", "hf-internal-testing/tiny-random-longt5"),
+    ("longt5", "hf-internal-testing/tiny-random-LongT5Model"),
     ("whisper", "openai/whisper-tiny.en"),
     ("swin", "microsoft/swin-base-patch4-window12-384-in22k"),
 }
