@@ -333,7 +333,7 @@ def export_pytorch(
 
             if model_uses_external_data:
                 logger.info("Saving external data to one file...")
-                onnx_model = onnx.load(str(output), load_external_data=True)
+                onnx_model = onnx.load(str(output), load_external_data=True) #TODO: this will probably be too memory heavy, shall we free `model` memory?
                 onnx.save(onnx_model, str(output), save_as_external_data=True, all_tensors_to_one_file=True, location=output.name + "_data", size_threshold=1024)
 
                 # delete previous external data (all files besides model.onnx and model.onnx_data)

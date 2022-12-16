@@ -23,6 +23,7 @@ import pytest
 import torch
 from PIL import Image
 from transformers import (
+    AutoConfig,
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
@@ -32,9 +33,11 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
+    MBartForConditionalGeneration,
     PretrainedConfig,
     set_seed,
 )
+from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
@@ -90,6 +93,7 @@ MODEL_NAMES = {
 
 SEED = 42
 import onnx
+
 
 class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -455,10 +459,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_save_seq2seq_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-
-            from transformers.modeling_utils import no_init_weights
-            from transformers import MBartForConditionalGeneration, AutoConfig
-
             # randomly intialize large model
             config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
             with no_init_weights():
@@ -494,6 +494,24 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 private=True,
             )
 
+    @require_hf_token
+    def test_push_seq2seq_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            # randomly intialize large model
+            config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
+            with no_init_weights():
+                model = MBartForConditionalGeneration(config)
+
+            # save transformers model to be able to load it with `ORTModel...`
+            model.save_pretrained(tmpdirname)
+
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
+            model.push_to_hub(
+                tmpdirname,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=self.HUB_REPOSITORY,
+                private=True,
+            )
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (
