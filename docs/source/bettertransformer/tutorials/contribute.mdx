@@ -28,7 +28,7 @@ More specifically, a model that has an encoder block with a MultiHead-Attention 
 
 ### Step 1: Identifying the source layer to change
 
-First, go to `optimum/bettertransformer/__init__.py` and you'll see the dictionary `BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING`. This should contain the mapping between a model type, and the `Tuple[str, BetterTransformerBaseLayer]` composed of the name of the `nn.Module` that can be converted to its `BetterTransformer` equivalent, and effectively the equivalent `BetterTransformer` layer class.
+First, go to `optimum/bettertransformer/__init__.py` and you'll see the dictionary `BetterTransformerManager.MODEL_MAPPING`. This should contain the mapping between a model type, and the `Tuple[str, BetterTransformerBaseLayer]` composed of the name of the `nn.Module` that can be converted to its `BetterTransformer` equivalent, and effectively the equivalent `BetterTransformer` layer class.
 
 Let us try to do it step by step for `Bert`, first we need to identify the layers that needs to be replaced:
 ```python
@@ -180,10 +180,10 @@ The best way to reproduce this experiment on your own model is to try it by get 
 
 ### Step 4: Sanity check!
 
-As a last step, make sure to update the `BETTER_TRANSFORMER_MODEL_MAPPING` dictionary in  `optimum/bettertransformer/__init__.py` with the correct names, and you should be ready to convert your model. For example, for Bert that would be:
+As a last step, make sure to update the `BetterTransformerManager.MODEL_MAPPING` dictionary in `optimum/bettertransformer/__init__.py` with the correct names, and you should be ready to convert your model. For example, for Bert that would be:
 
 ```
-BETTER_TRANSFORMER_MODEL_MAPPING = {
+MODEL_MAPPING = {
   ...
   "bert": ("BertLayer", BertLayerBetterTransformer),
   ...
