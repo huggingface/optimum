@@ -17,8 +17,13 @@ from typing import DefaultDict, Dict, List, Set, Tuple
 
 import onnx
 from onnx import ModelProto, ValueInfoProto
-from onnxsim import simplify
-from onnxsim.model_info import print_simplifying_info
+
+from .utils import is_onnxsim_available
+
+
+if is_onnxsim_available():
+    from onnxsim import simplify
+    from onnxsim.model_info import print_simplifying_info
 
 
 def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:

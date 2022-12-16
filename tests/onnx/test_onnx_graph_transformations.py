@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import unittest
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -23,9 +24,12 @@ from transformers import AutoModel, AutoTokenizer
 from transformers.models.albert import AlbertOnnxConfig
 from transformers.onnx import export
 
+import onnx
+from huggingface_hub import hf_hub_download
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
-from optimum.onnx.graph_transformations import remove_duplicate_weights
+from optimum.onnx.graph_transformations import merge_decoders, remove_duplicate_weights
+from parameterized import parameterized
 
 
 class WeightSharingTestCase(TestCase):
@@ -59,20 +63,22 @@ class WeightSharingTestCase(TestCase):
 
 
 class OnnxMergingTestCase(TestCase):
-    SUPPORTED_DECODER_ARCHITECTURES = ("gpt2",)
-    SUPPORTED_SEQ2SEQ_ARCHITECTURES = (
-        "t5",
-        "bart",
-    )
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "gpt2": "optimum/gpt2",
+        "t5-small": "optimum/t5-small",
+    }
 
-    def test_merged_decoder(self):
-        pass
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_merge_decoders(self, *args):
+        model_arch, model_id = args
 
-    def test_merged_seq2seq(self):
-        pass
+        decoder_path = hf_hub_download(repo_id=model_id, filename="decoder_model.onnx")
+        decoder_with_past_path = hf_hub_download(repo_id=model_id, filename="decoder_with_past_model.onnx")
 
-    def test_merged_gpu(self):
-        pass
+        decoder = onnx.load(decoder_path)
+        decoder_with_past = onnx.load(decoder_with_past_path)
+
+        merge_decoders(decoder, decoder_with_past)
 
 
 if __name__ == "__main__":
