@@ -11,14 +11,6 @@
     - local: concept_guides/quantization
       title: Quantization
     title: Conceptual guides
-    isExpanded: false
-  - sections:
-    - local: package_reference/modeling_base
-      title: Optimized models
-    - local: package_reference/benchmark
-      title: Benchmark
-    title: Reference
-    isExpanded: false
   title: Overview
 - sections:
   - local: onnxruntime/overview
