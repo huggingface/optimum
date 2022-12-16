@@ -913,7 +913,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         for src_path, dst_file_name in zip(src_paths, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
             dst_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(src_path, dst_path)
+            shutil.copyfile(src_path, dst_path)
 
     @classmethod
     def _from_pretrained(
