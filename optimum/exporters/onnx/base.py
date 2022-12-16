@@ -454,12 +454,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return dummy_inputs
 
-    def add_past_key_values(self, inputs_or_outputs: OrderedDict[str, Mapping[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: "OrderedDict[str, Mapping[int, str]]", direction: str):
         """
         Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
-            inputs_or_outputs (`OrderedDict[str, Mapping[int str]]`):
+            inputs_or_outputs (`OrderedDict[str, Mapping[int, str]]`):
                 The mapping to fill.
             direction (`str`):
                 either "inputs" or "outputs", it specifies whether `input_or_outputs` is the input mapping or the
