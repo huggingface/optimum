@@ -414,7 +414,7 @@ def export_models(
              A dictionnary containing the models to export and their corresponding onnx configs.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
-        opset (`int`, defaults to `None`):
+        opset (`Optional[int]`, defaults to `None`):
             The version of the ONNX operator set to use.
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
