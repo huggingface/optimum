@@ -176,8 +176,8 @@ def main():
             )
         else:
             validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
-    except ValueError:
-        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
+    except ValueError as e:
+        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}. Error: {e}")
         return
     logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
 

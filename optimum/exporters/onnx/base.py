@@ -148,7 +148,12 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
-        "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
+        "seq2seq-lm": OrderedDict(
+            {
+                "logits": {0: "batch_size", 1: "decoder_sequence_length"},
+                "encoder_last_hidden_state": {0: "batch_size", 1: "encoder_sequence_length"},
+            }
+        ),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "speech2seq-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
@@ -449,12 +454,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return dummy_inputs
 
-    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: OrderedDict[str, Mapping[int, str]], direction: str):
         """
         Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
-            inputs_or_outputs (`Mappping[str, Mapping[int str]]`):
+            inputs_or_outputs (`OrderedDict[str, Mapping[int str]]`):
                 The mapping to fill.
             direction (`str`):
                 either "inputs" or "outputs", it specifies whether `input_or_outputs` is the input mapping or the
@@ -522,6 +527,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence}
             inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
             inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
+
+        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
+            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
