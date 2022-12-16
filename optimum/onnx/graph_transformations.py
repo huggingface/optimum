@@ -188,7 +188,7 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
 
 def _get_all_inputs(model_list: List[ModelProto]):
     inputs = []
-    input_names = []
+    input_names = set()
     for model in model_list:
         for input in model.graph.input:
             if input.name not in input_names:
