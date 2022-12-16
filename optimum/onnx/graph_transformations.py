@@ -33,12 +33,13 @@ def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
 def _find_duplicate_initializers(initializers) -> DefaultDict[Tuple[int, bytes], Set[str]]:
     duplicates = defaultdict(set)
     for initializer in initializers:
+        tensor_dims = tuple(getattr(initializer, "dims"))
         for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
             tensor_data = getattr(initializer, data_attr)
             if tensor_data:
                 tensor_data = tuple(tensor_data)
                 break
-        duplicates[(initializer.data_type, tensor_data)].add(initializer.name)
+        duplicates[(initializer.data_type, tensor_data, tensor_dims)].add(initializer.name)
     return duplicates
 
 
