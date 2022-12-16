@@ -155,6 +155,7 @@ def _check_num_outputs(model1: ModelProto, model2: ModelProto):
 def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
     """
     Unifies the outputs of two ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
+    According to the rules of "If" op, two subgraphs must have the same number of outputs.
     """
     _check_num_outputs(model1, model2)
 
@@ -301,13 +302,19 @@ def merge_decoders(
         outputs=no_past_branch.output,
         initializer=deduplicated_initializers,
     )
+    decoder_opset = _get_onnx_opset(decoder)
+    decoder_with_past_opset = _get_onnx_opset(decoder_with_past)
+    if not decoder_opset == decoder_with_past_opset:
+        raise ValueError(
+            f"Decoder's opset is {decoder_opset}, but decoder with past's opset is {decoder_with_past_opset}. Make sure having the same opset before merging."
+        )
     merged_model = onnx.helper.make_model(
         merged_graph,
         producer_name=producer_name,
         opset_imports=[
             onnx.helper.make_opsetid(
                 domain=onnx.defs.ONNX_DOMAIN,
-                version=_get_onnx_opset(decoder),
+                version=decoder_opset,
             )
         ],
     )
