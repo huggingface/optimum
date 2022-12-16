@@ -508,7 +508,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
             model.save_pretrained(
-                tmpdirname,
+                tmpdirname + "/onnx",
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
                 repository_id=MODEL_NAMES["mbart"].split("/")[-1] + "-onnx",
                 private=True,
