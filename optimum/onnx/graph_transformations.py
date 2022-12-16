@@ -82,11 +82,11 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     to them.
 
     Args:
-        model (`~onnx.ModelProto`): The model to remove duplicates from.
+        model (`onnx.ModelProto`): The model to remove duplicates from.
         inplace (`bool`, defaults to False): Whether to perform this transformation inplace.
 
     Returns:
-        `~onnx.ModelProto`: The model without duplicates.
+        `onnx.ModelProto`: The model without duplicates.
     """
     if not inplace:
         model = copy.deepcopy(model)
@@ -205,7 +205,8 @@ def _get_onnx_opset(model: ModelProto):
 def simplify_onnx_graph(model: ModelProto, print_info: bool = True) -> ModelProto:
 
     model_simp, check = simplify(model)
-    assert check, "Simplified ONNX model could not be validated."
+    if not check:
+        raise RuntimeError(f"Simplified ONNX model could not be validated. Please turn off ONNX simplifier.")
     if print_info:
         print_simplifying_info(model, model_simp)
 
@@ -214,7 +215,7 @@ def simplify_onnx_graph(model: ModelProto, print_info: bool = True) -> ModelProt
 
 def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str = None):
 
-    all_initializers = list()
+    all_initializers = []
     for model in models:
         all_initializers += list(model.graph.initializer)
 
@@ -223,12 +224,12 @@ def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str
     for model in models:
         _replace_input_names(model, name_sharing_dict)
 
-    deduplicated_initializers = list()
-    deduplicated_name = list()
+    deduplicated_initializers = []
+    deduplicated_name = set()
 
     for initializer in all_initializers:
         if name_sharing_dict[initializer.name] not in deduplicated_name:
-            deduplicated_name.append(name_sharing_dict[initializer.name])
+            deduplicated_name.add(name_sharing_dict[initializer.name])
             initializer.name = name_sharing_dict[initializer.name]
             deduplicated_initializers.append(initializer)
 
@@ -246,11 +247,11 @@ def merge_decoders(
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
     Args:
-        decoder (`~onnx.ModelProto`): Decoder ONNX model.
-        decoder_with_past (`~onnx.ModelProto`): Decoder with past ONNX model.
-        graph_name (`~str`): Name of the parent graph(graph of the control flow node).
-        producer_name (`~str`): Graph producer name.
-        simplify_graph (`~bool`): Whether to use onnx-simplifier to simplify subgraphs.
+        decoder (`onnx.ModelProto`): Decoder ONNX model.
+        decoder_with_past (`onnx.ModelProto`): Decoder with past ONNX model.
+        graph_name (`str`): Name of the parent graph(graph of the control flow node).
+        producer_name (`str`): Graph producer name.
+        simplify_graph (`bool`): Whether to use onnx-simplifier to simplify subgraphs.
 
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
