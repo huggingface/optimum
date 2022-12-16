@@ -109,7 +109,7 @@ def replace_atenops_to_gather(model: ModelProto):
             Whether to perform this transformation inplace.
 
     Returns:
-        `~onnx.ModelProto`: The ONNX model fixed.
+        `onnx.ModelProto`: The ONNX model fixed.
     """
     nodes = model.graph.node
 
