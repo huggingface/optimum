@@ -69,6 +69,7 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 ```
 
 The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines):
+Note that Transformers pipeline expects it to be initialized with device for accelerated execution as well.
 
 ```python
 from optimum.pipelines import pipeline
@@ -76,7 +77,7 @@ from transformers import AutoTokenizer
 
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-pipe = pipeline(task="text-classification", model=ort_model, tokenizer=tokenizer)
+pipe = pipeline(task="text-classification", model=ort_model, tokenizer=tokenizer, device="cuda:0")
 result = pipe("Both the music and visual were astounding, not to mention the actors performance.")
 print(result)
 # printing: [{'label': 'POSITIVE', 'score': 0.9997727274894714}]
@@ -137,7 +138,7 @@ And if you want to turn off IOBinding:
 >>> tokenizer = AutoTokenizer.from_pretrained("t5-small")
 
 # Create a pipeline
->>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
+>>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer, device="cuda:0")
 ```
 
 For the time being, IOBinding is supported for task-defined ORT models, if you want us to add support for custom models, file us an issue on the Optimum's repository.
