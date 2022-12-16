@@ -138,7 +138,7 @@ def _infer_output_shape(output: ValueInfoProto):
         elif getattr(dim, "dim_value"):
             output_shape.append(getattr(dim, "dim_value"))
         else:
-            raise ValueError(f"Can not find `dim_param` nor `dim_value` in the output dimension info.")
+            raise ValueError(f"Cannot find `dim_param` nor `dim_value` in the output dimension info.")
 
     return output_shape
 
