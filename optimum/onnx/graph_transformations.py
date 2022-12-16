@@ -49,7 +49,7 @@ def _create_name_sharing_dict(
         common_name = duplicates.pop()
         duplicates.add(common_name)
         if suffix:
-            return {k: common_name + "_" + suffix for k in duplicates}
+            return {k: f"{common_name}_{suffix}" for k in duplicates}
         else:
             return {k: common_name for k in duplicates}
 
