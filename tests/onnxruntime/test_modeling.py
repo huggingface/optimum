@@ -497,8 +497,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_hf_token
     def test_push_seq2seq_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"
             # randomly intialize large model
-            config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
+            config = AutoConfig.from_pretrained(MODEL_NAMES["mbart"])
             with no_init_weights():
                 model = MBartForConditionalGeneration(config)
 
@@ -506,12 +507,15 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model.save_pretrained(tmpdirname)
 
             model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
-            model.push_to_hub(
+            model.save_pretrained(
                 tmpdirname,
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
-                repository_id=self.HUB_REPOSITORY,
+                repository_id=MODEL_NAMES["mbart"].split("/")[-1] + "-onnx",
                 private=True,
+                push_to_hub=True,
             )
+
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (

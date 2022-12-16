@@ -281,6 +281,7 @@ def export_pytorch(
     from torch.utils._pytree import tree_map
 
     logger.info(f"Using framework PyTorch: {torch.__version__}")
+    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
 
     with torch.no_grad():
         model.config.return_dict = True
@@ -331,10 +332,10 @@ def export_pytorch(
             onnx_model = onnx.load(str(output), load_external_data=False)
             model_uses_external_data = check_model_uses_external_data(onnx_model)
 
-            if model_uses_external_data:
+            if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
                 logger.info("Saving external data to one file...")
                 onnx_model = onnx.load(str(output), load_external_data=True) #TODO: this will probably be too memory heavy, shall we free `model` memory?
-                onnx.save(onnx_model, str(output), save_as_external_data=True, all_tensors_to_one_file=True, location=output.name + "_data", size_threshold=1024)
+                onnx.save(onnx_model, str(output), save_as_external_data=True, all_tensors_to_one_file=True, location=output.name + "_data", size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0)
 
                 # delete previous external data (all files besides model.onnx and model.onnx_data)
                 for file in os.listdir(output.parent):
