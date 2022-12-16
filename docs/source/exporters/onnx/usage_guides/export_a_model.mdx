@@ -12,6 +12,22 @@ specific language governing permissions and limitations under the License.
 
 # Export a model to ONNX with optimum.exporters.onnx
 
+## Summary
+
+Exporting a model to ONNX is as simple as
+
+```
+optimum-cli export onnx --model gpt2 gpt2_onnx/
+```
+
+Check out the help for more options:
+
+```
+optimum-cli export onnx --help
+```
+
+## Why use ONNX?
+
 If you need to deploy 🤗 Transformers models in production environments, we recommend
 exporting them to a serialized format that can be loaded and executed on specialized
 runtimes and hardware. In this guide, we'll show you how to export 🤗 Transformers
@@ -25,7 +41,7 @@ represents the flow of data through the neural network.
 
 By exposing a graph with standardized operators and data types, ONNX makes it easy to
 switch between frameworks. For example, a model trained in PyTorch can be exported to
-ONNX format and then imported in TensorRT or OpenVino.
+ONNX format and then imported in **TensorRT** or **OpenVINO**.
 
 <Tip>
 
@@ -50,10 +66,10 @@ dependencies:
 pip install optimum[exporters]
 ```
 
-The `optimum.exporters.onnx` package can then be used as a Python module:
+The Optimum ONNX export can be used through Optimum command-line:
 
 ```bash
-python -m optimum.exporters.onnx --help
+optimum-cli export onnx --help
 
 usage: Hugging Face Optimum ONNX exporter [-h] -m MODEL [--task TASK] [--opset OPSET] [--atol ATOL] [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] output
 
@@ -77,7 +93,7 @@ optional arguments:
 Exporting a checkpoint can be done as follows:
 
 ```bash
-python -m optimum.exporters.onnx --model distilbert-base-uncased-distilled-squad distilbert_base_uncased_squad_onnx/
+optimum-cli export onnx --model distilbert-base-uncased-distilled-squad distilbert_base_uncased_squad_onnx/
 ```
 
 You should see the following logs (along with potential logs from PyTorch / TensorFlow that were hidden here for clarity):
@@ -104,7 +120,7 @@ As you can see, the task was automatically detected. This was possible because t
 For local models, providing the `--task` argument is needed or it will default to the model architecture without any task specific head:
 
 ```bash
-python -m optimum.exporters.onnx --model local_path --task question-answering distilbert_base_uncased_squad_onnx/
+optimum-cli export onnx --model local_path --task question-answering distilbert_base_uncased_squad_onnx/
 ```
 
 Note that providing the `--task` argument for a model on the Hub will disable the automatic task detection.
@@ -153,16 +169,16 @@ The process is identical for TensorFlow checkpoints on the Hub. For example, we 
 organization](https://huggingface.co/keras-io) as follows:
 
 ```bash
-python -m optimum.exporters.onnx --model keras-io/transformers-qa distilbert_base_cased_squad_onnx/
+optimum-cli export onnx --model keras-io/transformers-qa distilbert_base_cased_squad_onnx/
 ```
 
 ## Selecting a task
 
-Each configuration comes with a set of _tasks_ that enable you to export models for different types of tasks. You can
-check the list of supported tasks for both PyTorch and TensorFlow [here](/exporters/task_manager).
+Specifying a `--task` should not be necessary in most cases when exporting from a model on the Hugging Face Hub.
 
-For each configuration, you can find the list of supported tasks via the
-[`~exporters.tasks.TasksManager`]. For example, for DistilBERT, for the ONNX export, we have:
+However, in case you need to check for a given a model architecture what tasks the ONNX export supports, we got you covered. First, you can check the list of supported tasks for both PyTorch and TensorFlow [here](/exporters/task_manager).
+
+For each model architecture, you can find the list of supported tasks via the [`~exporters.tasks.TasksManager`]. For example, for DistilBERT, for the ONNX export, we have:
 
 ```python
 >>> from optimum.exporters.tasks import TasksManager
@@ -172,4 +188,4 @@ For each configuration, you can find the list of supported tasks via the
 ["default", "masked-lm", "causal-lm", "sequence-classification", "token-classification", "question-answering"]
 ```
 
-You can then pass one of these tasks to the `--task` argument in the `optimum.exporters.onnx` package CLI, as mentioned above.
+You can then pass one of these tasks to the `--task` argument in the `optimum-cli export onnx` command, as mentioned above.
