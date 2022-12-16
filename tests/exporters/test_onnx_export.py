@@ -129,29 +129,46 @@ class OnnxConfigWithPastTestCase(TestCase):
                 )
 
 
-def _get_models_to_test(export_models_dict):
+def _get_models_to_test(export_models_dict: Dict):
     models_to_test = []
     if is_torch_available() or is_tf_available():
-        for model_type, model_name in export_models_dict.items():
+        for model_type, model_names_tasks in export_models_dict.items():
             task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
 
-            for task in task_config_mapping.keys():
+            if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
+                tasks = list(task_config_mapping.keys())
+                model_tasks = {model_names_tasks: tasks}
+            else:
+                n_tested_tasks = sum(len(tasks) for tasks in model_names_tasks.values())
+                if n_tested_tasks != len(task_config_mapping):
+                    raise ValueError(f"Not all tasks are tested for {model_type}.")
+                model_tasks = model_names_tasks  # possibly, test different tasks on different models
 
-                onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                    model_type, "onnx", task=task, model_name=model_name
-                )
+            for model_name, tasks in model_tasks.items():
+                for task in tasks:
 
-                models_to_test.append(
-                    (f"{model_type}_{task}", model_type, model_name, task, onnx_config_constructor, False)
-                )
-
-                if any(
-                    task.startswith(ort_special_task)
-                    for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
-                ):
-                    models_to_test.append(
-                        (f"{model_type}_{task}_for_ort", model_type, model_name, task, onnx_config_constructor, True)
+                    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                        model_type, "onnx", task=task, model_name=model_name
                     )
+
+                    models_to_test.append(
+                        (f"{model_type}_{task}", model_type, model_name, task, onnx_config_constructor, False)
+                    )
+
+                    if any(
+                        task.startswith(ort_special_task)
+                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
+                    ):
+                        models_to_test.append(
+                            (
+                                f"{model_type}_{task}_for_ort",
+                                model_type,
+                                model_name,
+                                task,
+                                onnx_config_constructor,
+                                True,
+                            )
+                        )
         return sorted(models_to_test)
     else:
         # Returning some dummy test that should not be ever called because of the @require_torch / @require_tf
