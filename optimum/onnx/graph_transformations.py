@@ -153,7 +153,7 @@ def _check_num_outputs(model1: ModelProto, model2: ModelProto):
 
 def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
     """
-    Unify the outputs of deux ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
+    Unifies the outputs of deux ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
     """
     _check_num_outputs(model1, model2)
 
