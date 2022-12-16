@@ -103,9 +103,9 @@ def replace_atenops_to_gather(model: ModelProto):
     Replaces broken ATenOp nodes back to Gather nodes.
 
     Args:
-        model (`onnx.ModelProto`): 
+        model (`onnx.ModelProto`):
             The ONNX model to fix.
-        inplace (`bool`, defaults to `False`): 
+        inplace (`bool`, defaults to `False`):
             Whether to perform this transformation inplace.
 
     Returns:
@@ -153,7 +153,7 @@ def _check_num_outputs(model1: ModelProto, model2: ModelProto):
 
 def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
     """
-    Unifies the outputs of deux ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
+    Unifies the outputs of two ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
     """
     _check_num_outputs(model1, model2)
 
