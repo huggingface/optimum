@@ -517,6 +517,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
+    @require_hf_token
+    def test_load_seq2seq_model_with_external_data_from_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"] + "-onnx", from_transformers=False)
+
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (
         "distilbert",

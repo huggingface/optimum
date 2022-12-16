@@ -36,7 +36,7 @@ from huggingface_hub import hf_hub_download
 from ..exporters.onnx import export_models, get_encoder_decoder_models_for_export
 from ..exporters.tasks import TasksManager
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
-from ..utils.file_utils import validate_file_exists, find_files_matching_pattern
+from ..utils.file_utils import find_files_matching_pattern, validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_decoder import ORTDecoder
@@ -56,6 +56,8 @@ if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin
+
+from huggingface_hub.utils import EntryNotFoundError
 
 
 if TYPE_CHECKING:
@@ -1034,6 +1036,22 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
+                # try download external data
+                try:
+                    model_data_cache_path = hf_hub_download(
+                        repo_id=model_id,
+                        subfolder=subfolder,
+                        filename=filename + "_data",
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        local_files_only=local_files_only,
+                    )
+                except EntryNotFoundError:
+                    # model doesn't use external data
+                    pass
+
                 paths[attr_name] = Path(model_cache_path).name
             new_model_save_dir = Path(model_cache_path).parent
             preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
