@@ -87,7 +87,7 @@ def validate_models_outputs(
             The names of the outputs to check.
         output_dir (`Path`):
             Output directory where the exported ONNX models are stored.
-        atol (`float`, defaults to `None`):
+        atol (`Optional[float]`, defaults to `None`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
