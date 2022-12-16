@@ -476,9 +476,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             # try loading models to check if they are valid
             try:
-                onnx.load(tmpdirname + "/onnx/encoder_model/" + ONNX_ENCODER_NAME)
-                onnx.load(tmpdirname + "/onnx/decoder_model/" + ONNX_DECODER_NAME)
-                onnx.load(tmpdirname + "/onnx/decoder_with_past_model/" + ONNX_DECODER_WITH_PAST_NAME)
+                onnx.load(tmpdirname + "/onnx/" + ONNX_ENCODER_NAME)
+                onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_NAME)
+                onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_WITH_PAST_NAME)
             except Exception as e:
                 self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
 
@@ -497,16 +497,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_hf_token
     def test_push_seq2seq_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"
-            # randomly intialize large model
-            config = AutoConfig.from_pretrained(MODEL_NAMES["mbart"])
-            with no_init_weights():
-                model = MBartForConditionalGeneration(config)
-
-            # save transformers model to be able to load it with `ORTModel...`
-            model.save_pretrained(tmpdirname)
-
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1" # force exporting small model with external data
+            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], from_transformers=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),

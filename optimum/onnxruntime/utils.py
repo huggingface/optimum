@@ -289,9 +289,9 @@ def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -
             if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
         ]
         if len(set(model_tensors_ext)) == 1:
-            # is external data was saved in a single file
+            # if external data was saved in a single file
             src_paths.append(model_path.parent / model_tensors_ext[0])
-            dst_file_names.append(model_path.parent.name + "/" + model_tensors_ext[0])
+            dst_file_names.append(model_tensors_ext[0])
         else:
             # if external data doesnt exist or was saved in multiple files
             src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
