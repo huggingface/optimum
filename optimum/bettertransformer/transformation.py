@@ -70,13 +70,11 @@ def replace_to_bettertransformer(model, config):
             )
 
         # replace the module if it is a transformer layer compatible with bettertransformer
-        if (
-            module.__class__.__name__
-            == BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING[config.model_type][0]
-        ):
-            bettertransformer_module = BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING[config.model_type][1](
-                module, config
-            )
+        should_replace_module = (
+            module.__class__.__name__ == BetterTransformerManager.MODEL_MAPPING[config.model_type][0]
+        )
+        if should_replace_module:
+            bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][1](module, config)
             model._modules[name] = bettertransformer_module
     return model
 
@@ -133,7 +131,8 @@ def set_last_layer(model: torch.nn.Module):
                 return
 
     raise Exception(
-        f"The transformation of the model {model.__class__.__name__} to BetterTransformer failed while it should not. Please fill a bug report at https://github.com/huggingface/optimum/issues."
+        f"The transformation of the model {model.__class__.__name__} to BetterTransformer failed while it should not. Please fill a bug report or open a PR to"
+        " support this model at https://github.com/huggingface/optimum/"
     )
 
 
@@ -176,17 +175,17 @@ class BetterTransformer(object):
         else:
             load_accelerate = False
 
-        if model.config.model_type in BetterTransformerManager.CAN_NOT_BE_SUPPORTED:
+        if BetterTransformerManager.cannot_support(model.config.model_type):
             raise ValueError(
                 f"The model type {model.config.model_type} can not be supported to be used with BetterTransformer. The identified reason is:"
                 f" {BetterTransformerManager.CAN_NOT_BE_SUPPORTED[model.config.model_type]}. Currently supported models are:"
-                f" {BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.keys()}."
+                f" {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
-        if model.config.model_type not in BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING:
+        if not BetterTransformerManager.supports(model.config.model_type):
             raise NotImplementedError(
                 f"The model type {model.config.model_type} is not yet supported supported to be used with BetterTransformer. Feel free"
                 f" to open an issue at https://github.com/huggingface/optimum/issues if you would like this model type to be supported."
-                f" Currently supported models are: {BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.keys()}."
+                f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
 
         hf_config = model.config

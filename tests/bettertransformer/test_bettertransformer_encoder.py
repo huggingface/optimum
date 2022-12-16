@@ -81,9 +81,9 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
 
     def test_dict_class_consistency(self):
         """
-        A test to check BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING has good names.
+        A test to check BetterTransformerManager.MODEL_MAPPING has good names.
         """
-        for model_type, item in BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.items():
+        for model_type, item in BetterTransformerManager.MODEL_MAPPING.items():
             self.assertTrue(("Layer" in item[0]) or ("Block" in item[0]))
 
     def test_raise_pos_emb(self):
@@ -98,13 +98,13 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
             hf_model = AutoModel.from_config(random_config).eval()
             _ = BetterTransformer.transform(hf_model, keep_original_model=False)
 
-    @parameterized.expand(BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING.keys())
+    @parameterized.expand(BetterTransformerManager.MODEL_MAPPING.keys())
     def test_raise_activation_fun(self, model_type: str):
         r"""
         A tests that checks if the conversion raises an error if the model contains an activation function
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
-        layer_class = BetterTransformerManager.BETTER_TRANSFORMER_MODEL_MAPPING[model_type][0]
+        layer_class = BetterTransformerManager.MODEL_MAPPING[model_type][0]
 
         if layer_class == "EncoderLayer":
             # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494

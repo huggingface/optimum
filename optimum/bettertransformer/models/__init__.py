@@ -29,7 +29,7 @@ from .encoder_models import (
 
 
 class BetterTransformerManager:
-    BETTER_TRANSFORMER_MODEL_MAPPING = {
+    MODEL_MAPPING = {
         "albert": ("AlbertLayer", AlbertLayerBetterTransformer),
         "bart": ("BartEncoderLayer", BartEncoderLayerBetterTransformer),
         "bert": ("BertLayer", BertLayerBetterTransformer),
@@ -71,6 +71,26 @@ class BetterTransformerManager:
         "glpn": "glpn has a convolutional layer present in the FFN network, which is not suppored in PyTorch's BetterTransformer.",
         "t5": "t5 uses attention bias, which is not suppored in PyTorch's BetterTransformer.",
     }
+
+    @staticmethod
+    def cannot_support(model_type: str) -> bool:
+        """
+        Returns True if a given model type can not be supported by PyTorch's Better Transformer.
+
+        Args:
+            model_type (str): The model type to check.
+        """
+        return model_type in BetterTransformerManager.CAN_NOT_BE_SUPPORTED
+
+    @staticmethod
+    def supports(model_type: str) -> bool:
+        """
+        Returns True if a given model type is supported by PyTorch's Better Transformer, and integrated in Optimum.
+
+        Args:
+            model_type (str): The model type to check.
+        """
+        return model_type in BetterTransformerManager.MODEL_MAPPING
 
 
 class warn_uncompatible_save(object):
