@@ -192,7 +192,7 @@ def _get_all_inputs(model_list: List[ModelProto]):
     for model in model_list:
         for input in model.graph.input:
             if input.name not in input_names:
-                input_names.append(input.name)
+                input_names.add(input.name)
                 inputs.append(input)
     return inputs
 
