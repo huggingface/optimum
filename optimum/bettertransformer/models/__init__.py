@@ -78,7 +78,8 @@ class BetterTransformerManager:
         Returns True if a given model type can not be supported by PyTorch's Better Transformer.
 
         Args:
-            model_type (str): The model type to check.
+            model_type (`str`):
+                The model type to check.
         """
         return model_type in BetterTransformerManager.CAN_NOT_BE_SUPPORTED
 
@@ -88,7 +89,8 @@ class BetterTransformerManager:
         Returns True if a given model type is supported by PyTorch's Better Transformer, and integrated in Optimum.
 
         Args:
-            model_type (str): The model type to check.
+            model_type (`str`):
+                The model type to check.
         """
         return model_type in BetterTransformerManager.MODEL_MAPPING
 
