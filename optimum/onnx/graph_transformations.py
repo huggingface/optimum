@@ -146,7 +146,7 @@ def _infer_output_shape(output: ValueInfoProto):
 def _check_num_outputs(model1: ModelProto, model2: ModelProto):
     if not len(model1.graph.output) == len(model2.graph.output):
         raise ValueError(
-            f"Two model protos need to have same outputs. But one has {len(model1.graph.output)} "
+            f"Two model protos need to have the same outputs. But one has {len(model1.graph.output)} "
             f"outputs while the other has {len(model2.graph.output)} outputs."
         )
 
