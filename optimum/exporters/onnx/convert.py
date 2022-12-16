@@ -331,11 +331,10 @@ def export_pytorch(
             onnx_model = onnx.load(str(output), load_external_data=False)
             model_uses_external_data = check_model_uses_external_data(onnx_model)
 
-            from onnx.external_data_helper import convert_model_to_external_data
             if model_uses_external_data:
                 logger.info("Saving external data to one file...")
-                convert_model_to_external_data(onnx_model, all_tensors_to_one_file=True, size_threshold=1024, location=output.name + "_data")
-                onnx.save(onnx_model, str(output))
+                onnx_model = onnx.load(str(output), load_external_data=True)
+                onnx.save(onnx_model, str(output), save_as_external_data=True, all_tensors_to_one_file=True, location=output.name + "_data", size_threshold=1024)
 
                 # delete previous external data (all files besides model.onnx and model.onnx_data)
                 for file in os.listdir(output.parent):

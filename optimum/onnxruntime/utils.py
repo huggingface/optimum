@@ -281,15 +281,21 @@ def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -
     model_paths = src_paths.copy()
     for model_path in model_paths:
         model = onnx.load(str(model_path), load_external_data=False)
-        # filter out tensors that are not external data
         model_tensors = _get_initializer_tensors(model)
+        # filter out tensors that are not external data
         model_tensors_ext = [
             ExternalDataInfo(tensor).location
             for tensor in model_tensors
             if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
         ]
-        src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
-        dst_file_names.extend(model_path.parent.name + "/" + tensor_name for tensor_name in model_tensors_ext)
+        if len(set(model_tensors_ext)) == 1:
+            # is external data was saved in a single file
+            src_paths.append(model_path.parent / model_tensors_ext[0])
+            dst_file_names.append(model_path.parent.name + "/" + model_tensors_ext[0])
+        else:
+            # if external data doesnt exist or was saved in multiple files
+            src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
+            dst_file_names.extend(model_path.parent.name + "/" + tensor_name for tensor_name in model_tensors_ext)
     return src_paths, dst_file_names
 
 
