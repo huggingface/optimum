@@ -27,6 +27,7 @@ from transformers import (
     AutoModelForImageClassification,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
+    AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
 )
@@ -37,6 +38,7 @@ from transformers.modeling_outputs import (
     ModelOutput,
     MultipleChoiceModelOutput,
     QuestionAnsweringModelOutput,
+    SemanticSegmenterOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
@@ -1539,6 +1541,118 @@ class ORTModelForImageClassification(ORTModel):
 
             # converts output to namedtuple for pipelines post-processing
             return ImageClassifierOutput(logits=logits)
+
+
+SEMANTIC_SEGMENTATION_EXAMPLE = r"""
+    Example of semantic segmentation:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from transformers import {processor_class}
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = preprocessor(images=image, return_tensors="pt")
+
+    >>> outputs = model(**inputs)
+    >>> logits = outputs.logits
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_image_segmenter = pipeline("image-segmentation", model=model, feature_extractor=preprocessor)
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> pred = onnx_image_segmenter(url)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model with an all-MLP decode head on top e.g. for ADE20k, CityScapes.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForSemanticSegmentation(ORTModel):
+    """
+    Semantic Segmentation model for ONNX.
+    """
+
+    auto_model_class = AutoModelForSemanticSegmentation
+
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_input_names = list(self.model_inputs.keys())
+        self.model_output_names = list(self.model_outputs.keys())
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
+        + SEMANTIC_SEGMENTATION_EXAMPLE.format(
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
+            model_class="ORTModelForSemanticSegmentation",
+            checkpoint="optimum/segformer-b0-finetuned-ade-512-512",
+        )
+    )
+    def forward(self, **kwargs):
+        if self.device.type == "cuda" and self.use_io_binding:
+            io_binding = IOBindingHelper.prepare_io_binding(self, **kwargs)
+
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            outputs = {}
+            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return SemanticSegmenterOutput(logits=outputs["logits"])
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
+
+            # run inference
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            outputs = self._prepare_onnx_outputs(onnx_outputs)
+
+            # converts output to namedtuple for pipelines post-processing
+            return SemanticSegmenterOutput(logits=outputs["logits"])
+
+    def _prepare_onnx_inputs(self, **kwargs):
+        model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
+        onnx_inputs = {}
+        # converts pytorch inputs into numpy inputs for onnx
+        for input in model_inputs.keys():
+            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
+
+        return onnx_inputs
+
+    def _prepare_onnx_outputs(self, onnx_outputs):
+        model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        outputs = {}
+        # converts onnxruntime outputs into tensor for standard outputs
+        for output, idx in model_outputs.items():
+            outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
+
+        return outputs
 
 
 CUSTOM_TASKS_EXAMPLE = r"""
