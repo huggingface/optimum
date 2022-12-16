@@ -471,7 +471,7 @@ def export(
             The ONNX configuration associated with the exported model.
         output (`Path`):
             Directory to store the exported ONNX model.
-        opset (`int`, defaults to `None`):
+        opset (`Optional[int]`, defaults to `None`):
             The version of the ONNX operator set to use.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
