@@ -157,7 +157,7 @@ def _get_models_to_test(export_models_dict):
         # Returning some dummy test that should not be ever called because of the @require_torch / @require_tf
         # decorators.
         # The reason for not returning an empty list is because parameterized.expand complains when it's empty.
-        return [("dummy", "dummy", "dummy", "dummy", OnnxConfig.from_model_config, "dummy")]
+        return [("dummy", "dummy", "dummy", "dummy", OnnxConfig.from_model_config)]
 
 
 class OnnxExportTestCase(TestCase):

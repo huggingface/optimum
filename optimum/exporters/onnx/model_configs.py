@@ -400,14 +400,6 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](
             self.task, self._normalized_config, **kwargs
         )
-
-        if self.use_past_in_inputs is True:
-            if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
-                logger.warning(
-                    f"Asked a sequence length of {kwargs['sequence_length']}, but expecting a sequence length of 1 with use_past == True. Overriding the sequence length to 1."
-                )
-            kwargs["sequence_length"] = 1
-
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
             self.task, self._normalized_config, **kwargs
         )

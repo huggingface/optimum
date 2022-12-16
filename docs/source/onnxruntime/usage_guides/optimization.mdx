@@ -25,7 +25,9 @@ The [`~onnxruntime.ORTOptimizer`] class is used to optimize your ONNX model. The
 >>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSequenceClassification
 
 # Loading ONNX Model from the Hub
->>> model = ORTModelForSequenceClassification.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
+>>> model = ORTModelForSequenceClassification.from_pretrained(
+>>>     "optimum/distilbert-base-uncased-finetuned-sst-2-english"
+>>> )
 
 # Create an optimizer from an ORTModelForXXX
 >>> optimizer = ORTOptimizer.from_pretrained(model)
@@ -89,25 +91,23 @@ You can also specify custom argument that were not defined in the O2 configurati
 Below you will find an easy end-to-end example on how to optimize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
 
 ```python
->>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSequenceClassification, OptimizationConfig
+>>> from optimum.onnxruntime import (
+>>>     AutoOptimizationConfig, ORTOptimizer, ORTModelForSequenceClassification
+>>> )
 
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
->>> save_dir = "/tmp/outputs"
+>>> save_dir = "distilbert_optimized"
 
-# Load a PyTorch model and export it to the ONNX format
+>>> # Load a PyTorch model and export it to the ONNX format
 >>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
 
-# Create the optimizer
+>>> # Create the optimizer
 >>> optimizer = ORTOptimizer.from_pretrained(model)
 
-# Define the optimization strategy by creating the appropriate configuration
->>> optimization_config = OptimizationConfig(
-    optimization_level=2,
-    enable_transformers_specific_optimizations=True,
-    optimize_for_gpu=False,
-)
+>>> # Define the optimization strategy by creating the appropriate configuration
+>>> optimization_config = AutoOptimizationConfig.O2()
 
-# Optimize the model
+>>> # Optimize the model
 >>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
 ```
 
@@ -115,36 +115,30 @@ Below you will find an easy end-to-end example on how to optimize [distilbert-ba
 Below you will find an easy end-to-end example on how to optimize a Seq2Seq model [sshleifer/distilbart-cnn-12-6"](https://huggingface.co/sshleifer/distilbart-cnn-12-6).
 
 ```python
->>> from optimum.onnxruntime import ORTOptimizer, ORTModelForSeq2SeqLM, OptimizationConfig
 >>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import  OptimizationConfig, ORTOptimizer, ORTModelForSeq2SeqLM
 
 >>> model_id = "sshleifer/distilbart-cnn-12-6"
->>> save_dir = "/tmp/outputs"
+>>> save_dir = "distilbart_optimized"
 
-# Load a PyTorch model and export it to the ONNX format
+>>> # Load a PyTorch model and export it to the ONNX format
 >>> model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
 
-# Create the optimizer
+>>> # Create the optimizer
 >>> optimizer = ORTOptimizer.from_pretrained(model)
 
-# Define the optimization strategy by creating the appropriate configuration
+>>> # Define the optimization strategy by creating the appropriate configuration
 >>> optimization_config = OptimizationConfig(
-    optimization_level=2,
-    enable_transformers_specific_optimizations=True,
-    optimize_for_gpu=False,
-)
+>>>     optimization_level=2,
+>>>     enable_transformers_specific_optimizations=True,
+>>>     optimize_for_gpu=False,
+>>> )
 
-# Optimize the model
+>>> # Optimize the model
 >>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
 
-# Load the resulting optimized model
->>> optimized_model = ORTModelForSeq2SeqLM.from_pretrained(
-    save_dir,
-    encoder_file_name="encoder_model_optimized.onnx",
-    decoder_file_name="decoder_model_optimized.onnx",
-    decoder_file_with_past_name="decoder_with_past_model_optimized.onnx",
-)
 >>> tokenizer = AutoTokenizer.from_pretrained(model_id)
+>>> optimized_model = ORTModelForSeq2SeqLM.from_pretrained(save_dir)
 >>> tokens = tokenizer("This is a sample input", return_tensors="pt")
 >>> outputs = optimized_model.generate(**tokens)
 ```

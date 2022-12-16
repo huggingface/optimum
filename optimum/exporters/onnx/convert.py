@@ -318,7 +318,6 @@ def export_pytorch(
         else:
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
-
             onnx_export(
                 model,
                 (dummy_inputs,),

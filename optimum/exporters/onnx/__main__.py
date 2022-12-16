@@ -158,7 +158,12 @@ def main():
     # Infer the task
     task = args.task
     if task == "auto":
-        task = TasksManager.infer_task_from_model(args.model)
+        try:
+            task = TasksManager.infer_task_from_model(args.model)
+        except KeyError as e:
+            raise KeyError(
+                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
 
     # get input shapes
     input_shapes = {}
