@@ -474,7 +474,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_save_decoder_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1" # force exporting small model with external data
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], from_transformers=True)
             model.save_pretrained(tmpdirname)
 
@@ -540,7 +540,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
             # verify loading from hub works
-            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"] + "-onnx", from_transformers=False, use_auth_token=True)
+            model = ORTModelForSequenceClassification.from_pretrained(
+                MODEL_NAMES["bert"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @require_hf_token
@@ -557,9 +561,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
             # verify loading from hub works
-            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"] + "-onnx", from_transformers=False, use_auth_token=True)
+            model = ORTModelForCausalLM.from_pretrained(
+                MODEL_NAMES["gpt2"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
-
 
     @require_hf_token
     def test_push_seq2seq_model_with_external_data_to_hub(self):
@@ -575,8 +582,13 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
             # verify loading from hub works
-            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"] + "-onnx", from_transformers=False, use_auth_token=True)
+            model = ORTModelForSeq2SeqLM.from_pretrained(
+                MODEL_NAMES["mbart"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (
