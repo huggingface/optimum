@@ -457,6 +457,38 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             self.assertEqual(model.model_name, test_model_name)
 
+    def test_save_ort_model_with_external_data(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
+            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    def test_save_decoder_model_with_external_data(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1" # force exporting small model with external data
+            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], from_transformers=True)
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForCausalLM.from_pretrained(tmpdirname, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
     def test_save_seq2seq_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             # randomly intialize large model
@@ -495,6 +527,41 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
     @require_hf_token
+    def test_push_ort_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["bert"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"] + "-onnx", from_transformers=False, use_auth_token=True)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @require_hf_token
+    def test_push_decoder_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["gpt2"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"] + "-onnx", from_transformers=False, use_auth_token=True)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+
+    @require_hf_token
     def test_push_seq2seq_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
@@ -507,13 +574,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 push_to_hub=True,
             )
 
+            # verify loading from hub works
+            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"] + "-onnx", from_transformers=False, use_auth_token=True)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
-
-    @require_hf_token
-    def test_load_seq2seq_model_with_external_data_from_hub(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"] + "-onnx", from_transformers=False)
-
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (
