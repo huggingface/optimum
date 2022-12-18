@@ -884,6 +884,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        **kwargs,
     ):
         """
         Saves the model encoder, decoder and decoder with past key values as well as its configuration file to a

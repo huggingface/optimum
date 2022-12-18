@@ -120,7 +120,7 @@ class OptimizedModel(ABC):
         self.config.save_pretrained(save_directory)
         for preprocessor in self.preprocessors:
             preprocessor.save_pretrained(save_directory)
-        self._save_pretrained(save_directory)
+        self._save_pretrained(save_directory, **kwargs)
 
         if push_to_hub:
             return self.push_to_hub(save_directory, **kwargs)
