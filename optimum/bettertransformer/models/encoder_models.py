@@ -189,29 +189,13 @@ class ASTLayerBetterTransformer(BetterTransformerBaseLayer):
         self.norm_first = True
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
+    def forward(self, hidden_states,  *_, **__):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553
         """
         super().forward_checker()
-
-        if hidden_states.is_nested:
-            attention_mask = None
-
-        if attention_mask is not None:
-            # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
-            # 0->false->keep this token -inf->true->mask this token
-            if len(attention_mask.shape) == 4:
-                attention_mask = attention_mask.squeeze(1)[:, 0]
-            attention_mask = attention_mask.bool()
-            attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
-            seqlen = attention_mask.shape[1]
-            lengths = torch.sum(~attention_mask, 1)
-            if not all([l == seqlen for l in lengths]):
-                hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
-            attention_mask = None
-
+        attention_mask = None
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
             self.embed_dim,
