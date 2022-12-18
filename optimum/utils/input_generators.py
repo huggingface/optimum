@@ -349,7 +349,6 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
                 None,
                 None,
             )
-
         return super().generate(input_name, framework=framework)
 
 

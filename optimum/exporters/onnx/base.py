@@ -416,7 +416,17 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                    if self.use_past is True and input_name == "decoder_input_ids":
+                        sequence_length = dummy_input_gen.sequence_length
+                        if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
+                            logger.info(
+                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 will be used with use_past ==True for `decoder_input_ids`."
+                            )
+                        dummy_input_gen.sequence_length = 1
+                        dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                        dummy_input_gen.sequence_length = sequence_length
+                    else:
+                        dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                     input_was_inserted = True
                     break
             if not input_was_inserted:

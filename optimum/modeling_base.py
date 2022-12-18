@@ -75,7 +75,7 @@ class OptimizedModel(ABC):
         super().__init__()
         self.model = model
         self.config = config
-        self._preprocessors = []
+        self.preprocessors = []
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -118,7 +118,7 @@ class OptimizedModel(ABC):
         os.makedirs(save_directory, exist_ok=True)
 
         self.config.save_pretrained(save_directory)
-        for preprocessor in self._preprocessors:
+        for preprocessor in self.preprocessors:
             preprocessor.save_pretrained(save_directory)
         self._save_pretrained(save_directory)
 
