@@ -997,7 +997,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime, the "
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
-        if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
+        if decoder_with_past_path is not None and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
             logger.warning(
                 f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime, "
                 "the ORTModelForConditionalGeneration might not behave as expected."

@@ -554,7 +554,7 @@ class ORTModelDecoder(ORTModel):
                 ONNX_DECODER_WITH_PAST_NAME
             )
 
-            if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
+            if decoder_with_past_path is not None and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
                 logger.warning(
                     f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
                     f"the {cls.__name__} might not behave as expected."
