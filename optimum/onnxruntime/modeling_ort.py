@@ -43,6 +43,7 @@ from transformers.modeling_outputs import (
 
 import onnxruntime as ort
 from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
@@ -422,6 +423,23 @@ class ORTModel(OptimizedModel):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
+
+            # try download external data
+            try:
+                model_data_cache_path = hf_hub_download(
+                    repo_id=model_id,
+                    subfolder=subfolder,
+                    filename=file_name + "_data",
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                )
+            except EntryNotFoundError:
+                # model doesn't use external data
+                pass
+
             model = ORTModel.load_model(
                 model_cache_path, provider=provider, session_options=session_options, provider_options=provider_options
             )
