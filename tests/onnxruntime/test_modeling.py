@@ -469,7 +469,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
             model.save_pretrained(tmpdirname + "/onnx")
-            
+
             # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
             folder_contents = os.listdir(tmpdirname + "/onnx")
             self.assertTrue(CONFIG_NAME in folder_contents)
@@ -497,7 +497,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_hf_token
     def test_push_seq2seq_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1" # force exporting small model with external data
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], from_transformers=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
@@ -513,6 +513,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_seq2seq_model_with_external_data_from_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"] + "-onnx", from_transformers=False)
+
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (

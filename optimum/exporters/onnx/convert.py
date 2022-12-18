@@ -14,6 +14,7 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+import os
 from inspect import signature
 from itertools import chain
 from pathlib import Path
@@ -22,6 +23,9 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
+import onnx
+
+from ...onnxruntime.utils import check_model_uses_external_data
 from ...utils import logging
 from .base import OnnxConfig
 from .utils import (
@@ -31,9 +35,6 @@ from .utils import (
     is_torch_onnx_support_available,
 )
 
-import onnx
-from ...onnxruntime.utils import check_model_uses_external_data
-import os
 
 if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
@@ -334,8 +335,17 @@ def export_pytorch(
 
             if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
                 logger.info("Saving external data to one file...")
-                onnx_model = onnx.load(str(output), load_external_data=True) #TODO: this will probably be too memory heavy, shall we free `model` memory?
-                onnx.save(onnx_model, str(output), save_as_external_data=True, all_tensors_to_one_file=True, location=output.name + "_data", size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0)
+                onnx_model = onnx.load(
+                    str(output), load_external_data=True
+                )  # TODO: this will probably be too memory heavy, shall we free `model` memory?
+                onnx.save(
+                    onnx_model,
+                    str(output),
+                    save_as_external_data=True,
+                    all_tensors_to_one_file=True,
+                    location=output.name + "_data",
+                    size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
+                )
 
                 # delete previous external data (all files besides model.onnx and model.onnx_data)
                 for file in os.listdir(output.parent):
@@ -467,7 +477,7 @@ def export_models(
         # when the model uses several ONNX files, save each in subfolders to avoid conflicting external files
         output_path = output_dir / model_name / output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
         outputs.append(
             export(
                 submodel,
