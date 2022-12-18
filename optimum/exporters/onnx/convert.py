@@ -334,6 +334,11 @@ def export_pytorch(
 
             if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
                 logger.info("Saving external data to one file...")
+
+                # try free model memory
+                del model
+                del onnx_model
+
                 onnx_model = onnx.load(
                     str(output), load_external_data=True
                 )  # TODO: this will probably be too memory heavy, shall we free `model` memory?
