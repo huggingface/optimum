@@ -26,7 +26,10 @@ ALL_AUDIO_MODELS_TO_TEST = [
     "openai/whisper-tiny",
     "patrickvonplaten/wav2vec2_tiny_random",
     "ybelkada/hubert-tiny-random",
-    "MIT/ast-finetuned-audioset-10-10-0.4593",
+]
+
+AST_TO_TEST = [
+    "Ericwang/tiny-random-ast",
 ]
 
 
@@ -56,6 +59,22 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
         }
         return input_dict
 
+class BetterTransformersASTTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for AST - tests all the tests defined in `BetterTransformersTestMixin`
+    Since `AST` uses slightly different preprocessor than other audio models, it is preferrable
+    to define its own testing class.
+    """
+    all_models_to_test = AST_TO_TEST
+
+    def prepare_inputs_for_class(self, model_id):
+        batch_duration_in_seconds = [1, 3, 2, 6]
+        input_features = [np.random.random(16_000 * s) for s in batch_duration_in_seconds]
+
+        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
+
+        input_dict = feature_extractor(input_features, return_tensors="pt", padding=True)
+        return input_dict
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
