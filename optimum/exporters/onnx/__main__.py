@@ -204,7 +204,7 @@ def main():
 
         logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
     except ShapeError as e:
-        raise ShapeError(e)
+        raise e
     except AtolError as e:
         logger.warning(
             f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
