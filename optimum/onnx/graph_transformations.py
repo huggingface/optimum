@@ -18,13 +18,6 @@ from typing import DefaultDict, Dict, List, Set, Tuple
 import onnx
 from onnx import ModelProto, ValueInfoProto
 
-from .utils import is_onnxsim_available
-
-
-if is_onnxsim_available():
-    from onnxsim import simplify
-    from onnxsim.model_info import print_simplifying_info
-
 
 def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
     return _find_duplicate_initializers(model.graph.initializer)
@@ -203,17 +196,6 @@ def _get_onnx_opset(model: ModelProto):
     return getattr(opset_import, "version")
 
 
-def simplify_onnx_graph(model: ModelProto, print_info: bool = True) -> ModelProto:
-
-    model_simp, check = simplify(model)
-    if not check:
-        raise RuntimeError(f"Simplified ONNX model could not be validated. Please turn off ONNX simplifier.")
-    if print_info:
-        print_simplifying_info(model, model_simp)
-
-    return model_simp
-
-
 def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str = None):
 
     all_initializers = []
@@ -252,16 +234,10 @@ def merge_decoders(
         decoder_with_past (`onnx.ModelProto`): Decoder with past ONNX model.
         graph_name (`str`): Name of the parent graph(graph of the control flow node).
         producer_name (`str`): Graph producer name.
-        simplify_graph (`bool`): Whether to use onnx-simplifier to simplify subgraphs.
 
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
     """
-    if simplify_graph:
-        if not is_onnxsim_available():
-            raise ImportError("`simplify_graph` requires `onnxsim`, please install it with `pip install onnxsim`.")
-        decoder = simplify_onnx_graph(decoder)
-        decoder_with_past = simplify_onnx_graph(decoder_with_past)
 
     _unify_onnx_outputs(decoder, decoder_with_past)
     all_inputs = _get_all_inputs([decoder, decoder_with_past])
