@@ -18,7 +18,7 @@ REQUIRED_PKGS = [
     "transformers[sentencepiece]>=4.20.1",
     "torch>=1.9",
     "packaging",
-    "numpy",
+    "numpy<1.24.0",
     "huggingface_hub>=0.8.0",
 ]
 
@@ -35,6 +35,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf==3.20.1",
+        "diffusers",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -42,9 +43,10 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf==3.20.1",
+        "diffusers",
     ],
-    "exporters": ["onnx", "onnxruntime", "timm"],
-    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm"],
+    "exporters": ["onnx", "onnxruntime", "timm", "diffusers"],
+    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "diffusers"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
     "nncf": "optimum-intel[nncf]",
