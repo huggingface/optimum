@@ -19,6 +19,7 @@ from .encoder_models import (
     BertLayerBetterTransformer,
     CLIPLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
+    DPTViTLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,
     ViltLayerBetterTransformer,
@@ -26,7 +27,6 @@ from .encoder_models import (
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
 )
-
 
 class BetterTransformerManager:
     MODEL_MAPPING = {
@@ -39,6 +39,7 @@ class BetterTransformerManager:
         "data2vec-text": ("Data2VecTextLayer", BertLayerBetterTransformer),
         "deit": ("DeiTLayer", ViTLayerBetterTransformer),
         "distilbert": ("TransformerBlock", DistilBertLayerBetterTransformer),
+        "dpt": ("DPTViTLayer", DPTViTLayerBetterTransformer),
         "electra": ("ElectraLayer", BertLayerBetterTransformer),
         "ernie": ("ErnieLayer", BertLayerBetterTransformer),
         "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
