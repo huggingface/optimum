@@ -99,8 +99,6 @@ def replace_atenops_to_gather(model: ModelProto):
     Args:
         model (`onnx.ModelProto`):
             The ONNX model to fix.
-        inplace (`bool`, defaults to `False`):
-            Whether to perform this transformation inplace.
 
     Returns:
         `onnx.ModelProto`: The ONNX model fixed.
