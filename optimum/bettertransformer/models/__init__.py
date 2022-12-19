@@ -28,6 +28,7 @@ from .encoder_models import (
     WhisperEncoderLayerBetterTransformer,
 )
 
+
 class BetterTransformerManager:
     MODEL_MAPPING = {
         "albert": ("AlbertLayer", AlbertLayerBetterTransformer),
