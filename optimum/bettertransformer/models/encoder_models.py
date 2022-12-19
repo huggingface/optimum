@@ -1282,8 +1282,6 @@ class DPTViTLayerBetterTransformer(BetterTransformerBaseLayer):
         super().forward_checker()
         attention_mask = None
 
-        # should I check for nested hidden states
-
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
             self.embed_dim,
