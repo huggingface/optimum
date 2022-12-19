@@ -256,7 +256,7 @@ def validate_model_outputs(
     if value_failures:
         msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
         raise AtolError(
-            f"Output values between reference model and ONNX exported model are not within the set absolute tolerance {atol}:\n{msg}"
+            f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {atol}:\n{msg}"
         )
 
 
