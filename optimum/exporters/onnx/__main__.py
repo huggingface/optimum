@@ -189,15 +189,15 @@ def main():
         raise ShapeError(e)
     except AtolError as e:
         logger.warning(
-            f"The ONNX export succeeded with the warning: {e}. The exported model was saved at: {args.output.parent.as_posix()}"
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
         )
     except OutputError as e:
         logger.warning(
-            f"The ONNX export succeeded with the warning: {e}. The exported model was saved at: {args.output.parent.as_posix()}"
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
         )
     except Exception as e:
         logger.error(
-            f"An error occured with error {e}. The model was exported model was saved at: {args.output.parent.as_posix()}"
+            f"An error occured with error {e}.\n The model was exported model was saved at: {args.output.parent.as_posix()}"
         )
 
 
