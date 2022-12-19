@@ -23,7 +23,15 @@ from ...utils import logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs
+from .convert import (
+    AtolError,
+    OutputError,
+    ShapeError,
+    export,
+    export_models,
+    validate_model_outputs,
+    validate_models_outputs,
+)
 from .utils import get_decoder_models_for_export, get_encoder_decoder_models_for_export
 
 
@@ -158,7 +166,6 @@ def main():
         args.atol = onnx_config.ATOL_FOR_VALIDATION
         if isinstance(args.atol, dict):
             args.atol = args.atol[task.replace("-with-past", "")]
-
     try:
         if args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
             fn_get_models_from_config = (
@@ -176,10 +183,22 @@ def main():
             )
         else:
             validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
-    except ValueError:
-        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
-        return
-    logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
+
+        logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
+    except ShapeError as e:
+        raise ShapeError(e)
+    except AtolError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}. The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except OutputError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}. The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except Exception as e:
+        logger.error(
+            f"An error occured with error {e}. The model was exported model was saved at: {args.output.parent.as_posix()}"
+        )
 
 
 if __name__ == "__main__":
