@@ -224,7 +224,6 @@ def merge_decoders(
     decoder_with_past: ModelProto,
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
-    simplify_graph: bool = False,
 ) -> ModelProto:
     """
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
