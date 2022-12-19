@@ -48,7 +48,7 @@ class AtolError(ValueError):
     pass
 
 
-class OutputError(ValueError):
+class OutputMatchError(ValueError):
     pass
 
 
