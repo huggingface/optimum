@@ -26,6 +26,7 @@ from ...utils import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
+    NormalizedConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
