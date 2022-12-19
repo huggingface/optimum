@@ -14,7 +14,6 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
 
 from packaging import version
@@ -79,13 +78,11 @@ class Seq2SeqDecoderOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict(
-            {
-                "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
-                "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
-                "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-            }
-        )
+        common_inputs = {
+            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
+            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+        }
 
         if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
@@ -424,12 +421,10 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def inputs_for_default_and_seq2seq_lm(self):
-        common_inputs = OrderedDict(
-            {
-                "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-                "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-            }
-        )
+        common_inputs = {
+            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+        }
         if self.use_past_in_inputs:
             common_inputs["decoder_input_ids"] = {0: "batch_size"}
             # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
@@ -443,12 +438,10 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def inputs_for_causal_lm(self):
-        common_inputs = OrderedDict(
-            {
-                "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-                "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-            }
-        )
+        common_inputs = {
+            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+        }
         if self.use_past_in_inputs:
             for i in range(self._normalized_config.decoder_num_layers):
                 common_inputs[f"past_key_values.{i}.key"] = {
@@ -464,12 +457,10 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def inputs_for_other_tasks(self):
-        return OrderedDict(
-            {
-                "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-                "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-            }
-        )
+        return {
+            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+        }
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -639,14 +630,12 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        return OrderedDict(
-            {
-                "logits_per_image": {0: "batch_size"},
-                "logits_per_text": {0: "batch_size"},
-                "text_embeds": {0: "batch_size"},
-                "image_embeds": {0: "batch_size"},
-            }
-        )
+        return {
+            "logits_per_image": {0: "batch_size"},
+            "logits_per_text": {0: "batch_size"},
+            "text_embeds": {0: "batch_size"},
+            "image_embeds": {0: "batch_size"},
+        }
 
 
 class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
@@ -880,12 +869,10 @@ class SpeechSeq2SeqDecoderOnnxConfig(Seq2SeqDecoderOnnxConfig):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict(
-            {
-                "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
-                "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
-            }
-        )
+        common_inputs = {
+            "decoder_input_ids": {0: "batch_size", 1: "past_decoder_sequence_length + sequence_length"},
+            "encoder_outputs": {0: "batch_size", 1: "encoder_sequence_length"},
+        }
 
         if self.use_past_in_inputs:
             self.add_past_key_values(common_inputs, direction="inputs")
@@ -905,11 +892,9 @@ class WhisperOnnxConfig(TextAndAudioOnnxConfig):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = OrderedDict(
-            {
-                "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
-            }
-        )
+        common_inputs = {
+            "input_features": {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"},
+        }
         if self.use_past_in_inputs:
             common_inputs["decoder_input_ids"] = {0: "batch_size"}
         else:
