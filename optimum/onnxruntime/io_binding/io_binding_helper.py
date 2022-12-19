@@ -20,6 +20,7 @@ import torch
 
 import onnxruntime as ort
 from onnxruntime.capi.onnxruntime_inference_collection import OrtValue
+from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelper
 
 from ..utils import is_cupy_available, is_onnxruntime_training_available
 
@@ -34,7 +35,7 @@ if is_cupy_available():
 
 
 # Adapted from https://github.com/microsoft/onnxruntime/blob/93e0a151177ad8222c2c95f814342bfa27f0a64d/onnxruntime/python/tools/transformers/io_binding_helper.py#L12
-class TypeHelper:
+class TypeHelper(ORTTypeHelper):
     """
     Gets data type information of the ONNX Runtime inference session and provides the mapping from
     `OrtValue` data types to the data types of other frameworks (NumPy, PyTorch, etc).
