@@ -28,14 +28,19 @@ from optimum.exporters.onnx import (
     export_models,
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
+    get_stable_diffusion_models_for_export,
     validate_model_outputs,
     validate_models_outputs,
 )
+from optimum.utils import is_diffusers_available
 from parameterized import parameterized
 
 
 if is_torch_available() or is_tf_available():
     from optimum.exporters.tasks import TasksManager
+
+if is_diffusers_available():
+    from diffusers import StableDiffusionPipeline
 
 
 PYTORCH_EXPORT_MODELS = {
@@ -137,6 +142,11 @@ PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION = {
         ("seq2seq-lm", "seq2seq-lm-with-past"),
     ),
     ("whisper", "openai/whisper-tiny.en"),
+}
+
+
+PYTORCH_STABLE_DIFFUSION_MODEL = {
+    ("hf-internal-testing/tiny-stable-diffusion-torch"),
 }
 
 
@@ -273,12 +283,12 @@ class OnnxExportTestCase(TestCase):
             model.config.pad_token_id = 0
 
         if is_torch_available():
-            from optimum.exporters.onnx.utils import TORCH_VERSION
+            from optimum.utils import torch_version
 
             if not onnx_config.is_torch_support_available:
                 pytest.skip(
                     "Skipping due to incompatible PyTorch version. Minimum required is"
-                    f" {onnx_config.MIN_TORCH_VERSION}, got: {TORCH_VERSION}"
+                    f" {onnx_config.MIN_TORCH_VERSION}, got: {torch_version}"
                 )
 
         atol = onnx_config.ATOL_FOR_VALIDATION
@@ -286,30 +296,25 @@ class OnnxExportTestCase(TestCase):
             atol = atol[task.replace("-with-past", "")]
 
         if for_ort is True and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
-            fn_get_models_from_config = (
-                get_encoder_decoder_models_for_export
-                if model.config.is_encoder_decoder
-                else get_decoder_models_for_export
-            )
+
+            if model.config.is_encoder_decoder:
+                models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
+            else:
+                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
 
             with TemporaryDirectory() as tmpdirname:
                 try:
                     onnx_inputs, onnx_outputs = export_models(
-                        model,
-                        onnx_config,
-                        onnx_config.DEFAULT_ONNX_OPSET,
+                        models_and_onnx_configs=models_and_onnx_configs,
+                        opset=onnx_config.DEFAULT_ONNX_OPSET,
                         output_dir=Path(tmpdirname),
-                        fn_get_models_from_config=fn_get_models_from_config,
                         device=device,
                     )
-
                     validate_models_outputs(
-                        onnx_config,
-                        model,
-                        onnx_outputs,
-                        atol,
+                        models_and_onnx_configs=models_and_onnx_configs,
+                        onnx_named_outputs=onnx_outputs,
+                        atol=atol,
                         output_dir=Path(tmpdirname),
-                        fn_get_models_from_config=fn_get_models_from_config,
                     )
                 except (RuntimeError, ValueError) as e:
                     self.fail(f"{name}, {task} -> {e}")
@@ -317,14 +322,18 @@ class OnnxExportTestCase(TestCase):
             with NamedTemporaryFile("w") as output:
                 try:
                     onnx_inputs, onnx_outputs = export(
-                        model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, Path(output.name), device=device
+                        model=model,
+                        config=onnx_config,
+                        opset=onnx_config.DEFAULT_ONNX_OPSET,
+                        output=Path(output.name),
+                        device=device,
                     )
                     validate_model_outputs(
-                        onnx_config,
-                        model,
-                        Path(output.name),
-                        onnx_outputs,
-                        atol,
+                        config=onnx_config,
+                        reference_model=model,
+                        onnx_model=Path(output.name),
+                        onnx_named_outputs=onnx_outputs,
+                        atol=atol,
                     )
                 except (RuntimeError, ValueError) as e:
                     self.fail(f"{name}, {task} -> {e}")
@@ -369,3 +378,28 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor):
         self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor)
+
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL)
+    @slow
+    @require_torch
+    @require_vision
+    def test_pytorch_export_for_stable_diffusion_models(self, model_name):
+        pipeline = StableDiffusionPipeline.from_pretrained(model_name)
+        output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+        models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
+
+        with TemporaryDirectory() as tmpdirname:
+            onnx_inputs, onnx_outputs = export_models(
+                models_and_onnx_configs=models_and_onnx_configs,
+                opset=14,
+                output_dir=Path(tmpdirname),
+                output_names=output_names,
+                device="cpu",  # TODO: Add GPU test
+            )
+            validate_models_outputs(
+                models_and_onnx_configs=models_and_onnx_configs,
+                onnx_named_outputs=onnx_outputs,
+                atol=1e-3,
+                output_dir=Path(tmpdirname),
+                output_names=output_names,
+            )

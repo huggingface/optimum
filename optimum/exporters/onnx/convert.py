@@ -22,19 +22,16 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import logging
+from ...utils import TORCH_MINIMUM_VERSION, is_torch_onnx_support_available, logging
+from ..tasks import TasksManager
 from .base import OnnxConfig
-from .utils import (
-    MIN_TORCH_VERSION,
-    get_decoder_models_for_export,
-    get_encoder_decoder_models_for_export,
-    is_torch_onnx_support_available,
-)
 
 
 if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
     from transformers.pytorch_utils import is_torch_less_than_1_11
+
+    from diffusers import ModelMixin
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
@@ -56,7 +53,7 @@ class OutputError(ValueError):
 
 
 def check_dummy_inputs_are_allowed(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], dummy_input_names: Iterable[str]
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
 ):
     """
     Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
@@ -66,7 +63,11 @@ def check_dummy_inputs_are_allowed(
         model_inputs (`Iterable[str]`):
             The model input names.
     """
-    forward = model.forward if is_torch_available() and issubclass(type(model), PreTrainedModel) else model.call
+    forward = (
+        model.forward
+        if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin))
+        else model.call
+    )
     forward_parameters = signature(forward).parameters
     forward_inputs_set = set(forward_parameters.keys())
     dummy_input_names = set(dummy_input_names)
@@ -79,15 +80,12 @@ def check_dummy_inputs_are_allowed(
 
 
 def validate_models_outputs(
-    onnx_config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    onnx_named_outputs: List[str],
-    atol: float,
-    output_dir: Path,
-    fn_get_models_from_config: Callable[
-        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
-        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
+    models_and_onnx_configs: Dict[
+        str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
     ],
+    onnx_named_outputs: List[str],
+    output_dir: Path,
+    atol: Optional[float] = None,
     output_names: Optional[List[str]] = None,
 ):
     """
@@ -95,59 +93,53 @@ def validate_models_outputs(
     The following method validates the ONNX models exported using the `export_models` method.
 
     Args:
-        config ([`~OnnxConfig`]:
-            The configuration used to export the model.
-        reference_model ([`~PreTrainedModel`] or [`~TFPreTrainedModel`]):
-            The model used for the export.
+        models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
+            A dictionnary containing the models to validate and their corresponding onnx configs.
         onnx_named_outputs (`List[str]`):
             The names of the outputs to check.
-        atol (`float`):
-            The absolute tolerance in terms of outputs difference between the reference and the exported model.
         output_dir (`Path`):
             Output directory where the exported ONNX models are stored.
-        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
-            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
-            as it is the case with encoder-decoder models.
+        atol (`Optional[float]`, defaults to `None`):
+            The absolute tolerance in terms of outputs difference between the reference and the exported model.
         output_names (`Optional[List[str]]`, defaults to `None`):
-            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
-            If None, will use the keys from the output of `fn_get_models_from_config` as names.
+            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
+            If None, will use the keys from the `models_and_onnx_configs` as names.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    models_for_validation = fn_get_models_from_config(reference_model, onnx_config)
 
-    if len(onnx_named_outputs) != len(models_for_validation.keys()):
+    if len(onnx_named_outputs) != len(models_and_onnx_configs.keys()):
         raise ValueError(
-            f"Invalid number of ONNX named outputs. Required {len(models_for_validation.keys())}, Provided {len(onnx_named_outputs)}"
+            f"Invalid number of ONNX named outputs. Required {len(models_and_onnx_configs.keys())}, Provided {len(onnx_named_outputs)}"
         )
 
-    if output_names is not None and len(output_names) != len(models_for_validation):
+    if output_names is not None and len(output_names) != len(models_and_onnx_configs):
         raise ValueError(
-            f"Provided custom names {output_names} for the validation of {len(models_for_validation)} models. Please provide the same number of ONNX file names as models to export."
+            f"Provided custom names {output_names} for the validation of {len(models_and_onnx_configs)} models. Please provide the same number of ONNX file names as models to export."
         )
 
-    for i, model_name in enumerate(models_for_validation.keys()):
-        submodel, sub_onnx_config = models_for_validation[model_name]
+    for i, model_name in enumerate(models_and_onnx_configs.keys()):
+        submodel, sub_onnx_config = models_and_onnx_configs[model_name]
         onnx_model_path = (
             output_dir.joinpath(output_names[i])
             if output_names is not None
             else output_dir.joinpath(model_name + ".onnx")
         )
         validate_model_outputs(
-            sub_onnx_config,
-            submodel,
-            onnx_model_path,
-            onnx_named_outputs[i],
-            atol,
+            config=sub_onnx_config,
+            reference_model=submodel,
+            onnx_model=onnx_model_path,
+            onnx_named_outputs=onnx_named_outputs[i],
+            atol=atol,
         )
 
 
 def validate_model_outputs(
     config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     onnx_model: Path,
     onnx_named_outputs: List[str],
-    atol: float,
+    atol: Optional[float] = None,
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
@@ -161,7 +153,7 @@ def validate_model_outputs(
             The path to the exported model.
         onnx_named_outputs (`List[str]`):
             The names of the outputs to check.
-        atol (`float`):
+        atol (`Optional[float]`, defaults to `None`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
 
     Raises:
@@ -171,7 +163,12 @@ def validate_model_outputs(
 
     logger.info("Validating ONNX model...")
 
-    framework = "pt" if is_torch_available() and issubclass(type(reference_model), PreTrainedModel) else "tf"
+    if atol is None:
+        atol = config.ATOL_FOR_VALIDATION
+
+    framework = (
+        "pt" if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)) else "tf"
+    )
     reference_model_inputs = config.generate_dummy_inputs(framework=framework)
 
     # Create ONNX Runtime session
@@ -179,8 +176,9 @@ def validate_model_outputs(
     session = InferenceSession(onnx_model.as_posix(), options, providers=["CPUExecutionProvider"])
 
     # Compute outputs from the reference model
-    if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
+    if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)):
         reference_model.to("cpu")
+
     ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
 
@@ -211,6 +209,9 @@ def validate_model_outputs(
     # Compute outputs from the ONNX model
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
 
+    # Modify the ONNX output names to match the reference model output names
+    onnx_named_outputs = config.output_names_for_validation(onnx_named_outputs)
+
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
     ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
     if not onnx_outputs_set.issubset(ref_outputs_set):
@@ -228,7 +229,7 @@ def validate_model_outputs(
     shape_failures = []
     value_failures = []
     for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
-        if is_torch_available() and issubclass(type(reference_model), PreTrainedModel):
+        if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)):
             ref_value = ref_outputs_dict[name].detach().numpy()
         else:
             ref_value = ref_outputs_dict[name].numpy()
@@ -261,7 +262,7 @@ def validate_model_outputs(
 
 
 def export_pytorch(
-    model: "PreTrainedModel",
+    model: Union["PreTrainedModel", "ModelMixin"],
     config: OnnxConfig,
     opset: int,
     output: Path,
@@ -409,14 +410,11 @@ def export_tensorflow(
 
 
 def export_models(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    onnx_config: OnnxConfig,
-    opset: int,
-    output_dir: Path,
-    fn_get_models_from_config: Callable[
-        [Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig],
-        Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], OnnxConfig]],
+    models_and_onnx_configs: Dict[
+        str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
     ],
+    output_dir: Path,
+    opset: Optional[int] = None,
     output_names: Optional[List[str]] = None,
     device: str = "cpu",
 ) -> Tuple[List[List[str]], List[List[str]]]:
@@ -426,20 +424,15 @@ def export_models(
     ONNX files.
 
     Args:
-        model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
-            The model to export.
-        config ([`~exporters.onnx.config.OnnxConfig`]):
-            The ONNX configuration associated with the exported model.
-        opset (`int`):
-            The version of the ONNX operator set to use.
+        models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
+             A dictionnary containing the models to export and their corresponding onnx configs.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
-        fn_get_models_from_config (`Callable[[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig], Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]]`):
-            Function outputing a dictionary of submodels and downstream onnx configurations, for example to export the `model` in several pieces,
-            as it is the case with encoder-decoder models.
+        opset (`Optional[int]`, defaults to `None`):
+            The version of the ONNX operator set to use.
         output_names (`Optional[List[str]]`, defaults to `None`):
-            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict returned by `fn_get_models_from_config`.
-            If None, will use the keys from the output of `fn_get_models_from_config` as names.
+            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
+            If None, will use the keys from `models_and_onnx_configs` as names.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
@@ -447,16 +440,15 @@ def export_models(
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         inputs from the ONNX configuration.
     """
-    models_for_export = fn_get_models_from_config(model, onnx_config)
     outputs = []
 
-    if output_names is not None and len(output_names) != len(models_for_export):
+    if output_names is not None and len(output_names) != len(models_and_onnx_configs):
         raise ValueError(
-            f"Provided custom names {output_names} for the export of {len(models_for_export)} models. Please provide the same number of names as models to export."
+            f"Provided custom names {output_names} for the export of {len(models_and_onnx_configs)} models. Please provide the same number of names as models to export."
         )
 
-    for i, model_name in enumerate(models_for_export.keys()):
-        submodel, sub_onnx_config = models_for_export[model_name]
+    for i, model_name in enumerate(models_and_onnx_configs.keys()):
+        submodel, sub_onnx_config = models_and_onnx_configs[model_name]
         output_path = (
             output_dir.joinpath(output_names[i])
             if output_names is not None
@@ -464,10 +456,10 @@ def export_models(
         )
         outputs.append(
             export(
-                submodel,
-                sub_onnx_config,
-                opset,
-                output_path,
+                model=submodel,
+                config=sub_onnx_config,
+                output=output_path,
+                opset=opset,
                 device=device,
             )
         )
@@ -477,10 +469,10 @@ def export_models(
 
 
 def export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     config: OnnxConfig,
-    opset: int,
     output: Path,
+    opset: Optional[int] = None,
     device: str = "cpu",
 ) -> Tuple[List[str], List[str]]:
     """
@@ -491,10 +483,10 @@ def export(
             The model to export.
         config ([`~exporters.onnx.config.OnnxConfig`]):
             The ONNX configuration associated with the exported model.
-        opset (`int`):
-            The version of the ONNX operator set to use.
         output (`Path`):
             Directory to store the exported ONNX model.
+        opset (`Optional[int]`, defaults to `None`):
+            The version of the ONNX operator set to use.
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
@@ -509,12 +501,17 @@ def export(
             "Please install torch or tensorflow first."
         )
 
-    if is_torch_available() and issubclass(type(model), PreTrainedModel):
-        import torch
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    if opset is None:
+        opset = config.DEFAULT_ONNX_OPSET
+
+    if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin)):
+        from ...utils import torch_version
 
         if not is_torch_onnx_support_available():
             raise AssertionError(
-                f"Unsupported PyTorch version, minimum required is {MIN_TORCH_VERSION}, got: {torch.__version__}"
+                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
             )
 
         if not config.is_torch_support_available:
