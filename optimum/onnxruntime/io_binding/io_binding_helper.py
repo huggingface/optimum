@@ -13,19 +13,20 @@
 #  limitations under the License.
 import logging
 import traceback
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import numpy as np
 import torch
 
 import onnxruntime as ort
 from onnxruntime.capi.onnxruntime_inference_collection import OrtValue
-from onnxruntime.transformers.io_binding_helper import TypeHelper as ORTTypeHelper
 
 from ..utils import is_cupy_available, is_onnxruntime_training_available
 
 
 if TYPE_CHECKING:
+    import onnxruntime as ort
+
     from ..modeling_ort import ORTModel
 
 if is_cupy_available():
@@ -33,7 +34,7 @@ if is_cupy_available():
 
 
 # Adapted from https://github.com/microsoft/onnxruntime/blob/93e0a151177ad8222c2c95f814342bfa27f0a64d/onnxruntime/python/tools/transformers/io_binding_helper.py#L12
-class TypeHelper(ORTTypeHelper):
+class TypeHelper:
     """
     Gets data type information of the ONNX Runtime inference session and provides the mapping from
     `OrtValue` data types to the data types of other frameworks (NumPy, PyTorch, etc).
@@ -73,6 +74,17 @@ class TypeHelper(ORTTypeHelper):
             raise ValueError(
                 f"{ort_type} is not supported. Here is a list of supported data type: {ort_type_to_torch_type_map.keys()}"
             )
+
+    @staticmethod
+    def get_io_numpy_type_map(ort_session: "ort.InferenceSession") -> Dict[str, np.dtype]:
+        """Create a mapping from input/output name to numpy data type"""
+        name_to_numpy_type = {}
+        for input in ort_session.get_inputs():
+            name_to_numpy_type[input.name] = TypeHelper.ort_type_to_numpy_type(input.type)
+
+        for output in ort_session.get_outputs():
+            name_to_numpy_type[output.name] = TypeHelper.ort_type_to_numpy_type(output.type)
+        return name_to_numpy_type
 
 
 # Adapted from https://github.com/microsoft/onnxruntime/blob/1ab11a111ce0717bfbfaca964d04a017cb9b1752/onnxruntime/python/tools/transformers/io_binding_helper.py#L97
