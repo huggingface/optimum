@@ -12,16 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import subprocess
 import unittest
-from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
 import torch
 from transformers import AutoModel, AutoTokenizer
-from transformers.models.albert import AlbertOnnxConfig
-from transformers.onnx import export
 
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
@@ -31,15 +30,20 @@ from optimum.onnx.graph_transformations import remove_duplicate_weights
 class WeightSharingTestCase(TestCase):
     def test_weight_sharing_output_match(self):
         with torch.no_grad():
-            for model in {"albert-base-v1", "albert-base-v2"}:
-                tokenizer = AutoTokenizer.from_pretrained(model)
-                model = AutoModel.from_pretrained(model)
-                onnx_config = AlbertOnnxConfig.from_model_config(model.config)
 
-                with NamedTemporaryFile("w+b") as original_onnx_f:
-                    export(tokenizer, model, onnx_config, opset=12, output=Path(original_onnx_f.name))
+            for model_id in {"albert-base-v1", "albert-base-v2"}:
+                tokenizer = AutoTokenizer.from_pretrained(model_id)
+                model = AutoModel.from_pretrained(model_id)
 
-                    original_albert_ir = onnx_load(original_onnx_f)
+                task = "default"
+                with TemporaryDirectory() as tmpdir:
+                    subprocess.run(
+                        f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                        shell=True,
+                        check=True,
+                    )
+
+                    original_albert_ir = onnx_load(os.path.join(tmpdir, "model.onnx"))
                     compressed_albert_ir = remove_duplicate_weights(original_albert_ir, inplace=False)
                     compressed_albert_session = InferenceSession(
                         compressed_albert_ir.SerializeToString(), providers=["CPUExecutionProvider"]
