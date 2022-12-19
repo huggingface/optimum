@@ -112,6 +112,9 @@ PYTORCH_EXPORT_MODELS = {
     ("longt5", "hf-internal-testing/tiny-random-LongT5Model"),
     ("whisper", "openai/whisper-tiny.en"),
     ("swin", "microsoft/swin-base-patch4-window12-384-in22k"),
+    ("hubert", "hf-internal-testing/tiny-random-HubertModel"),
+    ("wav2vec2", "hf-internal-testing/tiny-random-Wav2Vec2Model"),
+    ("sew", "hf-internal-testing/tiny-random-SEWModel"),
 }
 
 

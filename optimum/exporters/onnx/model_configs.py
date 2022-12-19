@@ -912,3 +912,15 @@ class WhisperOnnxConfig(TextAndAudioOnnxConfig):
         self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
     ) -> SpeechSeq2SeqDecoderOnnxConfig:
         return SpeechSeq2SeqDecoderOnnxConfig(config, task, use_past=use_past)
+
+
+class HubertOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+
+
+class Wav2Vec2OnnxConfig(HubertOnnxConfig):
+    pass
+
+
+class SEWOnnxConfig(HubertOnnxConfig):
+    pass

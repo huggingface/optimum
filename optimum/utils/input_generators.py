@@ -564,19 +564,14 @@ class DummyAudioInputGenerator(DummyInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size, self.sequence_length]
         if input_name == "input_values":
-            self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
 
-        if input_name == "input_values":  # raw waveform
-            return self.random_float_tensor(
-                shape=[self.batch_size, self.sequence_length], min_value=-1, max_value=1, framework=framework
-            )
-        else:
-            return self.random_float_tensor(
-                shape=[self.batch_size, self.feature_size, self.nb_max_frames],
-                min_value=-1,
-                max_value=1,
-                framework=framework,
-            )
+        return self.random_float_tensor(
+            shape=[self.batch_size, self.feature_size, self.nb_max_frames],
+            min_value=-1,
+            max_value=1,
+            framework=framework,
+        )
 
 
 class DummyTimestepInputGenerator(DummyInputGenerator):
