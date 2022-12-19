@@ -28,9 +28,9 @@ optimum-cli export onnx --help
 
 ## Why use ONNX?
 
-If you need to deploy 🤗 Transformers models in production environments, we recommend
+If you need to deploy 🤗 Transformers or 🤗 Diffusers models in production environments, we recommend
 exporting them to a serialized format that can be loaded and executed on specialized
-runtimes and hardware. In this guide, we'll show you how to export 🤗 Transformers
+runtimes and hardware. In this guide, we'll show you how to export these
 models to [ONNX (Open Neural Network eXchange)](http://onnx.ai).
 
 ONNX is an open standard that defines a common set of operators and a common file format
@@ -41,7 +41,7 @@ represents the flow of data through the neural network.
 
 By exposing a graph with standardized operators and data types, ONNX makes it easy to
 switch between frameworks. For example, a model trained in PyTorch can be exported to
-ONNX format and then imported in **TensorRT** or **OpenVINO**.
+ONNX format and then imported in TensorRT or OpenVino.
 
 <Tip>
 
@@ -59,7 +59,7 @@ designed to be easily extendable to other architectures.
 
 ## Exporting a model to ONNX using the CLI
 
-To export a 🤗 Transformers model to ONNX, you'll first need to install some extra
+To export a 🤗 Transformers or 🤗 Diffusers model to ONNX, you'll first need to install some extra
 dependencies:
 
 ```bash

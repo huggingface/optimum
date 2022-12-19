@@ -51,6 +51,9 @@ if is_torch_available():
         AutoModelForSpeechSeq2Seq,
         AutoModelForTokenClassification,
     )
+
+    from diffusers import StableDiffusionPipeline
+
 if is_tf_available():
     from transformers.models.auto import (
         TFAutoModel,
@@ -129,6 +132,7 @@ class TasksManager:
             "masked-im": AutoModelForMaskedImageModeling,
             "semantic-segmentation": AutoModelForSemanticSegmentation,
             "speech2seq-lm": AutoModelForSpeechSeq2Seq,
+            "stable-diffusion": StableDiffusionPipeline,
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -170,7 +174,8 @@ class TasksManager:
         "bert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for BERT
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -180,7 +185,8 @@ class TasksManager:
         "big-bird": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for big-bird
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -228,7 +234,8 @@ class TasksManager:
         "camembert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for camembert
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -238,6 +245,10 @@ class TasksManager:
         "clip": supported_tasks_mapping(
             "default",
             onnx="CLIPOnnxConfig",
+        ),
+        "clip_text_model": supported_tasks_mapping(
+            "default",
+            onnx="CLIPTextOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
             "default",
@@ -312,7 +323,8 @@ class TasksManager:
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for electra
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -322,7 +334,6 @@ class TasksManager:
         "flaubert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -454,10 +465,12 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        "owlvit": supported_tasks_mapping(
-            "default",
-            onnx="OwlViTOnnxConfig",
-        ),
+        # TODO: owlvit is actually not yet supported in exporters
+        # "owlvit": supported_tasks_mapping(
+        #     "default",
+        #     "zero-shot-object-detection",
+        #     onnx="OwlViTOnnxConfig",
+        # ),
         "perceiver": supported_tasks_mapping(
             "masked-lm",
             "image-classification",
@@ -472,7 +485,8 @@ class TasksManager:
         "roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for roberta
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -482,7 +496,8 @@ class TasksManager:
         "roformer": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for roformer
+            # "causal-lm",
             "sequence-classification",
             "token-classification",
             "multiple-choice",
@@ -512,6 +527,14 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
+        "unet": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="UNetOnnxConfig",
+        ),
+        "vae": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeOnnxConfig",
+        ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "whisper": supported_tasks_mapping(
             "default",
@@ -523,7 +546,8 @@ class TasksManager:
         "xlm": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for xlm
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -533,7 +557,8 @@ class TasksManager:
         "xlm-roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for xlm-roberta
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -552,6 +577,8 @@ class TasksManager:
             onnx="SwinOnnxConfig",
         ),
     }
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip_text_model"}
+    _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
     def get_supported_tasks_for_model_type(
@@ -577,7 +604,7 @@ class TasksManager:
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
+                f"Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
@@ -745,20 +772,40 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            transformers_info = model_info.transformersInfo
-            if transformers_info is None or transformers_info.get("auto_model") is None:
-                raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
-            auto_model_class_name = transformers_info["auto_model"]
-            if not auto_model_class_name.startswith("TF"):
-                auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-            for task_name, class_ in tasks_to_automodels.items():
-                if class_.__name__ == auto_model_class_name:
-                    inferred_task_name = task_name
-                    break
+            if model_info.library_name == "diffusers":
+                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
+                if "stable-diffusion" in model_info.tags:
+                    inferred_task_name = "stable-diffusion"
+            else:
+                transformers_info = model_info.transformersInfo
+                if transformers_info is None or transformers_info.get("auto_model") is None:
+                    raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
+                auto_model_class_name = transformers_info["auto_model"]
+                if not auto_model_class_name.startswith("TF"):
+                    auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
+                for task_name, class_ in tasks_to_automodels.items():
+                    if class_.__name__ == auto_model_class_name:
+                        inferred_task_name = task_name
+                        break
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         logger.info(f"Automatic task detection to {inferred_task_name}.")
         return inferred_task_name
+
+    @staticmethod
+    def get_all_tasks():
+        """
+        Retrieves all the possible tasks.
+
+        Returns:
+            `List`: all the possible tasks.
+        """
+        tasks = []
+        if is_torch_available():
+            tasks = list(TasksManager._TASKS_TO_AUTOMODELS.keys())
+        else:
+            tasks = list(TasksManager._TASKS_TO_TF_AUTOMODELS)
+        return tasks
 
     @staticmethod
     def get_model_from_task(

@@ -33,19 +33,33 @@ from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 def _get_models_to_test(export_models_dict: Dict):
     models_to_test = []
     if is_torch_available():
-        for model_type, model_name in export_models_dict.items():
+        for model_type, model_names_tasks in export_models_dict.items():
             task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
 
-            for task in task_config_mapping.keys():
-                models_to_test.append((f"{model_type}_{task}", model_name, task, False))
+            if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
+                tasks = list(task_config_mapping.keys())
+                model_tasks = {model_names_tasks: tasks}
+            else:
+                n_tested_tasks = sum(len(tasks) for tasks in model_names_tasks.values())
+                if n_tested_tasks != len(task_config_mapping):
+                    raise ValueError(f"Not all tasks are tested for {model_type}.")
+                model_tasks = model_names_tasks  # possibly, test different tasks on different models
 
-                if any(
-                    task.startswith(ort_special_task)
-                    for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
-                ):
-                    models_to_test.append((f"{model_type}_{task}_forort", model_name, task, True))
+            for model_name, tasks in model_tasks.items():
+                for task in tasks:
+                    models_to_test.append((f"{model_type}_{task}", model_name, task, False))
 
-            models_to_test.append((f"{model_type}_no_task", model_name, None, False))
+                    if any(
+                        task.startswith(ort_special_task)
+                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
+                    ):
+                        models_to_test.append((f"{model_type}_{task}_forort", model_name, task, True))
+
+            # TODO: segformer task can not be automatically inferred
+            # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
+            # TODO: perceiver auto-infers default, but we don't support it (why?)
+            if model_type not in ["segformer", "xlm-roberta", "perceiver"]:
+                models_to_test.append((f"{model_type}_no_task", model_name, None, False))
 
         return sorted(models_to_test)
     else:
@@ -80,14 +94,14 @@ class OnnxExportTestCase(TestCase):
             except Exception as e:
                 self.fail(f"{test_name} raised: {e}")
 
+    def test_all_models_tested(self):
+        # make sure we test all models
+        missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
+        if len(missing_models_set) > 0:
+            self.fail(f"Not testing all models. Missing models: {missing_models_set}")
+
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
     def test_exporters_cli_pytorch(self, test_name: str, model_name: str, task: str, for_ort: bool):
-
-        # make sure we test all models
-        missing_models_set = set(TasksManager._SUPPORTED_MODEL_TYPE.keys()) - set(PYTORCH_EXPORT_MODELS_TINY.keys())
-        if len(missing_models_set) > 0:
-            self.fail(f"Not testing all models. Missing models: {missing_models_set}")
-
         self._onnx_export(test_name, model_name, task, for_ort)
