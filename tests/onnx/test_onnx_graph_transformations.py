@@ -28,7 +28,6 @@ from transformers.onnx import export
 import onnx
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
-from optimum.exporters.onnx import export
 from optimum.onnx.graph_transformations import merge_decoders, remove_duplicate_weights
 from parameterized import parameterized
 
