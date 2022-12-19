@@ -245,11 +245,6 @@ def validate_provider_availability(provider: str):
         )
 
 
-def set_up_io_binding(provider: str, use_io_binding: bool) -> bool:
-
-    pass
-
-
 class ORTQuantizableOperator(Enum):
     # Common ops
     Gather = "Gather"
