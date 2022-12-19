@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import subprocess
 import unittest
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
@@ -25,9 +26,9 @@ from transformers.models.albert import AlbertOnnxConfig
 from transformers.onnx import export
 
 import onnx
-from huggingface_hub import hf_hub_download
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
+from optimum.exporters.onnx import export
 from optimum.onnx.graph_transformations import merge_decoders, remove_duplicate_weights
 from parameterized import parameterized
 
@@ -64,21 +65,25 @@ class WeightSharingTestCase(TestCase):
 
 class OnnxMergingTestCase(TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "gpt2": "optimum/gpt2",
-        "t5-small": "optimum/t5-small",
+        "hf-internal-testing/tiny-random-GPT2Model": "causal-lm-with-past",
+        "hf-internal-testing/tiny-random-T5Model": "seq2seq-lm-with-past",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_merge_decoders(self, *args):
-        model_arch, model_id = args
+        model_id, task = args
 
-        decoder_path = hf_hub_download(repo_id=model_id, filename="decoder_model.onnx")
-        decoder_with_past_path = hf_hub_download(repo_id=model_id, filename="decoder_with_past_model.onnx")
+        with TemporaryDirectory() as tmpdir:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                shell=True,
+                check=True,
+            )
 
-        decoder = onnx.load(decoder_path)
-        decoder_with_past = onnx.load(decoder_with_past_path)
+            decoder = onnx.load(os.path.join(tmpdir, "decoder_model.onnx"))
+            decoder_with_past = onnx.load(os.path.join(tmpdir, "decoder_with_past_model.onnx"))
 
-        merge_decoders(decoder, decoder_with_past)
+            merge_decoders(decoder, decoder_with_past)
 
 
 if __name__ == "__main__":
