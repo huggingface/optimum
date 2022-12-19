@@ -258,6 +258,8 @@ def merge_decoders(
         `~onnx.ModelProto`: The fused decoder ONNX model.
     """
     if simplify_graph:
+        if not is_onnxsim_available():
+            raise ImportError("`simplify_graph` requires `onnxsim`, please install it with `pip install onnxsim`.")
         decoder = simplify_onnx_graph(decoder)
         decoder_with_past = simplify_onnx_graph(decoder_with_past)
 
