@@ -25,6 +25,7 @@ from ...utils import (
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
+    DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
     NormalizedSeq2SeqConfig,
@@ -648,6 +649,103 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
         )
 
 
+class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        vocab_size="vocab_size",
+        sequence_length="max_position_embeddings",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
+            "pooler_output": {0: "batch_size", 1: "feature_dim"},
+        }
+
+    def generate_dummy_inputs(self, framework: str = "pt"):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        if framework == "pt":
+            import torch
+
+            dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
+        return dummy_inputs
+
+
+class UNetOnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        image_size="sample_size",
+        num_channels="in_channels",
+        hidden_size="cross_attention_dim",
+        vocab_size="norm_num_groups",
+        allow_new=True,
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyVisionInputGenerator,
+        DummyTimestepInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "timestep": {0: "steps"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "out_sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+
+    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
+        return ["sample"]
+
+    def generate_dummy_inputs(self, framework: str = "pt"):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+        dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
+        return dummy_inputs
+
+
+class VaeOnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_channels="latent_channels",
+        allow_new=True,
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+
+
 class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass
 
@@ -677,6 +775,7 @@ class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         allow_new=True,
         MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+        image_size="input_size",
     )
     DEFAULT_ONNX_OPSET = 12
 
