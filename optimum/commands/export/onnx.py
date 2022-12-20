@@ -82,54 +82,60 @@ def parse_args_onnx(parser):
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input.)"
     )
-    doc_input = " to use in the example input given to the ONNX export."
+    doc_input = "to use in the example input given to the ONNX export."
     input_group.add_argument(
         "--batch_size",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["batch_size"],
-        help="Text tasks only. Batch size" + doc_input,
+        help=f"Text tasks only. Batch size {doc_input}",
     )
     input_group.add_argument(
         "--sequence_length",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["sequence_length"],
-        help="Text tasks only. Sequence length " + doc_input,
+        help=f"Text tasks only. Sequence length {doc_input}",
     )
     input_group.add_argument(
         "--num_choices",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["num_choices"],
-        help="Text tasks only. Num choices " + doc_input,
+        help=f"Text tasks only. Num choices {doc_input}",
     )
     input_group.add_argument(
-        "--width", type=int, default=DEFAULT_DUMMY_SHAPES["width"], help="Image tasks only. Width " + doc_input
+        "--width",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["width"],
+        help=f"Image tasks only. Width {doc_input}",
     )
     input_group.add_argument(
-        "--height", type=int, default=DEFAULT_DUMMY_SHAPES["height"], help="Image tasks only. Height " + doc_input
+        "--height",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["height"],
+        help=f"Image tasks only. Height {doc_input}",
     )
     input_group.add_argument(
         "--num_channels",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["num_channels"],
-        help="Image tasks only. Number of channels " + doc_input,
+        help=f"Image tasks only. Number of channels {doc_input}",
     )
     input_group.add_argument(
         "--feature_size",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["feature_size"],
-        help="Audio tasks only. Feature size " + doc_input,
+        help=f"Audio tasks only. Feature size {doc_input}",
     )
     input_group.add_argument(
         "--nb_max_frames",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["nb_max_frames"],
-        help="Audio tasks only. Maximum number of frames " + doc_input,
+        help=f"Audio tasks only. Maximum number of frames {doc_input}",
     )
     input_group.add_argument(
         "--audio_sequence_length",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
-        help="Audio tasks only. Audio sequence length " + doc_input,
+        help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
 
 
