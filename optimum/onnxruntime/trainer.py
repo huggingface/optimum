@@ -1469,7 +1469,7 @@ class ORTTrainer(Trainer):
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        _ = export(model, onnx_config, opset, model_path, device=device)
+        _ = export(model, onnx_config, model_path, opset, device=device)
 
     def _wrap_model(self, model, training=True, dataloader=None):
         # TODO: torchdynamo works for inference with PyTorch in ORTTrainer, will move `inference_with_ort` to training arguments and
