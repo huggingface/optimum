@@ -794,11 +794,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         encoder = model.get_encoder()
         decoder = model.get_decoder()
 
-        onnx_config_encoder = onnx_config.get_encoder_onnx_config(encoder.config)
-        onnx_config_decoder = onnx_config.get_decoder_onnx_config(decoder.config, onnx_config.task, use_past=False)
-        onnx_config_decoder_with_past = onnx_config.get_decoder_onnx_config(
-            decoder.config, onnx_config.task, use_past=True
-        )
+        onnx_config_encoder = onnx_config.with_behavior("encoder")
+        onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)
+        onnx_config_decoder_with_past = onnx_config.with_behavior("decoder", use_past=True)
 
         if with_loss:
             # Add `loss` to the ONNX config of decoders

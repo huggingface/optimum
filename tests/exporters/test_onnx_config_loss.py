@@ -189,7 +189,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task="seq2seq-lm")
             onnx_config = onnx_config_constructor(model.config)
 
-            onnx_config_decoder = onnx_config.get_decoder_onnx_config(model.config, onnx_config.task)
+            onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)
 
             wrapped_onnx_config_decoder = OnnxConfigWithLoss(onnx_config_decoder)
 
