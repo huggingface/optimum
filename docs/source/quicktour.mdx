@@ -218,3 +218,21 @@ optimum-cli export onnx --help
 ```
 
 Check out the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) for more.
+
+## PyTorch's BetterTransformer support
+
+[BetterTransformer](https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/) is a free-lunch PyTorch-native optimization to gain x1.25 - x4 speedup on the inference of Transformer-based models. It has been marked as stable in [PyTorch 1.13](https://pytorch.org/blog/PyTorch-1.13-release/). We integrated BetterTransformer with the most-used models from the 🤗 Transformers libary, and using the integration is as simple as:
+
+```python
+from optimum.bettertransformer import BetterTransformer
+
+model = BetterTransformer.transform(model)
+```
+
+Check out the [documentation](https://huggingface.co/docs/optimum/bettertransformer/overview) for more details, and the [blog post on PyTorch's Medium](https://medium.com/pytorch/bettertransformer-out-of-the-box-performance-for-huggingface-transformers-3fbe27d50ab2) to find out more about the integration!
+
+## `torch.fx` integration
+
+Optimum integrates with `torch.fx`, providing as a one-liner several graph transformations. We aim at supporting a better management of [quantization](https://huggingface.co/docs/optimum/concept_guides/quantization) through `torch.fx`, both for quantization-aware training (QAT) and post-training quantization (PTQ).
+
+Check out the [documentation](https://huggingface.co/docs/optimum/torch_fx/usage_guides/optimization) and [reference](https://huggingface.co/docs/optimum/torch_fx/package_reference/optimization) for more!

@@ -40,6 +40,18 @@ if is_tf_available():
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
+class ShapeError(ValueError):
+    pass
+
+
+class AtolError(ValueError):
+    pass
+
+
+class OutputMatchError(ValueError):
+    pass
+
+
 def check_dummy_inputs_are_allowed(
     model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
 ):
@@ -203,7 +215,7 @@ def validate_model_outputs(
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
     ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
     if not onnx_outputs_set.issubset(ref_outputs_set):
-        raise ValueError(
+        raise OutputMatchError(
             "ONNX model output names do not match reference model output names.\n"
             f"Reference model output names: {ref_outputs_set}\n"
             f"ONNX model output names: {onnx_outputs_set}"
@@ -240,11 +252,13 @@ def validate_model_outputs(
 
     if shape_failures:
         msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
-        raise ValueError(f"Output shapes do not match between reference model and ONNX exported model:\n{msg}")
+        raise ShapeError(f"Output shapes do not match between reference model and ONNX exported model:\n{msg}")
 
     if value_failures:
         msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
-        raise ValueError(f"Output values do not match between reference model and ONNX exported model:\n{msg}")
+        raise AtolError(
+            f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {atol}:\n{msg}"
+        )
 
 
 def export_pytorch(
