@@ -156,6 +156,7 @@ class OnnxConfig(ExportConfig, ABC):
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
 
     }
 
