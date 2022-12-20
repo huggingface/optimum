@@ -577,7 +577,7 @@ class TasksManager:
             onnx="SwinOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip_text_model"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip-text-model"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
