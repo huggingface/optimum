@@ -151,6 +151,13 @@ class ORTModel(OptimizedModel):
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
         return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class.__name__, None)
+    
+    @classmethod
+    def _auto_model_to_task(cls, auto_model_class):
+        """
+        Get the task corresponding to a class (for example AutoModelForXXX in transformers).
+        """
+        return cls._AUTOMODELS_TO_TASKS[auto_model_class.__name__]
 
     def __init__(
         self,

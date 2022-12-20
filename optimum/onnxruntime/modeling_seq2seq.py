@@ -1071,7 +1071,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class.__name__]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
