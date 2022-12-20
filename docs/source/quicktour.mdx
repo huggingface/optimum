@@ -201,6 +201,24 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
 
+## Out of the box ONNX export
+
+The Optimum library handles out of the box the ONNX export of Transformers and Diffusers models!
+
+Exporting a model to ONNX is as simple as
+
+```
+optimum-cli export onnx --model gpt2 gpt2_onnx/
+```
+
+Check out the help for more options:
+
+```
+optimum-cli export onnx --help
+```
+
+Check out the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) for more.
+
 ## PyTorch's BetterTransformer support
 
 [BetterTransformer](https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/) is a free-lunch PyTorch-native optimization to gain x1.25 - x4 speedups on the inference of Transformer-based models. It has been marked as stable in [PyTorch 1.13](https://pytorch.org/blog/PyTorch-1.13-release/). We integrated BetterTransformer with the most-used models from the 🤗 Transformers libary, and using the integration is as simple as:
