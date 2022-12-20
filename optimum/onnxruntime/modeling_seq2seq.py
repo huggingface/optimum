@@ -214,7 +214,7 @@ class ORTEncoder:
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         main_input_name: str = "input_ids",
     ):
         self.session = session
@@ -686,7 +686,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         config ([`PretrainedConfig`]):
             Instance of the configuration associated to the model. Initializing with a config file does
             not load the weights associated with the model, only the configuration.
-        use_io_binding (`bool`):
+        use_io_binding (`bool`, *optional*, defaults to `None`):
             Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
             if the device is CUDA, otherwise defaults to `False`.
         use_cache (`bool`):
@@ -722,7 +722,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         decoder_session: ort.InferenceSession,
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[ort.InferenceSession] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
@@ -738,7 +738,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 does not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[ort.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
-            use_io_binding (`bool`, *optional*, defaults to `True`):
+            use_io_binding (`bool`, *optional*, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
@@ -807,7 +807,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ) -> "ORTEncoder":
         pass
 
@@ -928,7 +928,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
         model_path = Path(model_id)
@@ -1067,7 +1067,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
         if task is None:
@@ -1164,7 +1164,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ) -> ORTEncoder:
         return ORTEncoder(
             session=session,
@@ -1276,7 +1276,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ) -> ORTEncoder:
         if config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
             raise KeyError(
