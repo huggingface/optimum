@@ -430,7 +430,7 @@ class BigBirdPegasusOnnxConfig(BartOnnxConfig):
         if self._behavior is ConfigBehavior.ENCODER:
             # TODO: check why the attention mask is not present in the exported model
             reference_model_inputs.pop("attention_mask")
-        return reference_model_inputs
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
 class MarianOnnxConfig(BartOnnxConfig):
