@@ -147,11 +147,14 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
 }
 
-
 TENSORFLOW_EXPORT_MODELS = {
     "albert": "hf-internal-testing/tiny-albert",
     "bert": "bert-base-cased",
     "camembert": "camembert-base",
     "distilbert": "distilbert-base-cased",
     "roberta": "roberta-base",
+}
+
+PYTORCH_STABLE_DIFFUSION_MODEL = {
+    ("hf-internal-testing/tiny-stable-diffusion-torch"),
 }

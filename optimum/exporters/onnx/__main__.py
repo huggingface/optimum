@@ -20,7 +20,7 @@ from pathlib import Path
 from transformers import AutoTokenizer
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import DEFAULT_DUMMY_SHAPES, is_diffusers_available, logging
+from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast

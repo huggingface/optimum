@@ -17,13 +17,12 @@
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import TORCH_MINIMUM_VERSION, is_torch_onnx_support_available, logging
-from ..tasks import TasksManager
 from .base import OnnxConfig
 
 
@@ -75,7 +74,7 @@ def validate_models_outputs(
     output_dir: Path,
     atol: Optional[float] = None,
     output_names: Optional[List[str]] = None,
-    input_shapes: Dict = {},
+    input_shapes: Optional[Dict] = None,
 ):
     """
     Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
@@ -93,13 +92,11 @@ def validate_models_outputs(
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
             If None, will use the keys from the `models_and_onnx_configs` as names.
-        input_shapes (`Dict`, defaults to `{}`):
+        input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes to validate the ONNX model on.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    models_for_validation = fn_get_models_from_config(reference_model, onnx_config)
-
     if len(onnx_named_outputs) != len(models_and_onnx_configs.keys()):
         raise ValueError(
             f"Invalid number of ONNX named outputs. Required {len(models_and_onnx_configs.keys())}, Provided {len(onnx_named_outputs)}"
@@ -133,7 +130,7 @@ def validate_model_outputs(
     onnx_model: Path,
     onnx_named_outputs: List[str],
     atol: Optional[float] = None,
-    input_shapes: Dict = {},
+    input_shapes: Optional[Dict] = None,
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
@@ -149,7 +146,7 @@ def validate_model_outputs(
             The names of the outputs to check.
         atol (`Optional[float]`, defaults to `None`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
-        input_shapes (`Dict`, defaults to `{}`):
+        input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes to validate the ONNX model on.
 
     Raises:
@@ -165,6 +162,9 @@ def validate_model_outputs(
     framework = (
         "pt" if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)) else "tf"
     )
+
+    if input_shapes is None:
+        input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
 
     # Create ONNX Runtime session
@@ -261,7 +261,7 @@ def export_pytorch(
     opset: int,
     output: Path,
     device: str = "cpu",
-    input_shapes: Dict = dict(),
+    input_shapes: Optional[Dict] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a PyTorch model to an ONNX Intermediate Representation.
@@ -278,7 +278,7 @@ def export_pytorch(
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
-        input_shapes (`Dict`, defaults to `{}`):
+        input_shapes (`optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
 
     Returns:
@@ -301,6 +301,9 @@ def export_pytorch(
             for override_config_key, override_config_value in config.values_override.items():
                 logger.info(f"\t- {override_config_key} -> {override_config_value}")
                 setattr(model.config, override_config_key, override_config_value)
+
+        if input_shapes is None:
+            input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
 
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
@@ -414,7 +417,7 @@ def export_models(
     opset: Optional[int] = None,
     output_names: Optional[List[str]] = None,
     device: str = "cpu",
-    input_shapes: Dict = dict(),
+    input_shapes: Optional[Dict] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
     Exports a Pytorch or TensorFlow encoder decoder model to an ONNX Intermediate Representation.
@@ -423,7 +426,7 @@ def export_models(
 
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
-             A dictionnary containing the models to export and their corresponding onnx configs.
+            A dictionnary containing the models to export and their corresponding onnx configs.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
         opset (`Optional[int]`, defaults to `None`):
@@ -434,7 +437,7 @@ def export_models(
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
-        input_shapes (`Dict`, defaults to `{}`):
+        input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
@@ -475,7 +478,7 @@ def export(
     output: Path,
     opset: Optional[int] = None,
     device: str = "cpu",
-    input_shapes: Dict = {},
+    input_shapes: Optional[Dict] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a Pytorch or TensorFlow model to an ONNX Intermediate Representation.
@@ -492,7 +495,7 @@ def export(
         device (`str`, *optional*, defaults to `cpu`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
-        input_shapes (`Dict`, defaults to `{}`):
+        input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
 
     Returns:
@@ -511,6 +514,8 @@ def export(
         opset = config.DEFAULT_ONNX_OPSET
 
     if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin)):
+        import torch
+
         from ...utils import torch_version
 
         if not is_torch_onnx_support_available():
@@ -528,10 +533,8 @@ def export(
     elif is_tf_available() and issubclass(type(model), TFPreTrainedModel):
         if device == "cuda":
             raise RuntimeError("`tf2onnx` does not support export on CUDA device.")
-        if input_shapes != dict():
-            logger.warning(
-                "`input_shapes` argument is not supported by the Tensorflow ONNX export and will be ignored."
-            )
+        if input_shapes is not None:
+            logger.info("`input_shapes` argument is not supported by the Tensorflow ONNX export and will be ignored.")
         return export_tensorflow(model, config, opset, output)
 
     else:

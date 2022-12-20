@@ -25,6 +25,7 @@ from transformers.testing_utils import require_onnx, require_tf, require_torch, 
 
 from exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_STABLE_DIFFUSION_MODEL,
     TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_FAST,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
@@ -50,10 +51,6 @@ if is_torch_available() or is_tf_available():
 
 if is_diffusers_available():
     from diffusers import StableDiffusionPipeline
-
-PYTORCH_STABLE_DIFFUSION_MODEL = {
-    ("hf-internal-testing/tiny-stable-diffusion-torch"),
-}
 
 
 @require_onnx
