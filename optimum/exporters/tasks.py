@@ -246,7 +246,7 @@ class TasksManager:
             "default",
             onnx="CLIPOnnxConfig",
         ),
-        "clip_text_model": supported_tasks_mapping(
+        "clip-text-model": supported_tasks_mapping(
             "default",
             onnx="CLIPTextOnnxConfig",
         ),
@@ -866,6 +866,7 @@ class TasksManager:
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         exporter: str,
         task: str = "default",
+        model_type: Optional[str] = None,
         model_name: Optional[str] = None,
     ) -> ExportConfigConstructor:
         """
@@ -878,13 +879,20 @@ class TasksManager:
                 The exporter to use.
             task (`str`, *optional*, defaults to `"default"`):
                 The task to retrieve the config for.
+            model_type (`str`):
+                The model type to retrieve the config for.
             model_name (`Optional[str]`, *optional*):
                 The name attribute of the model object, only used for the exception message.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
-        model_type = model.config.model_type.replace("_", "-")
+        model_type = getattr(model.config, "model_type", model_type)
+
+        if model_type is None:
+            raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")
+
+        model_type = model_type.replace("_", "-")
         if model_name is None:
             model_name = getattr(model, "name", None)
 

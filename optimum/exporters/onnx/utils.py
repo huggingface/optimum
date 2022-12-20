@@ -152,14 +152,14 @@ def get_stable_diffusion_models_for_export(
 
     # Text encoder
     text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
-        pipeline.text_encoder.config.model_type, "onnx", task="default"
+        pipeline.text_encoder, "onnx", task="default"
     )
     text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
     models_for_export["text_encoder"] = (pipeline.text_encoder, text_encoder_onnx_config)
 
     # U-NET
     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-        "unet", "onnx", task="semantic-segmentation"
+        pipeline.unet, "onnx", task="semantic-segmentation", model_type="unet"
     )
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
     models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
@@ -167,7 +167,9 @@ def get_stable_diffusion_models_for_export(
     # VAE
     vae = copy.deepcopy(pipeline.vae)
     vae.forward = lambda latent_sample: vae.decode(z=latent_sample)
-    vae_config_constructor = TasksManager.get_exporter_config_constructor("vae", "onnx", task="semantic-segmentation")
+    vae_config_constructor = TasksManager.get_exporter_config_constructor(
+        vae, "onnx", task="semantic-segmentation", model_type="vae"
+    )
     vae_onnx_config = vae_config_constructor(vae.config)
     models_for_export["vae"] = (vae, vae_onnx_config)
 
