@@ -57,6 +57,7 @@ from .utils import (
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
+    set_io_binding_for_provider,
     validate_provider_availability,
 )
 
@@ -156,7 +157,7 @@ class ORTModel(OptimizedModel):
         self,
         model: ort.InferenceSession,
         config: "PretrainedConfig",
-        use_io_binding: bool = True,
+        use_io_binding: bool = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
@@ -199,6 +200,12 @@ class ORTModel(OptimizedModel):
                 f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
+
+        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
+            logger.warning(
+                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
+            )
+            self.use_io_binding = False
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -356,7 +363,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: bool = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ) -> "ORTModel":
         model_path = Path(model_id)
@@ -421,12 +428,6 @@ class ORTModel(OptimizedModel):
         # instead of the path only.
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
-
-        if provider == "TensorrtExecutionProvider" and use_io_binding:
-            logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
-            )
-            use_io_binding = False
 
         return cls(
             model=model,
