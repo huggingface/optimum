@@ -40,8 +40,8 @@ from optimum.exporters.onnx import (
     validate_model_outputs,
     validate_models_outputs,
 )
-from optimum.utils.testing_utils import grid_parameters
 from optimum.utils import is_diffusers_available
+from optimum.utils.testing_utils import grid_parameters
 from parameterized import parameterized
 
 
@@ -54,6 +54,7 @@ if is_diffusers_available():
 PYTORCH_STABLE_DIFFUSION_MODEL = {
     ("hf-internal-testing/tiny-stable-diffusion-torch"),
 }
+
 
 @require_onnx
 class OnnxUtilsTestCase(TestCase):

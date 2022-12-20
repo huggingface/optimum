@@ -20,7 +20,7 @@ from pathlib import Path
 from transformers import AutoTokenizer
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils import DEFAULT_DUMMY_SHAPES, is_diffusers_available, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
@@ -139,7 +139,9 @@ def main():
             input_shapes=input_shapes,
         )
     else:
-        onnx_inputs, onnx_outputs = export(model=model, config=onnx_config, output=args.output, opset=args.opset, input_shapes=input_shapes)
+        onnx_inputs, onnx_outputs = export(
+            model=model, config=onnx_config, output=args.output, opset=args.opset, input_shapes=input_shapes
+        )
 
     try:
         if task == "stable-diffusion" or (
