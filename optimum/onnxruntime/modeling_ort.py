@@ -57,7 +57,7 @@ from .utils import (
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
-    set_io_binding_for_provider,
+    possible_io_binding_for_provider,
     validate_provider_availability,
 )
 
@@ -174,7 +174,6 @@ class ORTModel(OptimizedModel):
             )
 
         super().__init__(model, config)
-        self.use_io_binding = use_io_binding
         self.providers = model.get_providers()
         self._device = get_device_for_provider(self.providers[0])
 
@@ -201,11 +200,15 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
-            logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
-            )
-            self.use_io_binding = False
+        io_binding_options = possible_io_binding_for_provider(self.providers)
+        if use_io_binding:
+            if not use_io_binding in io_binding_options:
+                raise ValueError(
+                    f"You cannot set `use_io_binding={use_io_binding}` for {self.providers} execution provider(s). Please set `use_io_binding={not use_io_binding}` instead."
+                )
+            self.use_io_binding = use_io_binding
+        else:
+            self.use_io_binding = io_binding_options[0]
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -451,7 +454,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: bool = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:

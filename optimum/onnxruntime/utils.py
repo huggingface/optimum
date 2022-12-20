@@ -16,7 +16,7 @@
 import importlib.util
 import os
 from enum import Enum
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -218,24 +218,26 @@ def validate_provider_availability(provider: str):
         )
 
 
-def set_io_binding_for_provider(provider: str, use_io_binding: Optional[bool] = None) -> bool:
+def possible_io_binding_for_provider(providers: List[str]) -> bool:
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
     io_binding_options = {
+        "TensorrtExecutionProvider": (False,),
         "CUDAExecutionProvider": (True, False),
         "CPUExecutionProvider": (False,),
-        "TensorrtExecutionProvider": (False,),
     }
 
-    if use_io_binding:
-        if not use_io_binding in io_binding_options[provider]:
-            raise ValueError(
-                f"You cannot set `use_io_binding={use_io_binding}` for {provider}. Please set `use_io_binding={not use_io_binding}` instead."
-            )
-        return use_io_binding
+    if "TensorrtExecutionProvider" in providers:
+        return io_binding_options["TensorrtExecutionProvider"]
+    elif "CUDAExecutionProvider" in providers:
+        return io_binding_options["CUDAExecutionProvider"]
+    elif "CPUExecutionProvider" in providers:
+        return io_binding_options["CPUExecutionProvider"]
     else:
-        return io_binding_options[provider][0]
+        raise KeyError(
+            f"{providers} are not registered execution providers. If you want us to support other ep, please open an issue here: https://github.com/huggingface/optimum/issues."
+        )
 
 
 class ORTQuantizableOperator(Enum):
