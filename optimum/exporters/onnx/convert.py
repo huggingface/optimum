@@ -17,13 +17,12 @@
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import TORCH_MINIMUM_VERSION, is_torch_onnx_support_available, logging
-from ..tasks import TasksManager
+from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
 from .base import OnnxConfig
 
 
@@ -31,6 +30,7 @@ if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
     from transformers.pytorch_utils import is_torch_less_than_1_11
 
+if is_diffusers_available():
     from diffusers import ModelMixin
 
 if is_tf_available():
@@ -51,11 +51,15 @@ def check_dummy_inputs_are_allowed(
         model_inputs (`Iterable[str]`):
             The model input names.
     """
-    forward = (
-        model.forward
-        if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin))
-        else model.call
-    )
+
+    classinfo = (PreTrainedModel,)
+    if is_diffusers_available():
+        classinfo += (ModelMixin,)
+
+    if "diffusers" in str(model.__class__) and not is_diffusers_available():
+        raise ImportError("The pip package `diffusers` is required to export stable diffusion models to ONNX.")
+
+    forward = model.forward if is_torch_available() and issubclass(type(model), classinfo) else model.call
     forward_parameters = signature(forward).parameters
     forward_inputs_set = set(forward_parameters.keys())
     dummy_input_names = set(dummy_input_names)
@@ -154,9 +158,14 @@ def validate_model_outputs(
     if atol is None:
         atol = config.ATOL_FOR_VALIDATION
 
-    framework = (
-        "pt" if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)) else "tf"
-    )
+    classinfo = (PreTrainedModel,)
+    if is_diffusers_available():
+        classinfo += (ModelMixin,)
+
+    if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
+        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+
+    framework = "pt" if is_torch_available() and issubclass(type(reference_model), classinfo) else "tf"
     reference_model_inputs = config.generate_dummy_inputs(framework=framework)
 
     # Create ONNX Runtime session
@@ -164,7 +173,7 @@ def validate_model_outputs(
     session = InferenceSession(onnx_model.as_posix(), options, providers=["CPUExecutionProvider"])
 
     # Compute outputs from the reference model
-    if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)):
+    if is_torch_available() and issubclass(type(reference_model), classinfo):
         reference_model.to("cpu")
 
     ref_outputs = reference_model(**reference_model_inputs)
@@ -213,11 +222,18 @@ def validate_model_outputs(
         onnx_output_names = ", ".join(onnx_outputs_set)
         logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
 
+    classinfo = (PreTrainedModel,)
+    if is_diffusers_available():
+        classinfo += (ModelMixin,)
+
+    if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
+        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+
     # Check the shape and values match
     shape_failures = []
     value_failures = []
     for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
-        if is_torch_available() and issubclass(type(reference_model), (PreTrainedModel, ModelMixin)):
+        if is_torch_available() and issubclass(type(reference_model), classinfo):
             ref_value = ref_outputs_dict[name].detach().numpy()
         else:
             ref_value = ref_outputs_dict[name].numpy()
@@ -492,7 +508,14 @@ def export(
     if opset is None:
         opset = config.DEFAULT_ONNX_OPSET
 
-    if is_torch_available() and issubclass(type(model), (PreTrainedModel, ModelMixin)):
+    classinfo = (PreTrainedModel,)
+    if is_diffusers_available():
+        classinfo += (ModelMixin,)
+
+    if "diffusers" in str(model.__class__) and not is_diffusers_available():
+        raise ImportError("The pip package `diffusers` is required to export stable diffusion models to ONNX.")
+
+    if is_torch_available() and issubclass(type(model), classinfo):
         from ...utils import torch_version
 
         if not is_torch_onnx_support_available():

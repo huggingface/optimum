@@ -133,7 +133,7 @@ def get_decoder_models_for_export(
 
 
 def get_stable_diffusion_models_for_export(
-    pipeline: Union["StableDiffusionPipeline"],
+    pipeline: "StableDiffusionPipeline",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]]:
     """
     Returns the components of a Stable Diffusion model and their subsequent onnx configs.

@@ -35,7 +35,6 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf==3.20.1",
-        "diffusers",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -43,7 +42,6 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf==3.20.1",
-        "diffusers",
     ],
     "exporters": ["onnx", "onnxruntime", "timm", "diffusers"],
     "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "diffusers"],

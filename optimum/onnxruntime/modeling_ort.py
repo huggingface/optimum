@@ -143,14 +143,14 @@ class ORTModel(OptimizedModel):
         - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
-    _AUTOMODELS_TO_TASKS = {cls_: task for task, cls_ in TasksManager._TASKS_TO_AUTOMODELS.items()}
+    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in TasksManager._TASKS_TO_AUTOMODELS.items()}
     model_type = "onnx_model"
     auto_model_class = AutoModel
 
     @classproperty
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class, None)
+        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class.__name__, None)
 
     def __init__(
         self,
@@ -454,7 +454,7 @@ class ORTModel(OptimizedModel):
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class.__name__]
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
