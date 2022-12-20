@@ -24,7 +24,15 @@ from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs
+from .convert import (
+    AtolError,
+    OutputMatchError,
+    ShapeError,
+    export,
+    export_models,
+    validate_model_outputs,
+    validate_models_outputs,
+)
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
@@ -163,10 +171,21 @@ def main():
                 atol=args.atol,
             )
 
-    except ValueError:
-        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
-        return
-    logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
+        logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
+    except ShapeError as e:
+        raise e
+    except AtolError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except OutputMatchError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except Exception as e:
+        logger.error(
+            f"An error occured with error {e}.\n The model was exported model was saved at: {args.output.parent.as_posix()}"
+        )
 
 
 if __name__ == "__main__":
