@@ -341,6 +341,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
         force_eos_token_id_presence: bool = True,
+        **kwargs,
     ):
         super().__init__(
             task,
