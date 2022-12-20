@@ -187,6 +187,7 @@ class NormalizedConfigManager:
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
+        "gptj": GPT2LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
@@ -204,7 +205,7 @@ class NormalizedConfigManager:
         if model_type not in cls._conf:
             model_types = ", ".join(cls._conf.keys())
             raise KeyError(
-                f"{model_type} model type is not supported yet. Only {model_types} are supported. "
+                f"{model_type} model type is not supported yet in NormalizedConfig. Only {model_types} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
 
