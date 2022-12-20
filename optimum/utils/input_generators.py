@@ -555,6 +555,7 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
     ):
         self.task = task
+        self.normalized_config = normalized_config
 
         self.feature_size = feature_size
         self.nb_max_frames = nb_max_frames

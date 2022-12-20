@@ -114,7 +114,15 @@ PYTORCH_EXPORT_MODELS = {
     ("swin", "microsoft/swin-base-patch4-window12-384-in22k"),
     ("hubert", "hf-internal-testing/tiny-random-HubertModel"),
     ("wav2vec2", "hf-internal-testing/tiny-random-Wav2Vec2Model"),
+    ("wav2vec2-conformer", "hf-internal-testing/tiny-random-wav2vec2-conformer"),
+    ("wavlm", "hf-internal-testing/tiny-random-wavlm"),
     ("sew", "hf-internal-testing/tiny-random-SEWModel"),
+    ("sew-d", "hf-internal-testing/tiny-random-SEWDModel"),
+    ("unispeech", "hf-internal-testing/tiny-random-unispeech"),
+    ("unispeech-sat", "hf-internal-testing/tiny-random-unispeech-sat"),
+    ("audio-spectrogram-transformer", "Ericwang/tiny-random-ast"),
+    # Disabled for now because some operator seems to not be supported by ONNX.
+    # ("mctct", "hf-internal-testing/tiny-random-MCTCTModel"),
 }
 
 
