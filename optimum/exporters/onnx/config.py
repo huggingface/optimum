@@ -14,22 +14,24 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-from typing import TYPE_CHECKING, List, Mapping
+from typing import TYPE_CHECKING, Any, List, Mapping
 
 from ...utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
-    DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
     logging,
 )
-from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 
 
 if TYPE_CHECKING:
+    from transformers import PretrainedConfig
+
     from ...utils import DummyInputGenerator
 
 logger = logging.get_logger(__name__)
@@ -69,26 +71,40 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
-        DummyDecoderTextInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
     )
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
-        }
-        if self.use_past_in_inputs:
-            common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
-            common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "past_decoder_sequence + sequence"}
-        else:
-            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-            # common_inputs["decoder_attention_mask"] = {0: "batch", 1: "decoder_sequence"}
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
 
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {}
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
 
@@ -116,6 +132,13 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         ]
 
         return dummy_inputs_generators
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+            reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
+        return reference_model_inputs
 
 
 class VisionOnnxConfig(OnnxConfig):
@@ -146,9 +169,47 @@ class AudioOnnxConfig(OnnxConfig):
         return {"input_values": {0: "batch_size", 1: "sequence_length"}}
 
 
-class TextAndAudioOnnxConfig(OnnxSeq2SeqConfigWithPast):
+class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyAudioInputGenerator,
-        DummyDecoderTextInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
     )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {}
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        return common_inputs
+
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs

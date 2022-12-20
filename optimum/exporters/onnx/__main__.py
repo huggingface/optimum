@@ -19,11 +19,20 @@ from pathlib import Path
 
 from transformers import AutoTokenizer
 
+from ...commands.export.onnx import parse_args_onnx
 from ...utils import is_diffusers_available, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs
+from .convert import (
+    AtolError,
+    OutputMatchError,
+    ShapeError,
+    export,
+    export_models,
+    validate_model_outputs,
+    validate_models_outputs,
+)
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
@@ -37,48 +46,8 @@ logger.setLevel(logging.INFO)
 
 def main():
     parser = ArgumentParser("Hugging Face Optimum ONNX exporter")
-    parser.add_argument(
-        "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
-    )
-    parser.add_argument(
-        "--task",
-        default="auto",
-        help="The type of task to export the model with.",
-    )
-    parser.add_argument("--opset", type=int, default=None, help="ONNX opset version to export the model with.")
-    parser.add_argument(
-        "--atol", type=float, default=None, help="Absolute difference tolerance when validating the model."
-    )
-    parser.add_argument(
-        "--framework",
-        type=str,
-        choices=["pt", "tf"],
-        default=None,
-        help=(
-            "The framework to use for the ONNX export."
-            " If not provided, will attempt to use the local checkpoint's original framework"
-            " or what is available in the environment."
-        ),
-    )
-    parser.add_argument(
-        "--pad_token_id",
-        type=int,
-        default=None,
-        help=(
-            "This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess"
-            " it."
-        ),
-    )
-    parser.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
-    parser.add_argument(
-        "--for-ort",
-        action="store_true",
-        help=(
-            "This exports models ready to be run with optimum.onnxruntime. Useful for encoder-decoder models for"
-            "conditional generation. If enabled the encoder and decoder of the model are exported separately."
-        ),
-    )
-    parser.add_argument("output", type=Path, help="Path indicating the directory where to store generated ONNX model.")
+
+    parse_args_onnx(parser)
 
     # Retrieve CLI arguments
     args = parser.parse_args()
@@ -194,10 +163,21 @@ def main():
                 atol=args.atol,
             )
 
-    except ValueError:
-        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
-        return
-    logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
+        logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
+    except ShapeError as e:
+        raise e
+    except AtolError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except OutputMatchError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except Exception as e:
+        logger.error(
+            f"An error occured with error {e}.\n The model was exported model was saved at: {args.output.parent.as_posix()}"
+        )
 
 
 if __name__ == "__main__":
