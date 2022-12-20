@@ -215,7 +215,7 @@ def validate_model_outputs(
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
     ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
     if not onnx_outputs_set.issubset(ref_outputs_set):
-        raise OutputError(
+        raise OutputMatchError(
             "ONNX model output names do not match reference model output names.\n"
             f"Reference model output names: {ref_outputs_set}\n"
             f"ONNX model output names: {onnx_outputs_set}"

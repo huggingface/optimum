@@ -26,7 +26,7 @@ from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
 from .convert import (
     AtolError,
-    OutputError,
+    OutputMatchError,
     ShapeError,
     export,
     export_models,
@@ -170,7 +170,7 @@ def main():
         logger.warning(
             f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
         )
-    except OutputError as e:
+    except OutputMatchError as e:
         logger.warning(
             f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
         )
