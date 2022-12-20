@@ -28,6 +28,7 @@ from transformers import (
     AutoModelForImageClassification,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
+    AutoModelForSemanticSegmentation,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
@@ -52,6 +53,7 @@ from optimum.onnxruntime import (
     ORTModelForImageClassification,
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
+    ORTModelForSemanticSegmentation,
     ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
     ORTModelForSpeechSeq2Seq,
@@ -85,6 +87,7 @@ MODEL_NAMES = {
     "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
     "whisper": "openai/whisper-tiny.en",
 }
 
@@ -1263,6 +1266,116 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         )
         set_seed(SEED)
         io_model = ORTModelForImageClassification.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=True
+        )
+
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+
+class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
+    }
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_compare_to_transformers(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        trfs_model = AutoModelForSemanticSegmentation.from_pretrained(model_id)
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=image, return_tensors="pt")
+        onnx_outputs = onnx_model(**inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
+
+        with torch.no_grad():
+            trtfs_outputs = trfs_model(**inputs)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_ort_model(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
+
+    @pytest.mark.run_in_series
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("image-segmentation")
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+        # compare model output class
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor, device=0)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+
+        # compare model output class
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=False
+        )
+        set_seed(SEED)
+        io_model = ORTModelForSemanticSegmentation.from_pretrained(
             model_id, from_transformers=True, use_io_binding=True
         )
 

@@ -200,3 +200,21 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
+
+## Out of the box ONNX export
+
+The Optimum library handles out of the box the ONNX export of Transformers and Diffusers models!
+
+Exporting a model to ONNX is as simple as
+
+```
+optimum-cli export onnx --model gpt2 gpt2_onnx/
+```
+
+Check out the help for more options:
+
+```
+optimum-cli export onnx --help
+```
+
+Check out the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) for more.

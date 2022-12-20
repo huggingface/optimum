@@ -33,6 +33,7 @@ _import_structure = {
         "ORTModelForImageClassification",
         "ORTModelForMultipleChoice",
         "ORTModelForQuestionAnswering",
+        "ORTModelForSemanticSegmentation",
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
     ],
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
         ORTModelForImageClassification,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
+        ORTModelForSemanticSegmentation,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )

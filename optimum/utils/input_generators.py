@@ -50,8 +50,8 @@ DEFAULT_DUMMY_SHAPES = {
     "sequence_length": 16,
     "num_choices": 4,
     # image
-    "width": 224,
-    "height": 224,
+    "width": 64,
+    "height": 64,
     "num_channels": 3,
     # audio
     "feature_size": 80,
@@ -311,6 +311,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         "decoder_input_ids",
         "decoder_attention_mask",
         "encoder_outputs",
+        "encoder_hidden_states",
     )
 
     def __init__(
@@ -338,7 +339,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         self.hidden_size = normalized_config.hidden_size
 
     def generate(self, input_name: str, framework: str = "pt"):
-        if input_name == "encoder_outputs":
+        if input_name in ["encoder_outputs", "encoder_hidden_states"]:
             return (
                 self.random_float_tensor(
                     shape=[self.batch_size, self.sequence_length, self.hidden_size],
@@ -501,6 +502,8 @@ class DummyVisionInputGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = (
         "pixel_values",
         "pixel_mask",
+        "sample",
+        "latent_sample",
     )
 
     def __init__(
@@ -574,3 +577,31 @@ class DummyAudioInputGenerator(DummyInputGenerator):
                 max_value=1,
                 framework=framework,
             )
+
+
+class DummyTimestepInputGenerator(DummyInputGenerator):
+    """
+    Generates dummy time step inputs.
+    """
+
+    SUPPORTED_INPUT_NAMES = ("timestep",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+    ):
+        self.task = task
+        self.vocab_size = normalized_config.vocab_size
+
+        if random_batch_size_range:
+            low, high = random_batch_size_range
+            self.batch_size = random.randint(low, high)
+        else:
+            self.batch_size = batch_size
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size]
+        return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)

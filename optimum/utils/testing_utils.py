@@ -97,33 +97,6 @@ def require_ort_training(test_case):
     )(test_case)
 
 
-def convert_to_hf_classes(mapping_dict):
-    r"""
-    Utility function useful in the context of testing `BetterTransformers` integration.
-    """
-    import transformers
-
-    hf_names_dict = {}
-    for fast_layer_key in mapping_dict.keys():
-        if fast_layer_key == "TransformerBlock":
-            # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-            prefix = "DistilBert"
-        # For enc-decoder models the prefix is different
-        elif "EncoderLayer" in fast_layer_key:
-            prefix = fast_layer_key[:-12]
-        else:
-            prefix = fast_layer_key[:-5]
-
-        # some `PreTrainedModel` models are not registerd in the auto mapping
-        if hasattr(transformers, prefix + "PreTrainedModel"):
-            hf_class = getattr(transformers, prefix + "PreTrainedModel")
-        else:
-            hf_class = getattr(transformers, prefix + "Model")
-
-        hf_names_dict[fast_layer_key] = hf_class
-    return hf_names_dict
-
-
 def grid_parameters(
     parameters: Dict[str, Iterable[Any]], yield_dict: bool = False, add_test_name: bool = True
 ) -> Iterable:
@@ -140,13 +113,4 @@ def grid_parameters(
     """
     for params in itertools.product(*parameters.values()):
         test_name = "_".join([str(param) for param in params])
-        if yield_dict is True:
-            res_dict = {}
-            for i, key in enumerate(parameters.keys()):
-                res_dict[key] = params[i]
-            if add_test_name is True:
-                res_dict["test_name"] = test_name
-            yield res_dict
-        else:
-            returned_list = [test_name] + list(params) if add_test_name is True else list(params)
-            yield returned_list
+        yield [test_name] + list(params)

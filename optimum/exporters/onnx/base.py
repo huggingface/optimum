@@ -25,10 +25,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, 
 
 from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, logging
+from ...utils import DEFAULT_DUMMY_SHAPES
+from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
+from ...utils import DummyInputGenerator, logging
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
-from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 
 
 if TYPE_CHECKING:
@@ -106,7 +107,7 @@ class OnnxConfig(ExportConfig, ABC):
     - ATOL_FOR_VALIDATION (`Union[float, Dict[str, float]]`) -- A float or a dictionary mapping task names to float,
     where the float values represent the absolute tolerance value to use during model conversion validation.
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
-    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.MIN_TORCH_VERSION`]) -- The
+    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.TORCH_MINIMUM_VERSION`]) -- The
     minimum torch version supporting the export of the model to ONNX.
 
     Args:
@@ -148,7 +149,12 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
-        "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
+        "seq2seq-lm": OrderedDict(
+            {
+                "logits": {0: "batch_size", 1: "decoder_sequence_length"},
+                "encoder_last_hidden_state": {0: "batch_size", 1: "encoder_sequence_length"},
+            }
+        ),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "speech2seq-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
@@ -233,9 +239,9 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
         if is_torch_available():
-            from .utils import TORCH_VERSION
+            from ...utils import torch_version
 
-            return TORCH_VERSION >= self.MIN_TORCH_VERSION
+            return torch_version >= self.MIN_TORCH_VERSION
         return False
 
     @property
@@ -328,7 +334,7 @@ class OnnxConfig(ExportConfig, ABC):
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         """
-        Generate inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
+        Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
         Args:
             reference_model_inputs ([`Mapping[str, Tensor]`):
@@ -337,6 +343,18 @@ class OnnxConfig(ExportConfig, ABC):
             `Mapping[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
         """
         return reference_model_inputs
+
+    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
+        """
+        Returns the output names of the reference model corresponding to the output names of the ONNX model.
+        Useful to compare the outputs from the ONNX and the reference model when their output names differ.
+        Args:
+            reference_output_names ([`List[str]`):
+                The original ONNX model output names.
+        Returns:
+            `List[str]`: The corresponding reference model output names.
+        """
+        return reference_output_names
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
@@ -454,7 +472,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
-            inputs_or_outputs (`Mappping[str, Mapping[int str]]`):
+            inputs_or_outputs (`Mapping[str, Mapping[int, str]]`):
                 The mapping to fill.
             direction (`str`):
                 either "inputs" or "outputs", it specifies whether `input_or_outputs` is the input mapping or the
@@ -510,6 +528,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
         name = "past_key_values" if direction == "inputs" else "present"
         encoder_sequence = "past_encoder_sequence_length"
         decoder_sequence = (
@@ -522,6 +541,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence}
             inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
             inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
+
+        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
+            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
