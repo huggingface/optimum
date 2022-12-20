@@ -12,9 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import subprocess
 import unittest
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
@@ -23,9 +25,11 @@ from transformers import AutoModel, AutoTokenizer
 from transformers.models.albert import AlbertOnnxConfig
 from transformers.onnx import export
 
+import onnx
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
-from optimum.onnx.graph_transformations import remove_duplicate_weights
+from optimum.onnx.graph_transformations import merge_decoders, remove_duplicate_weights
+from parameterized import parameterized
 
 
 class WeightSharingTestCase(TestCase):
@@ -56,6 +60,29 @@ class WeightSharingTestCase(TestCase):
             self.assertTrue(
                 np.allclose(original_outputs.pooler_output.cpu().numpy(), compressed_outputs[1], atol=1e-4)
             )
+
+
+class OnnxMergingTestCase(TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "hf-internal-testing/tiny-random-GPT2Model": "causal-lm-with-past",
+        "hf-internal-testing/tiny-random-T5Model": "seq2seq-lm-with-past",
+    }
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_merge_decoders(self, *args):
+        model_id, task = args
+
+        with TemporaryDirectory() as tmpdir:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                shell=True,
+                check=True,
+            )
+
+            decoder = onnx.load(os.path.join(tmpdir, "decoder_model.onnx"))
+            decoder_with_past = onnx.load(os.path.join(tmpdir, "decoder_with_past_model.onnx"))
+
+            merge_decoders(decoder, decoder_with_past)
 
 
 if __name__ == "__main__":
