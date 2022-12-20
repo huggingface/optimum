@@ -18,7 +18,7 @@ REQUIRED_PKGS = [
     "transformers[sentencepiece]>=4.20.1",
     "torch>=1.9",
     "packaging",
-    "numpy",
+    "numpy<1.24.0",
     "huggingface_hub>=0.8.0",
 ]
 
@@ -91,4 +91,5 @@ setup(
     python_requires=">=3.7.0",
     include_package_data=True,
     zip_safe=False,
+    entry_points={"console_scripts": ["optimum-cli=optimum.commands.optimum_cli:main"]},
 )

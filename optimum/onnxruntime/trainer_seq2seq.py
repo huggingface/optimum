@@ -53,13 +53,7 @@ from ..onnx.modeling_seq2seq import _DecoderWithLMhead
 from .modeling_ort import ORTModel, ORTModelForCustomTasks
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .trainer import ORTTrainer
-from .utils import (
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_ENCODER_NAME,
-    fix_atenops_to_gather,
-    wrap_onnx_config_for_loss,
-)
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, wrap_onnx_config_for_loss
 
 
 if version.parse(torch.__version__) >= version.parse("1.8"):
