@@ -37,7 +37,11 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 if is_torch_available():
     from transformers.models.auto import (
         AutoModel,
+        AutoModelForAudioClassification,
+        AutoModelForAudioFrameClassification,
+        AutoModelForAudioXVector,
         AutoModelForCausalLM,
+        AutoModelForCTC,
         AutoModelForImageClassification,
         AutoModelForImageSegmentation,
         AutoModelForMaskedImageModeling,
@@ -50,10 +54,6 @@ if is_torch_available():
         AutoModelForSequenceClassification,
         AutoModelForSpeechSeq2Seq,
         AutoModelForTokenClassification,
-        AutoModelForAudioClassification,
-        AutoModelForCTC,
-        AutoModelForAudioFrameClassification,
-        AutoModelForAudioXVector,
     )
 
     from diffusers import StableDiffusionPipeline
@@ -141,7 +141,6 @@ class TasksManager:
             "audio-xvector": AutoModelForAudioXVector,
             "audio-ctc": AutoModelForCTC,
             "stable-diffusion": StableDiffusionPipeline,
-
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -548,6 +547,13 @@ class TasksManager:
             "audio-ctc",
             "audio-classification",
             onnx="SEWDOnnxConfig",
+        ),
+        "speech-to-text": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "speech2seq-lm",
+            "speech2seq-lm-with-past",
+            onnx="Speech2TextOnnxConfig",
         ),
         "squeezebert": supported_tasks_mapping(
             "default",

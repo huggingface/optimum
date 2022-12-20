@@ -730,11 +730,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
-class WhisperOnnxConfig(AudioToTextOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
-    ATOL_FOR_VALIDATION = 1e-3
-
-
 class HubertOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
@@ -776,7 +771,9 @@ class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
 
 
 class ASTOnnxConfig(OnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_mel_bins="num_mel_bins", max_length="max_length", allow_new=True)
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_mel_bins="num_mel_bins", max_length="max_length", allow_new=True
+    )
     DUMMY_INPUT_GENERATOR_CLASSES = (ASTDummyAudioInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
 
@@ -802,3 +799,25 @@ class ASTOnnxConfig(OnnxConfig):
 #     @property
 #     def inputs(self) -> Mapping[str, Mapping[int, str]]:
 #         return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
+
+
+class WhisperOnnxConfig(AudioToTextOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+    ATOL_FOR_VALIDATION = 1e-3
+
+
+class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
+        if input_name == "input_features":
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+        return super().generate(input_name, framework=framework)
+
+
+class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
+        input_features_per_channel="input_feat_per_channel", allow_new=True
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        Speech2TextDummyAudioInputGenerator,
+    ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]

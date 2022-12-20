@@ -123,6 +123,7 @@ PYTORCH_EXPORT_MODELS = {
     ("audio-spectrogram-transformer", "Ericwang/tiny-random-ast"),
     # Disabled for now because some operator seems to not be supported by ONNX.
     # ("mctct", "hf-internal-testing/tiny-random-MCTCTModel"),
+    ("speech-to-text", "hf-internal-testing/tiny-random-Speech2TextModel"),
 }
 
 
@@ -153,6 +154,7 @@ PYTORCH_ENCODER_DECODER_MODELS_FOR_CONDITIONAL_GENERATION = {
         ("seq2seq-lm", "seq2seq-lm-with-past"),
     ),
     ("whisper", "openai/whisper-tiny.en"),
+    ("speech-to-text", "hf-internal-testing/tiny-random-Speech2TextModel"),
 }
 
 
