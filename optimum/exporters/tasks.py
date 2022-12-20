@@ -893,8 +893,7 @@ class TasksManager:
             raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")
 
         model_type = model_type.replace("_", "-")
-        if model_name is None:
-            model_name = getattr(model, "name", None)
+        model_name = getattr(model, "name", model_name)
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
         if task not in model_tasks:
