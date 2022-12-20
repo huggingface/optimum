@@ -461,7 +461,7 @@ class ORTModel(OptimizedModel):
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class.__name__]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
