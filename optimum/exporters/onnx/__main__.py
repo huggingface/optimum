@@ -70,11 +70,8 @@ def main():
     model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
 
     if task != "stable-diffusion":
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_name
+            model, "onnx", task=task
         )
         onnx_config = onnx_config_constructor(model.config)
 
