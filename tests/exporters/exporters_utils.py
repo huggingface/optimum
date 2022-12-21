@@ -21,7 +21,7 @@ VALIDATE_EXPORT_ON_SHAPES_SLOW = {
 
 VALIDATE_EXPORT_ON_SHAPES_FAST = {
     "batch_size": [4],
-    "sequence_length": [17],
+    "sequence_length": [19],
     "num_choices": [4],
 }
 
@@ -61,7 +61,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
-    "marian": "hf-internal-testing/tiny-random-marian",
+    "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
