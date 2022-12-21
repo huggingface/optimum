@@ -52,7 +52,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
-    "gptj": "hf-internal-testing/tiny-random-gptj",
+    "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
