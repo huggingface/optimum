@@ -16,7 +16,7 @@
 import importlib.util
 import os
 from enum import Enum
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from transformers.utils import logging
@@ -210,6 +210,22 @@ def validate_provider_availability(provider: str):
         raise ValueError(
             f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
         )
+
+
+def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
+    """
+    Whether to use IOBinding or not.
+    """
+    if providers[0] == "CUDAExecutionProvider" and use_io_binding is None:
+        use_io_binding = True
+    elif providers[0] != "CUDAExecutionProvider":
+        if use_io_binding is True:
+            logger.warning(
+                "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
+            )
+        use_io_binding = False
+
+    return use_io_binding
 
 
 class ORTQuantizableOperator(Enum):

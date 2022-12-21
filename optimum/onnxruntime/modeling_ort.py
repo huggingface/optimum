@@ -54,6 +54,7 @@ from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessor
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    check_io_binding,
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
@@ -163,7 +164,7 @@ class ORTModel(OptimizedModel):
         self,
         model: ort.InferenceSession,
         config: "PretrainedConfig",
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
@@ -180,7 +181,6 @@ class ORTModel(OptimizedModel):
             )
 
         super().__init__(model, config)
-        self.use_io_binding = use_io_binding
         self.providers = model.get_providers()
         self._device = get_device_for_provider(self.providers[0])
 
@@ -207,11 +207,7 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
-            logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
-            )
-            self.use_io_binding = False
+        self.use_io_binding = check_io_binding(self.providers, use_io_binding)
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -369,7 +365,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ) -> "ORTModel":
         model_path = Path(model_id)
@@ -457,7 +453,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
@@ -591,7 +587,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -762,7 +758,7 @@ class ORTModelForQuestionAnswering(ORTModel):
 
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -961,7 +957,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
@@ -1131,7 +1127,7 @@ class ORTModelForTokenClassification(ORTModel):
 
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1296,7 +1292,7 @@ class ORTModelForMultipleChoice(ORTModel):
 
     auto_model_class = AutoModelForMultipleChoice
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1465,7 +1461,7 @@ class ORTModelForImageClassification(ORTModel):
 
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1601,7 +1597,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
     auto_model_class = AutoModelForSemanticSegmentation
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
@@ -1705,8 +1701,8 @@ class ORTModelForCustomTasks(ORTModel):
     Model for any custom tasks if the ONNX model is stored in a single file.
     """
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding=True, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_input_names = list(self.model_inputs.keys())
