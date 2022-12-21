@@ -686,7 +686,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         config ([`PretrainedConfig`]):
             Instance of the configuration associated to the model. Initializing with a config file does
             not load the weights associated with the model, only the configuration.
-        use_io_binding (`bool`, *optional*, defaults to `None`):
+        use_io_binding (`Optional[bool]`, defaults to `None`):
             Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
             if the device is CUDA, otherwise defaults to `False`.
         use_cache (`bool`):
