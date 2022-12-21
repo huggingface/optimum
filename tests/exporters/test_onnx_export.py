@@ -33,6 +33,7 @@ from optimum.exporters.onnx import (
     validate_models_outputs,
 )
 from optimum.utils import is_diffusers_available
+from optimum.utils.testing_utils import require_diffusers
 from parameterized import parameterized
 
 
@@ -383,6 +384,7 @@ class OnnxExportTestCase(TestCase):
     @slow
     @require_torch
     @require_vision
+    @require_diffusers
     def test_pytorch_export_for_stable_diffusion_models(self, model_name):
         pipeline = StableDiffusionPipeline.from_pretrained(model_name)
         output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]

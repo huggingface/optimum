@@ -22,7 +22,7 @@ REQUIRED_PKGS = [
     "huggingface_hub>=0.8.0",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses", "diffusers"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
@@ -43,8 +43,8 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf==3.20.1",
     ],
-    "exporters": ["onnx", "onnxruntime", "timm", "diffusers"],
-    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "diffusers"],
+    "exporters": ["onnx", "onnxruntime", "timm"],
+    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
     "nncf": "optimum-intel[nncf]",
