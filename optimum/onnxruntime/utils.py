@@ -218,26 +218,20 @@ def validate_provider_availability(provider: str):
         )
 
 
-def possible_io_binding_for_provider(providers: List[str]) -> bool:
+def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
     """
-    Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
+    Whether to use IOBinding or not.
     """
-    io_binding_options = {
-        "TensorrtExecutionProvider": (False,),
-        "CUDAExecutionProvider": (True, False),
-        "CPUExecutionProvider": (False,),
-    }
+    if providers[0] == "CUDAExecutionProvider" and use_io_binding is None:
+        use_io_binding = True
+    elif providers[0] != "CUDAExecutionProvider":
+        if use_io_binding is True:
+            logger.warning(
+                "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
+            )
+        use_io_binding = False
 
-    if "TensorrtExecutionProvider" in providers:
-        return io_binding_options["TensorrtExecutionProvider"]
-    elif "CUDAExecutionProvider" in providers:
-        return io_binding_options["CUDAExecutionProvider"]
-    elif "CPUExecutionProvider" in providers:
-        return io_binding_options["CPUExecutionProvider"]
-    else:
-        raise KeyError(
-            f"{providers} are not registered execution providers. If you want us to support other ep, please open an issue here: https://github.com/huggingface/optimum/issues."
-        )
+    return use_io_binding
 
 
 class ORTQuantizableOperator(Enum):

@@ -54,10 +54,10 @@ from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessor
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    check_io_binding,
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
-    possible_io_binding_for_provider,
     validate_provider_availability,
 )
 
@@ -200,15 +200,7 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        io_binding_options = possible_io_binding_for_provider(self.providers)
-        if use_io_binding:
-            if not use_io_binding in io_binding_options:
-                raise ValueError(
-                    f"You cannot set `use_io_binding={use_io_binding}` for {self.providers} execution provider(s). Please set `use_io_binding={not use_io_binding}` instead."
-                )
-            self.use_io_binding = use_io_binding
-        else:
-            self.use_io_binding = io_binding_options[0]
+        self.use_io_binding = check_io_binding(self.providers, use_io_binding)
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
