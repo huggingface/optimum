@@ -33,7 +33,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "bart": "hf-internal-testing/tiny-random-bart",
     "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
     "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
-    "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotSmallForCausalLM",
+    "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
