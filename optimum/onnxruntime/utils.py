@@ -258,6 +258,20 @@ class ORTQuantizableOperator(Enum):
     Concat = "Concat"
 
 
+def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
+    """
+    Get the paths of the external data tensors in the model.
+    Note: make sure you load the model with load_external_data=False.
+    """
+    model_tensors = _get_initializer_tensors(model)
+    model_tensors_ext = [
+        ExternalDataInfo(tensor).location
+        for tensor in model_tensors
+        if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
+    ]
+    return model_tensors_ext
+
+
 def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -> Tuple[List[Path], List[str]]:
     """
     Get external data paths from the model and add them to the list of files to copy.
