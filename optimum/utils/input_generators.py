@@ -267,6 +267,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
@@ -324,6 +325,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         super().__init__(
             task,
@@ -368,6 +370,7 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.num_layers = normalized_config.num_layers
         self.num_attention_heads = normalized_config.num_attention_heads
@@ -415,6 +418,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         encoder_sequence_length: Optional[int] = None,
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.normalized_config = normalized_config
         if random_batch_size_range:
@@ -471,6 +475,7 @@ class DummyBboxInputGenerator(DummyInputGenerator):
         sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.task = task
         # self.max_2d_position_embeddings = normalized_config.max_2d_position_embeddings
@@ -514,6 +519,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
         width: int = DEFAULT_DUMMY_SHAPES["width"],
         height: int = DEFAULT_DUMMY_SHAPES["height"],
+        **kwargs,
     ):
         self.task = task
         # Some vision models can take any input sizes, in this case we use the values provided as parameters.
@@ -553,6 +559,7 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         feature_size: int = DEFAULT_DUMMY_SHAPES["feature_size"],
         nb_max_frames: int = DEFAULT_DUMMY_SHAPES["nb_max_frames"],
         sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        **kwargs,
     ):
         self.task = task
 
@@ -562,10 +569,6 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.sequence_length = sequence_length
 
     def generate(self, input_name: str, framework: str = "pt"):
-        shape = [self.batch_size, self.sequence_length]
-        if input_name == "input_values":
-            self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
-
         if input_name == "input_values":  # raw waveform
             return self.random_float_tensor(
                 shape=[self.batch_size, self.sequence_length], min_value=-1, max_value=1, framework=framework
@@ -592,6 +595,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         normalized_config: NormalizedConfig,
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
@@ -605,3 +609,21 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size]
         return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+
+
+class DummyTrainingLabelsInputGenerator(DummyTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("labels", "start_positions", "end_positions")
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        max_value = 1 if self.task != "seq2seq-lm" else self.vocab_size
+        shape = [self.batch_size, self.sequence_length]
+        if self.task in [
+            "default",
+            "sequence-classification",
+            "multiple-choice",
+            "question-answering",
+            "image-classification",
+        ]:
+            shape = [self.batch_size]
+
+        return self.random_int_tensor(shape, max_value=max_value, framework=framework)

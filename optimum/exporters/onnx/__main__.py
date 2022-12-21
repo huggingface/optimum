@@ -20,7 +20,7 @@ from pathlib import Path
 from transformers import AutoTokenizer
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import is_diffusers_available, logging
+from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
@@ -66,16 +66,15 @@ def main():
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    # Allocate the model
+    # get the shapes to be used to generate dummy inputs
+    input_shapes = {}
+    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+        input_shapes[input_name] = getattr(args, input_name)
+
     model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
 
     if task != "stable-diffusion":
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_name
-        )
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config)
 
         needs_pad_token_id = (
@@ -139,9 +138,12 @@ def main():
             opset=args.opset,
             output_dir=args.output.parent,
             output_names=output_names,
+            input_shapes=input_shapes,
         )
     else:
-        onnx_inputs, onnx_outputs = export(model=model, config=onnx_config, output=args.output, opset=args.opset)
+        onnx_inputs, onnx_outputs = export(
+            model=model, config=onnx_config, output=args.output, opset=args.opset, input_shapes=input_shapes
+        )
 
     try:
         if task == "stable-diffusion" or (

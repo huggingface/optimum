@@ -131,7 +131,7 @@ class ORTDecoder:
         session: onnxruntime.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ):
         self.session = session
         self.config = config
@@ -341,7 +341,7 @@ class ORTModelDecoder(ORTModel):
         decoder_session: onnxruntime.InferenceSession,
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs
@@ -355,7 +355,7 @@ class ORTModelDecoder(ORTModel):
                 not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
-            use_io_binding (`bool`, *optional*, defaults to `True`):
+            use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
@@ -512,7 +512,7 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
         model_path = Path(model_id)
@@ -655,11 +655,11 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelDecoder":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
@@ -676,12 +676,7 @@ class ORTModelDecoder(ORTModel):
             force_download=force_download,
         )
 
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_name
-        )
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
 
         output_names = [ONNX_DECODER_NAME]
