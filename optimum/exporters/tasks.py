@@ -34,38 +34,6 @@ if TYPE_CHECKING:
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
-if is_torch_available():
-    from transformers.models.auto import (
-        AutoModel,
-        AutoModelForCausalLM,
-        AutoModelForImageClassification,
-        AutoModelForImageSegmentation,
-        AutoModelForMaskedImageModeling,
-        AutoModelForMaskedLM,
-        AutoModelForMultipleChoice,
-        AutoModelForObjectDetection,
-        AutoModelForQuestionAnswering,
-        AutoModelForSemanticSegmentation,
-        AutoModelForSeq2SeqLM,
-        AutoModelForSequenceClassification,
-        AutoModelForSpeechSeq2Seq,
-        AutoModelForTokenClassification,
-    )
-
-    from diffusers import StableDiffusionPipeline
-
-if is_tf_available():
-    from transformers.models.auto import (
-        TFAutoModel,
-        TFAutoModelForCausalLM,
-        TFAutoModelForMaskedLM,
-        TFAutoModelForMultipleChoice,
-        TFAutoModelForQuestionAnswering,
-        TFAutoModelForSemanticSegmentation,
-        TFAutoModelForSeq2SeqLM,
-        TFAutoModelForSequenceClassification,
-        TFAutoModelForTokenClassification,
-    )
 if not is_torch_available() and not is_tf_available():
     logger.warning(
         "The export tasks are only supported for PyTorch or TensorFlow. You will not be able to export models"
@@ -118,34 +86,52 @@ class TasksManager:
     _TASKS_TO_TF_AUTOMODELS = {}
     if is_torch_available():
         _TASKS_TO_AUTOMODELS = {
-            "default": AutoModel,
-            "masked-lm": AutoModelForMaskedLM,
-            "causal-lm": AutoModelForCausalLM,
-            "seq2seq-lm": AutoModelForSeq2SeqLM,
-            "sequence-classification": AutoModelForSequenceClassification,
-            "token-classification": AutoModelForTokenClassification,
-            "multiple-choice": AutoModelForMultipleChoice,
-            "object-detection": AutoModelForObjectDetection,
-            "question-answering": AutoModelForQuestionAnswering,
-            "image-classification": AutoModelForImageClassification,
-            "image-segmentation": AutoModelForImageSegmentation,
-            "masked-im": AutoModelForMaskedImageModeling,
-            "semantic-segmentation": AutoModelForSemanticSegmentation,
-            "speech2seq-lm": AutoModelForSpeechSeq2Seq,
-            "stable-diffusion": StableDiffusionPipeline,
+            "default": "AutoModel",
+            "masked-lm": "AutoModelForMaskedLM",
+            "causal-lm": "AutoModelForCausalLM",
+            "seq2seq-lm": "AutoModelForSeq2SeqLM",
+            "sequence-classification": "AutoModelForSequenceClassification",
+            "token-classification": "AutoModelForTokenClassification",
+            "multiple-choice": "AutoModelForMultipleChoice",
+            "object-detection": "AutoModelForObjectDetection",
+            "question-answering": "AutoModelForQuestionAnswering",
+            "image-classification": "AutoModelForImageClassification",
+            "image-segmentation": "AutoModelForImageSegmentation",
+            "masked-im": "AutoModelForMaskedImageModeling",
+            "semantic-segmentation": "AutoModelForSemanticSegmentation",
+            "speech2seq-lm": "AutoModelForSpeechSeq2Seq",
+            "stable-diffusion": "StableDiffusionPipeline",
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
-            "default": TFAutoModel,
-            "masked-lm": TFAutoModelForMaskedLM,
-            "causal-lm": TFAutoModelForCausalLM,
-            "seq2seq-lm": TFAutoModelForSeq2SeqLM,
-            "sequence-classification": TFAutoModelForSequenceClassification,
-            "token-classification": TFAutoModelForTokenClassification,
-            "multiple-choice": TFAutoModelForMultipleChoice,
-            "question-answering": TFAutoModelForQuestionAnswering,
-            "semantic-segmentation": TFAutoModelForSemanticSegmentation,
+            "default": "TFAutoModel",
+            "masked-lm": "TFAutoModelForMaskedLM",
+            "causal-lm": "TFAutoModelForCausalLM",
+            "seq2seq-lm": "TFAutoModelForSeq2SeqLM",
+            "sequence-classification": "TFAutoModelForSequenceClassification",
+            "token-classification": "TFAutoModelForTokenClassification",
+            "multiple-choice": "TFAutoModelForMultipleChoice",
+            "question-answering": "TFAutoModelForQuestionAnswering",
+            "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
         }
+
+    _TASKS_TO_LIBRARY = {
+        "default": "transformers",
+        "masked-lm": "transformers",
+        "causal-lm": "transformers",
+        "seq2seq-lm": "transformers",
+        "sequence-classification": "transformers",
+        "token-classification": "transformers",
+        "multiple-choice": "transformers",
+        "object-detection": "transformers",
+        "question-answering": "transformers",
+        "image-classification": "transformers",
+        "image-segmentation": "transformers",
+        "masked-im": "transformers",
+        "semantic-segmentation": "transformers",
+        "speech2seq-lm": "transformers",
+        "stable-diffusion": "diffusers",
+    }
 
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
@@ -658,7 +644,9 @@ class TasksManager:
                 f"Unknown task: {task}. Possible values are: "
                 + ", ".join([f"`{key}` for {task_to_automodel[key].__name__}" for key in task_to_automodel])
             )
-        return task_to_automodel[task]
+
+        module = importlib.import_module(TasksManager._TASKS_TO_LIBRARY[task])
+        return getattr(module, task_to_automodel[task])
 
     @staticmethod
     def determine_framework(
@@ -783,8 +771,8 @@ class TasksManager:
                 auto_model_class_name = transformers_info["auto_model"]
                 if not auto_model_class_name.startswith("TF"):
                     auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-                for task_name, class_ in tasks_to_automodels.items():
-                    if class_.__name__ == auto_model_class_name:
+                for task_name, class_name_for_task in tasks_to_automodels.items():
+                    if class_name_for_task == auto_model_class_name:
                         inferred_task_name = task_name
                         break
         if inferred_task_name is None:
