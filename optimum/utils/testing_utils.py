@@ -104,13 +104,22 @@ def grid_parameters(
     Generates an iterable over the grid of all combinations of parameters.
 
     Args:
-    `parameters` (`Dict[str, Iterable[Any]]`):
-        Dictionary of multiple values to generate a grid from.
-    `yield_dict` (`bool`, defaults to `False`):
-        If True, a dictionary with all keys, and sampled values will be returned. Otherwise, return sampled values as a list.
-    `add_test_name` (`bool`, defaults to `True`):
-        Whether to add the test name in the yielded list or dictionary.
+        `parameters` (`Dict[str, Iterable[Any]]`):
+            Dictionary of multiple values to generate a grid from.
+        `yield_dict` (`bool`, defaults to `False`):
+            If True, a dictionary with all keys, and sampled values will be returned. Otherwise, return sampled values as a list.
+        `add_test_name` (`bool`, defaults to `True`):
+            Whether to add the test name in the yielded list or dictionary.
     """
     for params in itertools.product(*parameters.values()):
         test_name = "_".join([str(param) for param in params])
-        yield [test_name] + list(params)
+        if yield_dict is True:
+            res_dict = {}
+            for i, key in enumerate(parameters.keys()):
+                res_dict[key] = params[i]
+            if add_test_name is True:
+                res_dict["test_name"] = test_name
+            yield res_dict
+        else:
+            returned_list = [test_name] + list(params) if add_test_name is True else list(params)
+            yield returned_list

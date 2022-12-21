@@ -247,7 +247,7 @@ class OnnxExportTestCase(TestCase):
                         device=device,
                     )
 
-                    input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True)
+                    input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
                     for input_shapes in input_shapes_iterator:
                         validate_models_outputs(
                             models_and_onnx_configs=models_and_onnx_configs,
