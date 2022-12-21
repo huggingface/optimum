@@ -747,7 +747,7 @@ class SEWOnnxConfig(HubertOnnxConfig):
 
 
 class SEWDOnnxConfig(HubertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 12
 
 
 class UniSpeechOnnxConfig(HubertOnnxConfig):
@@ -759,7 +759,7 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
 
 
 class WavLMOnnxConfig(HubertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 12
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
