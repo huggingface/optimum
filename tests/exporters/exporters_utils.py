@@ -58,4 +58,16 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "whisper": "openai/whisper-tiny.en",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "hubert": "hf-internal-testing/tiny-random-HubertModel",
+    "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
+    "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
+    "wavlm": "hf-internal-testing/tiny-random-wavlm",
+    "sew": "hf-internal-testing/tiny-random-SEWModel",
+    "sew-d": "hf-internal-testing/tiny-random-SEWDModel",
+    "unispeech": "hf-internal-testing/tiny-random-unispeech",
+    "unispeech-sat": "hf-internal-testing/tiny-random-unispeech-sat",
+    "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
+    # Disabled for now because some operator seems to not be supported by ONNX.
+    # ("mctct": "hf-internal-testing/tiny-random-MCTCTModel",
+    "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
 }
