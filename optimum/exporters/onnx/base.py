@@ -16,6 +16,7 @@
 
 import copy
 import dataclasses
+import enum
 import inspect
 import itertools
 import re
@@ -25,10 +26,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, 
 
 from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, logging
+from ...utils import DEFAULT_DUMMY_SHAPES
+from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
+from ...utils import DummyInputGenerator, logging
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
-from .utils import MIN_TORCH_VERSION as GLOBAL_MIN_TORCH_VERSION
 
 
 if TYPE_CHECKING:
@@ -106,7 +108,7 @@ class OnnxConfig(ExportConfig, ABC):
     - ATOL_FOR_VALIDATION (`Union[float, Dict[str, float]]`) -- A float or a dictionary mapping task names to float,
     where the float values represent the absolute tolerance value to use during model conversion validation.
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
-    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.MIN_TORCH_VERSION`]) -- The
+    - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.TORCH_MINIMUM_VERSION`]) -- The
     minimum torch version supporting the export of the model to ONNX.
 
     Args:
@@ -148,7 +150,12 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
-        "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
+        "seq2seq-lm": OrderedDict(
+            {
+                "logits": {0: "batch_size", 1: "decoder_sequence_length"},
+                "encoder_last_hidden_state": {0: "batch_size", 1: "encoder_sequence_length"},
+            }
+        ),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "speech2seq-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
@@ -233,9 +240,9 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
         if is_torch_available():
-            from .utils import TORCH_VERSION
+            from ...utils import torch_version
 
-            return TORCH_VERSION >= self.MIN_TORCH_VERSION
+            return torch_version >= self.MIN_TORCH_VERSION
         return False
 
     @property
@@ -328,7 +335,7 @@ class OnnxConfig(ExportConfig, ABC):
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         """
-        Generate inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
+        Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
         Args:
             reference_model_inputs ([`Mapping[str, Tensor]`):
@@ -337,6 +344,18 @@ class OnnxConfig(ExportConfig, ABC):
             `Mapping[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
         """
         return reference_model_inputs
+
+    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
+        """
+        Returns the output names of the reference model corresponding to the output names of the ONNX model.
+        Useful to compare the outputs from the ONNX and the reference model when their output names differ.
+        Args:
+            reference_output_names ([`List[str]`):
+                The original ONNX model output names.
+        Returns:
+            `List[str]`: The corresponding reference model output names.
+        """
+        return reference_output_names
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
@@ -352,7 +371,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: List[PatchingSpec] = None,
+        patching_specs: Optional[List[PatchingSpec]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -454,7 +473,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
-            inputs_or_outputs (`Mappping[str, Mapping[int str]]`):
+            inputs_or_outputs (`Mapping[str, Mapping[int, str]]`):
                 The mapping to fill.
             direction (`str`):
                 either "inputs" or "outputs", it specifies whether `input_or_outputs` is the input mapping or the
@@ -483,12 +502,81 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
 
+class ConfigBehavior(str, enum.Enum):
+    """
+    Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`]:
+        - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
+        - ENCODER: the config can be used to export the encoder part of the seq2seq model.
+        - DECODER: the config can be used to export the decoder part of the seq2seq model.
+    """
+
+    MONOLITH = "monolith"
+    ENCODER = "encoder"
+    DECODER = "decoder"
+
+
 class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
     Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
     """
 
     PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        patching_specs: Optional[List[PatchingSpec]] = None,
+        use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+    ):
+        super().__init__(
+            config,
+            task=task,
+            patching_specs=patching_specs,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+        )
+        self._behavior = behavior
+        self.override_attributes_for_behavior()
+
+    def override_attributes_for_behavior(self):
+        """Override this to specify custom attribute change for a given behavior."""
+        if self._behavior is ConfigBehavior.ENCODER:
+            self.task = "default"
+            self.use_past_in_inputs = False
+            self.use_present_in_outputs = False
+        if self._behavior is ConfigBehavior.DECODER:
+            self.use_past_in_inputs = self.use_past
+            self.use_present_in_outputs = True
+
+    def with_behavior(
+        self, behavior: Union[str, ConfigBehavior], use_past: bool = False
+    ) -> "OnnxSeq2SeqConfigWithPast":
+        """
+        Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
+
+        Args:
+            behavior ([`ConfigBehavior`]):
+                The behavior to use for the new instance.
+            use_past (`bool`, defaults to `False`):
+                Whether or not the new instance should use past.
+
+        Returns:
+            `OnnxSeq2SeqConfigWithPast`
+        """
+        if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
+            behavior = ConfigBehavior(behavior)
+        return self.__class__(
+            self._config,
+            task=self.task,
+            patching_specs=self._patching_specs,
+            use_past=use_past,
+            behavior=behavior,
+        )
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -510,6 +598,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
         name = "past_key_values" if direction == "inputs" else "present"
         encoder_sequence = "past_encoder_sequence_length"
         decoder_sequence = (
@@ -523,48 +612,11 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
             inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
 
+        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
+            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
+
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
         flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
-
-    def get_encoder_onnx_config(self, config: "PretrainedConfig") -> OnnxConfig:
-        """
-        Returns ONNX encoder config for `Seq2Seq` models. Implement the method to export the encoder
-        of the model separately.
-
-        Args:
-            config (`PretrainedConfig`):
-                The encoder model's configuration to use when exporting to ONNX.
-
-        Returns:
-            `OnnxConfig`: An instance of the ONNX configuration object.
-        """
-        raise NotImplementedError(
-            f"{config.model_type} encoder export is not supported yet. ",
-            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
-        )
-
-    def get_decoder_onnx_config(
-        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
-    ) -> OnnxConfig:
-        """
-        Returns ONNX decoder config for `Seq2Seq` models. Implement the method to export the decoder
-        of the model separately.
-
-        Args:
-            config (`PretrainedConfig`):
-                The decoder model's configuration to use when exporting to ONNX.
-            task (`str`, defaults to `"default"`):
-                The task the model should be exported for.
-            use_past (`bool`, defaults to `False`):
-                Whether to export the model with past_key_values.
-
-        Returns:
-            `OnnxConfig`: An instance of the ONNX configuration object.
-        """
-        raise NotImplementedError(
-            f"{config.model_type} decoder export is not supported yet. ",
-            f"If you want to support {config.model_type} please propose a PR or open up an issue.",
-        )

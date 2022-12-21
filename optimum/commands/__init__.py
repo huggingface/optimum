@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
-from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig  # noqa
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs  # noqa
-from .utils import (
-    get_decoder_models_for_export,
-    get_encoder_decoder_models_for_export,
-    get_stable_diffusion_models_for_export,
-)
+from abc import ABC, abstractmethod
+from argparse import ArgumentParser
+
+
+class BaseOptimumCLICommand(ABC):
+    @staticmethod
+    @abstractmethod
+    def register_subcommand(parser: ArgumentParser):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def run(self):
+        raise NotImplementedError()

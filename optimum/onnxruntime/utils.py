@@ -23,7 +23,6 @@ import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
-import onnx
 import onnxruntime as ort
 import pkg_resources
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
@@ -131,32 +130,6 @@ def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
 
 
-# TODO: shouldn't it be in optimum/onnx/graph_transformations.py?
-def fix_atenops_to_gather(model_path):
-    # Fix broken ATenOp nodes back to Gather nodes.
-    model = onnx.load(model_path)
-    onnx.checker.check_model(model)
-
-    nodes = model.graph.node
-
-    for node in nodes:
-        if node.op_type in ["ATenOp", "ATen"]:
-            logger.info(f"----Start fixing node: {node.name}----")
-            op_num = node.name.split("_")[-1]
-            new_node = onnx.helper.make_node(
-                "Gather",
-                name="Gather_" + op_num,
-                inputs=[node.input[0], node.input[1]],
-                outputs=node.output,
-            )
-
-            model.graph.node.remove(node)
-            model.graph.node.insert(int(op_num), new_node)
-
-    onnx.checker.check_model(model)
-    onnx.save(model, model_path)
-
-
 def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
     if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
         return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
@@ -171,7 +144,7 @@ def get_device_for_provider(provider: str) -> torch.device:
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
     return (
-        torch.device("cuda")
+        torch.device("cuda:0")
         if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]
         else torch.device("cpu")
     )

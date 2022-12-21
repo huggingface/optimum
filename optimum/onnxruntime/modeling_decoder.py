@@ -687,12 +687,12 @@ class ORTModelDecoder(ORTModel):
         output_names = [ONNX_DECODER_NAME]
         if use_cache is True:
             output_names.append(ONNX_DECODER_WITH_PAST_NAME)
+
+        models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
         export_models(
-            model=model,
-            onnx_config=onnx_config,
+            models_and_onnx_configs=models_and_onnx_configs,
             opset=onnx_config.DEFAULT_ONNX_OPSET,
             output_dir=save_dir_path,
-            fn_get_models_from_config=get_decoder_models_for_export,
             output_names=output_names,
         )
 

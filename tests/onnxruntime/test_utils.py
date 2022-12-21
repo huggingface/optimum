@@ -10,7 +10,7 @@ from optimum.onnxruntime.utils import get_device_for_provider, get_provider_for_
 class ProviderAndDeviceGettersTest(unittest.TestCase):
     def test_get_device_for_provider(self):
         self.assertEqual(get_device_for_provider("CPUExecutionProvider"), torch.device("cpu"))
-        self.assertEqual(get_device_for_provider("CUDAExecutionProvider"), torch.device("cuda"))
+        self.assertEqual(get_device_for_provider("CUDAExecutionProvider"), torch.device("cuda:0"))
 
     def test_get_provider_for_device(self):
         self.assertEqual(get_provider_for_device(torch.device("cpu")), "CPUExecutionProvider")
