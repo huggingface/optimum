@@ -189,8 +189,7 @@ class OnnxConfig(ExportConfig, ABC):
         """
         first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config, **kwargs)
         dummy_inputs_generators = [
-            cls_(self.task, self._normalized_config, batch_size=first_inputs_gen.batch_size, **kwargs)
-            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+            cls_(self.task, self._normalized_config, **kwargs) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
         ]
         dummy_inputs_generators.insert(0, first_inputs_gen)
 
@@ -274,6 +273,7 @@ class OnnxConfig(ExportConfig, ABC):
             sig = inspect.signature(model.forward)
         else:
             sig = inspect.signature(model.call)
+
         for param in sig.parameters:
             param_regex = re.compile(rf"{param}(\.\d*)?")
             to_insert = []

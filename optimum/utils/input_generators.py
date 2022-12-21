@@ -267,6 +267,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
@@ -324,6 +325,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         super().__init__(
             task,
@@ -368,6 +370,7 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.num_layers = normalized_config.num_layers
         self.num_attention_heads = normalized_config.num_attention_heads
@@ -415,6 +418,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         encoder_sequence_length: Optional[int] = None,
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.normalized_config = normalized_config
         if random_batch_size_range:
@@ -471,6 +475,7 @@ class DummyBboxInputGenerator(DummyInputGenerator):
         sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.task = task
         # self.max_2d_position_embeddings = normalized_config.max_2d_position_embeddings
@@ -514,6 +519,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
         width: int = DEFAULT_DUMMY_SHAPES["width"],
         height: int = DEFAULT_DUMMY_SHAPES["height"],
+        **kwargs,
     ):
         self.task = task
         # Some vision models can take any input sizes, in this case we use the values provided as parameters.
@@ -553,6 +559,7 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         feature_size: int = DEFAULT_DUMMY_SHAPES["feature_size"],
         nb_max_frames: int = DEFAULT_DUMMY_SHAPES["nb_max_frames"],
         sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        **kwargs,
     ):
         self.task = task
 
@@ -588,6 +595,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         normalized_config: NormalizedConfig,
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         random_batch_size_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
