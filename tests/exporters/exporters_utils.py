@@ -144,8 +144,6 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "vit": "google/vit-base-patch16-224",
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
-    "xlm": "hf-internal-testing/tiny-random-XLMModel",
-    "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
@@ -172,5 +170,4 @@ TENSORFLOW_EXPORT_MODELS = {
 
 PYTORCH_STABLE_DIFFUSION_MODEL = {
     ("hf-internal-testing/tiny-stable-diffusion-torch"),
->>>>>>> main
 }

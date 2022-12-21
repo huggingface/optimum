@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
 from packaging import version
 
 from ...utils import (
-    DummyAudioInputGenerator,
     DEFAULT_DUMMY_SHAPES,
+    DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
