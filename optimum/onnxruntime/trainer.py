@@ -1460,7 +1460,9 @@ class ORTTrainer(Trainer):
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task=self.feature)
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=self.feature
+        )
         onnx_config = onnx_config_constructor(model.config)
 
         opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset

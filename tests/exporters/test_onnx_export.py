@@ -152,9 +152,8 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
-
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                        model_type, "onnx", task=task, model_name=model_name
+                        model_type=model_type, exporter="onnx", task=task, model_name=model_name
                     )
 
                     models_to_test.append(
