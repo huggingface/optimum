@@ -23,6 +23,7 @@ import torch
 from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
+import onnx
 import onnxruntime as ort
 import pkg_resources
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
