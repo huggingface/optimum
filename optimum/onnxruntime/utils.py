@@ -19,13 +19,12 @@ from enum import Enum
 from typing import Dict, Tuple, Union
 
 import torch
-from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
 import onnxruntime as ort
 import pkg_resources
 
-from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
+from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
 
 logger = logging.get_logger(__name__)
@@ -129,12 +128,7 @@ def generate_identified_filename(filename, identifier):
 
 
 def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
-    if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
-        return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
-    elif isinstance(onnx_config, OnnxConfigWithPast):
-        return OnnxConfigWithPastAndLoss(onnx_config)
-    else:
-        return OnnxConfigWithLoss(onnx_config)
+    return OnnxConfigWithLoss(onnx_config)
 
 
 def get_device_for_provider(provider: str) -> torch.device:

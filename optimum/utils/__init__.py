@@ -36,6 +36,7 @@ from .input_generators import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyTrainingLabelsInputGenerator,
     DummyVisionInputGenerator,
 )
 from .normalized_config import (

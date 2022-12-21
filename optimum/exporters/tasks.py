@@ -232,7 +232,7 @@ class TasksManager:
             "default",
             onnx="CLIPOnnxConfig",
         ),
-        "clip_text_model": supported_tasks_mapping(
+        "clip-text-model": supported_tasks_mapping(
             "default",
             onnx="CLIPTextOnnxConfig",
         ),
@@ -563,7 +563,7 @@ class TasksManager:
             onnx="SwinOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip_text_model"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip-text-model"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
@@ -851,24 +851,38 @@ class TasksManager:
 
     @staticmethod
     def get_exporter_config_constructor(
-        model_type: str, exporter: str, task: str = "default", model_name: Optional[str] = None
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        exporter: str,
+        task: str = "default",
+        model_type: Optional[str] = None,
+        model_name: Optional[str] = None,
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model type and task combination.
 
         Args:
-            model_type (`str`):
-                The model type to retrieve the config for.
+            model (`Union[PreTrainedModel, TFPreTrainedModel]`):
+                The instance of the model.
             exporter (`str`):
                 The exporter to use.
             task (`str`, *optional*, defaults to `"default"`):
                 The task to retrieve the config for.
+            model_type (`str`):
+                The model type to retrieve the config for.
             model_name (`Optional[str]`, *optional*):
                 The name attribute of the model object, only used for the exception message.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
+        model_type = getattr(model.config, "model_type", model_type)
+
+        if model_type is None:
+            raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")
+
+        model_type = model_type.replace("_", "-")
+        model_name = getattr(model, "name", model_name)
+
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
         if task not in model_tasks:
             raise ValueError(

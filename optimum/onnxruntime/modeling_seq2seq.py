@@ -1088,12 +1088,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             force_download=force_download,
         )
 
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_name
-        )
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
 
         output_names = [ONNX_ENCODER_NAME, ONNX_DECODER_NAME]

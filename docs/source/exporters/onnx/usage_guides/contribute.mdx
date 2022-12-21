@@ -182,7 +182,7 @@ This function expects the ONNX configuration, along with the base model, and the
 >>> base_model = AutoModel.from_pretrained("bert-base-uncased")
 
 >>> onnx_path = Path("model.onnx")
->>> onnx_config_constructor = TasksManager.get_exporter_config_constructor(base_model.config.model_type, "onnx")
+>>> onnx_config_constructor = TasksManager.get_exporter_config_constructor(base_model, "onnx")
 >>> onnx_config = onnx_config_constructor(base_model.config)
 
 >>> onnx_inputs, onnx_outputs = export(base_model, onnx_config, onnx_config.DEFAULT_ONNX_OPSET, onnx_path)
