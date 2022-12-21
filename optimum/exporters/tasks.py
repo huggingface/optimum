@@ -771,8 +771,8 @@ class TasksManager:
                 auto_model_class_name = transformers_info["auto_model"]
                 if not auto_model_class_name.startswith("TF"):
                     auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-                for task_name, class_ in tasks_to_automodels.items():
-                    if class_.__name__ == auto_model_class_name:
+                for task_name, class_name_for_task in tasks_to_automodels.items():
+                    if class_name_for_task == auto_model_class_name:
                         inferred_task_name = task_name
                         break
         if inferred_task_name is None:
