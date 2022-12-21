@@ -348,7 +348,7 @@ class ORTModelDecoder(ORTModel):
                 not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
-            use_io_binding (`bool`, *optional*, defaults to `None`):
+            use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
