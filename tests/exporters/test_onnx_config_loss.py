@@ -49,7 +49,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             with self.subTest(model=model):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                        model, "onnx", task="sequence-classification"
+                        model=model, exporter="onnx", task="sequence-classification"
                     )
                     onnx_config = onnx_config_constructor(model.config)
 
@@ -136,7 +136,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
 
             # Wrap OnnxConfig
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model, "onnx", task="sequence-classification"
+                model=model, exporter="onnx", task="sequence-classification"
             )
             onnx_config = onnx_config_constructor(model.config)
             wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
@@ -186,7 +186,9 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             model = AutoModelForSeq2SeqLM.from_pretrained(model_checkpoint)
 
             # Wrap OnnxConfig(decoders)
-            onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task="seq2seq-lm")
+            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                model=model, exporter="onnx", task="seq2seq-lm"
+            )
             onnx_config = onnx_config_constructor(model.config)
 
             onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)

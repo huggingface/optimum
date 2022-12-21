@@ -469,7 +469,9 @@ class ORTModel(OptimizedModel):
         }
 
         model = TasksManager.get_model_from_task(task, model_id, **kwargs_to_get_model)
-        onnx_config_class = TasksManager.get_exporter_config_constructor(model, "onnx", task=task, model_name=model_id)
+        onnx_config_class = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=task, model_name=model_id
+        )
 
         onnx_config = onnx_config_class(model.config)
 
