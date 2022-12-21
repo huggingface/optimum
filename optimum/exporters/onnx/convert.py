@@ -25,7 +25,7 @@ from transformers.utils import is_tf_available, is_torch_available
 
 import onnx
 
-from ...onnxruntime.utils import check_model_uses_external_data
+from ...onnxruntime.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
 from ..tasks import TasksManager
 from .base import OnnxConfig
@@ -366,6 +366,7 @@ def export_pytorch(
             model_uses_external_data = check_model_uses_external_data(onnx_model)
 
             if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
+                tensors_paths = _get_onnx_external_data_tensors(onnx_model)
                 logger.info("Saving external data to one file...")
 
                 # try free model memory
@@ -374,7 +375,7 @@ def export_pytorch(
 
                 onnx_model = onnx.load(
                     str(output), load_external_data=True
-                )  # TODO: this will probably be too memory heavy, shall we free `model` memory?
+                )  # this will probably be too memory heavy for large models
                 onnx.save(
                     onnx_model,
                     str(output),
@@ -384,10 +385,9 @@ def export_pytorch(
                     size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
                 )
 
-                # delete previous external data (all files besides model.onnx and model.onnx_data)
-                for file in os.listdir(output.parent):
-                    if file != output.name and file != output.name + "_data":
-                        os.remove(os.path.join(output.parent, file))
+                # delete previous external data
+                for tensor in tensors_paths:
+                    os.remove(output.parent / tensor)
 
         config.restore_ops()
 
@@ -512,8 +512,7 @@ def export_models(
         submodel, sub_onnx_config = models_and_onnx_configs[model_name]
         output_name = output_names[i] if output_names is not None else Path(model_name + ".onnx")
 
-        # when the model uses several ONNX files, save each in subfolders to avoid conflicting external files
-        output_path = output_dir / model_name / output_name
+        output_path = output_dir / output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         outputs.append(
