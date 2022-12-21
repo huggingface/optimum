@@ -61,7 +61,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
-    "marian": "hf-internal-testing/tiny-random-MarianMTModel",
+    "marian": "hf-internal-testing/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
