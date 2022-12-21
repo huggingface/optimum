@@ -44,7 +44,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "data2vec-vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
-    "deit": "hf-internal-testing/tiny-random-deit",
+    "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
     "detr": "hf-internal-testing/tiny-random-detr",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
