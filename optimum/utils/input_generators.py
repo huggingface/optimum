@@ -563,16 +563,17 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.sequence_length = sequence_length
 
     def generate(self, input_name: str, framework: str = "pt"):
-        shape = [self.batch_size, self.sequence_length]
-        if input_name == "input_values":
-            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
-
-        return self.random_float_tensor(
-            shape=[self.batch_size, self.feature_size, self.nb_max_frames],
-            min_value=-1,
-            max_value=1,
-            framework=framework,
-        )
+        if input_name == "input_values":  # raw waveform
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.sequence_length], min_value=-1, max_value=1, framework=framework
+            )
+        else:
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.feature_size, self.nb_max_frames],
+                min_value=-1,
+                max_value=1,
+                framework=framework,
+            )
 
 
 class DummyTimestepInputGenerator(DummyInputGenerator):
@@ -601,3 +602,21 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size]
         return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+
+
+class DummyTrainingLabelsInputGenerator(DummyTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("labels", "start_positions", "end_positions")
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        max_value = 1 if self.task != "seq2seq-lm" else self.vocab_size
+        shape = [self.batch_size, self.sequence_length]
+        if self.task in [
+            "default",
+            "sequence-classification",
+            "multiple-choice",
+            "question-answering",
+            "image-classification",
+        ]:
+            shape = [self.batch_size]
+
+        return self.random_int_tensor(shape, max_value=max_value, framework=framework)

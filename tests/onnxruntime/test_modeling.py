@@ -182,7 +182,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertListEqual(model.model.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda"))
+        self.assertEqual(model.device, torch.device("cuda:0"))
 
     def test_load_model_cpu_provider(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CPUExecutionProvider")
@@ -214,7 +214,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertListEqual(model.encoder.session.get_providers(), model.providers)
         self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda"))
+        self.assertEqual(model.device, torch.device("cuda:0"))
 
     def test_load_seq2seq_model_cpu_provider(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CPUExecutionProvider")

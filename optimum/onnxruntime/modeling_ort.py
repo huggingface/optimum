@@ -143,14 +143,21 @@ class ORTModel(OptimizedModel):
         - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
-    _AUTOMODELS_TO_TASKS = {cls_: task for task, cls_ in TasksManager._TASKS_TO_AUTOMODELS.items()}
+    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in TasksManager._TASKS_TO_AUTOMODELS.items()}
     model_type = "onnx_model"
     auto_model_class = AutoModel
 
     @classproperty
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class, None)
+        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class.__name__, None)
+
+    @classmethod
+    def _auto_model_to_task(cls, auto_model_class):
+        """
+        Get the task corresponding to a class (for example AutoModelForXXX in transformers).
+        """
+        return cls._AUTOMODELS_TO_TASKS[auto_model_class.__name__]
 
     def __init__(
         self,
@@ -454,7 +461,7 @@ class ORTModel(OptimizedModel):
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
@@ -462,10 +469,7 @@ class ORTModel(OptimizedModel):
         }
 
         model = TasksManager.get_model_from_task(task, model_id, **kwargs_to_get_model)
-        model_type = model.config.model_type.replace("_", "-")
-        onnx_config_class = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_id
-        )
+        onnx_config_class = TasksManager.get_exporter_config_constructor(model, "onnx", task=task, model_name=model_id)
 
         onnx_config = onnx_config_class(model.config)
 

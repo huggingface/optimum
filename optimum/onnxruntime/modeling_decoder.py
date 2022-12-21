@@ -623,7 +623,7 @@ class ORTModelDecoder(ORTModel):
         task: Optional[str] = None,
     ) -> "ORTModelDecoder":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
@@ -640,12 +640,7 @@ class ORTModelDecoder(ORTModel):
             force_download=force_download,
         )
 
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_name
-        )
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model, "onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
 
         output_names = [ONNX_DECODER_NAME]

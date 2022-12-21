@@ -33,6 +33,7 @@ from optimum.exporters.onnx import (
     validate_models_outputs,
 )
 from optimum.utils import is_diffusers_available
+from optimum.utils.testing_utils import require_diffusers
 from parameterized import parameterized
 
 
@@ -245,13 +246,22 @@ class OnnxConfigWithPastTestCase(TestCase):
                 )
 
 
+def _get_model_for_task(model_name, task):
+    model_class = TasksManager.get_model_class_for_task(task)
+    config = AutoConfig.from_pretrained(model_name)
+    model = model_class.from_config(config)
+    return model
+
+
 def _get_models_to_test(export_models_list):
     models_to_test = []
     if is_torch_available() or is_tf_available():
         for name, model, *tasks in export_models_list:
             if tasks:
                 task_config_mapping = {
-                    task: TasksManager.get_exporter_config_constructor(name, "onnx", task=task)
+                    task: TasksManager.get_exporter_config_constructor(
+                        _get_model_for_task(model, task), "onnx", task=task
+                    )
                     for _ in tasks
                     for task in _
                 }
@@ -276,9 +286,7 @@ class OnnxExportTestCase(TestCase):
     def _onnx_export(
         self, test_name, name, model_name, task, onnx_config_class_constructor, device="cpu", for_ort=False
     ):
-        model_class = TasksManager.get_model_class_for_task(task)
-        config = AutoConfig.from_pretrained(model_name)
-        model = model_class.from_config(config)
+        model = _get_model_for_task(model_name, task)
 
         # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.
         # See: https://github.com/ultralytics/yolov5/pull/8378
@@ -396,6 +404,7 @@ class OnnxExportTestCase(TestCase):
     @slow
     @require_torch
     @require_vision
+    @require_diffusers
     def test_pytorch_export_for_stable_diffusion_models(self, model_name):
         pipeline = StableDiffusionPipeline.from_pretrained(model_name)
         output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]

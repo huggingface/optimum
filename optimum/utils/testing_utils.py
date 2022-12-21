@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterable
 
 from packaging import version
 
-from optimum.utils import is_accelerate_available
+from . import is_accelerate_available, is_diffusers_available
 
 
 def flatten_dict(dictionary: Dict):
@@ -95,6 +95,10 @@ def require_ort_training(test_case):
         is_ort_training_available(),
         "test requires torch_ort correctly installed and configured",
     )(test_case)
+
+
+def require_diffusers(test_case):
+    return unittest.skipUnless(is_diffusers_available(), "test requires diffusers")(test_case)
 
 
 def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
