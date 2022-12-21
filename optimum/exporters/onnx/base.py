@@ -273,6 +273,7 @@ class OnnxConfig(ExportConfig, ABC):
             sig = inspect.signature(model.forward)
         else:
             sig = inspect.signature(model.call)
+
         for param in sig.parameters:
             param_regex = re.compile(rf"{param}(\.\d*)?")
             to_insert = []

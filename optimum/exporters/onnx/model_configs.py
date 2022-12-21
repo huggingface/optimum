@@ -203,6 +203,18 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
+    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+        """
+        Refer to OnnxConfigWithPast in base.py
+        """
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        name = "past_key_values" if direction == "inputs" else "present"
+        for i in range(self._normalized_config.num_layers):
+            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
+            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
+
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
