@@ -751,6 +751,21 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     ATOL_FOR_VALIDATION = 1e-3
 
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
+
+        if self._behavior is ConfigBehavior.MONOLITH:
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                batch_size=dummy_inputs_generators[0].batch_size,
+                encoder_sequence_length=dummy_inputs_generators[0].nb_max_frames // 2,
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators
+
 
 class MobileNetV1OnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
