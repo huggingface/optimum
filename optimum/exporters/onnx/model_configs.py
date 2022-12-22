@@ -14,7 +14,6 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
 
 from packaging import version
@@ -755,14 +754,7 @@ class MobileNetV1OnnxConfig(VisionOnnxConfig):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return OrderedDict([("pixel_values", {0: "batch"})])
-
-    @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        if self.task == "image-classification":
-            return OrderedDict([("logits", {0: "batch"})])
-        else:
-            return OrderedDict([("last_hidden_state", {0: "batch"}), ("pooler_output", {0: "batch"})])
+        return {"pixel_values": {0: "batch"}}
 
 
 class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
