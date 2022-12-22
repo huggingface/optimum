@@ -460,7 +460,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             self.assertEqual(model.model_name, test_model_name)
 
-    def test_save_ort_model_with_external_data(self):
+    def test_save_load_ort_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
@@ -475,27 +475,35 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, from_transformers=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-    def test_save_decoder_model_with_external_data(self):
+    @parameterized.expand([(False,), (True,)])
+    def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], from_transformers=True)
+            model = ORTModelForCausalLM.from_pretrained(
+                MODEL_NAMES["gpt2"], use_cache=use_cache, from_transformers=True
+            )
             model.save_pretrained(tmpdirname)
 
             # verify external data is exported
             folder_contents = os.listdir(tmpdirname)
             self.assertTrue(ONNX_DECODER_NAME in folder_contents)
             self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+            if use_cache:
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
             # verify loading from local folder works
-            model = ORTModelForCausalLM.from_pretrained(tmpdirname, from_transformers=False)
+            model = ORTModelForCausalLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-    def test_save_seq2seq_model_with_external_data(self):
+    @parameterized.expand([(False,), (True,)])
+    def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            model = ORTModelForSeq2SeqLM.from_pretrained(
+                MODEL_NAMES["t5"], use_cache=use_cache, from_transformers=True
+            )
             model.save_pretrained(tmpdirname)
 
             # verify external data is exported
@@ -504,16 +512,21 @@ class ORTModelIntegrationTest(unittest.TestCase):
             self.assertTrue(ONNX_ENCODER_NAME + "_data" in folder_contents)
             self.assertTrue(ONNX_DECODER_NAME in folder_contents)
             self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+            if use_cache:
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
             # verify loading from local folder works
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=False)
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @unittest.skip("Skipping as this test consumes too much memory")
-    def test_save_seq2seq_model_with_external_data(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
+    @parameterized.expand([(False,), (True,)])
+    def test_save_load_large_seq2seq_model_with_external_data(self, use_cache: bool):
+        # with tempfile.TemporaryDirectory() as tmpdirname:
+        if True:
+            tmpdirname = tempfile.mkdtemp()
             # randomly intialize large model
             config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
             with no_init_weights():
@@ -522,20 +535,24 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # save transformers model to be able to load it with `ORTModel...`
             model.save_pretrained(tmpdirname)
 
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
-            model.save_pretrained(tmpdirname + "/onnx")
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=True)
+            model.save_pretrained(os.path.join(tmpdirname, "onnx"))
 
             # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
-            folder_contents = os.listdir(tmpdirname + "/onnx")
+            folder_contents = os.listdir(os.path.join(tmpdirname, "onnx"))
             self.assertTrue(CONFIG_NAME in folder_contents)
 
             # try loading models to check if they are valid
             try:
-                onnx.load(tmpdirname + "/onnx/" + ONNX_ENCODER_NAME)
-                onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_NAME)
-                onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_WITH_PAST_NAME)
+                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_ENCODER_NAME))
+                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_NAME))
+                if use_cache:
+                    onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_WITH_PAST_NAME))
             except Exception as e:
                 self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
+
+            # verify loading from local folder works
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, subfolder="onnx")
 
     @require_hf_token
     def test_save_model_from_hub(self):
