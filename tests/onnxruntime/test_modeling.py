@@ -42,6 +42,7 @@ from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
+import onnx
 import onnxruntime
 import requests
 from huggingface_hub.constants import default_cache_path
@@ -95,7 +96,6 @@ MODEL_NAMES = {
 }
 
 SEED = 42
-import onnx
 
 
 class ORTModelIntegrationTest(unittest.TestCase):
@@ -450,7 +450,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_save_model_with_different_name(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             test_model_name = "model-test.onnx"
-            model = ORTModel.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
 
             # save two models to simulate a optimization
             model.save_pretrained(tmpdirname)
@@ -511,31 +511,31 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-    # following test consumes too much memory and is disabled for now
-    # def test_save_seq2seq_model_with_external_data(self):
-    #     with tempfile.TemporaryDirectory() as tmpdirname:
-    #         # randomly intialize large model
-    #         config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
-    #         with no_init_weights():
-    #             model = MBartForConditionalGeneration(config)
+    @unittest.skip("Skipping as this test consumes too much memory")
+    def test_save_seq2seq_model_with_external_data(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            # randomly intialize large model
+            config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
+            with no_init_weights():
+                model = MBartForConditionalGeneration(config)
 
-    #         # save transformers model to be able to load it with `ORTModel...`
-    #         model.save_pretrained(tmpdirname)
+            # save transformers model to be able to load it with `ORTModel...`
+            model.save_pretrained(tmpdirname)
 
-    #         model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
-    #         model.save_pretrained(tmpdirname + "/onnx")
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, from_transformers=True)
+            model.save_pretrained(tmpdirname + "/onnx")
 
-    #         # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
-    #         folder_contents = os.listdir(tmpdirname + "/onnx")
-    #         self.assertTrue(CONFIG_NAME in folder_contents)
+            # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
+            folder_contents = os.listdir(tmpdirname + "/onnx")
+            self.assertTrue(CONFIG_NAME in folder_contents)
 
-    #         # try loading models to check if they are valid
-    #         try:
-    #             onnx.load(tmpdirname + "/onnx/" + ONNX_ENCODER_NAME)
-    #             onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_NAME)
-    #             onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_WITH_PAST_NAME)
-    #         except Exception as e:
-    #             self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
+            # try loading models to check if they are valid
+            try:
+                onnx.load(tmpdirname + "/onnx/" + ONNX_ENCODER_NAME)
+                onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_NAME)
+                onnx.load(tmpdirname + "/onnx/" + ONNX_DECODER_WITH_PAST_NAME)
+            except Exception as e:
+                self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
 
     @require_hf_token
     def test_save_model_from_hub(self):
