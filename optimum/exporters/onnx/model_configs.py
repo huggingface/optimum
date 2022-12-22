@@ -753,6 +753,17 @@ class MobileNetV1OnnxConfig(VisionOnnxConfig):
     MIN_TORCH_VERSION = version.parse("1.11")
     ATOL_FOR_VALIDATION = 1e-4
 
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict([("pixel_values", {0: "batch"})])
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        if self.task == "image-classification":
+            return OrderedDict([("logits", {0: "batch"})])
+        else:
+            return OrderedDict([("last_hidden_state", {0: "batch"}), ("pooler_output", {0: "batch"})])
+
 
 class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
