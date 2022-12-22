@@ -100,6 +100,10 @@ class TasksManager:
             "masked-im": "AutoModelForMaskedImageModeling",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "speech2seq-lm": "AutoModelForSpeechSeq2Seq",
+            "audio-classification": "AutoModelForAudioClassification",
+            "audio-frame-classification": "AutoModelForAudioFrameClassification",
+            "audio-ctc": "AutoModelForCTC",
+            "audio-xvector": "AutoModelForAudioXVector",
             "stable-diffusion": "StableDiffusionPipeline",
         }
     if is_tf_available():
