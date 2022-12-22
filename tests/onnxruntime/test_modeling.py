@@ -521,8 +521,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-    @unittest.skip("Skipping as this test consumes too much memory")
     @parameterized.expand([(False,), (True,)])
+    @unittest.skip("Skipping as this test consumes too much memory")
     def test_save_load_large_seq2seq_model_with_external_data(self, use_cache: bool):
         # with tempfile.TemporaryDirectory() as tmpdirname:
         if True:
