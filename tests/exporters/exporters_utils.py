@@ -64,8 +64,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
-    # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
-    # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
+    "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
+    "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "mt5": "lewtun/tiny-random-mt5",
     # "owlvit": "google/owlvit-base-patch32",
