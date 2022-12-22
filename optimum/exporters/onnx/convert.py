@@ -152,7 +152,7 @@ def validate_model_outputs(
     onnx_named_outputs: List[str],
     atol: Optional[float] = None,
     input_shapes: Optional[Dict] = None,
-    device: Optional[str] = "cpu",
+    device: str = "cpu",
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
