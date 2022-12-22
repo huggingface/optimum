@@ -139,10 +139,16 @@ def main():
             output_dir=args.output.parent,
             output_names=output_names,
             input_shapes=input_shapes,
+            device=args.device,
         )
     else:
         onnx_inputs, onnx_outputs = export(
-            model=model, config=onnx_config, output=args.output, opset=args.opset, input_shapes=input_shapes
+            model=model,
+            config=onnx_config,
+            output=args.output,
+            opset=args.opset,
+            input_shapes=input_shapes,
+            device=args.device,
         )
 
     try:
