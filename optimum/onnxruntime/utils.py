@@ -16,16 +16,12 @@
 import importlib.util
 import os
 from enum import Enum
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from transformers.utils import logging
 
-import onnx
 import onnxruntime as ort
-import pkg_resources
-from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
@@ -256,53 +252,3 @@ class ORTQuantizableOperator(Enum):
     Resize = "Resize"
     AveragePool = "AveragePool"
     Concat = "Concat"
-
-
-def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
-    """
-    Get the paths of the external data tensors in the model.
-    Note: make sure you load the model with load_external_data=False.
-    """
-    model_tensors = _get_initializer_tensors(model)
-    model_tensors_ext = [
-        ExternalDataInfo(tensor).location
-        for tensor in model_tensors
-        if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
-    ]
-    return model_tensors_ext
-
-
-def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -> Tuple[List[Path], List[str]]:
-    """
-    Get external data paths from the model and add them to the list of files to copy.
-    """
-    model_paths = src_paths.copy()
-    for model_path in model_paths:
-        model = onnx.load(str(model_path), load_external_data=False)
-        model_tensors = _get_initializer_tensors(model)
-        # filter out tensors that are not external data
-        model_tensors_ext = [
-            ExternalDataInfo(tensor).location
-            for tensor in model_tensors
-            if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
-        ]
-        if len(set(model_tensors_ext)) == 1:
-            # if external data was saved in a single file
-            src_paths.append(model_path.parent / model_tensors_ext[0])
-            dst_file_names.append(model_tensors_ext[0])
-        else:
-            # if external data doesnt exist or was saved in multiple files
-            src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
-            dst_file_names.extend(model_path.parent.name + "/" + tensor_name for tensor_name in model_tensors_ext)
-    return src_paths, dst_file_names
-
-
-def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
-    """
-    Check if the model uses external data.
-    """
-    model_tensors = _get_initializer_tensors(model)
-    return any(
-        tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
-        for tensor in model_tensors
-    )

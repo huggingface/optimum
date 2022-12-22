@@ -25,9 +25,8 @@ from transformers.utils import is_tf_available, is_torch_available
 
 import onnx
 
-from ...onnxruntime.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
+from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
-from ..tasks import TasksManager
 from .base import OnnxConfig
 
 
