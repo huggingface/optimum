@@ -186,7 +186,7 @@ def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
     elif isinstance(value, list):
         for i, val in enumerate(value):
             value[i] = recursive_to_device(val, device)
-    else:
+    elif isinstance(value, torch.Tensor):
         value = value.to(device)
 
     return value
