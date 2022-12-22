@@ -686,11 +686,9 @@ class Data2VecVisionOnnxConfig(ViTOnnxConfig):
     pass
 
 
-# TODO: add support when audio models are supported.
-class Data2VecAudioOnnxConfig(ViTOnnxConfig):
-    @property
-    def inputs(self):
-        raise NotImplementedError
+class Data2VecAudioOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+    ATOL_FOR_VALIDATION = 1e-4
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):

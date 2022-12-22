@@ -134,6 +134,10 @@ class TasksManager:
         "masked-im": "transformers",
         "semantic-segmentation": "transformers",
         "speech2seq-lm": "transformers",
+        "audio-ctc": "transformers",
+        "audio-classification": "transformers",
+        "audio-frame-classification": "transformers",
+        "audio-xvector": "transformers",
         "stable-diffusion": "diffusers",
     }
 
@@ -281,6 +285,14 @@ class TasksManager:
             # ONNX doesn't support `adaptive_avg_pool2d` yet
             # "semantic-segmentation",
             onnx="Data2VecVisionOnnxConfig",
+        ),
+        "data2vec-audio": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="Data2VecAudioOnnxConfig",
         ),
         "deberta": supported_tasks_mapping(
             "default",
