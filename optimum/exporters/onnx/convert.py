@@ -91,7 +91,7 @@ def validate_models_outputs(
     atol: Optional[float] = None,
     output_names: Optional[List[str]] = None,
     input_shapes: Optional[Dict] = None,
-    device: Optional[str] = "cpu",
+    device: str = "cpu",
 ):
     """
     Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
