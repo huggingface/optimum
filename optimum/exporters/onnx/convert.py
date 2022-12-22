@@ -28,6 +28,7 @@ import onnx
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
 from .base import OnnxConfig
+from .utils import recursive_to_device
 
 
 if is_torch_available():
@@ -206,11 +207,7 @@ def validate_model_outputs(
         reference_model.to(device)
 
         for key, value in reference_model_inputs.items():
-            if isinstance(value, (list, tuple)):
-                for i, val in enumerate(value):
-                    reference_model_inputs[key][i] = val.to(device)
-            else:
-                reference_model_inputs[key] = value.to(device)
+            reference_model_inputs[key] = recursive_to_device(value=value, device=device)
 
     ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
