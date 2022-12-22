@@ -751,10 +751,10 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 class MobileNetV1OnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     MIN_TORCH_VERSION = version.parse("1.11")
-
+ATOL_FOR_VALIDATION = 1e-4
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return OrderedDict([("pixel_values", {0: "batch"})])
+        return {"pixel_values", {0: "batch_size"}}
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
