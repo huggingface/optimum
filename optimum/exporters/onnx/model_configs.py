@@ -745,3 +745,17 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     ATOL_FOR_VALIDATION = 1e-3
+
+
+class MobileNetV1OnnxConfig(VisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    MIN_TORCH_VERSION = version.parse("1.11")
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {"pixel_values": {0: "batch"}}
+
+
+class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
+    pass

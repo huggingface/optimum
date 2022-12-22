@@ -437,6 +437,16 @@ class TasksManager:
             "image-classification",
             onnx="MobileViTOnnxConfig",
         ),
+        "mobilenet-v1": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="MobileNetV1OnnxConfig",
+        ),
+        "mobilenet-v2": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="MobileNetV2OnnxConfig",
+        ),
         "mt5": supported_tasks_mapping(
             "default",
             "default-with-past",
