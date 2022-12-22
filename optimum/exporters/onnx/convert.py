@@ -206,7 +206,11 @@ def validate_model_outputs(
         reference_model.to(device)
 
         for key, value in reference_model_inputs.items():
-            reference_model_inputs[key] = value.to(device)
+            if isinstance(value, (list, tuple)):
+                for i, val in enumerate(value):
+                    reference_model_inputs[key][i] = val.to(device)
+            else:
+                reference_model_inputs[key] = value.to(device)
 
     ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
