@@ -23,6 +23,7 @@ import pytest
 import torch
 from PIL import Image
 from transformers import (
+    AutoConfig,
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
@@ -33,12 +34,15 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
+    MBartForConditionalGeneration,
     PretrainedConfig,
     set_seed,
 )
+from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
+import onnx
 import onnxruntime
 import requests
 from huggingface_hub.constants import default_cache_path
@@ -103,6 +107,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
+        self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
     def test_load_model_from_local_path(self):
@@ -455,6 +460,100 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             self.assertEqual(model.model_name, test_model_name)
 
+    def test_save_load_ort_model_with_external_data(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
+            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @parameterized.expand([(False,), (True,)])
+    def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForCausalLM.from_pretrained(
+                MODEL_NAMES["gpt2"], use_cache=use_cache, from_transformers=True
+            )
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
+
+            if use_cache:
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForCausalLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @parameterized.expand([(False,), (True,)])
+    def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSeq2SeqLM.from_pretrained(
+                MODEL_NAMES["t5"], use_cache=use_cache, from_transformers=True
+            )
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
+            self.assertTrue(ONNX_ENCODER_NAME + "_data" in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
+
+            if use_cache:
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @parameterized.expand([(False,), (True,)])
+    @unittest.skip("Skipping as this test consumes too much memory")
+    def test_save_load_large_seq2seq_model_with_external_data(self, use_cache: bool):
+        # with tempfile.TemporaryDirectory() as tmpdirname:
+        if True:
+            tmpdirname = tempfile.mkdtemp()
+            # randomly intialize large model
+            config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
+            with no_init_weights():
+                model = MBartForConditionalGeneration(config)
+
+            # save transformers model to be able to load it with `ORTModel...`
+            model.save_pretrained(tmpdirname)
+
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=True)
+            model.save_pretrained(os.path.join(tmpdirname, "onnx"))
+
+            # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
+            folder_contents = os.listdir(os.path.join(tmpdirname, "onnx"))
+            self.assertTrue(CONFIG_NAME in folder_contents)
+
+            # try loading models to check if they are valid
+            try:
+                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_ENCODER_NAME))
+                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_NAME))
+                if use_cache:
+                    onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_WITH_PAST_NAME))
+            except Exception as e:
+                self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
+
+            # verify loading from local folder works
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, subfolder="onnx")
+
     @require_hf_token
     def test_save_model_from_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -466,6 +565,69 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 repository_id=self.HUB_REPOSITORY,
                 private=True,
             )
+
+    @require_hf_token
+    def test_push_ort_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["bert"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForSequenceClassification.from_pretrained(
+                MODEL_NAMES["bert"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @require_hf_token
+    def test_push_decoder_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["gpt2"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForCausalLM.from_pretrained(
+                MODEL_NAMES["gpt2"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @require_hf_token
+    def test_push_seq2seq_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["mbart"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForSeq2SeqLM.from_pretrained(
+                MODEL_NAMES["mbart"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):

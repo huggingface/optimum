@@ -22,7 +22,6 @@ import torch
 from transformers.utils import logging
 
 import onnxruntime as ort
-import pkg_resources
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 

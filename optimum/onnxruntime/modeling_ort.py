@@ -45,10 +45,12 @@ from transformers.modeling_outputs import (
 
 import onnxruntime as ort
 from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
+from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import IOBindingHelper, TypeHelper
@@ -294,7 +296,7 @@ class ORTModel(OptimizedModel):
             provider_options=None if provider_options is None else [provider_options],
         )
 
-    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME):
+    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME, **kwargs):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
@@ -306,9 +308,15 @@ class ORTModel(OptimizedModel):
             file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
                 The filename to use when saving the model.
         """
-        # TODO: support models with external data
-        dst_path = Path(save_directory).joinpath(file_name)
-        shutil.copyfile(self.model_path, dst_path)
+        src_paths = [self.model_path]
+        dst_file_names = [file_name]
+
+        # add external data paths in case of large models
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+
+        for src_path, dst_file_name in zip(src_paths, dst_file_names):
+            dst_path = Path(save_directory) / dst_file_name
+            shutil.copyfile(src_path, dst_path)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
@@ -348,7 +356,7 @@ class ORTModel(OptimizedModel):
                     f"Too many ONNX model files were found in {path}, specify which one to load by using the "
                     f"{argument_name} argument."
                 )
-        return onnx_files[0].name
+        return onnx_files[0]
 
     @classmethod
     def _from_pretrained(
@@ -420,6 +428,23 @@ class ORTModel(OptimizedModel):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
+
+            # try download external data
+            try:
+                model_data_cache_path = hf_hub_download(
+                    repo_id=model_id,
+                    subfolder=subfolder,
+                    filename=file_name + "_data",
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                )
+            except EntryNotFoundError:
+                # model doesn't use external data
+                pass
+
             model = ORTModel.load_model(
                 model_cache_path, provider=provider, session_options=session_options, provider_options=provider_options
             )

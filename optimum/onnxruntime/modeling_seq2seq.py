@@ -35,8 +35,9 @@ from huggingface_hub import hf_hub_download
 
 from ..exporters.onnx import export_models, get_encoder_decoder_models_for_export
 from ..exporters.tasks import TasksManager
+from ..onnx.utils import _get_external_data_paths
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
-from ..utils.file_utils import validate_file_exists
+from ..utils.file_utils import find_files_matching_pattern, validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_decoder import ORTDecoder
@@ -55,6 +56,8 @@ if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin
+
+from huggingface_hub.utils import EntryNotFoundError
 
 
 if TYPE_CHECKING:
@@ -881,6 +884,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        **kwargs,
     ):
         """
         Saves the model encoder, decoder and decoder with past key values as well as its configuration file to a
@@ -900,14 +904,18 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
         """
-        src_file_names = [self.encoder_model_path, self.decoder_model_path]
+        src_paths = [self.encoder_model_path, self.decoder_model_path]
         dst_file_names = [encoder_file_name, decoder_file_name]
         if self.use_cache:
-            src_file_names.append(self.decoder_with_past_model_path)
+            src_paths.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
 
-        for src_path, dst_file_name in zip(src_file_names, dst_file_names):
+        # add external data paths in case of large models
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+
+        for src_path, dst_file_name in zip(src_paths, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 
     @classmethod
@@ -934,7 +942,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_path = Path(model_id)
 
         if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
-            encoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            encoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 ENCODER_ONNX_FILE_PATTERN,
                 "encoder_file_name",
@@ -942,8 +950,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
+        else:
+            encoder_path = model_path / subfolder / encoder_file_name
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            decoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            decoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 DECODER_ONNX_FILE_PATTERN,
                 "decoder_file_name",
@@ -951,8 +961,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
+        else:
+            decoder_path = model_path / subfolder / decoder_file_name
         if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-            decoder_with_past_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 DECODER_WITH_PAST_ONNX_FILE_PATTERN,
                 "decoder_with_past_file_name",
@@ -961,6 +973,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 revision=revision,
                 fail_if_not_found=use_cache,
             )
+        else:
+            decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
             ONNX_ENCODER_NAME
@@ -972,30 +986,33 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
         )
 
-        if encoder_file_name not in encoder_regular_onnx_filenames:
+        if encoder_path.name not in encoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {encoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                f"The ONNX file {encoder_path.name} is not a regular name used in optimum.onnxruntime, the "
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        if decoder_file_name not in decoder_regular_onnx_filenames:
+        if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime, the "
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
-        if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
+        if (
+            decoder_with_past_path is not None
+            and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames
+        ):
             logger.warning(
-                f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime, "
+                f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime, "
                 "the ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
+        decoder_with_past_path = decoder_with_past_path if use_cache else None
 
         preprocessors = None
         if model_path.is_dir():
             model = cls.load_model(
-                encoder_path=model_path / encoder_file_name,
-                decoder_path=model_path / decoder_file_name,
+                encoder_path=encoder_path,
+                decoder_path=decoder_path,
                 decoder_with_past_path=decoder_with_past_path,
                 provider=provider,
                 session_options=session_options,
@@ -1005,9 +1022,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
-                "last_encoder_model_name": encoder_file_name,
-                "last_decoder_model_name": decoder_file_name,
-                "last_decoder_with_past_model_name": decoder_with_past_file_name if use_cache else None,
+                "last_encoder_model_name": encoder_path.name,
+                "last_decoder_model_name": decoder_path.name,
+                "last_decoder_with_past_model_name": decoder_with_past_path.name if use_cache else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -1023,6 +1040,22 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
+                # try download external data
+                try:
+                    model_data_cache_path = hf_hub_download(
+                        repo_id=model_id,
+                        subfolder=subfolder,
+                        filename=filename + "_data",
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        local_files_only=local_files_only,
+                    )
+                except EntryNotFoundError:
+                    # model doesn't use external data
+                    pass
+
                 paths[attr_name] = Path(model_cache_path).name
             new_model_save_dir = Path(model_cache_path).parent
             preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)

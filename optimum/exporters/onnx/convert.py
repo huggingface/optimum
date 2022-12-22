@@ -14,6 +14,7 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+import os
 from inspect import signature
 from itertools import chain
 from pathlib import Path
@@ -22,6 +23,9 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
+import onnx
+
+from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
 from .base import OnnxConfig
 
@@ -307,6 +311,7 @@ def export_pytorch(
     from torch.utils._pytree import tree_map
 
     logger.info(f"Using framework PyTorch: {torch.__version__}")
+    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
 
     with torch.no_grad():
         model.config.return_dict = True
@@ -354,6 +359,34 @@ def export_pytorch(
                 do_constant_folding=True,
                 opset_version=opset,
             )
+
+            # check if external data was exported
+            onnx_model = onnx.load(str(output), load_external_data=False)
+            model_uses_external_data = check_model_uses_external_data(onnx_model)
+
+            if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
+                tensors_paths = _get_onnx_external_data_tensors(onnx_model)
+                logger.info("Saving external data to one file...")
+
+                # try free model memory
+                del model
+                del onnx_model
+
+                onnx_model = onnx.load(
+                    str(output), load_external_data=True
+                )  # this will probably be too memory heavy for large models
+                onnx.save(
+                    onnx_model,
+                    str(output),
+                    save_as_external_data=True,
+                    all_tensors_to_one_file=True,
+                    location=output.name + "_data",
+                    size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
+                )
+
+                # delete previous external data
+                for tensor in tensors_paths:
+                    os.remove(output.parent / tensor)
 
         config.restore_ops()
 
@@ -476,11 +509,11 @@ def export_models(
 
     for i, model_name in enumerate(models_and_onnx_configs.keys()):
         submodel, sub_onnx_config = models_and_onnx_configs[model_name]
-        output_path = (
-            output_dir.joinpath(output_names[i])
-            if output_names is not None
-            else output_dir.joinpath(model_name + ".onnx")
-        )
+        output_name = output_names[i] if output_names is not None else Path(model_name + ".onnx")
+
+        output_path = output_dir / output_name
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
         outputs.append(
             export(
                 model=submodel,
