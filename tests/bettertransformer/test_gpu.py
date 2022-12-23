@@ -90,4 +90,4 @@ class TestSpeedup(unittest.TestCase):
 
         speedup = total_hf_time / total_bt_time
 
-        self.assertTrue(speedup > 1, msg="The BetterTransformer base speedup is < 1")
+        self.assertTrue(speedup > 1, msg=f"The BetterTransformer base speedup for {test_name} is {speedup} < 1")
