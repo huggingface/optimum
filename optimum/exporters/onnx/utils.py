@@ -18,14 +18,12 @@ import copy
 from typing import TYPE_CHECKING, Dict, List, Tuple, Union
 
 import packaging
+import torch
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, TORCH_MINIMUM_VERSION, is_diffusers_available
 from ..tasks import TasksManager
 
-
-if is_torch_available():
-    import torch
 
 if TYPE_CHECKING:
     from .base import OnnxConfig
