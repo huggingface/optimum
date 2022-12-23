@@ -25,7 +25,7 @@ def benchmark(model_name, num_batches, batch_size, max_seqlen, is_half):
     hf_model = hf_model.to("cuda:0")
     bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
-    vocab_size = 30522
+    vocab_size = hf_model.config.vocab_size
     input_ids = torch.randint(vocab_size - 1, (batch_size, max_seqlen), dtype=torch.int64) + 1
     masks = torch.ones(batch_size, max_seqlen, dtype=torch.int64)
 
@@ -74,7 +74,7 @@ class TestSpeedup(unittest.TestCase):
             }
         )
     )
-    #@unittest.skip("Run this test to validate the base speedup on GPU")
+    # @unittest.skip("Run this test to validate the base speedup on GPU")
     def test_base_speedup(
         self, test_name: str, model_name: str, batch_size: int, sequence_length: int, use_half: bool
     ):
