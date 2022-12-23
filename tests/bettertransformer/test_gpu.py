@@ -10,7 +10,8 @@ from optimum.utils.testing_utils import grid_parameters
 from parameterized import parameterized
 
 
-logger = logging.get_logger(__name__)
+logger = logging.get_logger()
+logging.set_verbosity_info()
 
 
 def timing_cuda(model, num_batches, input_ids, masks):
