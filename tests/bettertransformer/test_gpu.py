@@ -1,3 +1,4 @@
+import os
 import unittest
 
 import torch
@@ -58,7 +59,7 @@ class TestSpeedup(unittest.TestCase):
 
     REPRESENTATIVE_MODELS = [
         "bert-base-uncased",
-        "albert-base-v2",
+        # "albert-base-v2",  # TODO: AlbertLayerBetterTransformer seem to nest/unnest tensors all the time
         "facebook/bart-base",
         "facebook/mbart-large-50",
         "distilbert-base-uncased",
@@ -74,10 +75,13 @@ class TestSpeedup(unittest.TestCase):
             }
         )
     )
-    # @unittest.skip("Run this test to validate the base speedup on GPU")
+    @unittest.skipIf(int(os.environ.get("TEST_LEVEL", 0)) < 1)
     def test_base_speedup(
         self, test_name: str, model_name: str, batch_size: int, sequence_length: int, use_half: bool
     ):
+        """
+        Test to validate the BetterTransformer base speedup on GPU.
+        """
         num_batches = 50
 
         total_bt_time, total_hf_time = benchmark(
