@@ -18,15 +18,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import numpy as np
 import torch
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoTokenizer
 
 import onnx
-from onnxruntime import InferenceSession
 from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
-from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
-from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
+from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
 from parameterized import parameterized
 
@@ -96,9 +93,6 @@ class ORTOptimizerTest(unittest.TestCase):
             optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
             optimized_model = model_cls.from_pretrained(
                 tmp_dir,
-                encoder_file_name="encoder_model_optimized.onnx",
-                decoder_file_name="decoder_model_optimized.onnx",
-                decoder_file_with_past_name="decoder_with_past_model_optimized.onnx" if use_cache else None,
                 from_transformers=False,
                 use_cache=use_cache,
             )

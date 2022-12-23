@@ -32,12 +32,15 @@ They specify which input generators should be used for the dummy inputs, but rem
 
 ## Base classes
 
-[[autodoc]] exporters.onnx.base.OnnxConfig
+[[autodoc]] exporters.onnx.OnnxConfig
+    - inputs
+    - outputs
+    - generate_dummy_inputs
 
-[[autodoc]] exporters.onnx.base.OnnxConfigWithPast
+[[autodoc]] exporters.onnx.OnnxConfigWithPast
+    - with_past
 
-[[autodoc]] exporters.onnx.base.OnnxSeq2SeqConfigWithPast
-
+[[autodoc]] exporters.onnx.OnnxSeq2SeqConfigWithPast
 
 ## Middle-end classes
 
@@ -106,6 +109,7 @@ They specify which input generators should be used for the dummy inputs, but rem
 - Roformer
 - Segformer
 - SqueezeBert
+- Stable Diffusion
 - T5
 - Vit
 - Whisper

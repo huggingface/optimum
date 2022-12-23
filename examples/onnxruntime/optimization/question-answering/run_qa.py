@@ -232,17 +232,35 @@ class OptimizationArguments:
     )
 
 
+@dataclass
+class OnnxExportArguments:
+    """
+    Arguments to decide how the ModelProto will be saved.
+    """
+
+    use_external_data_format: bool = field(
+        default=False,
+        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+    )
+    one_external_file: bool = field(
+        default=True,
+        metadata={"help": "When `use_external_data_format=True`, whether to save all tensors to one external file."},
+    )
+
+
 def main():
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments, OptimizationArguments, OnnxExportArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, optim_args = parser.parse_json_file(
+        model_args, data_args, training_args, optim_args, onnx_export_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args, optim_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, optim_args, onnx_export_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -308,7 +326,12 @@ def main():
     optimizer = ORTOptimizer.from_pretrained(model)
 
     # Optimize the model
-    optimizer.optimize(optimization_config=optimization_config, save_dir=training_args.output_dir)
+    optimizer.optimize(
+        optimization_config=optimization_config,
+        save_dir=training_args.output_dir,
+        use_external_data_format=onnx_export_args.use_external_data_format,
+        one_external_file=onnx_export_args.one_external_file,
+    )
 
     # Prepare the dataset downloading, preprocessing and metric creation to perform the evaluation and / or the
     # prediction step(s)
