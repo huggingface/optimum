@@ -24,11 +24,13 @@ from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, TORCH_MINIMUM_VERSION, is_dif
 from ..tasks import TasksManager
 
 
+if is_torch_available():
+    import torch
+
 if TYPE_CHECKING:
     from .base import OnnxConfig
 
     if is_torch_available():
-        import torch
         from transformers.modeling_utils import PreTrainedModel
 
     if is_tf_available():
