@@ -555,8 +555,8 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
             "pooler_output": {0: "batch_size", 1: "feature_dim"},
         }
 
-    def generate_dummy_inputs(self, framework: str = "pt"):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         if framework == "pt":
             import torch
 
@@ -599,8 +599,8 @@ class UNetOnnxConfig(ViTOnnxConfig):
     def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
         return ["sample"]
 
-    def generate_dummy_inputs(self, framework: str = "pt"):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
         return dummy_inputs
 
