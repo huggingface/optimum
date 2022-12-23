@@ -31,4 +31,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        pytest exporters -s --durations=0
+        pytest exporters  -k "test_exporters_cli_pytorch_203_levit_no_task" -s --durations=0
