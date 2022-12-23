@@ -3,9 +3,9 @@ import unittest
 import torch
 from transformers import AutoModel
 
-import parameterized
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import grid_parameters
+from parameterized import parameterized
 
 
 def timing_cuda(model, num_batches, input_ids, masks):
