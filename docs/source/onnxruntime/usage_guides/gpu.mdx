@@ -68,7 +68,7 @@ ort_model = ORTModelForSequenceClassification.from_pretrained(
 )
 ```
 
-The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines):
+The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines).
 When using Transformers pipeline, note that the `device` argument should be set to perform pre- and post-processing on GPU, following the example below:
 
 ```python
