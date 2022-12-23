@@ -75,7 +75,7 @@ class TestSpeedup(unittest.TestCase):
             }
         )
     )
-    @unittest.skipIf(int(os.environ.get("TEST_LEVEL", 0)) < 1)
+    @unittest.skipIf(int(os.environ.get("TEST_LEVEL", 0)) < 1, reason="disabled by default")
     def test_base_speedup(
         self, test_name: str, model_name: str, batch_size: int, sequence_length: int, use_half: bool
     ):
