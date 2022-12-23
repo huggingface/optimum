@@ -45,16 +45,36 @@ def benchmark(model_name, num_batches, batch_size, max_seqlen, is_half):
 
 
 class TestSpeedup(unittest.TestCase):
+    """
+    TODO: test missing for:
+
+    - WhisperEncoderLayerBetterTransformer
+    - ViTLayerBetterTransformer
+    - ViltLayerBetterTransformer
+    - Wav2Vec2EncoderLayerBetterTransformer
+    - FSMTEncoderLayerBetterTransformer
+    - CLIPLayerBetterTransformer
+    """
+
+    REPRESENTATIVE_MODELS = [
+        "bert-base-uncased",
+        "albert-base-v2",
+        "facebook/bart-base",
+        "facebook/mbart-large-50",
+        "distilbert-base-uncased",
+    ]
+
     @parameterized.expand(
         grid_parameters(
             {
-                "model_name": ["bert-base-uncased"],
+                "model_name": REPRESENTATIVE_MODELS,
                 "batch_size": [32, 64],
-                "sequence_length": [64, 128, 256],
+                "sequence_length": [64, 128],
                 "use_half": [True, False],
             }
         )
     )
+    #@unittest.skip("Run this test to validate the base speedup on GPU")
     def test_base_speedup(
         self, test_name: str, model_name: str, batch_size: int, sequence_length: int, use_half: bool
     ):
