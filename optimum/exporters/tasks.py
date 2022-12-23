@@ -646,17 +646,17 @@ class TasksManager:
         task = TasksManager.format_task(task)
         TasksManager._validate_framework_choice(framework)
         if framework == "pt":
-            task_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
+            tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
         else:
-            task_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
-        if task not in task_to_automodel:
+            tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
+        if task not in tasks_to_automodel:
             raise KeyError(
                 f"Unknown task: {task}. Possible values are: "
-                + ", ".join([f"`{key}` for {task_to_automodel[key].__name__}" for key in task_to_automodel])
+                + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
             )
 
         module = importlib.import_module(TasksManager._TASKS_TO_LIBRARY[task])
-        return getattr(module, task_to_automodel[task])
+        return getattr(module, tasks_to_automodel[task])
 
     @staticmethod
     def determine_framework(
