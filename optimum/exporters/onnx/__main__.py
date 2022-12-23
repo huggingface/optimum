@@ -139,10 +139,16 @@ def main():
             output_dir=args.output.parent,
             output_names=output_names,
             input_shapes=input_shapes,
+            device=args.device,
         )
     else:
         onnx_inputs, onnx_outputs = export(
-            model=model, config=onnx_config, output=args.output, opset=args.opset, input_shapes=input_shapes
+            model=model,
+            config=onnx_config,
+            output=args.output,
+            opset=args.opset,
+            input_shapes=input_shapes,
+            device=args.device,
         )
 
     try:
@@ -155,6 +161,7 @@ def main():
                 atol=args.atol,
                 output_dir=args.output.parent,
                 output_names=output_names,
+                device=args.device,
             )
         else:
             validate_model_outputs(
@@ -163,6 +170,7 @@ def main():
                 onnx_model=args.output,
                 onnx_named_outputs=onnx_outputs,
                 atol=args.atol,
+                device=args.device,
             )
 
         logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
@@ -178,7 +186,7 @@ def main():
         )
     except Exception as e:
         logger.error(
-            f"An error occured with error {e}.\n The model was exported model was saved at: {args.output.parent.as_posix()}"
+            f"An error occured with the error message: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
         )
 
 

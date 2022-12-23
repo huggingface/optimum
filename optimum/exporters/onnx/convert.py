@@ -28,6 +28,7 @@ import onnx
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
 from .base import OnnxConfig
+from .utils import recursive_to_device
 
 
 if is_torch_available():
@@ -90,6 +91,7 @@ def validate_models_outputs(
     atol: Optional[float] = None,
     output_names: Optional[List[str]] = None,
     input_shapes: Optional[Dict] = None,
+    device: str = "cpu",
 ):
     """
     Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
@@ -109,6 +111,9 @@ def validate_models_outputs(
             If None, will use the keys from the `models_and_onnx_configs` as names.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes to validate the ONNX model on.
+        device (`str`, defaults to `"cpu"`):
+            The device on which the ONNX models will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
+
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
@@ -136,6 +141,7 @@ def validate_models_outputs(
             onnx_named_outputs=onnx_named_outputs[i],
             atol=atol,
             input_shapes=input_shapes,
+            device=device,
         )
 
 
@@ -146,6 +152,7 @@ def validate_model_outputs(
     onnx_named_outputs: List[str],
     atol: Optional[float] = None,
     input_shapes: Optional[Dict] = None,
+    device: str = "cpu",
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
@@ -163,6 +170,8 @@ def validate_model_outputs(
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes to validate the ONNX model on.
+        device (`str`, defaults to `"cpu"`):
+            The device on which the ONNX model will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
 
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
@@ -185,11 +194,20 @@ def validate_model_outputs(
 
     # Create ONNX Runtime session
     options = SessionOptions()
-    session = InferenceSession(onnx_model.as_posix(), options, providers=["CPUExecutionProvider"])
+
+    if device.startswith("cuda"):
+        provider = "CUDAExecutionProvider"
+    else:
+        provider = "CPUExecutionProvider"
+
+    session = InferenceSession(onnx_model.as_posix(), options, providers=[provider])
 
     # Compute outputs from the reference model
     if is_torch_available() and isinstance(reference_model, nn.Module):
-        reference_model.to("cpu")
+        reference_model.to(device)
+
+        for key, value in reference_model_inputs.items():
+            reference_model_inputs[key] = recursive_to_device(value=value, device=device)
 
     ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
@@ -214,9 +232,9 @@ def validate_model_outputs(
     for name, value in reference_model_inputs_for_validation.items():
         if isinstance(value, (list, tuple)):
             value = config.flatten_output_collection_property(name, value)
-            onnx_inputs.update({tensor_name: pt_tensor.numpy() for tensor_name, pt_tensor in value.items()})
+            onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
         else:
-            onnx_inputs[name] = value.numpy()
+            onnx_inputs[name] = value.cpu().numpy()
 
     # Compute outputs from the ONNX model
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
@@ -245,9 +263,9 @@ def validate_model_outputs(
     value_failures = []
     for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
         if is_torch_available() and isinstance(reference_model, nn.Module):
-            ref_value = ref_outputs_dict[name].detach().numpy()
+            ref_value = ref_outputs_dict[name].detach().cpu().numpy()
         else:
-            ref_value = ref_outputs_dict[name].numpy()
+            ref_value = ref_outputs_dict[name].cpu().numpy()
         logger.info(f'\t- Validating ONNX Model output "{name}":')
 
         # Shape
@@ -296,7 +314,7 @@ def export_pytorch(
             The version of the ONNX operator set to use.
         output (`Path`):
             Directory to store the exported ONNX model.
-        device (`str`, *optional*, defaults to `cpu`):
+        device (`str`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
         input_shapes (`optional[Dict]`, defaults to `None`):
@@ -491,7 +509,7 @@ def export_models(
         output_names (`Optional[List[str]]`, defaults to `None`):
             The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
             If None, will use the keys from `models_and_onnx_configs` as names.
-        device (`str`, *optional*, defaults to `cpu`):
+        device (`str`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
         input_shapes (`Optional[Dict]`, defaults to `None`):

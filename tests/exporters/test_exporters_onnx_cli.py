@@ -80,21 +80,18 @@ class OnnxExportTestCase(unittest.TestCase):
 
         with TemporaryDirectory() as tmpdir:
             for_ort = " --for-ort " if for_ort is True else " "
-            try:
-                if task is not None:
-                    subprocess.run(
-                        f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}--task {task} {tmpdir}",
-                        shell=True,
-                        check=True,
-                    )
-                else:
-                    subprocess.run(
-                        f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}{tmpdir}",
-                        shell=True,
-                        check=True,
-                    )
-            except Exception as e:
-                self.fail(f"{test_name} raised: {e}")
+            if task is not None:
+                subprocess.run(
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}--task {task} {tmpdir}",
+                    shell=True,
+                    check=True,
+                )
+            else:
+                subprocess.run(
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}{tmpdir}",
+                    shell=True,
+                    check=True,
+                )
 
     def test_all_models_tested(self):
         # make sure we test all models

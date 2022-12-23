@@ -15,9 +15,10 @@
 """Utility functions."""
 
 import copy
-from typing import TYPE_CHECKING, Dict, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Tuple, Union
 
 import packaging
+import torch
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, TORCH_MINIMUM_VERSION, is_diffusers_available
@@ -174,3 +175,18 @@ def get_stable_diffusion_models_for_export(
     models_for_export["vae"] = (vae, vae_onnx_config)
 
     return models_for_export
+
+
+def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
+    if isinstance(value, tuple):
+        value = list(value)
+        for i, val in enumerate(value):
+            value[i] = recursive_to_device(val, device)
+        value = tuple(value)
+    elif isinstance(value, list):
+        for i, val in enumerate(value):
+            value[i] = recursive_to_device(val, device)
+    elif isinstance(value, torch.Tensor):
+        value = value.to(device)
+
+    return value

@@ -46,6 +46,12 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        help='The device to use to do the export. Defaults to "cpu".',
+    )
+    optional_group.add_argument(
         "--opset",
         type=int,
         default=None,
