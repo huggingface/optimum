@@ -473,6 +473,11 @@ class TasksManager:
             "sequence-classification",
             onnx="PerceiverOnnxConfig",
         ),
+        "poolformer": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="PoolFormerOnnxConfig",
+        ),
         "resnet": supported_tasks_mapping(
             "default",
             "image-classification",
