@@ -12,11 +12,17 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import copy
+import logging
+import os
 from collections import defaultdict
-from typing import DefaultDict, Dict, List, Set, Tuple
+from pathlib import Path
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
 import onnx
 from onnx import ModelProto, ValueInfoProto
+
+
+logger = logging.getLogger(__name__)
 
 
 def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
@@ -222,15 +228,22 @@ def merge_decoders(
     decoder_with_past: ModelProto,
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
+    save_path: Optional[Union[str, Path]] = None,
 ) -> ModelProto:
     """
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
     Args:
-        decoder (`onnx.ModelProto`): Decoder ONNX model.
-        decoder_with_past (`onnx.ModelProto`): Decoder with past ONNX model.
-        graph_name (`str`): Name of the parent graph(graph of the control flow node).
-        producer_name (`str`): Graph producer name.
+        decoder (`onnx.ModelProto`):
+            Decoder ONNX model.
+        decoder_with_past (`onnx.ModelProto`):
+            Decoder with past ONNX model.
+        graph_name (`str`):
+            Name of the parent graph(graph of the control flow node).
+        producer_name (`str`):
+            Graph producer name.
+        save_path (`str` or `Path`, *optional*):
+            The path to save merged ONNX model. The model will be saved if the path is given.
 
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
@@ -293,6 +306,23 @@ def merge_decoders(
             )
         ],
     )
-    onnx.checker.check_model(merged_model)
+
+    if merged_model.ByteSize() < 2147483648:
+        onnx.checker.check_model(merged_model)
+        if save_path:
+            save_path = Path(save_path).as_posix()
+            onnx.save(merged_model, save_path)
+    elif save_path is not None:
+        save_path = Path(save_path).as_posix()
+        onnx.save(
+            merged_model,
+            save_path,
+            save_as_external_data=True,
+            all_tensors_to_one_file=True,
+            location=os.path.basename(save_path) + "_data",
+        )
+        onnx.checker.check_model(save_path)
+    else:
+        logger.info("Merged ONNX model exceeds 2GB, the model will not be checked without `save_path` given.")
 
     return merged_model
