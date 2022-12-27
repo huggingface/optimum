@@ -74,6 +74,8 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
+
+    "ProphetNetEncoderLayer": ProphetNetEncoderLayerBetterTransformer
 }
 
 
