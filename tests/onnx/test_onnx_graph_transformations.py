@@ -88,7 +88,7 @@ class OnnxMergingTestCase(TestCase):
             merge_decoders(
                 decoder,
                 decoder_with_past,
-                save_path=tmpdir.name + "/merged.onnx",
+                save_path=os.path.join(tmpdir, "merged.onnx"),
             )
 
 
