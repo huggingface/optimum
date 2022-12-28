@@ -74,7 +74,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
     # "rembert": "google/rembert",
-    "poolformer": "sail/poolformer_s12",
+    "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
