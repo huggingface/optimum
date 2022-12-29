@@ -851,17 +851,23 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
 
+        # `providers` and `provider_options` need to be of the same length
+        if provider_options is not None:
+            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
+        else:
+            providers_options = None
+
         encoder_session = ort.InferenceSession(
             str(encoder_path),
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
         decoder_session = ort.InferenceSession(
             str(decoder_path),
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
 
         decoder_with_past_session = None
@@ -872,7 +878,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 str(decoder_with_past_path),
                 providers=providers,
                 sess_options=session_options,
-                provider_options=None if provider_options is None else [provider_options],
+                provider_options=providers_options,
             )
 
         return encoder_session, decoder_session, decoder_with_past_session

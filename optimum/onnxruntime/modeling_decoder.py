@@ -436,11 +436,17 @@ class ORTModelDecoder(ORTModel):
             # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
 
+        # `providers` and `provider_options` need to be of the same length
+        if provider_options is not None:
+            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
+        else:
+            providers_options = None
+
         decoder_session = onnxruntime.InferenceSession(
             str(decoder_path),
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
@@ -450,7 +456,7 @@ class ORTModelDecoder(ORTModel):
                 str(decoder_with_past_path),
                 providers=providers,
                 sess_options=session_options,
-                provider_options=None if provider_options is None else [provider_options],
+                provider_options=None if provider_options is None else providers_options,
             )
         return decoder_session, decoder_with_past_session
 
