@@ -67,3 +67,13 @@ def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
         tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
         for tensor in model_tensors
     )
+
+
+def has_onnx_input(model: onnx.ModelProto, input_name: str) -> bool:
+    """
+    Check if the model has a specific input.
+    """
+    for input in model.graph.input:
+        if input.name == input_name:
+            return True
+    return False

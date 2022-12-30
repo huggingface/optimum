@@ -224,8 +224,8 @@ def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str
 
 
 def merge_decoders(
-    decoder: ModelProto,
-    decoder_with_past: ModelProto,
+    decoder: Union[ModelProto, str],
+    decoder_with_past: Union[ModelProto, str],
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
     save_path: Optional[Union[str, Path]] = None,
@@ -234,9 +234,9 @@ def merge_decoders(
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
     Args:
-        decoder (`onnx.ModelProto`):
+        decoder (`Union[ModelProto, str]`):
             Decoder ONNX model.
-        decoder_with_past (`onnx.ModelProto`):
+        decoder_with_past (`Union[ModelProto, str]`):
             Decoder with past ONNX model.
         graph_name (`str`):
             Name of the parent graph(graph of the control flow node).
@@ -248,6 +248,18 @@ def merge_decoders(
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
     """
+    if isinstance(decoder, str):
+        decoder = onnx.load(decoder)
+
+    if isinstance(decoder_with_past, str):
+        decoder_with_past = onnx.load(decoder_with_past)
+
+    decoder_opset = _get_onnx_opset(decoder)
+    decoder_with_past_opset = _get_onnx_opset(decoder_with_past)
+    if not decoder_opset == decoder_with_past_opset:
+        raise ValueError(
+            f"Decoder's opset is {decoder_opset}, but decoder with past's opset is {decoder_with_past_opset}. Make sure having the same opset before merging."
+        )
 
     _unify_onnx_outputs(decoder, decoder_with_past)
     all_inputs = _get_all_inputs([decoder, decoder_with_past])
@@ -290,12 +302,6 @@ def merge_decoders(
         outputs=no_past_branch.output,
         initializer=deduplicated_initializers,
     )
-    decoder_opset = _get_onnx_opset(decoder)
-    decoder_with_past_opset = _get_onnx_opset(decoder_with_past)
-    if not decoder_opset == decoder_with_past_opset:
-        raise ValueError(
-            f"Decoder's opset is {decoder_opset}, but decoder with past's opset is {decoder_with_past_opset}. Make sure having the same opset before merging."
-        )
     merged_model = onnx.helper.make_model(
         merged_graph,
         producer_name=producer_name,
