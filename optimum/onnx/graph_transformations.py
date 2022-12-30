@@ -176,6 +176,10 @@ def model_to_int32(model: ModelProto) -> ModelProto:
 
     The constant node inputs are stored in `model.graph.node`, and the sole way to check which node
     they are consumed by is to iterate over nodes and check `node.input` for a match.
+
+    Note that constant inputs to nodes as `Squeeze`, `Unsqueeze` can not be converted to int32, as the
+    these operators explicitely expect int64 inputs according to ONNX specifications:
+    https://github.com/onnx/onnx/blob/main/docs/Operators.md
     """
     map_input_node = {}
 
