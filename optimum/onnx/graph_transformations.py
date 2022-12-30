@@ -197,5 +197,4 @@ def model_to_int32(model: ModelProto) -> ModelProto:
             logger.debug(f"Converting {node.name} to int32")
             cast_int64_tensorproto_to_int32(node.attribute[0].t)
 
-    onnx.checker.check_model(model)
     return model
