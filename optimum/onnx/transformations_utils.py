@@ -205,7 +205,7 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto):
     original_name = initializer.name
     array = np.copy(numpy_helper.to_array(initializer))
 
-    if not array.dtype == np.int32:
+    if not array.dtype == np.int64:
         raise TypeError(
             "Expecting a `TensorProto` of type `int64` (represented as `7` in onnx.TensorProto) in the function int64_tensorproto_to_int32, but got {array.dtype}."
         )

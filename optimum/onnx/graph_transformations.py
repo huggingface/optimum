@@ -170,7 +170,7 @@ def merge_decoders(
     return merged_model
 
 
-def modelproto_to_int32(model: ModelProto) -> ModelProto:
+def model_to_int32(model: ModelProto) -> ModelProto:
     """
     Convert node inputs of `Slice` nodes from int64 to int32, casting the out of range values.
 
