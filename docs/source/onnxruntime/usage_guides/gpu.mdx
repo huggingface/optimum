@@ -270,7 +270,7 @@ something is wrong with the TensorRT or ONNX Runtime installation.
 
 ### TensorRT engine build and warmup
 
-TensorRT requires to build its [inference engine](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#build-phase) ahead of inference, which takes some time due to the model optimization, nodes fusion. To avoid rebuiling the engine every time the model is loaded, ONNX Runtime provides a pair of options to allow to save the engine: `trt_engine_cache_enable` and `trt_engine_cache_path`.
+TensorRT requires to build its [inference engine](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#build-phase) ahead of inference, which takes some time due to the model optimization and nodes fusion. To avoid rebuilding the engine every time the model is loaded, ONNX Runtime provides a pair of options to save the engine: `trt_engine_cache_enable` and `trt_engine_cache_path`.
 
 We recommend to set these two provier options when using TensorRT execution provider. The usage is as follow, where here [`optimum/gpt2`](https://huggingface.co/optimum/gpt2) is an ONNX model converted from PyTorch using [Optimum ONNX export](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model):
 
