@@ -15,6 +15,7 @@
 import gc
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -46,6 +47,8 @@ import onnx
 import onnxruntime
 import requests
 from huggingface_hub.constants import default_cache_path
+from optimum.onnx.graph_transformations import merge_decoders
+from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
@@ -1278,11 +1281,90 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_merge_from_transformers(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_merged=True)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model.save_pretrained(tmpdir, ONNX_DECODER_NAME)
+            save_path = os.path.join(tmpdir, ONNX_DECODER_NAME)
+            assert has_onnx_input(save_path, "use_cache")
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_merge_from_onnx(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        task = "causal-lm-with-past"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                shell=True,
+                check=True,
+            )
+
+            config = AutoConfig.from_pretrained(model_id, use_cache=True)
+            model = ORTModelForCausalLM.from_pretrained(
+                model_id=tmpdir,
+                decoder_file_name="decoder_model.onnx",
+                decoder_with_past_file_name="decoder_with_past_model.onnx",
+                config=config,
+                use_cache=False,
+                use_merged=True,
+            )
+            model.save_pretrained(tmpdir, ONNX_DECODER_NAME)
+            save_path = os.path.join(tmpdir, ONNX_DECODER_NAME)
+            assert has_onnx_input(save_path, "use_cache")
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_use_merged_onnx(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        task = "causal-lm-with-past"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                shell=True,
+                check=True,
+            )
+
+            decoder = os.path.join(tmpdir, "decoder_model.onnx")
+            decoder_with_past = os.path.join(tmpdir, "decoder_with_past_model.onnx")
+            merged_save_path = os.path.join(tmpdir, "merged.onnx")
+            merge_decoders(
+                decoder,
+                decoder_with_past,
+                save_path=merged_save_path,
+            )
+
+            config = AutoConfig.from_pretrained(model_id, use_cache=True)
+            model = ORTModelForCausalLM.from_pretrained(
+                model_id=tmpdir,
+                decoder_file_name="merged.onnx",
+                config=config,
+                use_cache=False,
+                use_merged=False,
+            )
+            model.save_pretrained(tmpdir, ONNX_DECODER_NAME)
+            save_path = os.path.join(tmpdir, ONNX_DECODER_NAME)
+            assert has_onnx_input(save_path, "use_cache")
+
+            model = ORTModelForCausalLM.from_pretrained(
+                model_id=tmpdir,
+                decoder_file_name="merged.onnx",
+                decoder_with_past_file_name="decoder_with_past_model.onnx",
+                config=config,
+                use_cache=False,
+                use_merged=False,
+            )
+
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
+        onnx_model = ORTModelForCausalLM.from_pretrained(
+            model_id,
+            from_transformers=True,
+            use_cache=use_cache,
+            use_merged=False,
+        )
 
         self.assertIsInstance(onnx_model.decoder, ORTDecoder)
         if onnx_model.use_cache is True:
@@ -1309,7 +1391,12 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
+        onnx_model = ORTModelForCausalLM.from_pretrained(
+            model_id,
+            from_transformers=True,
+            use_cache=use_cache,
+            use_merged=False,
+        )
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -1335,7 +1422,11 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     @require_torch_gpu
     def test_pipeline_on_gpu(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForCausalLM.from_pretrained(
+            model_id,
+            from_transformers=True,
+            use_merged=False,
+        )
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live"
@@ -1354,9 +1445,39 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt")
-        model_with_pkv = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=True)
+        model_with_pkv = ORTModelForCausalLM.from_pretrained(
+            model_id,
+            from_transformers=True,
+            use_cache=True,
+            use_merged=False,
+        )
         outputs_model_with_pkv = model_with_pkv.generate(**tokens)
-        model_without_pkv = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=False)
+        model_without_pkv = ORTModelForCausalLM.from_pretrained(
+            model_id,
+            from_transformers=True,
+            use_cache=False,
+            use_merged=False,
+        )
+        outputs_model_without_pkv = model_without_pkv.generate(**tokens)
+        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_merged_and_double_models_outputs(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        tokenizer = get_preprocessor(model_id)
+        text = "My Name is Philipp and i live"
+        tokens = tokenizer(text, return_tensors="pt")
+        model_with_pkv = ORTModelForCausalLM.from_pretrained(
+            model_id,
+            from_transformers=True,
+            use_merged=True,
+        )
+        outputs_model_with_pkv = model_with_pkv.generate(**tokens)
+        model_without_pkv = ORTModelForCausalLM.from_pretrained(
+            model_id,
+            from_transformers=True,
+            use_merged=False,
+        )
         outputs_model_without_pkv = model_without_pkv.generate(**tokens)
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
 
