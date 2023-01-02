@@ -255,7 +255,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     def test_missing_execution_provider(self):
-
         with self.assertRaises(ValueError) as cm:
             model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="ThisProviderDoesNotExist")
 
@@ -268,6 +267,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         is_onnxruntime_installed = "onnxruntime " in subprocess.run(
             "pip list | grep onnxruntime", shell=True, capture_output=True
         ).stdout.decode("utf-8")
+
         if not is_onnxruntime_gpu_installed:
             for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
                 with self.assertRaises(ImportError) as cm:
