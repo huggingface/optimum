@@ -14,6 +14,8 @@ RUN apt-get install -y software-properties-common wget apt-utils patchelf git li
 RUN unattended-upgrade
 RUN apt-get autoremove -y
 
+RUN python -m pip install -U pip
+
 # Install Optimum
 COPY . /workspace/optimum
 RUN pip install /workspace/optimum[onnxruntime-gpu,tests]
