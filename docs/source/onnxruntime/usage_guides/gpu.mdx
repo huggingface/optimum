@@ -294,9 +294,9 @@ ort_model = ORTModelForCausalLM.from_pretrained(
 TensorRT builds its engine depending on specified input shapes. Unfortunately, in the [current ONNX Runtime implementation](https://github.com/microsoft/onnxruntime/blob/613920d6c5f53a8e5e647c5f1dcdecb0a8beef31/onnxruntime/core/providers/tensorrt/tensorrt_execution_provider.cc#L1677-L1688) (references: [1](https://github.com/microsoft/onnxruntime/issues/13559), [2](https://github.com/microsoft/onnxruntime/issues/13851)), the engine is rebuilt every time an input has a shape smaller than the previously smallest encountered shape, and conversely if the input has a shape larger than the previously largest encountered shape. For example, if a model takes `(batch_size, input_ids)` as inputs, and the model takes successively the inputs:
 
 1. `input.shape: (4, 5)  --> the engine is built (first input)`
-2. `input.shape: (4, 10) --> engine rebuilt (8 larger than 3)`
-3. `input.shape: (4, 7)  --> no rebuild (3 <= 5 <= 8)`
-4. `input.shape: (4, 12) --> engine rebuilt (9 <= 10)`
+2. `input.shape: (4, 10) --> engine rebuilt (10 larger than 5)`
+3. `input.shape: (4, 7)  --> no rebuild (5 <= 7 <= 10)`
+4. `input.shape: (4, 12) --> engine rebuilt (10 <= 12)`
 5. `input.shape: (4, 3)  --> engine rebuilt (3 <= 5)`
 
 One big issue is that engine building can be time consuming, especially for large models. Therefore, as a workaround, one recommendation is to **first build the TensorRT engine with an input of small shape, and an input of large shape to have an engine valid for all shapes inbetween**. This allows to avoid rebuilding the engine for new small and large shapes, which is unwanted once the model is deployed for inference.
