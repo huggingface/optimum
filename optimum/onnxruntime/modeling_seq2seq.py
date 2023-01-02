@@ -977,7 +977,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     )
                 except FileNotFoundError as e:
                     raise FileNotFoundError(
-                        "The parameter `use_cache=True` was passed to ORTModelForConditionalGeneration.from_pretrained()"
+                        "The parameter `use_cache=True` was passed to `ORTModelForConditionalGeneration.from_pretrained()`"
                         " but no ONNX file using past key values could be found in"
                         f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
                     )
