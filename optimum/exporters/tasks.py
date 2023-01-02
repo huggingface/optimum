@@ -175,8 +175,7 @@ class TasksManager:
             "visual-reasoning",
             "region-to-phrase-alignment",
             onnx="VisualBertOnnxConfig",
-        )
-        ,
+        ),
         "big-bird": supported_tasks_mapping(
             "default",
             "masked-lm",
