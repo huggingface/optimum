@@ -70,6 +70,30 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
             "token_type_ids": dynamic_axis,
         }
 
+class VisualBertOnnxConfig(BertOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator)
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        result = {
+            "input_ids": dynamic_axis,
+            "attention_mask": dynamic_axis,
+            "token_type_ids": dynamic_axis,
+            "visual_embeds": {0: "batch_size", 1:"visual_seq_length", 2: "visual_embedding_dim"},
+            "visual_token_type_ids": {0: "batch_size", 1:"visual_seq_length"},
+            "visual_attention_mask": {0: "batch_size", 1:"visual_seq_length"},
+
+        }
+        if(self.task == "visual-question-answering"):
+            result.update({"region_to_phrase_position": {0:"batch_size", 1:"total_sequence_length"}})
+        return result
+
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        #TODO: adapt for each task
+        raise NotImplementedError
 
 class AlbertOnnxConfig(BertOnnxConfig):
     pass

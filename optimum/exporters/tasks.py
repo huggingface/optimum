@@ -168,6 +168,15 @@ class TasksManager:
             "question-answering",
             onnx="BertOnnxConfig",
         ),
+        "visual-bert": supported_tasks_mapping(
+            "default",
+            "question-answering",
+            "multiple-choice",
+            "visual-reasoning",
+            "region-to-phrase-alignment",
+            onnx="VisualBertOnnxConfig",
+        )
+        ,
         "big-bird": supported_tasks_mapping(
             "default",
             "masked-lm",
