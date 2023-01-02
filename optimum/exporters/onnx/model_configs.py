@@ -447,6 +447,10 @@ class BigBirdPegasusOnnxConfig(BartOnnxConfig):
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
+class PegasusOnnxConfig(BartOnnxConfig):
+    pass
+
+
 class MarianOnnxConfig(BartOnnxConfig):
     pass
 
@@ -499,6 +503,11 @@ class YolosOnnxConfig(ViTOnnxConfig):
 
 class SwinOnnxConfig(ViTOnnxConfig):
     pass
+
+
+class PoolFormerOnnxConfig(ViTOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    ATOL_FOR_VALIDATION = 2e-3
 
 
 class SegformerOnnxConfig(YolosOnnxConfig):

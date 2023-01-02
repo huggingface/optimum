@@ -851,17 +851,23 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
 
+        # `providers` and `provider_options` need to be of the same length
+        if provider_options is not None:
+            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
+        else:
+            providers_options = None
+
         encoder_session = ort.InferenceSession(
             str(encoder_path),
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
         decoder_session = ort.InferenceSession(
             str(decoder_path),
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
 
         decoder_with_past_session = None
@@ -872,7 +878,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 str(decoder_with_past_path),
                 providers=providers,
                 sess_options=session_options,
-                provider_options=None if provider_options is None else [provider_options],
+                provider_options=providers_options,
             )
 
         return encoder_session, decoder_session, decoder_with_past_session
@@ -963,18 +969,26 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             )
         else:
             decoder_path = model_path / subfolder / decoder_file_name
-        if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-            decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
-                model_id,
-                DECODER_WITH_PAST_ONNX_FILE_PATTERN,
-                "decoder_with_past_file_name",
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-                fail_if_not_found=use_cache,
-            )
-        else:
-            decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
+
+        if use_cache is True:
+            if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
+                try:
+                    decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
+                        model_id,
+                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        "decoder_with_past_file_name",
+                        subfolder=subfolder,
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                    )
+                except FileNotFoundError as e:
+                    raise FileNotFoundError(
+                        "The parameter `use_cache=True` was passed to `ORTModelForConditionalGeneration.from_pretrained()`"
+                        " but no ONNX file using past key values could be found in"
+                        f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
+                    )
+            else:
+                decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
             ONNX_ENCODER_NAME
@@ -998,7 +1012,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
         if (
-            decoder_with_past_path is not None
+            use_cache is True
+            and decoder_with_past_path is not None
             and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames
         ):
             logger.warning(

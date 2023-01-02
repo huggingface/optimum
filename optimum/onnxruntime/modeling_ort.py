@@ -288,12 +288,17 @@ class ORTModel(OptimizedModel):
         if not isinstance(path, str):
             path = str(path)
 
-        # `providers` list must of be of the same length as `provider_options` list
+        # `providers` and `provider_options` need to be of the same length
+        if provider_options is not None:
+            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
+        else:
+            providers_options = None
+
         return ort.InferenceSession(
             path,
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME, **kwargs):
@@ -348,7 +353,7 @@ class ORTModel(OptimizedModel):
 
         if len(onnx_files) == 0:
             if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {pattern} in {path}.")
             return None
         elif len(onnx_files) > 1:
             if argument_name is not None:

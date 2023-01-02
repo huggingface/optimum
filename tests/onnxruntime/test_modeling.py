@@ -293,6 +293,21 @@ class ORTModelIntegrationTest(unittest.TestCase):
         )
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0")
 
+        # two providers case
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="TensorrtExecutionProvider")
+        self.assertEqual(
+            model.model.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
+        )
+
+        model = ORTModel.from_pretrained(
+            self.ONNX_MODEL_ID,
+            provider="TensorrtExecutionProvider",
+            provider_options={"trt_engine_cache_enable": True},
+        )
+        self.assertEqual(
+            model.model.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
+        )
+
     @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
     def test_model_on_gpu_id(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
@@ -316,17 +331,68 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(
             model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
         )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
+                "do_copy_in_default_stream"
+            ],
+            "1",
+        )
 
         model = ORTModelForSeq2SeqLM.from_pretrained(
             self.ONNX_SEQ2SEQ_MODEL_ID,
             provider="CUDAExecutionProvider",
             provider_options={"do_copy_in_default_stream": 0},
+            use_cache=True,
         )
         self.assertEqual(
             model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
         )
         self.assertEqual(
             model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
+        )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
+                "do_copy_in_default_stream"
+            ],
+            "0",
+        )
+
+        # two providers case
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID,
+            provider="TensorrtExecutionProvider",
+            use_cache=True,
+        )
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
+        )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
+                "trt_engine_cache_enable"
+            ],
+            "0",
+        )
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID,
+            provider="TensorrtExecutionProvider",
+            provider_options={"trt_engine_cache_enable": True},
+            use_cache=True,
+        )
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
+        )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
+                "trt_engine_cache_enable"
+            ],
+            "1",
         )
 
     def test_seq2seq_model_on_cpu(self):

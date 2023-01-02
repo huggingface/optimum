@@ -467,11 +467,25 @@ class TasksManager:
         #     "zero-shot-object-detection",
         #     onnx="OwlViTOnnxConfig",
         # ),
+        "pegasus": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "causal-lm",
+            "causal-lm-with-past",
+            "seq2seq-lm",
+            "seq2seq-lm-with-past",
+            onnx="PegasusOnnxConfig",
+        ),
         "perceiver": supported_tasks_mapping(
             "masked-lm",
             "image-classification",
             "sequence-classification",
             onnx="PerceiverOnnxConfig",
+        ),
+        "poolformer": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="PoolFormerOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
             "default",

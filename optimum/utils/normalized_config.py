@@ -192,6 +192,8 @@ class NormalizedConfigManager:
         "mbart": BartLikeNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m_100": BartLikeNormalizedTextConfig,
+        "pegasus": BartLikeNormalizedTextConfig,
+        "poolformer": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,

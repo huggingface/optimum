@@ -69,11 +69,13 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "mt5": "lewtun/tiny-random-mt5",
     # "owlvit": "google/owlvit-base-patch32",
+    "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "sequence-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
     # "rembert": "google/rembert",
+    "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
@@ -134,6 +136,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
+    "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "microsoft/resnet-50",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
