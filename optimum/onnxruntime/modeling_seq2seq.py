@@ -1200,6 +1200,12 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         return self
 
+    def can_generate(self):
+        logger.warning(
+            "ORTModelForConditionalGeneration is an abstract class and is not meant to be used for generation. Please use ORTModelForSeq2SeqLM or ORTModelForSpeechSeq2Seq."
+        )
+        return False
+
 
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     """
