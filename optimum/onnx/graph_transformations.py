@@ -224,8 +224,8 @@ def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str
 
 
 def merge_decoders(
-    decoder: Union[ModelProto, str],
-    decoder_with_past: Union[ModelProto, str],
+    decoder: Union[ModelProto, Path, str],
+    decoder_with_past: Union[ModelProto, Path, str],
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
     save_path: Optional[Union[str, Path]] = None,
@@ -234,9 +234,9 @@ def merge_decoders(
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
     Args:
-        decoder (`Union[ModelProto, str]`):
+        decoder (`Union[ModelProto, Path, str]`):
             Decoder ONNX model.
-        decoder_with_past (`Union[ModelProto, str]`):
+        decoder_with_past (`Union[ModelProto, Path, str]`):
             Decoder with past ONNX model.
         graph_name (`str`):
             Name of the parent graph(graph of the control flow node).
@@ -248,10 +248,12 @@ def merge_decoders(
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
     """
-    if isinstance(decoder, str):
+    if isinstance(decoder, (str, Path)):
+        decoder = Path(decoder).as_posix()
         decoder = onnx.load(decoder)
 
-    if isinstance(decoder_with_past, str):
+    if isinstance(decoder_with_past, (str, Path)):
+        decoder_with_past = Path(decoder_with_past).as_posix()
         decoder_with_past = onnx.load(decoder_with_past)
 
     decoder_opset = _get_onnx_opset(decoder)

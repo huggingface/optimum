@@ -38,13 +38,7 @@ from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
-from .utils import (
-    ONNX_DECODER_MERGED_NAME,
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    get_provider_for_device,
-    parse_device,
-)
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
 
 
 if TYPE_CHECKING:
@@ -121,7 +115,6 @@ TEXT_GENERATION_EXAMPLE = r"""
 
 DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
-DECODER_MERGED_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?merged(.*)?\.onnx"
 
 
 class ORTDecoder:
@@ -415,6 +408,7 @@ class ORTModelDecoder(ORTModel):
             model_save_dir=model_save_dir,
         )
         self.use_merged = use_merged
+        print("use merge:", use_merged)
         self.use_cache = (decoder_with_past_session is not None) or self.use_merged
         # Decoder without past / Merged decoder
         self.decoder = ORTDecoder(
@@ -430,14 +424,12 @@ class ORTModelDecoder(ORTModel):
         self.decoder_with_past = None
         self.decoder_with_past_model_path = None
         self.decoder_with_past_model_name = None
-        self.decoder_merged = None
-        self.decoder_merged_model_path = None
-        self.decoder_merged_model_name = None
         if self.use_cache and not self.use_merged:
             self.decoder_with_past = ORTDecoder(
                 session=decoder_with_past_session,
                 config=self.config,
                 device=self._device,
+                use_merged=self.use_merged,
                 use_io_binding=self.use_io_binding,
             )
             self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
@@ -503,7 +495,6 @@ class ORTModelDecoder(ORTModel):
         save_directory: Union[str, Path],
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        decoder_merged_file_name: str = ONNX_DECODER_MERGED_NAME,
         **kwargs,
     ):
         """
@@ -520,20 +511,13 @@ class ORTModelDecoder(ORTModel):
             decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
-            decoder_merged_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_MERGED_NAME`):
-                The merged decoder (w/. or w/o. past key values) model file name overwriting the default file name, allowing to save
-                the merged decoder model with a different name.
         """
         src_paths = [self.decoder_model_path]
         dst_file_names = [decoder_file_name]
 
-        if self.use_cache:
+        if self.use_cache and not self.use_merged:
             src_paths.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
-
-        if self.use_merged:
-            src_paths.append(self.decoder_merged_model_path)
-            dst_file_names.append(decoder_merged_file_name)
 
         # add external data paths in case of large models
         src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
@@ -566,8 +550,8 @@ class ORTModelDecoder(ORTModel):
         model_path = Path(model_id)
 
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            pattern = DECODER_MERGED_ONNX_FILE_PATTERN if use_merged else DECODER_ONNX_FILE_PATTERN
-            argument_name = "decoder_file_name" if use_merged else "decoder_merged_file_name"
+            pattern = DECODER_ONNX_FILE_PATTERN
+            argument_name = "decoder_file_name"
             decoder_path = ORTModelDecoder.infer_onnx_filename(
                 model_id,
                 pattern,
@@ -579,12 +563,7 @@ class ORTModelDecoder(ORTModel):
         else:
             decoder_path = model_path / subfolder / decoder_file_name
 
-        if use_merged:
-            decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
-                ONNX_DECODER_MERGED_NAME
-            )
-        else:
-            decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
+        decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
         if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
                 f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
@@ -754,21 +733,20 @@ class ORTModelDecoder(ORTModel):
                 merge_decoders(
                     decoder=save_dir_path / output_names[0],
                     decoder_with_past=save_dir_path / output_names[1],
-                    save_path=save_dir_path / ONNX_DECODER_MERGED_NAME,
+                    save_path=save_dir_path / ONNX_DECODER_NAME,
                 )
             except Exception as e:
                 logger.error(
-                    "Unable to merge decoders. Will load two decoders for inference which will double the memory usage."
+                    f"{e}.\nUnable to merge decoders. Will load two decoders for inference which will double the memory usage."
                 )
                 use_merged = False
-            print("merged<<<<<<<<<<")
+
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
             save_dir_path,
             config,
-            decoder_file_name=ONNX_DECODER_MERGED_NAME if use_merged else ONNX_DECODER_NAME,
             use_cache=use_cache,
             use_merged=use_merged,
             provider=provider,
