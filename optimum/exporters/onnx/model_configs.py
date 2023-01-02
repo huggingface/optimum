@@ -758,7 +758,6 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
                 self.task,
                 self._normalized_config,
-                batch_size=dummy_inputs_generators[0].batch_size,
                 encoder_sequence_length=dummy_inputs_generators[0].nb_max_frames // 2,
                 **kwargs,
             )
