@@ -69,6 +69,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "mt5": "lewtun/tiny-random-mt5",
     # "owlvit": "google/owlvit-base-patch32",
+    "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "sequence-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
