@@ -15,6 +15,7 @@
 import gc
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -68,10 +69,12 @@ from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
 from optimum.onnxruntime.modeling_seq2seq import ORTEncoder
 from optimum.pipelines import pipeline
-from optimum.utils import CONFIG_NAME
+from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.testing_utils import grid_parameters, require_hf_token
 from parameterized import parameterized
 
+
+logger = logging.get_logger()
 
 MODEL_NAMES = {
     "distilbert": "hf-internal-testing/tiny-random-distilbert",
@@ -250,6 +253,58 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model.to("cpu")
         self.assertEqual(model.device, cpu)
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
+
+    def test_missing_execution_provider(self):
+
+        with self.assertRaises(ValueError) as cm:
+            model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="ThisProviderDoesNotExist")
+
+        self.assertTrue("but the available execution providers" in str(cm.exception))
+
+        is_onnxruntime_gpu_installed = (
+            subprocess.run("pip list | grep onnxruntime-gpu", shell=True, capture_output=True).stdout.decode("utf-8")
+            != ""
+        )
+        is_onnxruntime_installed = "onnxruntime " in subprocess.run(
+            "pip list | grep onnxruntime", shell=True, capture_output=True
+        ).stdout.decode("utf-8")
+        if not is_onnxruntime_gpu_installed:
+            for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+                with self.assertRaises(ImportError) as cm:
+                    _ = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=provider)
+
+                self.assertTrue(
+                    f"Asked to use {provider}, but `onnxruntime-gpu` package was not found." in str(cm.exception)
+                )
+        else:
+            logger.info("Skipping CUDAExecutionProvider/TensorrtExecutionProvider without `onnxruntime-gpu` test")
+
+        # need to install first onnxruntime-gpu, then onnxruntime for this test to pass,
+        # thus overwritting onnxruntime/capi/_ld_preload.py
+        if is_onnxruntime_installed and is_onnxruntime_gpu_installed:
+            for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+                with self.assertRaises(ImportError) as cm:
+                    _ = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=provider)
+
+                self.assertTrue(
+                    "`onnxruntime-gpu` is installed, but GPU dependencies are not loaded." in str(cm.exception)
+                )
+        else:
+            logger.info("Skipping double onnxruntime + onnxruntime-gpu install test")
+
+        # LD_LIBRARY_PATH can't be set at runtime,
+        # see https://stackoverflow.com/questions/856116/changing-ld-library-path-at-runtime-for-ctypes
+        # testing only for TensorRT as having ORT_CUDA_UNAVAILABLE is hard
+        if is_onnxruntime_gpu_installed:
+            for provider in ["TensorrtExecutionProvider"]:
+                out = subprocess.run(
+                    f"CUDA_PATH='' LD_LIBRARY_PATH='' python tests/onnxruntime/load_model.py {provider}",
+                    shell=True,
+                    capture_output=True,
+                )
+                self.assertTrue("requirements could not be loaded" in out.stderr.decode("utf-8"))
+        else:
+            logger.info("Skipping broken CUDA/TensorRT install test")
 
     @require_torch_gpu
     def test_model_on_gpu(self):
