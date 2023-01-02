@@ -533,15 +533,21 @@ class ORTModelDecoder(ORTModel):
         decoder_with_past_path = None
         if use_cache is True:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-                decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
-                    model_id,
-                    DECODER_WITH_PAST_ONNX_FILE_PATTERN,
-                    "decoder_with_past_file_name",
-                    subfolder=subfolder,
-                    use_auth_token=use_auth_token,
-                    revision=revision,
-                    fail_if_not_found=use_cache,
-                )
+                try:
+                    decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
+                        model_id,
+                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        "decoder_with_past_file_name",
+                        subfolder=subfolder,
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                    )
+                except FileNotFoundError as e:
+                    raise FileNotFoundError(
+                        "The parameter `use_cache=True` was passed to ORTModelDecoder.from_pretrained()"
+                        " but no ONNX file using past key values could be found in"
+                        f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
+                    )
             else:
                 decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 

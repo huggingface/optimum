@@ -348,7 +348,7 @@ class ORTModel(OptimizedModel):
 
         if len(onnx_files) == 0:
             if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {pattern} in {path}.")
             return None
         elif len(onnx_files) > 1:
             if argument_name is not None:
