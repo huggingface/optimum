@@ -331,6 +331,10 @@ encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
 output = ort_model(**encoded_input)
 ```
 
+The engine is stored as:
+
+![TensorRT engine cache folder](https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/tensorrt_cache.png)
+
 Once the engine is built, generation is fast and does not need engine rebuild:
 
 ```python
