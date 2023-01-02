@@ -217,6 +217,8 @@ Note that previous experiments are run with __vanilla ONNX__ models exported dir
 
 ## TensorrtExecutionProvider
 
+TensorRT uses its own set of optimizations, and **generally does not support the optimizations from [`~onnxruntime.ORTOptimizer`]**. We therefore recommend to use the original ONNX models when using TensorrtExecutionProvider ([reference](https://github.com/microsoft/onnxruntime/issues/10905#issuecomment-1072649358)).
+
 ### TensorRT installation
 
 The easiest way to use TensorRT as the execution provider for models optimized through 🤗 Optimum is with the available ONNX Runtime `TensorrtExecutionProvider`.
