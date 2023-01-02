@@ -291,7 +291,7 @@ ort_model = ORTModelForCausalLM.from_pretrained(
 )
 ```
 
-TensorRT builds its engine depending on specified input shapes. Unfortunately, in [current ONNX Runtime implementation](https://github.com/microsoft/onnxruntime/blob/613920d6c5f53a8e5e647c5f1dcdecb0a8beef31/onnxruntime/core/providers/tensorrt/tensorrt_execution_provider.cc#L1677-L1688) (references: [1](https://github.com/microsoft/onnxruntime/issues/13559), [2](https://github.com/microsoft/onnxruntime/issues/13851)), the engine is rebuilt every time an input has a shape smaller than the previously smallest encountered shape, and conversely if the input has a shape larger than the previously largest encountered shape. For example, if a model takes `(batch_size, input_ids)` as inputs, and the model takes successively the inputs:
+TensorRT builds its engine depending on specified input shapes. Unfortunately, in the [current ONNX Runtime implementation](https://github.com/microsoft/onnxruntime/blob/613920d6c5f53a8e5e647c5f1dcdecb0a8beef31/onnxruntime/core/providers/tensorrt/tensorrt_execution_provider.cc#L1677-L1688) (references: [1](https://github.com/microsoft/onnxruntime/issues/13559), [2](https://github.com/microsoft/onnxruntime/issues/13851)), the engine is rebuilt every time an input has a shape smaller than the previously smallest encountered shape, and conversely if the input has a shape larger than the previously largest encountered shape. For example, if a model takes `(batch_size, input_ids)` as inputs, and the model takes successively the inputs:
 
 1. `input.shape: (4, 5)  --> the engine is built (first input)`
 2. `input.shape: (4, 10) --> engine rebuilt (8 larger than 3)`
