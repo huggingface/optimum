@@ -24,6 +24,7 @@ from .encoder_models import (
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
+    ProphetNetEncoderLayerBetterTransformer
 )
 
 
@@ -74,7 +75,7 @@ BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
     # FSMTModel:
     "EncoderLayer": FSMTEncoderLayerBetterTransformer,
     "ViltLayer": ViltLayerBetterTransformer,
-
+    # ProphetNet Model 
     "ProphetNetEncoderLayer": ProphetNetEncoderLayerBetterTransformer
 }
 
