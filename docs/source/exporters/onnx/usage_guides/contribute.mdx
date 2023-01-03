@@ -185,7 +185,7 @@ This function expects the ONNX configuration, along with the base model, and the
 >>> onnx_config_constructor = TasksManager.get_exporter_config_constructor("onnx", base_model)
 >>> onnx_config = onnx_config_constructor(base_model.config)
 
->>> onnx_inputs, onnx_outputs = export(base_model, onnx_config, onnx_path ,onnx_config.DEFAULT_ONNX_OPSET)
+>>> onnx_inputs, onnx_outputs = export(base_model, onnx_config, onnx_path, onnx_config.DEFAULT_ONNX_OPSET)
 ```
 
 The `onnx_inputs` and `onnx_outputs` returned by the `export()` function are lists of the keys defined in the [`~optimum.exporters.onnx.OnnxConfig.inputs`]
