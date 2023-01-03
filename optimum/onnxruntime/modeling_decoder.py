@@ -305,6 +305,7 @@ class ORTDecoder:
                 for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                     onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
+            print(onnx_inputs)
             # Run inference
             outputs = self.session.run(None, onnx_inputs)
 

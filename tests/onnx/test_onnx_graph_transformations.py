@@ -16,17 +16,18 @@ import os
 import subprocess
 import unittest
 from pathlib import Path
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
 import torch
 from transformers import AutoModel, AutoTokenizer
 
+import huggingface_hub
 import onnx
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
-from optimum.onnx.graph_transformations import merge_decoders, remove_duplicate_weights
+from optimum.onnx.graph_transformations import merge_decoders, model_to_int32, remove_duplicate_weights
 from parameterized import parameterized
 
 
@@ -90,3 +91,36 @@ class OnnxMergingTestCase(TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OnnxToInt32Test(TestCase):
+    def test_to_int32(self):
+        model_id = "fxmarty/gpt2-tiny-onnx"
+
+        with TemporaryDirectory() as tmpdir:
+            repo_path = huggingface_hub.snapshot_download(model_id, cache_dir=tmpdir)
+
+            path = str(Path(repo_path, "decoder_model.onnx"))
+            save_path = str(Path(repo_path, "decoder_model_int32.onnx"))
+            model = onnx.load(path)
+
+            model = model_to_int32(model)
+
+            onnx.save(
+                model,
+                save_path,
+                save_as_external_data=True,
+                all_tensors_to_one_file=True,
+                location=Path(save_path).name + "_data",
+            )
+
+            onnx.checker.check_model(save_path)
+
+            model = InferenceSession(save_path, providers=["CPUExecutionProvider"])
+
+            inputs = {
+                "input_ids": np.array([[12, 54, 290, 314, 823, 287, 287]], dtype=np.int64),
+                "attention_mask": np.array([[1, 1, 1, 1, 1, 1, 1]], dtype=np.int64),
+            }
+
+            model.run(None, inputs)

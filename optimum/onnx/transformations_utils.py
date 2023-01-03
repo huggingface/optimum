@@ -196,7 +196,7 @@ def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str
     return deduplicated_initializers
 
 
-def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto):
+def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = False):
     """
     Casts in place the input TensorProto data to int32. Its data is assumed to be of type int64,
     and in case some values are out of range, they are cast to the min/max representable
@@ -214,7 +214,8 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto):
     array[array < np.iinfo(np.int32).min] = np.iinfo(np.int32).min
 
     # the following line notably avoids the cast overhead in `convertOnnxWeights` in onnx-tensorrt
-    array = array.astype(np.int32)
+    if cast:
+        array = array.astype(np.int32)
     array.setflags(write=0)
 
     tensor = numpy_helper.from_array(array)
