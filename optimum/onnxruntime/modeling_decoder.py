@@ -274,7 +274,7 @@ class ORTDecoder:
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
     ) -> CausalLMOutputWithCrossAttentions:
 
-        # Set the value of `use_cache` if uses merged decoder
+        # Set the value of the input `use_cache` if uses merged decoder
         use_cache = None
         if past_key_values is not None and self.use_merged:
             use_cache = True
@@ -359,6 +359,7 @@ class ORTModelDecoder(ORTModel):
         decoder_session: onnxruntime.InferenceSession,
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
+        use_cache: bool = True,
         use_merged: bool = False,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
@@ -374,6 +375,9 @@ class ORTModelDecoder(ORTModel):
                 not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
+            use_cache (`bool`, defaults to `True`):
+                Whether or not past key/values cache should be used. It is determined by whether an InferenceSession for
+                that was provided or not.
             use_merged (`bool`, defaults to `False`):
                 Whether use merged decoder for inference to reduce memory usage, defaults to `False`. When set as
                 `True`, ORTModel will merge decoder and decoder with past, if
@@ -407,8 +411,8 @@ class ORTModelDecoder(ORTModel):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
+        self.use_cache = use_cache
         self.use_merged = use_merged
-        self.use_cache = (decoder_with_past_session is not None) or self.use_merged
         # Decoder without past / Merged decoder
         self.decoder = ORTDecoder(
             session=decoder_session,
@@ -423,7 +427,7 @@ class ORTModelDecoder(ORTModel):
         self.decoder_with_past = None
         self.decoder_with_past_model_path = None
         self.decoder_with_past_model_name = None
-        if self.use_cache and not self.use_merged:
+        if self.use_cache is True and self.use_merged is False:
             self.decoder_with_past = ORTDecoder(
                 session=decoder_with_past_session,
                 config=self.config,
@@ -556,8 +560,6 @@ class ORTModelDecoder(ORTModel):
         if use_merged is None:
             use_merged = use_cache
 
-        if use_merged is True and use_cache is False:
-            raise ValueError(f"`use_cache` can't be set to `False` as `use_merged` has been set to `True`.")
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
             pattern = DECODER_ONNX_FILE_PATTERN
             argument_name = "decoder_file_name"
@@ -580,6 +582,7 @@ class ORTModelDecoder(ORTModel):
             )
 
         decoder_with_past_path = None
+        cache_error_log = None
         if use_cache is True:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
                 try:
@@ -592,12 +595,8 @@ class ORTModelDecoder(ORTModel):
                         revision=revision,
                     )
                 except FileNotFoundError as e:
-                    if use_merged is False:
-                        raise FileNotFoundError(
-                            "The parameter `use_cache=True` was passed to ORTModelDecoder.from_pretrained()"
-                            " but no ONNX file using past key values could be found in"
-                            f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
-                        )
+                    # Raise if the `decoder` doesn't contain both w/o and w/. past IR
+                    cache_error_log = e
             else:
                 decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
@@ -668,10 +667,6 @@ class ORTModelDecoder(ORTModel):
 
         is_merged = has_onnx_input(decoder_path, "use_cache")
         if is_merged is True:
-            if use_cache is False:
-                raise ValueError(
-                    f"`use_cache` can't be set to `False` as the decoder contains computation graphs for both w/o and w/. past scenarios."
-                )
             decoder_with_past_path = None
             if use_merged is False:
                 logger.info(
@@ -698,6 +693,12 @@ class ORTModelDecoder(ORTModel):
                 f" but the given decoder doesn't contain computation graphs for both w/o and w/. past scenarios."
                 f" And no ONNX file using past key values could be found in {str(Path(model_id, subfolder))} for merging."
             )
+        elif use_cache is True and decoder_with_past_path is None:
+            raise FileNotFoundError(
+                "The parameter `use_cache=True` and `use_merged=False` were passed to ORTModelDecoder.from_pretrained()"
+                " but no ONNX file using only past key values could be found in"
+                f" {str(Path(model_id, subfolder))}, with the error:\n    {cache_error_log}"
+            )
 
         model = cls.load_model(
             decoder_path=decoder_path,
@@ -714,6 +715,7 @@ class ORTModelDecoder(ORTModel):
             model[0],
             config,
             decoder_with_past_session=model[1],
+            use_cache=use_cache,
             use_merged=use_merged,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
@@ -850,8 +852,17 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
 
-        if past_key_values is None or self.decoder_with_past is None:
-            outputs = self.decoder(input_ids=input_ids, attention_mask=attention_mask)
+        if past_key_values is None or (self.decoder_with_past is None and self.use_merged is False):
+            outputs = self.decoder(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
+        elif self.use_merged is True:
+            outputs = self.decoder(
+                input_ids=input_ids[:, -1:],
+                past_key_values=past_key_values,
+                attention_mask=attention_mask,
+            )
         else:
             outputs = self.decoder_with_past(
                 input_ids=input_ids[:, -1:],

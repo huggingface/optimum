@@ -1335,25 +1335,16 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
             )
 
             config = AutoConfig.from_pretrained(model_id, use_cache=True)
-            model = ORTModelForCausalLM.from_pretrained(
-                model_id=tmpdir,
-                decoder_file_name="merged.onnx",
-                config=config,
-                use_cache=False,
-                use_merged=False,
-            )
-            model.save_pretrained(tmpdir, ONNX_DECODER_NAME)
-            save_path = os.path.join(tmpdir, ONNX_DECODER_NAME)
-            assert has_onnx_input(save_path, "use_cache")
-
-            model = ORTModelForCausalLM.from_pretrained(
-                model_id=tmpdir,
-                decoder_file_name="merged.onnx",
-                decoder_with_past_file_name="decoder_with_past_model.onnx",
-                config=config,
-                use_cache=False,
-                use_merged=False,
-            )
+            for use_merged in [True, False]:
+                model = ORTModelForCausalLM.from_pretrained(
+                    model_id=tmpdir,
+                    decoder_file_name="merged.onnx",
+                    config=config,
+                    use_merged=use_merged,
+                )
+                model.save_pretrained(tmpdir, ONNX_DECODER_NAME)
+                save_path = os.path.join(tmpdir, ONNX_DECODER_NAME)
+                assert has_onnx_input(save_path, "use_cache")
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
