@@ -191,7 +191,7 @@ Models exported through `optimum-cli export onnx` can be used directly in [`~onn
 
 When exporting a decoder model used for generation, it can be useful to encapsulate in the exported ONNX the [reuse of past keys and values](https://discuss.huggingface.co/t/what-is-the-purpose-of-use-cache-in-decoder/958/2). This allows to avoid recomputing the same intermediate activations during the generation.
 
-In the ONNX export, the past keys/values are reused by default. This behavior corresponds to `--task seq2seq-lm-with-past`, `--task causal-lm-with-past`, or `--task speech2seq-lm-with-past`. If for any purpose you would like to disable the export with past keys/values reuse, passing explictely to `optimum-cli export onnx` the task `seq2seq-lm`, `causal-lm` or `speech2seq-lm` is required.
+In the ONNX export, the past keys/values are reused by default. This behavior corresponds to `--task seq2seq-lm-with-past`, `--task causal-lm-with-past`, or `--task speech2seq-lm-with-past`. If for any purpose you would like to disable the export with past keys/values reuse, passing explicitly to `optimum-cli export onnx` the task `seq2seq-lm`, `causal-lm` or `speech2seq-lm` is required.
 
 A model exported using past key/values can be reused directly into Optimum's [`~onnxruntime.ORTModel`]:
 
