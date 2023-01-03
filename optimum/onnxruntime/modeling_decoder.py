@@ -38,7 +38,13 @@ from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
+from .utils import (
+    ONNX_DECODER_MERGED_NAME,
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    get_provider_for_device,
+    parse_device,
+)
 
 
 if TYPE_CHECKING:
@@ -583,7 +589,7 @@ class ORTModelDecoder(ORTModel):
 
         decoder_with_past_path = None
         cache_error_log = None
-        if use_cache is True:
+        if use_cache is True or use_merged is True:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
                 try:
                     decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
@@ -675,12 +681,15 @@ class ORTModelDecoder(ORTModel):
                 use_merged = True
         elif use_merged is True and decoder_with_past_path is not None:
             try:
+                print("Merging decoders...")
                 logger.info("Merging decoders...")
+                decoder_merged_path = decoder_path.parent / ONNX_DECODER_MERGED_NAME
                 merge_decoders(
                     decoder=decoder_path,
                     decoder_with_past=decoder_with_past_path,
-                    save_path=decoder_path,
+                    save_path=decoder_merged_path,
                 )
+                decoder_path = decoder_merged_path
                 decoder_with_past_path = None
             except Exception as e:
                 logger.error(
@@ -689,17 +698,16 @@ class ORTModelDecoder(ORTModel):
                 use_merged = False
         elif use_merged is True and decoder_with_past_path is None:
             raise FileNotFoundError(
-                "The parameter `use_cache=True` was passed to `ORTModelForConditionalGeneration.from_pretrained()`"
+                f"The parameter `use_cache={use_cache}` and `use_merged=True` were passed to `ORTModelForConditionalGeneration.from_pretrained()`"
                 f" but the given decoder doesn't contain computation graphs for both w/o and w/. past scenarios."
                 f" And no ONNX file using past key values could be found in {str(Path(model_id, subfolder))} for merging."
             )
         elif use_cache is True and decoder_with_past_path is None:
             raise FileNotFoundError(
-                "The parameter `use_cache=True` and `use_merged=False` were passed to ORTModelDecoder.from_pretrained()"
+                f"The parameter `use_cache=True` and `use_merged={use_merged}` were passed to ORTModelDecoder.from_pretrained()"
                 " but no ONNX file using only past key values could be found in"
                 f" {str(Path(model_id, subfolder))}, with the error:\n    {cache_error_log}"
             )
-
         model = cls.load_model(
             decoder_path=decoder_path,
             decoder_with_past_path=decoder_with_past_path,
@@ -852,18 +860,21 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
 
-        if past_key_values is None or (self.decoder_with_past is None and self.use_merged is False):
+        if past_key_values is None or self.use_cache is False:
+            print("pass decoder w/o past")
             outputs = self.decoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
             )
         elif self.use_merged is True:
+            print("pass decoder w/. past")
             outputs = self.decoder(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
             )
         else:
+            print("pass decoder with past w/. past")
             outputs = self.decoder_with_past(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
