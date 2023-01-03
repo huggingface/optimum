@@ -450,6 +450,12 @@ class TasksManager:
             "question-answering",
             onnx="MBartOnnxConfig",
         ),
+        # TODO: enable once the missing operator is supported.
+        # "mctct": supported_tasks_mapping(
+        #     "default",
+        #     "audio-ctc",
+        #     onnx="MCTCTOnnxConfig",
+        # ),
         "mobilebert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -464,12 +470,16 @@ class TasksManager:
             "image-classification",
             onnx="MobileViTOnnxConfig",
         ),
-        # TODO: enable once the missing operator is supported.
-        # "mctct": supported_tasks_mapping(
-        #     "default",
-        #     "audio-ctc",
-        #     onnx="MCTCTOnnxConfig",
-        # ),
+        "mobilenet-v1": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="MobileNetV1OnnxConfig",
+        ),
+        "mobilenet-v2": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="MobileNetV2OnnxConfig",
+        ),
         "mt5": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -490,11 +500,25 @@ class TasksManager:
         #     "zero-shot-object-detection",
         #     onnx="OwlViTOnnxConfig",
         # ),
+        "pegasus": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "causal-lm",
+            "causal-lm-with-past",
+            "seq2seq-lm",
+            "seq2seq-lm-with-past",
+            onnx="PegasusOnnxConfig",
+        ),
         "perceiver": supported_tasks_mapping(
             "masked-lm",
             "image-classification",
             "sequence-classification",
             onnx="PerceiverOnnxConfig",
+        ),
+        "poolformer": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="PoolFormerOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
             "default",
@@ -726,17 +750,17 @@ class TasksManager:
         task = TasksManager.format_task(task)
         TasksManager._validate_framework_choice(framework)
         if framework == "pt":
-            task_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
+            tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
         else:
-            task_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
-        if task not in task_to_automodel:
+            tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
+        if task not in tasks_to_automodel:
             raise KeyError(
                 f"Unknown task: {task}. Possible values are: "
-                + ", ".join([f"`{key}` for {task_to_automodel[key].__name__}" for key in task_to_automodel])
+                + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
             )
 
         module = importlib.import_module(TasksManager._TASKS_TO_LIBRARY[task])
-        return getattr(module, task_to_automodel[task])
+        return getattr(module, tasks_to_automodel[task])
 
     @staticmethod
     def determine_framework(

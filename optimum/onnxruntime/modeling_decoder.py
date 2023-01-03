@@ -27,9 +27,11 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
 from huggingface_hub import hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export_models, get_decoder_models_for_export
+from ..onnx.utils import _get_external_data_paths
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
@@ -124,7 +126,7 @@ class ORTDecoder:
         session: onnxruntime.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ):
         self.session = session
         self.config = config
@@ -334,7 +336,7 @@ class ORTModelDecoder(ORTModel):
         decoder_session: onnxruntime.InferenceSession,
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs
@@ -348,7 +350,7 @@ class ORTModelDecoder(ORTModel):
                 not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
-            use_io_binding (`bool`, *optional*, defaults to `True`):
+            use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
@@ -434,11 +436,17 @@ class ORTModelDecoder(ORTModel):
             # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
             providers.append("CUDAExecutionProvider")
 
+        # `providers` and `provider_options` need to be of the same length
+        if provider_options is not None:
+            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
+        else:
+            providers_options = None
+
         decoder_session = onnxruntime.InferenceSession(
             str(decoder_path),
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
@@ -448,7 +456,7 @@ class ORTModelDecoder(ORTModel):
                 str(decoder_with_past_path),
                 providers=providers,
                 sess_options=session_options,
-                provider_options=None if provider_options is None else [provider_options],
+                provider_options=None if provider_options is None else providers_options,
             )
         return decoder_session, decoder_with_past_session
 
@@ -457,6 +465,7 @@ class ORTModelDecoder(ORTModel):
         save_directory: Union[str, Path],
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        **kwargs,
     ):
         """
         Saves the model decoder and decoder with past key values as well as its configuration file to a
@@ -475,12 +484,16 @@ class ORTModelDecoder(ORTModel):
         """
         src_paths = [self.decoder_model_path]
         dst_file_names = [decoder_file_name]
+
         if self.use_cache:
             src_paths.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
 
+        # add external data paths in case of large models
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+
         for src_path, dst_file_name in zip(src_paths, dst_file_names):
-            dst_path = Path(save_directory).joinpath(dst_file_name)
+            dst_path = Path(save_directory) / dst_file_name
             shutil.copyfile(src_path, dst_path)
 
     @classmethod
@@ -500,13 +513,13 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
         model_path = Path(model_id)
 
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            decoder_file_name = ORTModelDecoder.infer_onnx_filename(
+            decoder_path = ORTModelDecoder.infer_onnx_filename(
                 model_id,
                 DECODER_ONNX_FILE_PATTERN,
                 "decoder_file_name",
@@ -514,42 +527,55 @@ class ORTModelDecoder(ORTModel):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
+        else:
+            decoder_path = model_path / subfolder / decoder_file_name
         decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
-        if decoder_file_name not in decoder_regular_onnx_filenames:
+        if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
+                f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
                 f"{cls.__name__} might not behave as expected."
             )
 
         decoder_with_past_path = None
         if use_cache is True:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-                decoder_with_past_file_name = ORTModelDecoder.infer_onnx_filename(
-                    model_id,
-                    DECODER_WITH_PAST_ONNX_FILE_PATTERN,
-                    "decoder_with_past_file_name",
-                    subfolder=subfolder,
-                    use_auth_token=use_auth_token,
-                    revision=revision,
-                    fail_if_not_found=use_cache,
-                )
+                try:
+                    decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
+                        model_id,
+                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        "decoder_with_past_file_name",
+                        subfolder=subfolder,
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                    )
+                except FileNotFoundError as e:
+                    raise FileNotFoundError(
+                        "The parameter `use_cache=True` was passed to ORTModelDecoder.from_pretrained()"
+                        " but no ONNX file using past key values could be found in"
+                        f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
+                    )
+            else:
+                decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
             decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
                 ONNX_DECODER_WITH_PAST_NAME
             )
 
-            if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
+            if (
+                decoder_with_past_path is not None
+                and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames
+            ):
                 logger.warning(
-                    f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
+                    f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
                     f"the {cls.__name__} might not behave as expected."
                 )
 
-            decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
+            decoder_with_past_path = decoder_with_past_path if use_cache else None
 
         preprocessors = None
         if model_path.is_dir():
             model = cls.load_model(
-                decoder_path=model_path / decoder_file_name,
+                decoder_path=decoder_path,
                 decoder_with_past_path=decoder_with_past_path,
                 provider=provider,
                 session_options=session_options,
@@ -559,8 +585,8 @@ class ORTModelDecoder(ORTModel):
             preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
-                "last_decoder_model_name": decoder_file_name,
-                "last_decoder_with_past_model_name": decoder_with_past_file_name if use_cache else None,
+                "last_decoder_model_name": decoder_path.name,
+                "last_decoder_with_past_model_name": decoder_with_past_path.name if use_cache else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -576,6 +602,23 @@ class ORTModelDecoder(ORTModel):
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
+
+                # try download external data
+                try:
+                    model_data_cache_path = hf_hub_download(
+                        repo_id=model_id,
+                        subfolder=subfolder,
+                        filename=filename + "_data",
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        local_files_only=local_files_only,
+                    )
+                except EntryNotFoundError:
+                    # model doesn't use external data
+                    pass
+
                 paths[attr_name] = Path(model_cache_path).name
             new_model_save_dir = Path(model_cache_path).parent
             preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
@@ -619,7 +662,7 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelDecoder":
         if task is None:

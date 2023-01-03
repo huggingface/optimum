@@ -12,13 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import unittest
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
-from unittest import TestCase
 
 from transformers import is_torch_available
 from transformers.testing_utils import require_torch, require_vision
 
+from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 from parameterized import parameterized
 
 
@@ -69,7 +71,7 @@ def _get_models_to_test(export_models_dict: Dict):
         return [("dummy", "dummy", "dummy")]
 
 
-class OnnxExportTestCase(TestCase):
+class OnnxExportTestCase(unittest.TestCase):
     """
     Integration tests ensuring supported models are correctly exported.
     """
@@ -78,21 +80,18 @@ class OnnxExportTestCase(TestCase):
 
         with TemporaryDirectory() as tmpdir:
             for_ort = " --for-ort " if for_ort is True else " "
-            try:
-                if task is not None:
-                    subprocess.run(
-                        f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}--task {task} {tmpdir}",
-                        shell=True,
-                        check=True,
-                    )
-                else:
-                    subprocess.run(
-                        f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}{tmpdir}",
-                        shell=True,
-                        check=True,
-                    )
-            except Exception as e:
-                self.fail(f"{test_name} raised: {e}")
+            if task is not None:
+                subprocess.run(
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}--task {task} {tmpdir}",
+                    shell=True,
+                    check=True,
+                )
+            else:
+                subprocess.run(
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}{tmpdir}",
+                    shell=True,
+                    check=True,
+                )
 
     def test_all_models_tested(self):
         # make sure we test all models
@@ -105,3 +104,32 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     def test_exporters_cli_pytorch(self, test_name: str, model_name: str, task: str, for_ort: bool):
         self._onnx_export(test_name, model_name, task, for_ort)
+
+    @parameterized.expand([(False,), (True,)])
+    def test_external_data(self, use_cache: bool):
+        os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+
+        with TemporaryDirectory() as tmpdirname:
+
+            task = "seq2seq-lm"
+            if use_cache:
+                task += "-with-past"
+
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --task {task} --for-ort {tmpdirname}",
+                shell=True,
+                check=True,
+            )
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
+            self.assertTrue(ONNX_ENCODER_NAME + "_data" in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
+
+            if use_cache:
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+        os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")

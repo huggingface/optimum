@@ -449,6 +449,10 @@ class BigBirdPegasusOnnxConfig(BartOnnxConfig):
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
+class PegasusOnnxConfig(BartOnnxConfig):
+    pass
+
+
 class MarianOnnxConfig(BartOnnxConfig):
     pass
 
@@ -503,7 +507,24 @@ class SwinOnnxConfig(ViTOnnxConfig):
     pass
 
 
+class PoolFormerOnnxConfig(ViTOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    ATOL_FOR_VALIDATION = 2e-3
+
+
 class SegformerOnnxConfig(YolosOnnxConfig):
+    pass
+
+
+class MobileNetV1OnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {"pixel_values": {0: "batch_size"}}
+
+
+class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
@@ -557,8 +578,8 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
             "pooler_output": {0: "batch_size", 1: "feature_dim"},
         }
 
-    def generate_dummy_inputs(self, framework: str = "pt"):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         if framework == "pt":
             import torch
 
@@ -601,8 +622,8 @@ class UNetOnnxConfig(ViTOnnxConfig):
     def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
         return ["sample"]
 
-    def generate_dummy_inputs(self, framework: str = "pt"):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework)
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
         return dummy_inputs
 
