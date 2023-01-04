@@ -774,7 +774,7 @@ class ORTModelDecoder(ORTModel):
         subfolder: str = "",
         local_files_only: bool = False,
         use_cache: bool = True,
-        use_merged: bool = True,
+        use_merged: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
