@@ -12,11 +12,12 @@ specific language governing permissions and limitations under the License.
 
 # Overview
 
-🤗 Optimum provides an integration with `BetterTransformer`, a stable API from PyTorch to benefit from interesting speedups on CPU & GPU through sparsity and fused kernels.
+🤗 Optimum provides an integration with `BetterTransformer`, a fast path of standard PyTorch Transformer APIs to benefit from interesting speedups on CPU & GPU through sparsity and fused kernels. For now, it supports Transformer encoders, basically fast path of [`nn.TransformerEncoderLayer'](https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/),
+support for decoders and training path is coming soon.
 
 ## Quickstart
 
-Since its 1.13 version, PyTorch released the stable version of `BetterTransformer` in its library. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NIVIDIA GPUs.
+Since its 1.13 version, PyTorch released the stable version of fast path for its standard Transformer APIs that provides out of the box perfromance for the Pytorch Transformers. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NIVIDIA GPUs.
 You can now use this feature in 🤗 Optimum together with Transformers and use it for major models in the Hugging Face ecosystem.
 
 ### Supported models
