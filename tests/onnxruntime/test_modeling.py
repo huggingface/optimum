@@ -1300,8 +1300,7 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx(self, model_arch):
-        # model_id = MODEL_NAMES[model_arch]
-        model_id = "gpt2"  # TODO: investigate tiny gpt2 fails
+        model_id = MODEL_NAMES[model_arch]
         task = "causal-lm-with-past"
         with tempfile.TemporaryDirectory() as tmpdir:
             subprocess.run(
