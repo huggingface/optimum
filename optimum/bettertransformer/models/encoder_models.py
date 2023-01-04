@@ -1075,8 +1075,8 @@ class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         A conversion of the ProphetNet Encoder layer to its `BetterTransformer` implementation.
 
         Args:
-            fsmt_layer (`torch.nn.Module`):
-                The original FSMT Layer where the weights needs to be retrieved.
+            prnt_layer (`torch.nn.Module`):
+                The original ProphetNetEncoderLayer where the weights needs to be retrieved.
         """
         super().__init__(config)
         # In_proj layer
