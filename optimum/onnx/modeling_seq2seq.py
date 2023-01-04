@@ -41,7 +41,6 @@ DECODER_WITH_LM_HEAD_INPUTS_DOCSTRING = r"""
 class _DecoderWithLMhead(PreTrainedModel):
     """
     Decoder model with a language modeling head on top.
-
     Arguments:
         model (`transformers.PreTrainedModel`):
             The model from which to extract the decoder and the language modeling head.

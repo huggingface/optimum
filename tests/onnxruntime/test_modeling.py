@@ -23,25 +23,29 @@ import pytest
 import torch
 from PIL import Image
 from transformers import (
+    AutoConfig,
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
+    AutoModelForSemanticSegmentation,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
+    MBartForConditionalGeneration,
     PretrainedConfig,
     set_seed,
 )
+from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
+import onnx
 import onnxruntime
 import requests
 from huggingface_hub.constants import default_cache_path
-from huggingface_hub.utils import EntryNotFoundError
 from optimum.onnxruntime import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
@@ -53,6 +57,7 @@ from optimum.onnxruntime import (
     ORTModelForImageClassification,
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
+    ORTModelForSemanticSegmentation,
     ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
     ORTModelForSpeechSeq2Seq,
@@ -64,7 +69,7 @@ from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
 from optimum.onnxruntime.modeling_seq2seq import ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME
-from optimum.utils.testing_utils import require_hf_token
+from optimum.utils.testing_utils import grid_parameters, require_hf_token
 from parameterized import parameterized
 
 
@@ -86,6 +91,7 @@ MODEL_NAMES = {
     "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
     "whisper": "openai/whisper-tiny.en",
 }
 
@@ -101,6 +107,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
+        self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
     def test_load_model_from_local_path(self):
@@ -180,7 +187,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertListEqual(model.model.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda"))
+        self.assertEqual(model.device, torch.device("cuda:0"))
 
     def test_load_model_cpu_provider(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CPUExecutionProvider")
@@ -212,7 +219,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.assertListEqual(model.encoder.session.get_providers(), model.providers)
         self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda"))
+        self.assertEqual(model.device, torch.device("cuda:0"))
 
     def test_load_seq2seq_model_cpu_provider(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CPUExecutionProvider")
@@ -226,7 +233,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_model_from_hub_without_onnx_model(self):
-        with self.assertRaises(EntryNotFoundError):
+        with self.assertRaises(FileNotFoundError):
             ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
 
     def test_model_on_cpu(self):
@@ -286,6 +293,21 @@ class ORTModelIntegrationTest(unittest.TestCase):
         )
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0")
 
+        # two providers case
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="TensorrtExecutionProvider")
+        self.assertEqual(
+            model.model.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
+        )
+
+        model = ORTModel.from_pretrained(
+            self.ONNX_MODEL_ID,
+            provider="TensorrtExecutionProvider",
+            provider_options={"trt_engine_cache_enable": True},
+        )
+        self.assertEqual(
+            model.model.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
+        )
+
     @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
     def test_model_on_gpu_id(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
@@ -309,17 +331,68 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(
             model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
         )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
+                "do_copy_in_default_stream"
+            ],
+            "1",
+        )
 
         model = ORTModelForSeq2SeqLM.from_pretrained(
             self.ONNX_SEQ2SEQ_MODEL_ID,
             provider="CUDAExecutionProvider",
             provider_options={"do_copy_in_default_stream": 0},
+            use_cache=True,
         )
         self.assertEqual(
             model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
         )
         self.assertEqual(
             model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
+        )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
+                "do_copy_in_default_stream"
+            ],
+            "0",
+        )
+
+        # two providers case
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID,
+            provider="TensorrtExecutionProvider",
+            use_cache=True,
+        )
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
+        )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
+                "trt_engine_cache_enable"
+            ],
+            "0",
+        )
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.ONNX_SEQ2SEQ_MODEL_ID,
+            provider="TensorrtExecutionProvider",
+            provider_options={"trt_engine_cache_enable": True},
+            use_cache=True,
+        )
+        self.assertEqual(
+            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
+        )
+        self.assertEqual(
+            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
+        )
+        self.assertEqual(
+            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
+                "trt_engine_cache_enable"
+            ],
+            "1",
         )
 
     def test_seq2seq_model_on_cpu(self):
@@ -451,7 +524,101 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             model = ORTModel.from_pretrained(tmpdirname, file_name=test_model_name)
 
-            self.assertEqual(model.latest_model_name, test_model_name)
+            self.assertEqual(model.model_name, test_model_name)
+
+    def test_save_load_ort_model_with_external_data(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
+            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @parameterized.expand([(False,), (True,)])
+    def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForCausalLM.from_pretrained(
+                MODEL_NAMES["gpt2"], use_cache=use_cache, from_transformers=True
+            )
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
+
+            if use_cache:
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForCausalLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @parameterized.expand([(False,), (True,)])
+    def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSeq2SeqLM.from_pretrained(
+                MODEL_NAMES["t5"], use_cache=use_cache, from_transformers=True
+            )
+            model.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
+            self.assertTrue(ONNX_ENCODER_NAME + "_data" in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
+
+            if use_cache:
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+
+            # verify loading from local folder works
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @parameterized.expand([(False,), (True,)])
+    @unittest.skip("Skipping as this test consumes too much memory")
+    def test_save_load_large_seq2seq_model_with_external_data(self, use_cache: bool):
+        # with tempfile.TemporaryDirectory() as tmpdirname:
+        if True:
+            tmpdirname = tempfile.mkdtemp()
+            # randomly intialize large model
+            config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
+            with no_init_weights():
+                model = MBartForConditionalGeneration(config)
+
+            # save transformers model to be able to load it with `ORTModel...`
+            model.save_pretrained(tmpdirname)
+
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=True)
+            model.save_pretrained(os.path.join(tmpdirname, "onnx"))
+
+            # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
+            folder_contents = os.listdir(os.path.join(tmpdirname, "onnx"))
+            self.assertTrue(CONFIG_NAME in folder_contents)
+
+            # try loading models to check if they are valid
+            try:
+                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_ENCODER_NAME))
+                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_NAME))
+                if use_cache:
+                    onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_WITH_PAST_NAME))
+            except Exception as e:
+                self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
+
+            # verify loading from local folder works
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, subfolder="onnx")
 
     @require_hf_token
     def test_save_model_from_hub(self):
@@ -464,6 +631,69 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 repository_id=self.HUB_REPOSITORY,
                 private=True,
             )
+
+    @require_hf_token
+    def test_push_ort_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["bert"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForSequenceClassification.from_pretrained(
+                MODEL_NAMES["bert"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @require_hf_token
+    def test_push_decoder_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["gpt2"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForCausalLM.from_pretrained(
+                MODEL_NAMES["gpt2"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    @require_hf_token
+    def test_push_seq2seq_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
+            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], from_transformers=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["mbart"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+
+            # verify loading from hub works
+            model = ORTModelForSeq2SeqLM.from_pretrained(
+                MODEL_NAMES["mbart"] + "-onnx",
+                from_transformers=False,
+                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+            )
+            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
@@ -1014,6 +1244,11 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
 class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = ("gpt2",)
 
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [False, True],
+    }
+
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], from_transformers=True)
@@ -1043,14 +1278,15 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_to_transformers(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.decoder, ORTDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1070,10 +1306,10 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_pipeline_ort_model(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -1277,6 +1513,116 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         gc.collect()
 
 
+class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+        "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
+    }
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_compare_to_transformers(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        trfs_model = AutoModelForSemanticSegmentation.from_pretrained(model_id)
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=image, return_tensors="pt")
+        onnx_outputs = onnx_model(**inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
+
+        with torch.no_grad():
+            trtfs_outputs = trfs_model(**inputs)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    def test_pipeline_ort_model(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
+
+    @pytest.mark.run_in_series
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("image-segmentation")
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+        # compare model output class
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, *args, **kwargs):
+        model_arch, model_id = args
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
+        preprocessor = get_preprocessor(model_id)
+        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor, device=0)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        outputs = pipe(url)
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+
+        # compare model output class
+        self.assertTrue(outputs[0]["mask"] is not None)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=False
+        )
+        set_seed(SEED)
+        io_model = ORTModelForSemanticSegmentation.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=True
+        )
+
+        preprocessor = get_preprocessor(model_id)
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+
 class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = (
         "t5",
@@ -1286,6 +1632,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         "m2m_100",
         "bigbird_pegasus",
     )
+
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [False, True],
+    }
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -1313,15 +1664,16 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_to_transformers(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1342,10 +1694,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_pipeline_text_generation(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_pipeline_text_generation(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
         tokenizer = get_preprocessor(model_id)
 
         # Text2Text generation
@@ -1471,6 +1823,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = ("whisper",)
 
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [False, True],
+    }
+
     def _generate_random_audio_data(self):
         np.random.seed(10)
         t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
@@ -1499,15 +1856,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_to_transformers(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1531,10 +1889,10 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_pipeline_speech_recognition(self, model_arch):
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_pipeline_speech_recognition(self, test_name: str, model_arch: str, use_cache: bool):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=use_cache)
         processor = get_preprocessor(model_id)
 
         # Speech recogition generation
@@ -1685,3 +2043,24 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
         self.assertEqual(pipe.device, onnx_model.device)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, *args, **kwargs):
+        model_arch, model_id = args
+        set_seed(SEED)
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False)
+        set_seed(SEED)
+        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True)
+        tokenizer = get_preprocessor(model_id)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        onnx_outputs = onnx_model(**tokens)
+        io_outputs = io_model(**tokens)
+
+        self.assertTrue("pooler_output" in io_outputs)
+        self.assertIsInstance(io_outputs.pooler_output, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.pooler_output, io_outputs.pooler_output))
+
+        gc.collect()

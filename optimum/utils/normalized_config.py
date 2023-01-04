@@ -15,11 +15,9 @@
 """Normalization configuration classes."""
 
 import functools
-from typing import TYPE_CHECKING, Callable, Type
+from typing import TYPE_CHECKING, Callable, Dict, Type, Union
 
-
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig
+from transformers import PretrainedConfig
 
 
 class NormalizedConfig:
@@ -31,8 +29,8 @@ class NormalizedConfig:
             The config to normalize.
     """
 
-    def __init__(self, config: "PretrainedConfig", allow_new: bool = False, **kwargs):
-        self.config = config
+    def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
+        self.config = config if isinstance(config, PretrainedConfig) else PretrainedConfig.from_dict(config)
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
@@ -42,7 +40,7 @@ class NormalizedConfig:
                 )
 
     @classmethod
-    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
+    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[[PretrainedConfig], "NormalizedConfig"]:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):
@@ -189,10 +187,13 @@ class NormalizedConfigManager:
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
+        "gptj": GPT2LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m_100": BartLikeNormalizedTextConfig,
+        "pegasus": BartLikeNormalizedTextConfig,
+        "poolformer": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
@@ -206,7 +207,7 @@ class NormalizedConfigManager:
         if model_type not in cls._conf:
             model_types = ", ".join(cls._conf.keys())
             raise KeyError(
-                f"{model_type} model type is not supported yet. Only {model_types} are supported. "
+                f"{model_type} model type is not supported yet in NormalizedConfig. Only {model_types} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
 
