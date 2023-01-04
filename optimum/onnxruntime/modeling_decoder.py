@@ -894,20 +894,17 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     ) -> CausalLMOutputWithCrossAttentions:
 
         if past_key_values is None or self.use_cache is False:
-            print("pass decoder w/o past")
             outputs = self.decoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
             )
         elif self.use_merged is True:
-            print("pass decoder w/. past")
             outputs = self.decoder(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
             )
         else:
-            print("pass decoder with past w/. past")
             outputs = self.decoder_with_past(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
