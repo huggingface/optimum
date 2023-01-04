@@ -119,7 +119,7 @@ class CamembertOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
-class FlaubertOnnxConfig(DistilBertOnnxConfig):
+class FlaubertOnnxConfig(BertOnnxConfig):
     pass
 
 
