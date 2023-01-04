@@ -122,6 +122,7 @@ TEXT_GENERATION_EXAMPLE = r"""
 
 DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
+DECODER_MERGED_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?merged(.*)?\.onnx"
 
 
 class ORTDecoder:
@@ -601,12 +602,10 @@ class ORTModelDecoder(ORTModel):
             use_merged = use_cache
 
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            pattern = DECODER_ONNX_FILE_PATTERN
-            argument_name = "decoder_file_name"
             decoder_path = ORTModelDecoder.infer_onnx_filename(
                 model_id,
-                pattern,
-                argument_name,
+                [DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN],
+                "decoder_file_name",
                 subfolder=subfolder,
                 use_auth_token=use_auth_token,
                 revision=revision,
@@ -628,7 +627,7 @@ class ORTModelDecoder(ORTModel):
                 try:
                     decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
                         model_id,
-                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                         "decoder_with_past_file_name",
                         subfolder=subfolder,
                         use_auth_token=use_auth_token,

@@ -332,21 +332,25 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def infer_onnx_filename(
         model_name_or_path: Union[str, Path],
-        pattern: str,
+        patterns: List[str],
         argument_name: str,
         subfolder: str = "",
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         fail_if_not_found: bool = True,
     ) -> str:
-        onnx_files = find_files_matching_pattern(
-            model_name_or_path,
-            pattern,
-            glob_pattern="**/*.onnx",
-            subfolder=subfolder,
-            use_auth_token=use_auth_token,
-            revision=revision,
-        )
+        onnx_files = []
+        for pattern in patterns:
+            onnx_files = find_files_matching_pattern(
+                model_name_or_path,
+                pattern,
+                glob_pattern="**/*.onnx",
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
+            )
+            if onnx_files:
+                break
 
         path = model_name_or_path
         if subfolder != "":
@@ -354,7 +358,7 @@ class ORTModel(OptimizedModel):
 
         if len(onnx_files) == 0:
             if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {pattern} in {path}.")
+                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {patterns} in {path}.")
             return None
         elif len(onnx_files) > 1:
             if argument_name is not None:

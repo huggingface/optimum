@@ -951,7 +951,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
             encoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
-                ENCODER_ONNX_FILE_PATTERN,
+                [ENCODER_ONNX_FILE_PATTERN],
                 "encoder_file_name",
                 subfolder=subfolder,
                 use_auth_token=use_auth_token,
@@ -962,7 +962,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
             decoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
-                DECODER_ONNX_FILE_PATTERN,
+                [DECODER_ONNX_FILE_PATTERN],
                 "decoder_file_name",
                 subfolder=subfolder,
                 use_auth_token=use_auth_token,
@@ -976,7 +976,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 try:
                     decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                         model_id,
-                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                         "decoder_with_past_file_name",
                         subfolder=subfolder,
                         use_auth_token=use_auth_token,
