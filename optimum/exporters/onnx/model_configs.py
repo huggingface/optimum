@@ -93,6 +93,8 @@ class VisualBertOnnxConfig(BertOnnxConfig):
         return result
 
 
+
+
 class AlbertOnnxConfig(BertOnnxConfig):
     pass
 

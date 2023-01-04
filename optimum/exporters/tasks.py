@@ -171,6 +171,7 @@ class TasksManager:
         "visual-bert": supported_tasks_mapping(
             "default",
             "visual-question-answering",
+
             "multiple-choice",
             "visual-reasoning",
             "region-to-phrase-alignment",
