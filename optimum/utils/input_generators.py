@@ -558,15 +558,16 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         feature_size: int = DEFAULT_DUMMY_SHAPES["feature_size"],
         nb_max_frames: int = DEFAULT_DUMMY_SHAPES["nb_max_frames"],
-        sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        audio_sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
         **kwargs,
     ):
         self.task = task
+        self.normalized_config = normalized_config
 
         self.feature_size = feature_size
         self.nb_max_frames = nb_max_frames
         self.batch_size = batch_size
-        self.sequence_length = sequence_length
+        self.sequence_length = audio_sequence_length
 
     def generate(self, input_name: str, framework: str = "pt"):
         if input_name == "input_values":  # raw waveform

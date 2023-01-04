@@ -100,6 +100,10 @@ class TasksManager:
             "masked-im": "AutoModelForMaskedImageModeling",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "speech2seq-lm": "AutoModelForSpeechSeq2Seq",
+            "audio-classification": "AutoModelForAudioClassification",
+            "audio-frame-classification": "AutoModelForAudioFrameClassification",
+            "audio-ctc": "AutoModelForCTC",
+            "audio-xvector": "AutoModelForAudioXVector",
             "stable-diffusion": "StableDiffusionPipeline",
         }
     if is_tf_available():
@@ -130,11 +134,20 @@ class TasksManager:
         "masked-im": "transformers",
         "semantic-segmentation": "transformers",
         "speech2seq-lm": "transformers",
+        "audio-ctc": "transformers",
+        "audio-classification": "transformers",
+        "audio-frame-classification": "transformers",
+        "audio-xvector": "transformers",
         "stable-diffusion": "diffusers",
     }
 
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
+        "audio-spectrogram-transformer": supported_tasks_mapping(
+            "default",
+            "audio-classification",
+            onnx="ASTOnnxConfig",
+        ),
         "albert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -273,6 +286,14 @@ class TasksManager:
             # "semantic-segmentation",
             onnx="Data2VecVisionOnnxConfig",
         ),
+        "data2vec-audio": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="Data2VecAudioOnnxConfig",
+        ),
         "deberta": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -356,6 +377,12 @@ class TasksManager:
             "default",
             onnx="GroupViTOnnxConfig",
         ),
+        "hubert": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="HubertOnnxConfig",
+        ),
         "ibert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -423,6 +450,12 @@ class TasksManager:
             "question-answering",
             onnx="MBartOnnxConfig",
         ),
+        # TODO: enable once the missing operator is supported.
+        # "mctct": supported_tasks_mapping(
+        #     "default",
+        #     "audio-ctc",
+        #     onnx="MCTCTOnnxConfig",
+        # ),
         "mobilebert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -521,6 +554,25 @@ class TasksManager:
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),
+        "sew": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="SEWOnnxConfig",
+        ),
+        "sew-d": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="SEWDOnnxConfig",
+        ),
+        "speech-to-text": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "speech2seq-lm",
+            "speech2seq-lm-with-past",
+            onnx="Speech2TextOnnxConfig",
+        ),
         "squeezebert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -529,6 +581,12 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="SqueezeBertOnnxConfig",
+        ),
+        "swin": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            "masked-im",
+            onnx="SwinOnnxConfig",
         ),
         "t5": supported_tasks_mapping(
             "default",
@@ -541,11 +599,49 @@ class TasksManager:
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
         ),
+        "unispeech": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="UniSpeechOnnxConfig",
+        ),
+        "unispeech-sat": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="UniSpeechSATOnnxConfig",
+        ),
         "vae": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="VaeOnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
+        "wavlm": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="WavLMOnnxConfig",
+        ),
+        "wav2vec2": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="Wav2Vec2OnnxConfig",
+        ),
+        "wav2vec2-conformer": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="Wav2Vec2ConformerOnnxConfig",
+        ),
         "whisper": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -579,12 +675,6 @@ class TasksManager:
             "default",
             "object-detection",
             onnx="YolosOnnxConfig",
-        ),
-        "swin": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            "masked-im",
-            onnx="SwinOnnxConfig",
         ),
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip-text-model"}

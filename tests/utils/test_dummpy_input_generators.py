@@ -153,12 +153,12 @@ class GenerateDummy(TestCase):
         normalized_config = normalized_config_class(config)
 
         input_generator = DummyAudioInputGenerator(
-            task="image-classification",
+            task="audio-classification",
             normalized_config=normalized_config,
             batch_size=batch_size,
             feature_size=feature_size,
             nb_max_frames=nb_max_frames,
-            sequence_length=audio_sequence_length,
+            audio_sequence_length=audio_sequence_length,
         )
         generated_tensor = input_generator.generate("input_values")
         assert generated_tensor.shape == torch.Size((batch_size, audio_sequence_length))

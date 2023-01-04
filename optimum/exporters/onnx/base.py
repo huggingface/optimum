@@ -158,7 +158,11 @@ class OnnxConfig(ExportConfig, ABC):
         ),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "speech2seq-lm": OrderedDict({"logits": {0: "batch", 1: "sequence"}}),
+        "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
     }
 
     def __init__(

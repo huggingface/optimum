@@ -20,6 +20,7 @@ from packaging import version
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
+    DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
@@ -34,8 +35,9 @@ from ...utils import (
     NormalizedVisionConfig,
     logging,
 )
-from .base import ConfigBehavior, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
+    AudioOnnxConfig,
     AudioToTextOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
@@ -514,6 +516,18 @@ class SegformerOnnxConfig(YolosOnnxConfig):
     pass
 
 
+class MobileNetV1OnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {"pixel_values": {0: "batch_size"}}
+
+
+class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
+    pass
+
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
@@ -693,11 +707,9 @@ class Data2VecVisionOnnxConfig(ViTOnnxConfig):
     pass
 
 
-# TODO: add support when audio models are supported.
-class Data2VecAudioOnnxConfig(ViTOnnxConfig):
-    @property
-    def inputs(self):
-        raise NotImplementedError
+class Data2VecAudioOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+    ATOL_FOR_VALIDATION = 1e-4
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
@@ -751,20 +763,94 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
+class HubertOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+
+
+class Wav2Vec2OnnxConfig(HubertOnnxConfig):
+    pass
+
+
+class Wav2Vec2ConformerOnnxConfig(HubertOnnxConfig):
+    pass
+
+
+class SEWOnnxConfig(HubertOnnxConfig):
+    pass
+
+
+class SEWDOnnxConfig(HubertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+
+
+class UniSpeechOnnxConfig(HubertOnnxConfig):
+    pass
+
+
+class UniSpeechSATOnnxConfig(HubertOnnxConfig):
+    pass
+
+
+class WavLMOnnxConfig(HubertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+
+
+class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.normalized_config.max_length, self.normalized_config.num_mel_bins]
+        if input_name == "input_values":
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+        return super().generate(input_name, framework=framework)
+
+
+class ASTOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_mel_bins="num_mel_bins", max_length="max_length", allow_new=True
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (ASTDummyAudioInputGenerator,)
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {"input_values": {0: "batch_size"}}
+
+
+# TODO: currently disabled because an operator seems not supported by ONNX.
+# class MCTCTDummyAudioInputGenerator(DummyAudioInputGenerator):
+#     def generate(self, input_name: str, framework: str = "pt"):
+#         shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
+#         if input_name == "input_features":
+#             return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+#         return super().generate(input_name, framework=framework)
+#
+#
+# class MCTCTOnnxConfig(OnnxConfig):
+#     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(input_features_per_channel="input_feat_per_channel", allow_new=True)
+#     DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
+#     DEFAULT_ONNX_OPSET = 13
+#
+#     @property
+#     def inputs(self) -> Mapping[str, Mapping[int, str]]:
+#         return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
+
+
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     ATOL_FOR_VALIDATION = 1e-3
 
 
-class MobileNetV1OnnxConfig(VisionOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
-    MIN_TORCH_VERSION = version.parse("1.11")
-    ATOL_FOR_VALIDATION = 1e-4
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return {"pixel_values": {0: "batch"}}
+class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
+        if input_name == "input_features":
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+        return super().generate(input_name, framework=framework)
 
 
-class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
-    pass
+class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
+        input_features_per_channel="input_feat_per_channel", allow_new=True
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        Speech2TextDummyAudioInputGenerator,
+    ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]

@@ -42,6 +42,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
     "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "data2vec-vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
+    "data2vec-audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
@@ -86,6 +87,26 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "vit": "hf-internal-testing/tiny-random-vit",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
+    "hubert": "hf-internal-testing/tiny-random-HubertModel",
+    "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
+    "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
+    "wavlm": {
+        "hf-internal-testing/tiny-random-wavlm": ["default", "audio-ctc", "audio-classification"],
+        "hf-internal-testing/tiny-random-WavLMForCTC": ["audio-frame-classification"],
+        "hf-internal-testing/tiny-random-WavLMForXVector": ["audio-xvector"],
+    },
+    "sew": "hf-internal-testing/tiny-random-SEWModel",
+    "sew-d": "hf-internal-testing/tiny-random-SEWDModel",
+    "unispeech": "hf-internal-testing/tiny-random-unispeech",
+    "unispeech-sat": {
+        "hf-internal-testing/tiny-random-unispeech-sat": ["default", "audio-ctc", "audio-classification"],
+        "hf-internal-testing/tiny-random-UniSpeechSatForPreTraining": ["audio-frame-classification"],
+        "hf-internal-testing/tiny-random-UniSpeechSatForXVector": ["audio-xvector"],
+    },
+    "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
+    # Disabled for now because some operator seems to not be supported by ONNX.
+    # "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
+    "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
 }
@@ -107,6 +128,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",  # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
     "data2vec-text": "facebook/data2vec-text-base",
     "data2vec-vision": "facebook/data2vec-vision-base",
+    "data2vec-audio": "facebook/data2vec-audio-base",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",  # Not using microsoft/deberta-base because it takes too much time for testing.
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",  # Not using microsoft/deberta-v2-xlarge because it takes too much time for testing.
     "deit": "facebook/deit-small-patch16-224",
@@ -147,6 +169,18 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "vit": "google/vit-base-patch16-224",
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
+    "hubert": "facebook/hubert-base-ls960",
+    "wav2vec2": "facebook/wav2vec2-base-960h",
+    "wav2vec2-conformer": "facebook/wav2vec2-conformer-rel-pos-large-960h-ft",
+    "wavlm": "microsoft/wavlm-base-plus-sv",
+    "sew": "asapp/sew-tiny-100k",
+    "sew-d": "asapp/sew-d-tiny-100k-ft-ls100h",
+    "unispeech": "microsoft/unispeech-1350-en-353-fr-ft-1h",
+    "unispeech-sat": "microsoft/unispeech-sat-base",
+    "audio-spectrogram-transformer": "nielsr/audio-spectogram-transformer-finetuned-audioset-10-10-0.4593",
+    # Disabled for now because some operator seems to not be supported by ONNX.
+    # "mctct": "speechbrain/m-ctc-t-large",
+    "speech-to-text": "codenamewei/speech-to-text",
     "xlm": "xlm-clm-ende-1024",
     "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
 }
