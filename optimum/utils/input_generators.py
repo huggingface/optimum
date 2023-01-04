@@ -608,6 +608,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size]
+        # TODO: why vocab size?
         return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
 
 

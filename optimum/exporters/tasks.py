@@ -773,6 +773,7 @@ class TasksManager:
             class_name_prefix = "TF"
 
         inferred_task_name = None
+        auto_model_class_name = None
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
         if is_local:
