@@ -162,6 +162,10 @@ class AudioOnnxConfig(OnnxConfig):
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
 
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {"input_values": {0: "batch_size", 1: "sequence_length"}}
+
 
 class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (
