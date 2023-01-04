@@ -118,9 +118,9 @@ def benchmark(model_name, num_batches, batch_size, avg_seqlen, max_seqlen, seqle
         masks = None
 
     # Warmup
-    _ = hf_model(input_ids[0].unsqueeze(0), masks[0].unsqueeze(0))
+    _ = hf_model(input_ids, masks)
     torch.cuda.synchronize()
-    _ = bt_model(input_ids[0].unsqueeze(0), masks[0].unsqueeze(0))
+    _ = bt_model(input_ids, masks)
     torch.cuda.synchronize()
 
     total_hf_time = timing_cuda(hf_model, num_batches, input_ids, masks)

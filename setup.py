@@ -18,11 +18,11 @@ REQUIRED_PKGS = [
     "transformers[sentencepiece]>=4.20.1",
     "torch>=1.9",
     "packaging",
-    "numpy",
+    "numpy<1.24.0",
     "huggingface_hub>=0.8.0",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses", "diffusers"]
 
 QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 
@@ -89,4 +89,5 @@ setup(
     python_requires=">=3.7.0",
     include_package_data=True,
     zip_safe=False,
+    entry_points={"console_scripts": ["optimum-cli=optimum.commands.optimum_cli:main"]},
 )

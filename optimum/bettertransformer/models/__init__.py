@@ -17,6 +17,7 @@ from .encoder_models import (
     AlbertLayerBetterTransformer,
     BartEncoderLayerBetterTransformer,
     BertLayerBetterTransformer,
+    CLIPLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,
@@ -27,57 +28,71 @@ from .encoder_models import (
     ProphetNetEncoderLayerBetterTransformer
 )
 
+class BetterTransformerManager:
+    MODEL_MAPPING = {
+        "albert": ("AlbertLayer", AlbertLayerBetterTransformer),
+        "bart": ("BartEncoderLayer", BartEncoderLayerBetterTransformer),
+        "bert": ("BertLayer", BertLayerBetterTransformer),
+        "bert-generation": ("BertGenerationLayer", BertLayerBetterTransformer),
+        "camembert": ("CamembertLayer", BertLayerBetterTransformer),
+        "clip": ("CLIPEncoderLayer", CLIPLayerBetterTransformer),
+        "data2vec-text": ("Data2VecTextLayer", BertLayerBetterTransformer),
+        "deit": ("DeiTLayer", ViTLayerBetterTransformer),
+        "distilbert": ("TransformerBlock", DistilBertLayerBetterTransformer),
+        "electra": ("ElectraLayer", BertLayerBetterTransformer),
+        "ernie": ("ErnieLayer", BertLayerBetterTransformer),
+        "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
+        "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
+        "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),
+        "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
+        "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
+        "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
+        "rembert": ("RemBertLayer", BertLayerBetterTransformer),
+        "roberta": ("RobertaLayer", BertLayerBetterTransformer),
+        "splinter": ("SplinterLayer", BertLayerBetterTransformer),
+        "tapas": ("TapasLayer", BertLayerBetterTransformer),
+        "vilt": ("ViltLayer", ViltLayerBetterTransformer),
+        "vit": ("ViTLayer", ViTLayerBetterTransformer),
+        "vit_mae": ("ViTMAELayer", ViTLayerBetterTransformer),
+        "vit_msn": ("ViTMSNLayer", ViTLayerBetterTransformer),
+        "wav2vec2": ("Wav2Vec2EncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
+        "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
+        "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
+        "yolos": ("YolosLayer", ViTLayerBetterTransformer),
+    }
 
-BETTER_TRANFORMER_LAYERS_MAPPING_DICT = {
-    # Bert Family
-    "TapasLayer": BertLayerBetterTransformer,
-    "BertLayer": BertLayerBetterTransformer,
-    "ElectraLayer": BertLayerBetterTransformer,
-    "Data2VecTextLayer": BertLayerBetterTransformer,
-    "CamembertLayer": BertLayerBetterTransformer,
-    "MarkupLMLayer": BertLayerBetterTransformer,
-    "RobertaLayer": BertLayerBetterTransformer,
-    "SplinterLayer": BertLayerBetterTransformer,
-    "ErnieLayer": BertLayerBetterTransformer,
-    "LayoutLMLayer": BertLayerBetterTransformer,
-    "BertGenerationLayer": BertLayerBetterTransformer,
-    "XLMRobertaLayer": BertLayerBetterTransformer,
-    # Albert Family
-    "AlbertLayer": AlbertLayerBetterTransformer,
-    # Bart family
-    "BartEncoderLayer": BartEncoderLayerBetterTransformer,
-    "MBartEncoderLayer": MBartEncoderLayerBetterTransformer,
-    "M2M100EncoderLayer": MBartEncoderLayerBetterTransformer,
-    # "PLBartEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # "MarianEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # "TimeSeriesTransformerEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # "BlenderbotSmallEncoderLayer": bart.BartEncoderLayerBetterTransformer,
-    # T5 family - needs to check compatibility first
-    # "T5Block": t5.T5LayerBetterTransformer,
-    # Some models cannot be tested such as:
-    # "QDQBertLayer": BertLayerBetterTransformer, --> needs torch quantization
-    # "RealmLayer": BertLayerBetterTransformer, --> not mapped in AutoModel
-    # DistilBert:
-    "TransformerBlock": DistilBertLayerBetterTransformer,
-    # WhisperModel
-    "WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer,
-    # Wav2vec2 family:
-    "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    "HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    # "UniSpeechEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    # "Data2VecAudioEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
-    # ViT Family:
-    "ViTLayer": ViTLayerBetterTransformer,
-    "DeiTLayer": ViTLayerBetterTransformer,
-    "ViTMAELayer": ViTLayerBetterTransformer,
-    "ViTMSNLayer": ViTLayerBetterTransformer,
-    "YolosLayer": ViTLayerBetterTransformer,
-    # FSMTModel:
-    "EncoderLayer": FSMTEncoderLayerBetterTransformer,
-    "ViltLayer": ViltLayerBetterTransformer,
-    # ProphetNet Model 
-    "ProphetNetEncoderLayer": ProphetNetEncoderLayerBetterTransformer
-}
+    EXCLUDE_FROM_TRANSFORM = {
+        # clip's text model uses causal attention, that is most likely not supported in BetterTransformer
+        "clip": ["text_model"],
+    }
+
+    CAN_NOT_BE_SUPPORTED = {
+        "deberta-v2": "DeBERTa v2 does not use a regular attention mechanism, which is not suppored in PyTorch's BetterTransformer.",
+        "glpn": "GLPN has a convolutional layer present in the FFN network, which is not suppored in PyTorch's BetterTransformer.",
+        "t5": "T5 uses attention bias, which is not suppored in PyTorch's BetterTransformer.",
+    }
+
+    @staticmethod
+    def cannot_support(model_type: str) -> bool:
+        """
+        Returns True if a given model type can not be supported by PyTorch's Better Transformer.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        return model_type in BetterTransformerManager.CAN_NOT_BE_SUPPORTED
+
+    @staticmethod
+    def supports(model_type: str) -> bool:
+        """
+        Returns True if a given model type is supported by PyTorch's Better Transformer, and integrated in Optimum.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        return model_type in BetterTransformerManager.MODEL_MAPPING
 
 
 class warn_uncompatible_save(object):

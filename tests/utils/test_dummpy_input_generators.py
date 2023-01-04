@@ -16,8 +16,12 @@
 from contextlib import nullcontext
 from unittest import TestCase
 
+import torch
 from transformers import AutoConfig
 
+from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
+from optimum.utils.normalized_config import NormalizedConfigManager
+from optimum.utils.testing_utils import grid_parameters
 from parameterized import parameterized
 
 
@@ -43,23 +47,6 @@ DUMMY_SHAPES = {
     "audio_sequence_length": [16000, 8000],
 }
 
-import itertools
-from typing import Any, Dict, Iterable
-
-import torch
-from transformers import AutoConfig
-
-from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
-from optimum.utils.normalized_config import NormalizedConfigManager
-
-
-def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
-    """
-    Generate an iterable over the grid of all combinations of parameters
-    """
-    for params in itertools.product(*parameters.values()):
-        yield list(params)
-
 
 class GenerateDummy(TestCase):
     @parameterized.expand(
@@ -72,7 +59,9 @@ class GenerateDummy(TestCase):
             }
         )
     )
-    def test_text_models(self, model_name: str, batch_size: int, num_choices: int, sequence_length: int):
+    def test_text_models(
+        self, test_name: str, model_name: str, batch_size: int, num_choices: int, sequence_length: int
+    ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
         normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
@@ -115,7 +104,9 @@ class GenerateDummy(TestCase):
             }
         )
     )
-    def test_vision_models(self, model_name: str, batch_size: int, num_channels: int, height: int, width: int):
+    def test_vision_models(
+        self, test_name: str, model_name: str, batch_size: int, num_channels: int, height: int, width: int
+    ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
         normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
@@ -148,7 +139,13 @@ class GenerateDummy(TestCase):
         )
     )
     def test_audio_models(
-        self, model_name: str, batch_size: int, feature_size: int, nb_max_frames: int, audio_sequence_length: int
+        self,
+        test_name: str,
+        model_name: str,
+        batch_size: int,
+        feature_size: int,
+        nb_max_frames: int,
+        audio_sequence_length: int,
     ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
@@ -156,12 +153,12 @@ class GenerateDummy(TestCase):
         normalized_config = normalized_config_class(config)
 
         input_generator = DummyAudioInputGenerator(
-            task="image-classification",
+            task="audio-classification",
             normalized_config=normalized_config,
             batch_size=batch_size,
             feature_size=feature_size,
             nb_max_frames=nb_max_frames,
-            sequence_length=audio_sequence_length,
+            audio_sequence_length=audio_sequence_length,
         )
         generated_tensor = input_generator.generate("input_values")
         assert generated_tensor.shape == torch.Size((batch_size, audio_sequence_length))
