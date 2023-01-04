@@ -346,6 +346,7 @@ def export_pytorch(
             input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
 
         # Check that inputs match, and order them properly
+
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():

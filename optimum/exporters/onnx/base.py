@@ -149,6 +149,7 @@ class OnnxConfig(ExportConfig, ABC):
                 "end_logits": {0: "batch_size", 1: "sequence_length"},
             }
         ),
+        "visual-question-answering": OrderedDict({"logits": {0: "batch_size"}}),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "seq2seq-lm": OrderedDict(
             {
@@ -187,6 +188,7 @@ class OnnxConfig(ExportConfig, ABC):
         forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
         size. Override this method for custom behavior.
         """
+
         first_inputs_gen = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config, **kwargs)
         dummy_inputs_generators = [
             cls_(self.task, self._normalized_config, **kwargs) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]
