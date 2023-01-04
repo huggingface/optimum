@@ -1193,3 +1193,115 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
             return config.vision_config.hidden_act
         else:
             return config.hidden_act
+
+class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
+    def __init__(self, prnt_layer, config):
+        r"""
+        A conversion of the ProphetNet Encoder layer to its `BetterTransformer` implementation.
+
+        Args:
+            prnt_layer (`torch.nn.Module`):
+                The original ProphetNetEncoderLayer where the weights needs to be retrieved.
+        """
+        super().__init__(config)
+        # In_proj layer
+        self.in_proj_weight = nn.Parameter(
+            torch.cat(
+                [
+                    prnt_layer.self_attn.query_proj.weight,
+                    prnt_layer.self_attn.key_proj.weight,
+                    prnt_layer.self_attn.value_proj.weight,
+                ]
+            )
+        )
+        self.in_proj_bias = nn.Parameter(
+            torch.cat(
+                [
+                    prnt_layer.self_attn.query_proj.bias,
+                    prnt_layer.self_attn.key_proj.bias,
+                    prnt_layer.self_attn.value_proj.bias,
+                ]
+            )
+        )
+
+        # Out proj layer
+        self.out_proj_weight = prnt_layer.self_attn.out_proj.weight
+        self.out_proj_bias = prnt_layer.self_attn.out_proj.bias
+
+        # Linear layer 1
+        self.linear1_weight = prnt_layer.feed_forward.intermediate.weight
+        self.linear1_bias = prnt_layer.feed_forward.intermediate.bias
+
+        # Linear layer 2
+        self.linear2_weight = prnt_layer.feed_forward.output.weight
+        self.linear2_bias = prnt_layer.feed_forward.output.bias
+
+        # Layer norm 1
+        self.norm1_eps = prnt_layer.self_attn_layer_norm.eps
+        self.norm1_weight = prnt_layer.self_attn_layer_norm.weight
+        self.norm1_bias = prnt_layer.self_attn_layer_norm.bias
+
+        # Layer norm 2
+        self.norm2_eps = prnt_layer.feed_forward_layer_norm.eps
+        self.norm2_weight = prnt_layer.feed_forward_layer_norm.weight
+        self.norm2_bias = prnt_layer.feed_forward_layer_norm.bias
+
+        # Model hyper parameters
+        self.num_heads = prnt_layer.self_attn.num_attn_heads
+        self.embed_dim = prnt_layer.self_attn.head_dim
+
+        # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
+        self.is_last_layer = False
+
+        self.validate_bettertransformer()
+
+    def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
+        r"""
+        This is just a wrapper around the forward function proposed in:
+        https://github.com/huggingface/transformers/pull/19553
+        """
+        super().forward_checker()
+
+        if hidden_states.is_nested:
+            attention_mask = None
+
+        if attention_mask is not None:
+            # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
+            # 0->false->keep this token -inf->true->mask this token
+            attention_mask = attention_mask.bool()
+            attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
+            seqlen = attention_mask.shape[1]
+            lengths = torch.sum(~attention_mask, 1)
+
+            if hidden_states.shape[0] != attention_mask.shape[0]:
+                hidden_states = hidden_states.transpose(1, 0)
+
+            if not all([l == seqlen for l in lengths]):
+                hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
+            attention_mask = None
+
+        hidden_states = torch._transformer_encoder_layer_fwd(
+            hidden_states,
+            self.embed_dim,
+            self.num_heads,
+            self.in_proj_weight,
+            self.in_proj_bias,
+            self.out_proj_weight,
+            self.out_proj_bias,
+            self.use_gelu,
+            self.norm_first,
+            self.norm1_eps,
+            self.norm1_weight,
+            self.norm1_bias,
+            self.norm2_weight,
+            self.norm2_bias,
+            self.linear1_weight,
+            self.linear1_bias,
+            self.linear2_weight,
+            self.linear2_bias,
+            attention_mask,
+        )
+        if hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0)
+        return (hidden_states, attention_mask) 
+
