@@ -48,7 +48,7 @@ class TypeHelper(ORTTypeHelper):
             "tensor(int8)": np.int8,
             "tensor(float)": np.float32,
             "tensor(float16)": np.float16,
-            "tensor(bool)": np.uint8,
+            "tensor(bool)": bool,
         }
         if ort_type in ort_type_to_numpy_type_map:
             return ort_type_to_numpy_type_map[ort_type]

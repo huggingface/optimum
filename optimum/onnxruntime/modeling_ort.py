@@ -166,7 +166,7 @@ class ORTModel(OptimizedModel):
         self,
         model: ort.InferenceSession,
         config: "PretrainedConfig",
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
@@ -249,6 +249,7 @@ class ORTModel(OptimizedModel):
 
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
+        self.use_io_binding = check_io_binding(self.providers, self.use_io_binding)
 
         return self
 
@@ -378,7 +379,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ) -> "ORTModel":
         model_path = Path(model_id)
@@ -483,7 +484,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
@@ -617,7 +618,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -788,7 +789,7 @@ class ORTModelForQuestionAnswering(ORTModel):
 
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -987,7 +988,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
@@ -1157,7 +1158,7 @@ class ORTModelForTokenClassification(ORTModel):
 
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1322,7 +1323,7 @@ class ORTModelForMultipleChoice(ORTModel):
 
     auto_model_class = AutoModelForMultipleChoice
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1491,7 +1492,7 @@ class ORTModelForImageClassification(ORTModel):
 
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1627,7 +1628,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
     auto_model_class = AutoModelForSemanticSegmentation
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
@@ -1731,7 +1732,7 @@ class ORTModelForCustomTasks(ORTModel):
     Model for any custom tasks if the ONNX model is stored in a single file.
     """
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}

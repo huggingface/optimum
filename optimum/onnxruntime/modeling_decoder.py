@@ -42,6 +42,7 @@ from .utils import (
     ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
+    check_io_binding,
     get_provider_for_device,
     parse_device,
 )
@@ -134,7 +135,7 @@ class ORTDecoder:
         config: "PretrainedConfig",
         device: torch.device,
         use_merged: bool = False,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
     ):
         self.session = session
         self.config = config
@@ -188,6 +189,8 @@ class ORTDecoder:
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        use_cache: Optional[torch.BoolTensor] = None,
+        is_dummy: bool = False,
     ):
         io_binding = self.session.io_binding()
 
@@ -228,6 +231,18 @@ class ORTDecoder:
                     past_key_value.data_ptr(),
                 )
 
+        # Bind use cache if uses merged decoder
+        if use_cache is not None:
+            use_cache = use_cache.contiguous()
+            io_binding.bind_input(
+                "use_cache",
+                use_cache.device.type,
+                self._device.index,
+                self.name_to_np_type["use_cache"],
+                tuple(use_cache.shape),
+                use_cache.data_ptr(),
+            )
+
         # Bind the outputs
 
         # Bind the logits
@@ -254,7 +269,7 @@ class ORTDecoder:
                 batch_size=input_ids.size(0),
                 sequence_length=input_ids.size(1),
                 past_sequence_length=past_key_values[0].size(2)
-                if past_key_values
+                if past_key_values and not is_dummy
                 else None,  # sequence length of self-attention key for layer.0
             )
             io_binding.bind_output(
@@ -272,6 +287,34 @@ class ORTDecoder:
 
         return io_binding, output_shapes, output_buffers
 
+    def prepare_inputs_for_merged(
+        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
+    ):
+
+        # Prepare use cache
+        if past_key_values is not None and self.use_merged:  # Uses "with past" branch of a merged decoder
+            use_cache = torch.full((1,), True).to(self._device)
+        elif self.use_merged:  # Uses "no past" branch of a merged decoder
+            use_cache = torch.full((1,), False).to(self._device)
+        else:  # Uses separate decoders
+            use_cache = None
+
+        # Prepare past key values
+        is_dummy = False
+        if (
+            self.use_merged and past_key_values is None
+        ):  # Generate dummy past for the first forward if uses a merged decoder
+            batch_size = input_ids.size(0)
+            num_attention_heads = self.normalized_config.num_attention_heads
+            hidden_size = self.normalized_config.hidden_size
+            embed_size_per_head = hidden_size // num_attention_heads
+            shape = (batch_size, num_attention_heads, 1, embed_size_per_head)  # "1" is the dummy sequence length
+            key_or_value = torch.zeros(shape, dtype=torch.float32).to(self._device)
+            past_key_values = [key_or_value for _ in range(len(self.key_value_input_names))]
+            is_dummy = True
+
+        return use_cache, past_key_values, is_dummy
+
     @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
     def forward(
         self,
@@ -280,20 +323,21 @@ class ORTDecoder:
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
     ) -> CausalLMOutputWithCrossAttentions:
 
-        # Set the value of the input `use_cache` if uses merged decoder
-        use_cache = None
-        if past_key_values is not None and self.use_merged:
-            use_cache = True
-        elif self.use_merged:
-            use_cache = False
-
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
+        # Prepare inputs if uses merged decoder
+        use_cache, past_key_values, is_dummy = self.prepare_inputs_for_merged(input_ids, past_key_values)
+
         if self._device.type == "cuda" and self.use_io_binding:
+
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids, attention_mask, past_key_values
+                input_ids,
+                attention_mask,
+                past_key_values,
+                use_cache,
+                is_dummy,
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
@@ -318,21 +362,12 @@ class ORTDecoder:
             }
 
             if use_cache is not None:
-                onnx_inputs["use_cache"] = np.full(1, use_cache)
+                onnx_inputs["use_cache"] = use_cache.cpu().detach().numpy()
 
             if past_key_values is not None:
                 # Add the past_key_values to the decoder inputs
                 for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                     onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
-            elif self.use_merged:
-                # Create dummy past_key_values if uses merged decoder
-                batch_size = input_ids.size(0)
-                num_attention_heads = self.normalized_config.num_attention_heads
-                hidden_size = self.normalized_config.hidden_size
-                embed_size_per_head = hidden_size // num_attention_heads
-                for input_name in self.key_value_input_names:
-                    shape = (batch_size, num_attention_heads, 0, embed_size_per_head)
-                    onnx_inputs[input_name] = np.zeros(shape).astype(np.float32)
 
             # Run inference
             outputs = self.session.run(None, onnx_inputs)
@@ -367,7 +402,7 @@ class ORTModelDecoder(ORTModel):
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
         use_cache: bool = True,
         use_merged: bool = False,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs
@@ -388,7 +423,7 @@ class ORTModelDecoder(ORTModel):
                 Whether use merged decoder for inference to reduce memory usage, defaults to `False`. When set as
                 `True`, ORTModel will merge decoder and decoder with past, if
                 check if the model has been merged
-            use_io_binding (`Optional[bool]`, defaults to `None`):
+            use_io_binding (`bool`, defaults to `True`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
@@ -410,7 +445,6 @@ class ORTModelDecoder(ORTModel):
             raise ValueError(
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
-
         super().__init__(
             decoder_session,
             config,
@@ -558,7 +592,7 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
         model_path = Path(model_id)
@@ -681,7 +715,6 @@ class ORTModelDecoder(ORTModel):
                 use_merged = True
         elif use_merged is True and decoder_with_past_path is not None:
             try:
-                print("Merging decoders...")
                 logger.info("Merging decoders...")
                 decoder_merged_path = decoder_path.parent / ONNX_DECODER_MERGED_NAME
                 merge_decoders(
@@ -746,7 +779,7 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         task: Optional[str] = None,
     ) -> "ORTModelDecoder":
         if task is None:
@@ -832,6 +865,7 @@ class ORTModelDecoder(ORTModel):
             self.decoder_with_past._device = device
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         self.providers = self.decoder.session.get_providers()
+        self.use_io_binding = check_io_binding(self.providers, self.use_io_binding)
 
         return self
 

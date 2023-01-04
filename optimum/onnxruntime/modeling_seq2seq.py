@@ -46,6 +46,7 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
+    check_io_binding,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
@@ -217,7 +218,7 @@ class ORTEncoder:
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         main_input_name: str = "input_ids",
     ):
         self.session = session
@@ -689,7 +690,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         config ([`PretrainedConfig`]):
             Instance of the configuration associated to the model. Initializing with a config file does
             not load the weights associated with the model, only the configuration.
-        use_io_binding (`Optional[bool]`, defaults to `None`):
+        use_io_binding (`bool`):
             Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
             if the device is CUDA, otherwise defaults to `False`.
         use_cache (`bool`):
@@ -725,7 +726,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         decoder_session: ort.InferenceSession,
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[ort.InferenceSession] = None,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
@@ -741,7 +742,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 does not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[ort.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
-            use_io_binding (`bool`, *optional*, defaults to `None`):
+            use_io_binding (`bool`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
@@ -810,7 +811,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
     ) -> "ORTEncoder":
         pass
 
@@ -942,7 +943,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
         model_path = Path(model_id)
@@ -1115,7 +1116,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
         if task is None:
@@ -1190,6 +1191,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             self.decoder_with_past._device = device
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         self.providers = self.encoder.session.get_providers()
+        self.use_io_binding = check_io_binding(self.providers, self.use_io_binding)
 
         return self
 
@@ -1207,7 +1209,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
     ) -> ORTEncoder:
         return ORTEncoder(
             session=session,
@@ -1319,7 +1321,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool = True,
     ) -> ORTEncoder:
         if config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
             raise KeyError(
