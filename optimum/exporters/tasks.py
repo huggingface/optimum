@@ -718,6 +718,9 @@ class TasksManager:
 
     @staticmethod
     def get_supported_model_type_for_task(task: str, exporter: str):
+        """
+        Returns the list of supported architectures by the exporter for a given task.
+        """
         return [
             model_type.replace("-", "_")
             for model_type in TasksManager._SUPPORTED_MODEL_TYPE
