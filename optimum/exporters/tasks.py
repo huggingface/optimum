@@ -168,6 +168,15 @@ class TasksManager:
             "question-answering",
             onnx="BartOnnxConfig",
         ),
+        "visual-bert": supported_tasks_mapping(
+            "default",
+            "question-answering",
+            "multiple-choice",
+            "visual-reasoning",
+            "region-to-phrase-alignment",
+            onnx="VisualBertOnnxConfig",
+        )
+        ,
         # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
         "beit": supported_tasks_mapping("default", "image-classification", onnx="BeitOnnxConfig"),
         "bert": supported_tasks_mapping(
