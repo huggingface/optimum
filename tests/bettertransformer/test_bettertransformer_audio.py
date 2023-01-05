@@ -59,6 +59,7 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
         }
         return input_dict
 
+
 class BetterTransformersASTTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for AST - tests all the tests defined in `BetterTransformersTestMixin`
@@ -75,6 +76,7 @@ class BetterTransformersASTTest(BetterTransformersTestMixin, unittest.TestCase):
 
         input_dict = feature_extractor(input_features, return_tensors="pt", padding=True)
         return input_dict
+
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""

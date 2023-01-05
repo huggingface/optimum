@@ -189,7 +189,7 @@ class ASTLayerBetterTransformer(BetterTransformerBaseLayer):
         self.norm_first = True
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states,  *_, **__):
+    def forward(self, hidden_states, *_, **__):
         r"""
         This is just a wrapper around the forward function proposed in:
         https://github.com/huggingface/transformers/pull/19553

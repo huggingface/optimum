@@ -31,7 +31,7 @@ from .encoder_models import (
 
 class BetterTransformerManager:
     MODEL_MAPPING = {
-        "ast":("ASTLayer": ASTLayerBetterTransformer),
+        "audio-spectrogram-transformer": ("ASTLayer", ASTLayerBetterTransformer),
         "albert": ("AlbertLayer", AlbertLayerBetterTransformer),
         "bart": ("BartEncoderLayer", BartEncoderLayerBetterTransformer),
         "bert": ("BertLayer", BertLayerBetterTransformer),
