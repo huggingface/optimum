@@ -670,6 +670,3 @@ class DummyVisualBertInputGenerator(DummyTextInputGenerator):
             return torch.ones(visual_embeddings.shape[:-1], dtype=torch.long)
         elif input_name == "region_to_phrase_position":
             return torch.ones((1, +self.sequence_length + visual_embeddings.shape[-2]), dtype=torch.long)
-        elif input_name == "region_to_phrase_position":
-            return torch.ones((1, +self.sequence_length + visual_embeddings.shape[-2]), dtype=torch.long)
-4
