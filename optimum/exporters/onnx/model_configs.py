@@ -78,7 +78,7 @@ class VisualBertOnnxConfig(BertOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisualBertInputGenerator)
     ATOL_FOR_VALIDATION = 1e-4
-
+    # TODO: DEFAULT_ONNX_OPSET??
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         dynamic_axis = {0: "batch_size", 1: "sequence_length"}

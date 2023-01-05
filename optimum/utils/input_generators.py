@@ -648,9 +648,8 @@ class DummyVisualBertInputGenerator(DummyTextInputGenerator):
         self.num_of_detection_patches = num_of_detection_patches
 
     def generate(self, input_name: str, framework: str = "pt"):
-        visual_embedding_dim = None
         # TODO maybe the following should be checked with the model checkpoint_path and checking existance of for example "vqa" substring is better
-        if self.task in ["visual-question-answering", "region-to-phrase-alignment"]:
+        if self.task in ["default", "visual-question-answering", "region-to-phrase-alignment"]:
             visual_embedding_dim = 2048
         elif self.task == "multiple-choice":
             visual_embedding_dim = 512
