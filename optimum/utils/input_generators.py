@@ -53,6 +53,7 @@ DEFAULT_DUMMY_SHAPES = {
     "width": 64,
     "height": 64,
     "num_channels": 3,
+    "num_of_detection_patches": 5,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -628,3 +629,44 @@ class DummyTrainingLabelsInputGenerator(DummyTextInputGenerator):
             shape = [self.batch_size]
 
         return self.random_int_tensor(shape, max_value=max_value, framework=framework)
+
+
+class DummyVisualBertInputGenerator(DummyTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("visual_embeds", "visual_token_type_ids", "visual_attention_mask")
+    # todo: see how to add ,"region_to_phrase_position" since that input name raises error (ValueError: Config dummy inputs are not a subset of the model inputs)
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        num_of_detection_patches: int = DEFAULT_DUMMY_SHAPES["num_of_detection_patches"],
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
+    ):
+
+        super().__init__(task, normalized_config)
+        self.num_of_detection_patches = num_of_detection_patches
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        visual_embedding_dim = None
+        # TODO maybe the following should be checked with the model checkpoint_path and checking existance of for example "vqa" substring is better
+        if self.task in ["visual-question-answering", "region-to-phrase-alignment"]:
+            visual_embedding_dim = 2048
+        elif self.task == "multiple-choice":
+            visual_embedding_dim = 512
+        elif self.task == "visual-reasoning":
+            visual_embedding_dim = 1024
+
+        shape = [self.batch_size, self.num_of_detection_patches, visual_embedding_dim]
+        visual_embeddings = self.random_float_tensor(shape, framework=framework)
+        if self.task == "multiple-choice":
+            visual_embeddings.expand(1, 2, *shape)
+
+        if input_name == "visual_embeds":
+            return visual_embeddings
+        elif input_name == "visual_attention_mask":
+            return torch.ones(visual_embeddings.shape[:-1], dtype=torch.long)
+        elif input_name == "visual_token_type_ids":
+            return torch.ones(visual_embeddings.shape[:-1], dtype=torch.float)
+        elif input_name == "region_to_phrase_position":
+            return torch.ones((1, +self.sequence_length + visual_embeddings.shape[-2]))

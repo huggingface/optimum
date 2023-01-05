@@ -149,6 +149,7 @@ class OnnxConfig(ExportConfig, ABC):
                 "end_logits": {0: "batch_size", 1: "sequence_length"},
             }
         ),
+        "visual-question-answering": OrderedDict({"logits": {0: "batch_size"}}),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "seq2seq-lm": OrderedDict(
             {
