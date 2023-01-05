@@ -667,6 +667,6 @@ class DummyVisualBertInputGenerator(DummyTextInputGenerator):
         elif input_name == "visual_attention_mask":
             return torch.ones(visual_embeddings.shape[:-1], dtype=torch.long)
         elif input_name == "visual_token_type_ids":
-            return torch.ones(visual_embeddings.shape[:-1], dtype=torch.float)
+            return torch.ones(visual_embeddings.shape[:-1], dtype=torch.long)
         elif input_name == "region_to_phrase_position":
-            return torch.ones((1, +self.sequence_length + visual_embeddings.shape[-2]))
+            return torch.ones((1, +self.sequence_length + visual_embeddings.shape[-2]), dtype=torch.long)
