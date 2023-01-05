@@ -96,7 +96,7 @@ def invert_to_old_model(bt_model):
             # we may explicitly exclude part of the model to use BetterTransformer
             invert_to_old_model(module)
 
-        is_invert_compatible = hasattr(module, 'old_layer') and module.old_layer is not None
+        is_invert_compatible = hasattr(module, "old_layer") and module.old_layer is not None
 
         if is_invert_compatible:
             bt_model._modules[name] = module._replace_to_original_module()
@@ -261,17 +261,17 @@ class BetterTransformer(object):
         setattr(model_fast, "save_pretrained", warn_uncompatible_save(model_fast.save_pretrained))
 
         return model_fast
-    
+
     @check_if_pytorch_greater(
         "1.13.0",
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
     )
-    def inverse_transform(
-        model: torch.nn.Module, **kwargs
-    ) -> torch.nn.Module:
+    def inverse_transform(model: torch.nn.Module, **kwargs) -> torch.nn.Module:
         # Step 1: check if the model has the attribute `use_bettertransformer`
         if not getattr(model, "use_bettertransformer", False):
-            raise ValueError("You should inverse_transform a model that has been already transformed to a `BetterTransformer` format.")
+            raise ValueError(
+                "You should inverse_transform a model that has been already transformed to a `BetterTransformer` format."
+            )
 
         model = invert_to_old_model(model)
         return model

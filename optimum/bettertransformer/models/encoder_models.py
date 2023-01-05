@@ -231,7 +231,7 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
-    
+
     def _replace_to_original_module(self):
         if self.old_layer is None:
             raise ValueError("You should add the attribute `old_layer` when initializing a `BetterTransformer` layer.")
@@ -240,17 +240,17 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
         qkv_split_index = self.in_proj_weight.shape[0] // 3
 
         query = self.in_proj_weight[:qkv_split_index, :]
-        key = self.in_proj_weight[qkv_split_index:2*qkv_split_index, :]
-        value = self.in_proj_weight[2*qkv_split_index:, :]
+        key = self.in_proj_weight[qkv_split_index : 2 * qkv_split_index, :]
+        value = self.in_proj_weight[2 * qkv_split_index :, :]
 
         self.old_layer.attention.self.query.weight = nn.Parameter(query)
         self.old_layer.attention.self.key.weight = nn.Parameter(key)
         self.old_layer.attention.self.value.weight = nn.Parameter(value)
 
         query_bias = self.in_proj_bias[:qkv_split_index]
-        key_bias = self.in_proj_bias[qkv_split_index:2*qkv_split_index]
-        value_bias = self.in_proj_bias[2*qkv_split_index:]
-    
+        key_bias = self.in_proj_bias[qkv_split_index : 2 * qkv_split_index]
+        value_bias = self.in_proj_bias[2 * qkv_split_index :]
+
         self.old_layer.attention.self.query.bias = nn.Parameter(query_bias)
         self.old_layer.attention.self.key.bias = nn.Parameter(key_bias)
         self.old_layer.attention.self.value.bias = nn.Parameter(value_bias)

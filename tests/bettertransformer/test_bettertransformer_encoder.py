@@ -28,7 +28,7 @@ from optimum.utils.testing_utils import (
     require_torch_gpu,
 )
 from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersTestMixin, BetterTransformersInvertibleTestMixin
+from testing_bettertransformer_utils import BetterTransformersInvertibleTestMixin, BetterTransformersTestMixin
 
 
 ALL_ENCODER_MODELS_TO_TEST = [
@@ -56,9 +56,7 @@ ALL_ENCODER_DECODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-nllb",
 ]
 
-ALL_INVERTIBLE_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-BertModel"
-]
+ALL_INVERTIBLE_MODELS_TO_TEST = ["hf-internal-testing/tiny-random-BertModel"]
 
 
 class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -296,7 +294,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
 
 class BetterTransformerInvertibleTest(BetterTransformersInvertibleTestMixin, unittest.TestCase):
     r"""
-    `BetterTransformers` integration into Hugging Face `transformers` ecosystem includes also the 
+    `BetterTransformers` integration into Hugging Face `transformers` ecosystem includes also the
     inverse transform of the models. This test suite checks that the inverse conversion is correct.
     This class inherits from `BetterTransformersInvertibleTestMixin` which contains the state dict tests.
 
@@ -338,7 +336,7 @@ class BetterTransformerInvertibleTest(BetterTransformersInvertibleTestMixin, uni
 
             # Assert that the outputs are the same
             self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
-    
+
     def test_modules(self):
         r"""
         Test that the inverse converted model and hf model have the same modules
@@ -366,10 +364,6 @@ class BetterTransformerInvertibleTest(BetterTransformersInvertibleTestMixin, uni
                 bt_module_attributes = [attr for attr in dir(bt_module) if not attr.startswith("_")]
 
                 self.assertEqual(hf_module_attributes, bt_module_attributes)
-
-
-
-
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

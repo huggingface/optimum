@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import deepcopy
+
 import torch
 import torch.nn as nn
-
-from copy import deepcopy
 
 from ...utils import logging
 
@@ -62,7 +62,7 @@ class BetterTransformerBaseLayer(nn.Module):
             if hasattr(config, attr):
                 self.num_layers = getattr(config, attr)
                 break
-        
+
         if old_layer is not None:
             # Last step, store the old module skeleton by copying the old module and putting
             # it on the `meta` device.
@@ -124,10 +124,12 @@ class BetterTransformerBaseLayer(nn.Module):
                 "Training is not supported for `BetterTransformer` integration.",
                 " Please use `model.eval()` before running the model.",
             )
-    
+
     def _replace_to_original_module(self):
         r"""
         A wrapper function to replace the current layer with the previous non-BetterTransformer
         layer.
         """
-        raise NotImplementedError("Please implement this method in the `BetterTransformerLayer` class to benefit from the `BetterTransformer` inverse transformation.")
+        raise NotImplementedError(
+            "Please implement this method in the `BetterTransformerLayer` class to benefit from the `BetterTransformer` inverse transformation."
+        )

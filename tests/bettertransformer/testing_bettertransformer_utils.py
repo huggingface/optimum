@@ -194,7 +194,6 @@ class BetterTransformersInvertibleTestMixin:
                 for name, param in bt_model.named_parameters():
                     self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
 
-
                 bt_model.save_pretrained(tmpdirname)
 
                 bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
@@ -211,7 +210,6 @@ class BetterTransformersInvertibleTestMixin:
                     set(bt_model_from_load.state_dict().keys()),
                 )
 
-
                 for key in bt_model.state_dict().keys():
                     self.assertTrue(
                         torch.allclose(
@@ -226,9 +224,6 @@ class BetterTransformersInvertibleTestMixin:
                             bt_model_from_load.state_dict()[key],
                         )
                     )
-
-
-                
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
