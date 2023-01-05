@@ -46,6 +46,7 @@ import onnx
 import onnxruntime
 import requests
 from huggingface_hub.constants import default_cache_path
+from optimum.exporters import TasksManager
 from optimum.onnxruntime import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
@@ -93,6 +94,74 @@ MODEL_NAMES = {
     "vit": "hf-internal-testing/tiny-random-vit",
     "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
     "whisper": "openai/whisper-tiny.en",
+}
+
+MODEL_NAMES = {
+    "albert": "hf-internal-testing/tiny-random-AlbertModel",
+    "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
+    "bert": "hf-internal-testing/tiny-random-BertModel",
+    "bart": "hf-internal-testing/tiny-random-bart",
+    "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
+    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",
+    "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
+    "bloom": "hf-internal-testing/tiny-random-BloomModel",
+    "camembert": "hf-internal-testing/tiny-random-camembert",
+    "clip": "hf-internal-testing/tiny-random-CLIPModel",
+    "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
+    "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
+    "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",
+    "data2vec-vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
+    "data2vec-audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
+    "deberta": "hf-internal-testing/tiny-random-DebertaModel",
+    "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
+    "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "convnext": "hf-internal-testing/tiny-random-convnext",
+    "detr": "hf-internal-testing/tiny-random-detr",
+    "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
+    "electra": "hf-internal-testing/tiny-random-ElectraModel",
+    "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
+    "gptj": "hf-internal-testing/tiny-random-GPTJModel",
+    "groupvit": "hf-internal-testing/tiny-random-groupvit",
+    "ibert": "hf-internal-testing/tiny-random-IBertModel",
+    "levit": "hf-internal-testing/tiny-random-LevitModel",
+    "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
+    "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
+    "longt5": "hf-internal-testing/tiny-random-LongT5Model",
+    "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
+    "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
+    "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
+    "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
+    "mobilenet-v1": "google/mobilenet_v1_0.75_192",
+    "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "mt5": "lewtun/tiny-random-mt5",
+    "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
+    "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "resnet": "hf-internal-testing/tiny-random-resnet",
+    "roberta": "hf-internal-testing/tiny-random-RobertaModel",
+    "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
+    "segformer": "hf-internal-testing/tiny-random-SegformerModel",
+    "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
+    "swin": "hf-internal-testing/tiny-random-SwinModel",
+    "t5": "hf-internal-testing/tiny-random-t5",
+    "vit": "hf-internal-testing/tiny-random-vit",
+    "yolos": "hf-internal-testing/tiny-random-YolosModel",
+    "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
+    "hubert": "hf-internal-testing/tiny-random-HubertModel",
+    "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
+    "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
+    "wavlm": "hf-internal-testing/tiny-random-wavlm",
+    "sew": "hf-internal-testing/tiny-random-SEWModel",
+    "sew-d": "hf-internal-testing/tiny-random-SEWDModel",
+    "unispeech": "hf-internal-testing/tiny-random-unispeech",
+    "unispeech-sat": "hf-internal-testing/tiny-random-unispeech-sat",
+    "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
+    "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
+    "xlm": "hf-internal-testing/tiny-random-XLMModel",
+    "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
 }
 
 SEED = 42
@@ -707,6 +776,21 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         "albert",
         "bart",
         "mbart",
+        "flaubert",
+        "mobilebert",
+        "roformer",
+        "deberta",
+        "ibert",
+        "bigbird_pegasus",
+        "xlm",
+        "xlm_roberta",
+        "layoutlmv3",
+        "data2vec_text",
+        "big_bird",
+        "gptj",
+        "convbert",
+        "deberta_v2",
+        "squeezebert",
     )
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -828,7 +912,31 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         "albert",
         "bart",
         "mbart",
+        "flaubert",
+        "mobilebert",
+        "ibert",
+        "bigbird_pegasus",
+        "xlm",
+        "gptj",
+        "layoutlm",
+        "deberta",
+        "layoutlmv3",
+        "convbert",
+        "perceiver",
+        "gpt_neo",
+        "deberta_v2",
+        "squeezebert",
+        "roformer",
+        "bloom",
+        "gpt2",
+        "xlm_roberta",
+        "data2vec_text",
+        "big_bird",
     )
+
+    ARCH_MODEL_MAP = {
+        "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
+    }
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -838,7 +946,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         set_seed(SEED)
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
 
@@ -864,7 +972,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_pipeline_ort_model(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
@@ -890,7 +998,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
     def test_pipeline_on_gpu(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer, device=0)
@@ -924,7 +1032,7 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
     def test_compare_to_io_binding(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         set_seed(SEED)
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
@@ -957,6 +1065,22 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         "xlm-roberta",
         "electra",
         "albert",
+        "flaubert",
+        "mobilebert",
+        "roformer",
+        "deberta",
+        "ibert",
+        "bloom",
+        "gpt2",
+        "xlm",
+        "xlm_roberta",
+        "layoutlmv3",
+        "data2vec_text",
+        "big_bird",
+        "convbert",
+        "deberta_v2",
+        "layoutlm",
+        "squeezebert",
     )
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -1164,6 +1288,27 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
 class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
     # Multiple Choice tests are conducted on different models due to mismatch size in model's classifier
     SUPPORTED_ARCHITECTURES = (
+        "bert",
+        "camembert",
+        "xlm-roberta",
+        "albert",
+        "electra",
+        "distilbert",
+        "roberta",
+        "flaubert",
+        "mobilebert",
+        "roformer",
+        "ibert",
+        "xlm",
+        "xlm_roberta",
+        "data2vec_text",
+        "big_bird",
+        "convbert",
+        "deberta_v2",
+        "squeezebert",
+    )
+
+    MODEL_IDS = (
         "hf-internal-testing/tiny-bert",
         "hf-internal-testing/tiny-random-camembert",
         "hf-internal-testing/tiny-xlm-roberta",
@@ -1173,7 +1318,10 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
         "haisongzhang/roberta-tiny-cased",
     )
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_match_size(self):
+        self.assertTrue(len(self.SUPPORTED_ARCHITECTURES) == len(self.MODEL_IDS), "Missing model id")
+
+    @parameterized.expand(MODEL_IDS)
     def test_compare_to_transformers(self, model_id):
         set_seed(SEED)
         onnx_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True)
@@ -1208,7 +1356,7 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(MODEL_IDS)
     @require_torch_gpu
     def test_compare_to_io_binding(self, model_id):
         set_seed(SEED)
@@ -1242,7 +1390,20 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
 
 
 class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES = ("gpt2",)
+    SUPPORTED_ARCHITECTURES = (
+        "gpt2",
+        "bloom",
+        "codegen",
+        "bigbird_pegasus",
+        "bart",
+        "blenderbot",
+        "blenderbot_small",
+        "mbart",
+        "gptj",
+        "pegasus",
+        "gpt_neo",
+        "marian",
+    )
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -1403,8 +1564,25 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
 
 
 class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "vit": "hf-internal-testing/tiny-random-vit",
+    SUPPORTED_ARCHITECTURES = (
+        "vit",
+        "poolformer",
+        "deit",
+        "segformer",
+        "resnet",
+        "perceiver",
+        "swin",
+        "data2vec_vision",
+        "levit",
+        "mobilenet_v1",
+        "convnext",
+        "mobilevit",
+        "beit",
+        "mobilenet_v2",
+    )
+
+    ARCH_MODEL_MAP = {
+        "perceiver": "hf-internal-testing/tiny-random-vision_perceiver_conv",
     }
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -1413,9 +1591,9 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_compare_to_transformers(self, *args, **kwargs):
-        model_arch, model_id = args
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         set_seed(SEED)
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
 
@@ -1441,9 +1619,9 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_ort_model(self, *args, **kwargs):
-        model_arch, model_id = args
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_pipeline_ort_model(self, model_arch):
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
@@ -1466,10 +1644,10 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
-    def test_pipeline_on_gpu(self, *args, **kwargs):
-        model_arch, model_id = args
+    def test_pipeline_on_gpu(self, model_arch):
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
@@ -1484,10 +1662,10 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
-    def test_compare_to_io_binding(self, *args, **kwargs):
-        model_arch, model_id = args
+    def test_compare_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         set_seed(SEED)
         onnx_model = ORTModelForImageClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
@@ -1514,9 +1692,7 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
 
 
 class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "segformer": "hf-internal-testing/tiny-random-SegformerForSemanticSegmentation",
-    }
+    SUPPORTED_ARCHITECTURES = ("segformer",)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -1524,9 +1700,9 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_compare_to_transformers(self, *args, **kwargs):
-        model_arch, model_id = args
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
 
@@ -1552,9 +1728,9 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
-    def test_pipeline_ort_model(self, *args, **kwargs):
-        model_arch, model_id = args
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_pipeline_ort_model(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor)
@@ -1576,10 +1752,10 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
         self.assertTrue(outputs[0]["mask"] is not None)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
-    def test_pipeline_on_gpu(self, *args, **kwargs):
-        model_arch, model_id = args
+    def test_pipeline_on_gpu(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(model_id, from_transformers=True)
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor, device=0)
@@ -1594,10 +1770,10 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
-    def test_compare_to_io_binding(self, *args, **kwargs):
-        model_arch, model_id = args
+    def test_compare_to_io_binding(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
@@ -1631,6 +1807,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
         "marian",
         "m2m_100",
         "bigbird_pegasus",
+        "blenderbot",
+        "mt5",
+        "blenderbot_small",
+        "pegasus",
+        "longt5",
     )
 
     FULL_GRID = {
@@ -1821,7 +2002,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
 
 
 class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
-    SUPPORTED_ARCHITECTURES = ("whisper",)
+    SUPPORTED_ARCHITECTURES = ("whisper", "speech_to_text")
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -2064,3 +2245,30 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
         self.assertTrue(torch.equal(onnx_outputs.pooler_output, io_outputs.pooler_output))
 
         gc.collect()
+
+
+class TestBothExportersORTModel(unittest.TestCase):
+    @parameterized.expand(
+        [
+            ["question-answering", ORTModelForQuestionAnsweringIntegrationTest],
+            ["sequence-classification", ORTModelForSequenceClassificationIntegrationTest],
+            ["token-classification", ORTModelForTokenClassificationIntegrationTest],
+            ["default", ORTModelForFeatureExtractionIntegrationTest],
+            ["multiple-choice", ORTModelForMultipleChoiceIntegrationTest],
+            ["causal-lm", ORTModelForCausalLMIntegrationTest],
+            ["image-classification", ORTModelForImageClassificationIntegrationTest],
+            ["semantic-segmentation", ORTModelForSemanticSegmentationIntegrationTest],
+            ["seq2seq-lm", ORTModelForSeq2SeqLMIntegrationTest],
+            ["speech2seq-lm", ORTModelForSpeechSeq2SeqIntegrationTest],
+        ]
+    )
+    @unittest.skipIf(int(os.environ.get("TEST_LEVEL", 0)) < 1, reason="disabled by default")
+    def test_find_untested_architectures(self, task: str, test_class):
+        supported_export_models = TasksManager.get_supported_model_type_for_task(task=task, exporter="onnx")
+        tested_architectures = set(test_class.SUPPORTED_ARCHITECTURES)
+
+        untested_architectures = set(supported_export_models) - tested_architectures
+        if len(untested_architectures) > 0:
+            self.fail(
+                f"For the task {task}, the ONNX export supports {supported_export_models}, but only {tested_architectures} are tested.\nMissing {untested_architectures}."
+            )

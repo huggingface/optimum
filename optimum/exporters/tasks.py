@@ -717,6 +717,14 @@ class TasksManager:
             return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
+    def get_supported_model_type_for_task(task: str, exporter: str):
+        return [
+            model_type.replace("-", "_")
+            for model_type in TasksManager._SUPPORTED_MODEL_TYPE
+            if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+        ]
+
+    @staticmethod
     def format_task(task: str) -> str:
         return task.replace("-with-past", "")
 
