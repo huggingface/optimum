@@ -1117,8 +1117,6 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         )
 
         # Out proj layer
-
-    def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
         self.out_proj_weight = layer.self_attn.out_proj.weight
         self.out_proj_bias = layer.self_attn.out_proj.bias
 

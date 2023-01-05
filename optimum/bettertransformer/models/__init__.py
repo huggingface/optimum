@@ -59,6 +59,7 @@ class BetterTransformerManager:
         "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
         "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
         "yolos": ("YolosLayer", ViTLayerBetterTransformer),
+        "prophetnet": ("ProphetNetEncoderLayer", ProphetNetEncoderLayerBetterTransformer)
     }
 
     EXCLUDE_FROM_TRANSFORM = {
