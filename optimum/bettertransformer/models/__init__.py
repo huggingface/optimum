@@ -25,6 +25,7 @@ from .encoder_models import (
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
+    RoFormerLayerBetterTransformer,
 )
 
 
@@ -59,6 +60,7 @@ class BetterTransformerManager:
         "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
         "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
         "yolos": ("YolosLayer", ViTLayerBetterTransformer),
+        "roformer": ("RoFormerLayer", RoFormerLayerBetterTransformer),
     }
 
     EXCLUDE_FROM_TRANSFORM = {
