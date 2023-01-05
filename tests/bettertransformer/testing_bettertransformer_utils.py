@@ -177,6 +177,60 @@ class BetterTransformersTestMixin:
             self.assertTrue(hasattr(converted_model, "generate"))
 
 
+class BetterTransformersInvertibleTestMixin:
+    r"""
+    `BetterTransformersTestMixin` to wrap the tests for invertible models.
+    """
+    all_models_to_test = []
+
+    def test_save_load_invertible(self):
+        for model in self.all_models_to_test:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                hf_model = AutoModel.from_pretrained(model).eval()
+                bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
+
+                bt_model = BetterTransformer.inverse_transform(bt_model)
+                # check if no parameter is on the `meta` device
+                for name, param in bt_model.named_parameters():
+                    self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
+
+
+                bt_model.save_pretrained(tmpdirname)
+
+                bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
+
+                # check if the state dict is the same
+                # first check if the keys are the same
+                self.assertEqual(
+                    set(bt_model.state_dict().keys()),
+                    set(bt_model_from_load.state_dict().keys()),
+                )
+                # check also with HF model
+                self.assertEqual(
+                    set(hf_model.state_dict().keys()),
+                    set(bt_model_from_load.state_dict().keys()),
+                )
+
+
+                for key in bt_model.state_dict().keys():
+                    self.assertTrue(
+                        torch.allclose(
+                            bt_model.state_dict()[key],
+                            bt_model_from_load.state_dict()[key],
+                        )
+                    )
+
+                    self.assertTrue(
+                        torch.allclose(
+                            hf_model.state_dict()[key],
+                            bt_model_from_load.state_dict()[key],
+                        )
+                    )
+
+
+                
+
+
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
     r"""
     Utility function to generate a batch of random sequences, together with their

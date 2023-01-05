@@ -14,6 +14,8 @@
 import torch
 import torch.nn as nn
 
+from copy import deepcopy
+
 from ...utils import logging
 
 
@@ -29,7 +31,7 @@ logger = logging.get_logger(__name__)
 
 
 class BetterTransformerBaseLayer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, old_layer=None):
         super().__init__()
         self.norm_first = False
         self.use_gelu = False
@@ -60,6 +62,13 @@ class BetterTransformerBaseLayer(nn.Module):
             if hasattr(config, attr):
                 self.num_layers = getattr(config, attr)
                 break
+        
+        if old_layer is not None:
+            # Last step, store the old module skeleton by copying the old module and putting
+            # it on the `meta` device.
+            self.old_layer = deepcopy(old_layer).to("meta")
+        else:
+            self.old_layer = old_layer
 
     def validate_bettertransformer(self):
         r"""
@@ -115,3 +124,10 @@ class BetterTransformerBaseLayer(nn.Module):
                 "Training is not supported for `BetterTransformer` integration.",
                 " Please use `model.eval()` before running the model.",
             )
+    
+    def _replace_to_original_module(self):
+        r"""
+        A wrapper function to replace the current layer with the previous non-BetterTransformer
+        layer.
+        """
+        raise NotImplementedError("Please implement this method in the `BetterTransformerLayer` class to benefit from the `BetterTransformer` inverse transformation.")

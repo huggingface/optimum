@@ -79,6 +79,31 @@ def replace_to_bettertransformer(model, config):
     return model
 
 
+def invert_to_old_model(bt_model):
+    r"""
+    Replaces the BT-converted model to its old variant, to be able to safely store the weights
+    of a trained model.
+
+    Args:
+        `model` (`torch.nn.Module`):
+            The input converted model
+    Returns:
+        The invert-converted model
+    """
+
+    for name, module in bt_model.named_children():
+        if len(list(module.children())) > 0:
+            # we may explicitly exclude part of the model to use BetterTransformer
+            invert_to_old_model(module)
+
+        is_invert_compatible = hasattr(module, 'old_layer') and module.old_layer is not None
+
+        if is_invert_compatible:
+            bt_model._modules[name] = module._replace_to_original_module()
+            module = None
+    return bt_model
+
+
 def set_last_layer(model: torch.nn.Module):
     r"""
     Iterates over the module list containing the `LayerBetterTransformer` modules. Sets the last layer's `is_last_layer`
@@ -236,3 +261,17 @@ class BetterTransformer(object):
         setattr(model_fast, "save_pretrained", warn_uncompatible_save(model_fast.save_pretrained))
 
         return model_fast
+    
+    @check_if_pytorch_greater(
+        "1.13.0",
+        "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
+    )
+    def inverse_transform(
+        model: torch.nn.Module, **kwargs
+    ) -> torch.nn.Module:
+        # Step 1: check if the model has the attribute `use_bettertransformer`
+        if not getattr(model, "use_bettertransformer", False):
+            raise ValueError("You should inverse_transform a model that has been already transformed to a `BetterTransformer` format.")
+
+        model = invert_to_old_model(model)
+        return model
