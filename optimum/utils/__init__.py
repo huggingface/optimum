@@ -38,6 +38,7 @@ from .input_generators import (
     DummyTimestepInputGenerator,
     DummyTrainingLabelsInputGenerator,
     DummyVisionInputGenerator,
+    DummyVisualBertInputGenerator,
 )
 from .normalized_config import (
     NormalizedConfig,
