@@ -1216,9 +1216,9 @@ class RoFormerLayerBetterTransformer(BetterTransformerBaseLayer):
         self.in_proj_bias = nn.Parameter(
             torch.cat(
                 [
-                    roformer_layer.attention.self.query.weight,
-                    roformer_layer.attention.self.key.weight,
-                    roformer_layer.attention.self.value.weight,
+                    roformer_layer.attention.self.query.bias,
+                    roformer_layer.attention.self.key.bias,
+                    roformer_layer.attention.self.value.bias,
                 ]
             )
         )
