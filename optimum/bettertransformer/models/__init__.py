@@ -50,6 +50,7 @@ class BetterTransformerManager:
         "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
         "rembert": ("RemBertLayer", BertLayerBetterTransformer),
         "roberta": ("RobertaLayer", BertLayerBetterTransformer),
+        "roformer": ("RoFormerLayer", RoFormerLayerBetterTransformer),
         "splinter": ("SplinterLayer", BertLayerBetterTransformer),
         "tapas": ("TapasLayer", BertLayerBetterTransformer),
         "vilt": ("ViltLayer", ViltLayerBetterTransformer),
@@ -60,7 +61,6 @@ class BetterTransformerManager:
         "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
         "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
         "yolos": ("YolosLayer", ViTLayerBetterTransformer),
-        "roformer": ("RoFormerLayer", RoFormerLayerBetterTransformer),
     }
 
     EXCLUDE_FROM_TRANSFORM = {
