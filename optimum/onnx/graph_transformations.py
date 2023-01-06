@@ -16,7 +16,7 @@ from collections import defaultdict
 from typing import DefaultDict, Dict, List, Set, Tuple
 
 import onnx
-from onnx import ModelProto, ValueInfoProto
+from onnx import ModelProto, TensorProto, ValueInfoProto, helper
 
 
 def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
@@ -108,7 +108,7 @@ def replace_atenops_to_gather(model: ModelProto):
     for node in nodes:
         if node.op_type in ["ATenOp", "ATen"]:
             op_num = node.name.split("_")[-1]
-            new_node = onnx.helper.make_node(
+            new_node = helper.make_node(
                 "Gather",
                 name="Gather_" + op_num,
                 inputs=[node.input[0], node.input[1]],
@@ -164,7 +164,7 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
                 )
             model1.graph.output.remove(model_output_1)
 
-            new_output = onnx.helper.make_tensor_value_info(
+            new_output = helper.make_tensor_value_info(
                 model_output_2.name,
                 model_output_2.type.tensor_type.elem_type,
                 _infer_output_shape(model_output_2),
@@ -241,14 +241,14 @@ def merge_decoders(
     deduplicated_initializers = _deduplicated_cross_model_initializers([decoder, decoder_with_past], suffix=graph_name)
 
     # Make subgraphs
-    no_past_branch = onnx.helper.make_graph(
+    no_past_branch = helper.make_graph(
         nodes=decoder.graph.node,
         name="no_past",
         inputs=[],
         outputs=decoder.graph.output,
         initializer=[],
     )
-    with_past_branch = onnx.helper.make_graph(
+    with_past_branch = helper.make_graph(
         nodes=decoder_with_past.graph.node,
         name="with_past",
         inputs=[],
@@ -257,12 +257,12 @@ def merge_decoders(
     )
 
     # Merge subgraphs with a `If` node
-    use_cache = onnx.helper.make_tensor_value_info(
+    use_cache = make_tensor_value_info(
         name="use_cache",
         elem_type=onnx.TensorProto.BOOL,
         shape=[1],
     )
-    if_node = onnx.helper.make_node(
+    if_node = make_node(
         "If",
         inputs=["use_cache"],
         outputs=[output.name for output in no_past_branch.output],
@@ -270,7 +270,7 @@ def merge_decoders(
         then_branch=with_past_branch,
         else_branch=no_past_branch,
     )
-    merged_graph = onnx.helper.make_graph(
+    merged_graph = make_graph(
         nodes=[if_node],
         name=graph_name,
         inputs=all_inputs + [use_cache],
@@ -283,11 +283,11 @@ def merge_decoders(
         raise ValueError(
             f"Decoder's opset is {decoder_opset}, but decoder with past's opset is {decoder_with_past_opset}. Make sure having the same opset before merging."
         )
-    merged_model = onnx.helper.make_model(
+    merged_model = make_model(
         merged_graph,
         producer_name=producer_name,
         opset_imports=[
-            onnx.helper.make_opsetid(
+            make_opsetid(
                 domain=onnx.defs.ONNX_DOMAIN,
                 version=decoder_opset,
             )
@@ -296,3 +296,73 @@ def merge_decoders(
     onnx.checker.check_model(merged_model)
 
     return merged_model
+
+
+def embedd_loop_in_unet(unet: ModelProto) -> ModelProto:
+    graph = unet.graph
+
+    # Defining inputs and outputs before creating the loop node.
+    # TODO: check when it is not needed to create a value info and a string is enough.
+    num_iteration_in = helper.make_tensor_value_info("num_iterations", TensorProto.INT64, [])
+
+    sample_in = ValueInfoProto().FromString(graph.input[0].SerializeToString())
+    sample_in.name = "initial_sample"
+    sample_out = ValueInfoProto().FromString(graph.input[0].SerializeToString())
+
+    encoder_hidden_states_in = ValueInfoProto().FromString(graph.input[2].SerializeToString())
+    encoder_hidden_states_out = ValueInfoProto().FromString(graph.input[2].SerializeToString())
+    encoder_hidden_states_out.name = f"{encoder_hidden_states_out.name}_out"
+
+    # UNet inputs are (sample, timestep, encoder_hidden_states)
+    # Changing them to match the Onnx::Loop specification.
+    graph.input.pop(1)
+    iteraration_num_in = helper.make_tensor_value_info("iteration_num", TensorProto.INT64, [])
+    graph.input.insert(0, iteraration_num_in)
+
+    cond_in = helper.make_tensor_value_info("cond_in", TensorProto.BOOL, [])
+    graph.input.insert(1, cond_in)
+
+    # Unet outputs are (out_sample,)
+    # Changing them to match the Onnx::Loop specification.
+    cond_out = helper.make_tensor_value_info("cond_out", TensorProto.BOOL, [])
+    graph.output.insert(0, cond_out)
+
+    graph.output.append(encoder_hidden_states_in)
+
+    res_scan_out = helper.make_tensor_value_info("res_scan", TensorProto.FLOAT, None)
+    graph.output.append(res_scan_out)
+
+    # Adding nodes needed to make the body graph of the loop compatible.
+    graph.node.append(helper.make_node("Identity", ["cond_in"], ["cond_out"]))
+    graph.node.append(helper.make_node("Constant", [], ["res_scan"], value_float=0.0))  # Any value, will not be used.
+    graph.node.insert(0, helper.make_node("Shape", [sample_in.name], ["timestep_shape"], end=1))
+    graph.node.insert(
+        1,
+        helper.make_node(
+            "Expand",
+            [iteraration_num_in.name, "timestep_shape"],
+            ["timestep"],
+        ),
+    )
+
+    loop_node = helper.make_node(
+        "Loop",
+        [num_iteration_in.name, "", sample_in.name, encoder_hidden_states_in.name],
+        [sample_out.name, encoder_hidden_states_out.name, res_scan_out.name],
+        body=graph,
+    )
+
+    # TODO: make it so that the output name is the same as the original model output name.
+    output = ValueInfoProto().FromString(graph.output[1].SerializeToString())
+    output.name = sample_out.name
+
+    loop_graph = helper.make_graph(
+        [loop_node],
+        "UNet with embedded loop",
+        [num_iteration_in, sample_in, encoder_hidden_states_in],
+        [output],
+    )
+
+    model_def = helper.make_model(loop_graph, producer_name="optimum")
+    onnx.checker.check_model(model_def)
+    return model_def
