@@ -116,6 +116,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "albert": "albert-base-v2",
     "beit": "microsoft/beit-base-patch16-224",
     "bert": "bert-base-cased",
+    "visual-bert": "uclanlp/visualbert-vqa",
     "bart": "facebook/bart-base",
     "big-bird": "google/bigbird-roberta-base",
     "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",  # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
