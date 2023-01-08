@@ -84,6 +84,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
+    "visual-bert": "hf-internal-testing/tiny-random-VisualBertModel",
     "vit": "hf-internal-testing/tiny-random-vit",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken

@@ -84,22 +84,7 @@ class OnnxConfigTestCase(TestCase):
     """
 
     # TODO: insert relevant tests here.
-    def validation(self):
-        from transformers import AutoModel
-        import onnx
-        base_model = AutoModel.from_pretrained("uclanlp/visualbert-vqa")
 
-        onnx_path = Path("model.onnx")
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor("onnx", base_model)
-        onnx_config = onnx_config_constructor(base_model.config)
-
-        onnx_inputs, onnx_outputs = export(base_model, onnx_config, onnx_path, onnx_config.DEFAULT_ONNX_OPSET)
-
-        onnx_model = onnx.load("model.onnx")
-
-        onnx.checker.check_model(onnx_model)
-
-        validate_model_outputs(onnx_config, base_model, onnx_path, onnx_outputs, onnx_config.ATOL_FOR_VALIDATION)
 
 class OnnxConfigWithPastTestCase(TestCase):
     """
