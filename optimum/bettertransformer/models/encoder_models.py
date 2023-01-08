@@ -1193,6 +1193,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         else:
             return config.hidden_act
 
+
 class RoFormerLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, roformer_layer, config):
         r"""

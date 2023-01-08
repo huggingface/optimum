@@ -21,11 +21,11 @@ from .encoder_models import (
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,
+    RoFormerLayerBetterTransformer,
     ViltLayerBetterTransformer,
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
-    RoFormerLayerBetterTransformer,
 )
 
 
