@@ -463,6 +463,130 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             hidden_states = hidden_states.to_padded_tensor(0.0, original_shape)
         return (hidden_states,)
 
+class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
+    def __init__(self, detr_encoder_layer, config):
+        super().__init__(config)
+        # In_proj layer
+        self.in_proj_weight = nn.Parameter(
+            torch.cat(
+                [
+                    detr_encoder_layer.self_attn.q_proj.weight,
+                    detr_encoder_layer.self_attn.k_proj.weight,
+                    detr_encoder_layer.self_attn.v_proj.weight,
+                ]
+            )
+        )
+        self.in_proj_bias = nn.Parameter(
+            torch.cat(
+                [
+                    detr_encoder_layer.self_attn.q_proj.bias,
+                    detr_encoder_layer.self_attn.k_proj.bias,
+                    detr_encoder_layer.self_attn.v_proj.bias,
+                ]
+            )
+        )
+        self.out_proj_weight = detr_encoder_layer.self_attn.out_proj.weight
+        self.out_proj_bias = detr_encoder_layer.self_attn.out_proj.bias
+        self.linear1_weight = detr_encoder_layer.fc1.weight
+        self.linear1_bias = detr_encoder_layer.fc1.bias
+        self.linear2_weight = detr_encoder_layer.fc2.weight
+        self.linear2_bias = detr_encoder_layer.fc2.bias
+        # Layer norm 1
+        self.norm1_eps = detr_encoder_layer.self_attn_layer_norm.eps
+        self.norm1_weight = detr_encoder_layer.self_attn_layer_norm.weight
+        self.norm1_bias = detr_encoder_layer.self_attn_layer_norm.bias
+
+        # Layer norm 2
+        self.norm2_eps = detr_encoder_layer.final_layer_norm.eps
+        self.norm2_weight = detr_encoder_layer.final_layer_norm.weight
+        self.norm2_bias = detr_encoder_layer.final_layer_norm.bias
+
+        self.num_heads = detr_encoder_layer.self_attn.num_heads
+        self.embed_dim = detr_encoder_layer.self_attn.embed_dim
+
+        self.is_last_layer = False
+        self.norm_first = True
+        self.validate_bettertransformer()
+
+        def forward(self, hidden_states, attention_mask, *_, **__):
+            r"""
+            This is just a wrapper around the forward function proposed in:
+            https://github.com/huggingface/transformers/pull/19553
+            """
+            super().forward_checker()
+
+            # we expect attention_mask to be None in the vision model
+            if attention_mask is not None:
+                raise ValueError(
+                    "Please do not use attention masks when using `BetterTransformer` converted vision models"
+                )
+
+            hidden_states = torch._transformer_encoder_layer_fwd(
+                hidden_states,
+                self.embed_dim,
+                self.num_heads,
+                self.in_proj_weight,
+                self.in_proj_bias,
+                self.out_proj_weight,
+                self.out_proj_bias,
+                self.use_gelu,
+                self.norm_first,
+                self.norm1_eps,
+                self.norm1_weight,
+                self.norm1_bias,
+                self.norm2_weight,
+                self.norm2_bias,
+                self.linear1_weight,
+                self.linear1_bias,
+                self.linear2_weight,
+                self.linear2_bias,
+                attention_mask,
+            )
+
+        def forward(self, hidden_states, attention_mask, *_, **__):
+            r"""
+            This is just a wrapper around the forward function proposed in:
+            https://github.com/huggingface/transformers/pull/19553
+            """
+            super().forward_checker()
+
+            # we expect attention_mask to be None in the vision model
+            if attention_mask is not None:
+                raise ValueError(
+                    "Please do not use attention masks when using `BetterTransformer` converted vision models"
+                )
+
+            hidden_states = torch._transformer_encoder_layer_fwd(
+                hidden_states,
+                self.embed_dim,
+                self.num_heads,
+                self.in_proj_weight,
+                self.in_proj_bias,
+                self.out_proj_weight,
+                self.out_proj_bias,
+                self.use_gelu,
+                self.norm_first,
+                self.norm1_eps,
+                self.norm1_weight,
+                self.norm1_bias,
+                self.norm2_weight,
+                self.norm2_bias,
+                self.linear1_weight,
+                self.linear1_bias,
+                self.linear2_weight,
+                self.linear2_bias,
+                attention_mask,
+            )
+
+            return (hidden_states,)
+
+        def _get_activation_function(self, config: "PretrainedConfig"):
+            if hasattr(config, "vision_config") and hasattr(config, "text_config"):
+                assert config.vision_config.hidden_act == config.text_config.hidden_act
+                return config.vision_config.hidden_act
+            else:
+                return config.hidden_act
+
 
 class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, bert_layer, config):
