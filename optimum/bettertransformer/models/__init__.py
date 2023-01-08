@@ -47,6 +47,7 @@ class BetterTransformerManager:
         "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
         "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
         "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
+        "prophetnet": ("ProphetNetEncoderLayer", ProphetNetEncoderLayerBetterTransformer),
         "rembert": ("RemBertLayer", BertLayerBetterTransformer),
         "roberta": ("RobertaLayer", BertLayerBetterTransformer),
         "splinter": ("SplinterLayer", BertLayerBetterTransformer),
@@ -58,8 +59,7 @@ class BetterTransformerManager:
         "wav2vec2": ("Wav2Vec2EncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
         "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
         "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
-        "yolos": ("YolosLayer", ViTLayerBetterTransformer),
-        "prophetnet": ("ProphetNetEncoderLayer", ProphetNetEncoderLayerBetterTransformer)
+        "yolos": ("YolosLayer", ViTLayerBetterTransformer)
     }
 
     EXCLUDE_FROM_TRANSFORM = {
