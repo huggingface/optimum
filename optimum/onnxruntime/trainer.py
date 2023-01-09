@@ -129,6 +129,54 @@ SCHEDULER_NAME = "scheduler.pt"
 SCALER_NAME = "scaler.pt"
 
 
+class ModuleWithLoss(nn.Module):
+    def __init__(self, model, args) -> None:
+        super().__init__()
+        self._original_model = model
+        self.args = args
+        # Label smoothing
+        if self.args.label_smoothing_factor != 0:
+            from transformers.trainer_pt_utils import LabelSmoother
+
+            self.label_smoother = LabelSmoother(epsilon=self.args.label_smoothing_factor)
+        else:
+            self.label_smoother = None
+
+    def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
+        if self.label_smoother is not None and "labels" in inputs:
+            labels = inputs.pop("labels")
+        else:
+            labels = None
+        outputs = self._original_model(**inputs)
+
+        # Save past state if it exists
+        # TODO: this needs to be fixed and made cleaner later.
+        if self.args.past_index >= 0:
+            self._past = outputs[self.args.past_index]
+
+        if labels is not None:
+            from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+
+            if unwrap_model(self._original_model)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
+                loss = self.label_smoother(outputs, labels, shift_labels=True)
+            else:
+                loss = self.label_smoother(outputs, labels)
+        else:
+            if isinstance(outputs, dict) and "loss" not in outputs:
+                raise ValueError(
+                    "The model did not return a loss from the inputs, only the following keys: "
+                    f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
+                )
+            # We don't use .loss here since the model may return tuples instead of ModelOutput.
+            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+        return (loss, outputs) if return_outputs else loss
+
+    @property
+    def config(self):
+        return self._original_model.config
+
+
 class ORTFeaturesManager:
     _TASKS_TO_ORTMODELS = {
         "default": ORTModelForFeatureExtraction,
@@ -259,12 +307,61 @@ class ORTTrainer(Trainer):
             optimizers=optimizers,
             preprocess_logits_for_metrics=preprocess_logits_for_metrics,
         )
-
+        self._training_model = ModuleWithLoss(model, args)
+        self.model = model
+        self._inferencing_model = model
         self.feature = feature
         self.onnx_model_path = onnx_model_path
         self.exported_with_loss = False
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
+
+    def _set_signature_columns_if_needed(self):
+        if self._signature_columns is None:
+            # Inspect model forward signature to keep only the arguments it accepts.
+            import inspect
+
+            if self.model == self._training_model:
+                signature = inspect.signature(self.model._original_model.forward)
+            else:
+                signature = inspect.signature(self.model.forward)
+
+            self._signature_columns = list(signature.parameters.keys())
+            # Labels may be named label or label_ids, the default data collator handles that.
+            self._signature_columns += list(set(["label", "label_ids"] + self.label_names))
+
+    def compute_loss(self, model_with_loss, inputs, return_outputs=False):
+        # Run model forward + loss compute.
+        if self.model == self._training_model:
+            outputs = model_with_loss(inputs, return_outputs)
+            return outputs
+        else:
+
+            if self.label_smoother is not None and "labels" in inputs:
+                labels = inputs.pop("labels")
+            else:
+                labels = None
+                outputs = model_with_loss(**inputs)
+                # Save past state if it exists
+                # TODO: this needs to be fixed and made cleaner later.
+                if self.args.past_index >= 0:
+                    self._past = outputs[self.args.past_index]
+
+                if labels is not None:
+                    if unwrap_model(model_with_loss)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
+                        loss = self.label_smoother(outputs, labels, shift_labels=True)
+                    else:
+                        loss = self.label_smoother(outputs, labels)
+                else:
+                    if isinstance(outputs, dict) and "loss" not in outputs:
+                        raise ValueError(
+                            "The model did not return a loss from the inputs, only the following keys: "
+                            f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
+                        )
+                    # We don't use .loss here since the model may return tuples instead of ModelOutput.
+                    loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+                return (loss, outputs) if return_outputs else loss
 
     def train(
         self,
@@ -289,7 +386,7 @@ class ORTTrainer(Trainer):
             kwargs:
                 Additional keyword arguments used to hide deprecated arguments
         """
-
+        self.model = self._training_model
         if resume_from_checkpoint is False:
             resume_from_checkpoint = None
 
@@ -437,7 +534,7 @@ class ORTTrainer(Trainer):
                     RuntimeWarning,
                 )
 
-            self.model = model
+            self.model = self._training_model
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
             )
@@ -564,7 +661,6 @@ class ORTTrainer(Trainer):
                     # Otherwise we need to call the whooooole sampler cause there is some random operation added
                     # AT THE VERY END!
                     _ = list(train_dataloader.sampler)
-
         for epoch in range(epochs_trained, num_train_epochs):
             if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
                 train_dataloader.sampler.set_epoch(epoch)
@@ -774,6 +870,7 @@ class ORTTrainer(Trainer):
             dictionary also contains the epoch number which comes from the training state.
         """
         # memory metrics - must set up as early as possible
+        self.model = self._inferencing_model
         self._memory_tracker.start()
 
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
@@ -1609,11 +1706,7 @@ class ORTTrainer(Trainer):
                 optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
             if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                self.optimizer = OSS(
-                    params=optimizer_grouped_parameters,
-                    optim=optimizer_cls,
-                    **optimizer_kwargs,
-                )
+                self.optimizer = OSS(params=optimizer_grouped_parameters, optim=optimizer_cls, **optimizer_kwargs,)
             else:
                 self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
                 if optimizer_cls.__name__ == "Adam8bit":
