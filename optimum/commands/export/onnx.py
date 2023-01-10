@@ -126,6 +126,12 @@ def parse_args_onnx(parser):
         help=f"Image tasks only. Number of channels {doc_input}",
     )
     input_group.add_argument(
+        "--num_of_detection_patches",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["num_of_detection_patches"],
+        help=f"Image tasks who use object detectors as preprocessors only. {doc_input}",
+    )
+    input_group.add_argument(
         "--feature_size",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["feature_size"],
@@ -143,6 +149,7 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
+
 
 
 class ONNXExportCommand:

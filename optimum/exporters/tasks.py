@@ -105,6 +105,8 @@ class TasksManager:
             "audio-ctc": "AutoModelForCTC",
             "audio-xvector": "AutoModelForAudioXVector",
             "stable-diffusion": "StableDiffusionPipeline",
+            "visual-question-answering": "AutoModelForVisualQuestionAnswering",
+
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -138,7 +140,9 @@ class TasksManager:
         "audio-classification": "transformers",
         "audio-frame-classification": "transformers",
         "audio-xvector": "transformers",
+        "visual-question-answering":"transformers",
         "stable-diffusion": "diffusers",
+
     }
 
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
@@ -172,7 +176,7 @@ class TasksManager:
             "default",
             "visual-question-answering",
             "multiple-choice",
-            "visual-reasoning",
+            "natural-language-for-visual-reasoning",
             "region-to-phrase-alignment",
             onnx="VisualBertOnnxConfig",
         ),

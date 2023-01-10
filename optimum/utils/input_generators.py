@@ -53,7 +53,7 @@ DEFAULT_DUMMY_SHAPES = {
     "width": 64,
     "height": 64,
     "num_channels": 3,
-    "num_of_detection_patches": 5,
+    "visual_seq_length": 5,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -638,14 +638,14 @@ class DummyVisualBertInputGenerator(DummyTextInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedTextConfig,
-        num_of_detection_patches: int = DEFAULT_DUMMY_SHAPES["num_of_detection_patches"],
+        visual_seq_length: int = DEFAULT_DUMMY_SHAPES["visual_seq_length"],
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
     ):
 
         super().__init__(task, normalized_config)
-        self.num_of_detection_patches = num_of_detection_patches
+        self.visual_seq_length = visual_seq_length
 
     def generate(self, input_name: str, framework: str = "pt"):
         # TODO maybe the following should be checked with the model checkpoint_path and checking existance of for example "vqa" substring is better
@@ -653,10 +653,10 @@ class DummyVisualBertInputGenerator(DummyTextInputGenerator):
             visual_embedding_dim = 2048
         elif self.task == "multiple-choice":
             visual_embedding_dim = 512
-        elif self.task == "visual-reasoning":
+        elif self.task == "natural-language-for-visual-reasoning":
             visual_embedding_dim = 1024
 
-        shape = [self.batch_size, self.num_of_detection_patches, visual_embedding_dim]
+        shape = [self.batch_size, self.visual_seq_length, visual_embedding_dim]
         visual_embeddings = self.random_float_tensor(shape, framework=framework)
         if self.task == "multiple-choice":
             visual_embeddings.expand(1, 2, *shape)

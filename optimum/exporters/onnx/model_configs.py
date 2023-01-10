@@ -91,7 +91,7 @@ class VisualBertOnnxConfig(BertOnnxConfig):
             "visual_attention_mask": {0: "batch_size", 1: "visual_seq_length"},
         }
         if self.task == "region-to-phrase-alignment":
-            result.update({"region_to_phrase_position": {0: "batch_size", 1: "total_sequence_length"}})
+            result.update({"region_to_phrase_position": {0: "batch_size", 1: "visual_seq_length"}})
         return result
 
 
