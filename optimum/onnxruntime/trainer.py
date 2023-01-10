@@ -23,7 +23,6 @@ import time
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
-
 from tqdm.auto import tqdm
 
 
@@ -32,6 +31,7 @@ from transformers.integrations import (  # isort: split
     hp_params,
     is_fairscale_available,
 )
+
 
 import numpy as np
 import torch
@@ -46,6 +46,7 @@ from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
+from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 from transformers.file_utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
@@ -341,27 +342,28 @@ class ORTTrainer(Trainer):
                 labels = inputs.pop("labels")
             else:
                 labels = None
-                outputs = model_with_loss(**inputs)
-                # Save past state if it exists
-                # TODO: this needs to be fixed and made cleaner later.
-                if self.args.past_index >= 0:
-                    self._past = outputs[self.args.past_index]
 
-                if labels is not None:
-                    if unwrap_model(model_with_loss)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
-                        loss = self.label_smoother(outputs, labels, shift_labels=True)
-                    else:
-                        loss = self.label_smoother(outputs, labels)
+            outputs = model_with_loss(**inputs)
+            # Save past state if it exists
+            # TODO: this needs to be fixed and made cleaner later.
+            if self.args.past_index >= 0:
+                self._past = outputs[self.args.past_index]
+
+            if labels is not None:
+                if unwrap_model(model_with_loss)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
+                    loss = self.label_smoother(outputs, labels, shift_labels=True)
                 else:
-                    if isinstance(outputs, dict) and "loss" not in outputs:
-                        raise ValueError(
-                            "The model did not return a loss from the inputs, only the following keys: "
-                            f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
-                        )
-                    # We don't use .loss here since the model may return tuples instead of ModelOutput.
-                    loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+                    loss = self.label_smoother(outputs, labels)
+            else:
+                if isinstance(outputs, dict) and "loss" not in outputs:
+                    raise ValueError(
+                        "The model did not return a loss from the inputs, only the following keys: "
+                        f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
+                    )
+                # We don't use .loss here since the model may return tuples instead of ModelOutput.
+                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
-                return (loss, outputs) if return_outputs else loss
+            return (loss, outputs) if return_outputs else loss
 
     def train(
         self,
@@ -1706,7 +1708,11 @@ class ORTTrainer(Trainer):
                 optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
             if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                self.optimizer = OSS(params=optimizer_grouped_parameters, optim=optimizer_cls, **optimizer_kwargs,)
+                self.optimizer = OSS(
+                    params=optimizer_grouped_parameters,
+                    optim=optimizer_cls,
+                    **optimizer_kwargs,
+                )
             else:
                 self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
                 if optimizer_cls.__name__ == "Adam8bit":
