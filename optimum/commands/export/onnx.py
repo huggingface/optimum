@@ -126,9 +126,9 @@ def parse_args_onnx(parser):
         help=f"Image tasks only. Number of channels {doc_input}",
     )
     input_group.add_argument(
-        "--num_of_detection_patches",
+        "--visual_seq_length",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["num_of_detection_patches"],
+        default=DEFAULT_DUMMY_SHAPES["visual_seq_length"],
         help=f"Image tasks who use object detectors as preprocessors only. {doc_input}",
     )
     input_group.add_argument(
