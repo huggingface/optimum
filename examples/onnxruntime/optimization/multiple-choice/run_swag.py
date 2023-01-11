@@ -100,8 +100,7 @@ class DataTrainingArguments:
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_seq_length: Optional[int] = field(
         default=1024,
@@ -159,8 +158,7 @@ class OptimizationArguments:
         },
     )
     execution_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+        default="CPUExecutionProvider", metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -171,8 +169,7 @@ class OnnxExportArguments:
     """
 
     use_external_data_format: bool = field(
-        default=False,
-        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+        default=False, metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
     )
     one_external_file: bool = field(
         default=True,

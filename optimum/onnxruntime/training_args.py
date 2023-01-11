@@ -61,8 +61,7 @@ class ORTTrainingArguments(TrainingArguments):
     """
 
     optim: Optional[str] = field(
-        default="adamw_hf",
-        metadata={"help": "The optimizer to use."},
+        default="adamw_hf", metadata={"help": "The optimizer to use."},
     )
 
     # This method will not need to be overriden after the deprecation of `--adafactor` in version 5 of 🤗 Transformers.

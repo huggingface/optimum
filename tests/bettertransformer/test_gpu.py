@@ -90,13 +90,7 @@ class TestSpeedup(unittest.TestCase):
         """
         num_batches = 50
 
-        total_bt_time, total_hf_time = benchmark(
-            model_name,
-            num_batches,
-            batch_size,
-            sequence_length,
-            use_half,
-        )
+        total_bt_time, total_hf_time = benchmark(model_name, num_batches, batch_size, sequence_length, use_half,)
 
         speedup = total_hf_time / total_bt_time
 

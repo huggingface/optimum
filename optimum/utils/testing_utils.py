@@ -92,8 +92,7 @@ def require_ort_training(test_case):
     These tests are skipped otherwise.
     """
     return unittest.skipUnless(
-        is_ort_training_available(),
-        "test requires torch_ort correctly installed and configured",
+        is_ort_training_available(), "test requires torch_ort correctly installed and configured",
     )(test_case)
 
 

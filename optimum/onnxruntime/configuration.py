@@ -145,11 +145,7 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def entropy(
-        dataset: Dataset,
-        num_bins: int = 128,
-        num_quantized_bins: int = 128,
-    ) -> CalibrationConfig:
+    def entropy(dataset: Dataset, num_bins: int = 128, num_quantized_bins: int = 128,) -> CalibrationConfig:
         """
         Args:
             dataset (`Dataset`):
@@ -755,14 +751,8 @@ class AutoOptimizationConfig:
     """
 
     _LEVELS = {
-        "O1": {
-            "optimization_level": 1,
-            "enable_transformers_specific_optimizations": False,
-        },
-        "O2": {
-            "optimization_level": 2,
-            "enable_transformers_specific_optimizations": True,
-        },
+        "O1": {"optimization_level": 1, "enable_transformers_specific_optimizations": False,},
+        "O2": {"optimization_level": 2, "enable_transformers_specific_optimizations": True,},
         "O3": {
             "optimization_level": 2,
             "enable_transformers_specific_optimizations": True,

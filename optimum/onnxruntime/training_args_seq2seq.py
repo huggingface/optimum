@@ -30,6 +30,5 @@ class ORTSeq2SeqTrainingArguments(Seq2SeqTrainingArguments, ORTTrainingArguments
     """
 
     optim: Optional[str] = field(
-        default="adamw_hf",
-        metadata={"help": "The optimizer to use."},
+        default="adamw_hf", metadata={"help": "The optimizer to use."},
     )

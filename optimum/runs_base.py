@@ -69,8 +69,7 @@ class Run:
         search_space = {"batch_size": run_config["batch_sizes"], "input_length": run_config["input_lengths"]}
 
         self.study = optuna.create_study(
-            directions=["maximize", "minimize"],
-            sampler=optuna.samplers.GridSampler(search_space),
+            directions=["maximize", "minimize"], sampler=optuna.samplers.GridSampler(search_space),
         )
 
         cpu_info = subprocess.check_output([cpu_info_command()], shell=True).decode("utf-8")
@@ -101,10 +100,7 @@ class Run:
                 "optimum": optimum_version.__version__,
                 "optimum_hash": optimum_hash,
             },
-            "evaluation": {
-                "time": [],
-                "others": {"baseline": {}, "optimized": {}},
-            },
+            "evaluation": {"time": [], "others": {"baseline": {}, "optimized": {}},},
             "max_eval_samples": run_config["max_eval_samples"],
             "time_benchmark_args": run_config["time_benchmark_args"],
         }

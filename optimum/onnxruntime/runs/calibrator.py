@@ -56,8 +56,7 @@ class OnnxRuntimeCalibrator(Calibrator):
             calibration_config = AutoCalibrationConfig.entropy(self.calibration_dataset)
         elif self.calibration_params["method"] == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
-                self.calibration_dataset,
-                percentile=self.calibration_params["calibration_histogram_percentile"],
+                self.calibration_dataset, percentile=self.calibration_params["calibration_histogram_percentile"],
             )
         else:
             calibration_config = AutoCalibrationConfig.minmax(

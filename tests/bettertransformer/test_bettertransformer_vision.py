@@ -94,42 +94,24 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     def compare_outputs(self, hf_hidden_states, bt_hidden_states, atol: float, model_name: str):
         # CLIP returns a 2D tensor
         self.assert_equal(
-            tensor1=hf_hidden_states,
-            tensor2=bt_hidden_states,
-            atol=atol,
-            model_name=model_name,
+            tensor1=hf_hidden_states, tensor2=bt_hidden_states, atol=atol, model_name=model_name,
         )
 
     # run the test over all possible combinations of `model_id` and `padding`
     @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION,
-                "padding": ["max_length", True],
-            }
-        )
+        grid_parameters({"model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION, "padding": ["max_length", True],})
     )
     def test_logits(self, test_name: str, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
 
     @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION,
-                "padding": ["max_length", True],
-            }
-        )
+        grid_parameters({"model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION, "padding": ["max_length", True],})
     )
     def test_raise_autocast(self, test_name: str, model_id, padding, max_length=20):
         super().test_raise_autocast([model_id], padding=padding, max_length=max_length)
 
     @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION,
-                "padding": ["max_length", True],
-            }
-        )
+        grid_parameters({"model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION, "padding": ["max_length", True],})
     )
     def test_raise_train(self, test_name: str, model_id, padding, max_length=20):
         super().test_raise_train([model_id], padding=padding, max_length=max_length)

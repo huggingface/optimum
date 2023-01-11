@@ -280,12 +280,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
 
     # run the test over all possible combinations of `model_id` and `padding`
     @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": ALL_ENCODER_DECODER_MODELS_TO_TEST,
-                "padding": ["max_length", True],
-            }
-        )
+        grid_parameters({"model_id": ALL_ENCODER_DECODER_MODELS_TO_TEST, "padding": ["max_length", True],})
     )
     def test_logits(self, test_name: str, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
@@ -304,20 +299,10 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     # need at least a sequence length of 1 for BetterTransformer to work
     lengths = torch.clamp(lengths, min=1, max=max_sequence_length)
 
-    tokens = torch.full(
-        (batch_size, max_sequence_length),
-        pad_idx,
-    )
+    tokens = torch.full((batch_size, max_sequence_length), pad_idx,)
     for i in range(batch_size):
-        tokens[i, : lengths[i]] = torch.randint(
-            pad_idx + 1,
-            vocab_size - 1,
-            size=(lengths[i],),
-        )
-    mask = torch.full(
-        (batch_size, max_sequence_length),
-        0,
-    )
+        tokens[i, : lengths[i]] = torch.randint(pad_idx + 1, vocab_size - 1, size=(lengths[i],),)
+    mask = torch.full((batch_size, max_sequence_length), 0,)
     for i in range(batch_size):
         mask[i, : lengths[i]] = 1
     return tokens, lengths, mask

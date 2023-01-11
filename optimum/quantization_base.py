@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 class OptimumQuantizer(ABC):
     @classmethod
     def from_pretrained(
-        cls,
-        model_or_path: Union[str, Path],
-        file_name: Optional[str] = None,
+        cls, model_or_path: Union[str, Path], file_name: Optional[str] = None,
     ):
         """Overwrite this method in subclass to define how to load your model from pretrained"""
         raise NotImplementedError(

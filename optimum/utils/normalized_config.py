@@ -95,17 +95,11 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
 
 
 BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_attention_heads="encoder_attention_heads",
-    hidden_size="d_model",
+    num_attention_heads="encoder_attention_heads", hidden_size="d_model",
 )
 GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="n_head", hidden_size="n_embd")
-T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_attention_heads="num_heads",
-    hidden_size="d_model",
-)
-WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    hidden_size="d_model",
-)
+T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="num_heads", hidden_size="d_model",)
+WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(hidden_size="d_model",)
 
 
 class NormalizedConfigManager:

@@ -159,8 +159,7 @@ class DataTrainingArguments:
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
     )
     mlm_probability: float = field(
         default=0.15, metadata={"help": "Ratio of tokens to mask for masked language modeling loss"}
@@ -218,8 +217,7 @@ class InferenceArguments:
     """
 
     inference_with_ort: bool = field(
-        default=False,
-        metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
+        default=False, metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
     )
 
 

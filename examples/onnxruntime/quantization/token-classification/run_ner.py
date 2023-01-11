@@ -111,12 +111,10 @@ class DataTrainingArguments:
         default=None, metadata={"help": "The input training data file (a csv or JSON file)."}
     )
     validation_file: Optional[str] = field(
-        default=None,
-        metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
+        default=None, metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
     )
     test_file: Optional[str] = field(
-        default=None,
-        metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
+        default=None, metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
     )
     text_column_name: Optional[str] = field(
         default=None, metadata={"help": "The column name of text to input in the file (a csv or JSON file)."}
@@ -128,8 +126,7 @@ class DataTrainingArguments:
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_seq_length: int = field(
         default=None,
@@ -184,12 +181,10 @@ class OptimizationArguments:
     """
 
     quantization_approach: str = field(
-        default="dynamic",
-        metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
+        default="dynamic", metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
     )
     per_channel: bool = field(
-        default=False,
-        metadata={"help": "Whether to quantize the weights per channel."},
+        default=False, metadata={"help": "Whether to quantize the weights per channel."},
     )
     reduce_range: bool = field(
         default=False,
@@ -217,12 +212,10 @@ class OptimizationArguments:
         },
     )
     calibration_batch_size: int = field(
-        default=8,
-        metadata={"help": "The batch size for the calibration step."},
+        default=8, metadata={"help": "The batch size for the calibration step."},
     )
     calibration_histogram_percentile: float = field(
-        default=99.999,
-        metadata={"help": "The percentile used for the percentile calibration method."},
+        default=99.999, metadata={"help": "The percentile used for the percentile calibration method."},
     )
     calibration_moving_average: bool = field(
         default=False,
@@ -240,8 +233,7 @@ class OptimizationArguments:
         },
     )
     execution_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+        default="CPUExecutionProvider", metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -254,8 +246,7 @@ class OnnxExportArguments:
     # TODO: currently onnxruntime put external data in different path than the model proto, which will cause problem on re-loading it.
     # https://github.com/microsoft/onnxruntime/issues/12576
     use_external_data_format: bool = field(
-        default=False,
-        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+        default=False, metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
     )
 
 
@@ -350,10 +341,7 @@ def main():
 
         label2id = PretrainedConfig.from_pretrained(model_args.model_name_or_path).label2id
         try:
-            eval_dataset = eval_dataset.align_labels_with_mapping(
-                label2id=label2id,
-                label_column=label_column_name,
-            )
+            eval_dataset = eval_dataset.align_labels_with_mapping(label2id=label2id, label_column=label_column_name,)
         except Exception as e:
             logger.warning(
                 f"\nModel label mapping: {label2id}"
@@ -512,8 +500,7 @@ def main():
             calibration_config = AutoCalibrationConfig.entropy(calibration_dataset)
         elif optim_args.calibration_method == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
-                calibration_dataset,
-                percentile=optim_args.calibration_histogram_percentile,
+                calibration_dataset, percentile=optim_args.calibration_histogram_percentile,
             )
         else:
             calibration_config = AutoCalibrationConfig.minmax(

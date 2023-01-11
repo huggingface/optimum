@@ -90,8 +90,7 @@ class DataTrainingArguments:
     """
 
     task_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
+        default=None, metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
     )
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
@@ -171,12 +170,10 @@ class OptimizationArguments:
     """
 
     quantization_approach: str = field(
-        default="dynamic",
-        metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
+        default="dynamic", metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
     )
     per_channel: bool = field(
-        default=False,
-        metadata={"help": "Whether to quantize the weights per channel."},
+        default=False, metadata={"help": "Whether to quantize the weights per channel."},
     )
     reduce_range: bool = field(
         default=False,
@@ -204,12 +201,10 @@ class OptimizationArguments:
         },
     )
     calibration_batch_size: int = field(
-        default=8,
-        metadata={"help": "The batch size for the calibration step."},
+        default=8, metadata={"help": "The batch size for the calibration step."},
     )
     calibration_histogram_percentile: float = field(
-        default=99.999,
-        metadata={"help": "The percentile used for the percentile calibration method."},
+        default=99.999, metadata={"help": "The percentile used for the percentile calibration method."},
     )
     calibration_moving_average: bool = field(
         default=False,
@@ -227,8 +222,7 @@ class OptimizationArguments:
         },
     )
     execution_provider: str = field(
-        default="CPUExecutionProvider",
-        metadata={"help": "ONNX Runtime execution provider to use for inference."},
+        default="CPUExecutionProvider", metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -241,8 +235,7 @@ class OnnxExportArguments:
     # TODO: currently onnxruntime put external data in different path than the model proto, which will cause problem on re-loading it.
     # https://github.com/microsoft/onnxruntime/issues/12576
     use_external_data_format: bool = field(
-        default=False,
-        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+        default=False, metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
     )
 
 
@@ -438,8 +431,7 @@ def main():
             calibration_config = AutoCalibrationConfig.entropy(calibration_dataset)
         elif optim_args.calibration_method == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
-                calibration_dataset,
-                percentile=optim_args.calibration_histogram_percentile,
+                calibration_dataset, percentile=optim_args.calibration_histogram_percentile,
             )
         else:
             calibration_config = AutoCalibrationConfig.minmax(

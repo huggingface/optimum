@@ -29,20 +29,8 @@ QUALITY_REQUIRE = ["black~=22.0", "flake8>=3.8.3", "isort>=5.5.4"]
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
 EXTRAS_REQUIRE = {
-    "onnxruntime": [
-        "onnx",
-        "onnxruntime>=1.9.0",
-        "datasets>=1.2.1",
-        "evaluate",
-        "protobuf==3.20.1",
-    ],
-    "onnxruntime-gpu": [
-        "onnx",
-        "onnxruntime-gpu>=1.9.0",
-        "datasets>=1.2.1",
-        "evaluate",
-        "protobuf==3.20.1",
-    ],
+    "onnxruntime": ["onnx", "onnxruntime>=1.9.0", "datasets>=1.2.1", "evaluate", "protobuf==3.20.1",],
+    "onnxruntime-gpu": ["onnx", "onnxruntime-gpu>=1.9.0", "datasets>=1.2.1", "evaluate", "protobuf==3.20.1",],
     "exporters": ["onnx", "onnxruntime", "timm"],
     "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm"],
     "intel": "optimum-intel",

@@ -144,9 +144,7 @@ class TasksManager:
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
         "audio-spectrogram-transformer": supported_tasks_mapping(
-            "default",
-            "audio-classification",
-            onnx="ASTOnnxConfig",
+            "default", "audio-classification", onnx="ASTOnnxConfig",
         ),
         "albert": supported_tasks_mapping(
             "default",
@@ -241,14 +239,8 @@ class TasksManager:
             "question-answering",
             onnx="CamembertOnnxConfig",
         ),
-        "clip": supported_tasks_mapping(
-            "default",
-            onnx="CLIPOnnxConfig",
-        ),
-        "clip-text-model": supported_tasks_mapping(
-            "default",
-            onnx="CLIPTextOnnxConfig",
-        ),
+        "clip": supported_tasks_mapping("default", onnx="CLIPOnnxConfig",),
+        "clip-text-model": supported_tasks_mapping("default", onnx="CLIPTextOnnxConfig",),
         "codegen": supported_tasks_mapping(
             "default",
             # "default-with-past",
@@ -265,11 +257,7 @@ class TasksManager:
             "question-answering",
             onnx="ConvBertOnnxConfig",
         ),
-        "convnext": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="ConvNextOnnxConfig",
-        ),
+        "convnext": supported_tasks_mapping("default", "image-classification", onnx="ConvNextOnnxConfig",),
         "data2vec-text": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -312,12 +300,7 @@ class TasksManager:
             onnx="DebertaV2OnnxConfig",
         ),
         "deit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
-        "detr": supported_tasks_mapping(
-            "default",
-            "object-detection",
-            "image-segmentation",
-            onnx="DetrOnnxConfig",
-        ),
+        "detr": supported_tasks_mapping("default", "object-detection", "image-segmentation", onnx="DetrOnnxConfig",),
         "distilbert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -373,16 +356,8 @@ class TasksManager:
             "sequence-classification",
             onnx="GPTNeoOnnxConfig",
         ),
-        "groupvit": supported_tasks_mapping(
-            "default",
-            onnx="GroupViTOnnxConfig",
-        ),
-        "hubert": supported_tasks_mapping(
-            "default",
-            "audio-ctc",
-            "audio-classification",
-            onnx="HubertOnnxConfig",
-        ),
+        "groupvit": supported_tasks_mapping("default", onnx="GroupViTOnnxConfig",),
+        "hubert": supported_tasks_mapping("default", "audio-ctc", "audio-classification", onnx="HubertOnnxConfig",),
         "ibert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -393,11 +368,7 @@ class TasksManager:
             onnx="IBertOnnxConfig",
         ),
         "layoutlm": supported_tasks_mapping(
-            "default",
-            "masked-lm",
-            "sequence-classification",
-            "token-classification",
-            onnx="LayoutLMOnnxConfig",
+            "default", "masked-lm", "sequence-classification", "token-classification", onnx="LayoutLMOnnxConfig",
         ),
         # "layoutlmv2": supported_tasks_mapping(
         #     "default",
@@ -415,11 +386,7 @@ class TasksManager:
         ),
         "levit": supported_tasks_mapping("default", "image-classification", onnx="LevitOnnxConfig"),
         "longt5": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
-            onnx="LongT5OnnxConfig",
+            "default", "default-with-past", "seq2seq-lm", "seq2seq-lm-with-past", onnx="LongT5OnnxConfig",
         ),
         # "longformer": supported_tasks_mapping(
         #     "default",
@@ -465,34 +432,14 @@ class TasksManager:
             "question-answering",
             onnx="MobileBertOnnxConfig",
         ),
-        "mobilevit": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="MobileViTOnnxConfig",
-        ),
-        "mobilenet-v1": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="MobileNetV1OnnxConfig",
-        ),
-        "mobilenet-v2": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="MobileNetV2OnnxConfig",
-        ),
+        "mobilevit": supported_tasks_mapping("default", "image-classification", onnx="MobileViTOnnxConfig",),
+        "mobilenet-v1": supported_tasks_mapping("default", "image-classification", onnx="MobileNetV1OnnxConfig",),
+        "mobilenet-v2": supported_tasks_mapping("default", "image-classification", onnx="MobileNetV2OnnxConfig",),
         "mt5": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
-            onnx="MT5OnnxConfig",
+            "default", "default-with-past", "seq2seq-lm", "seq2seq-lm-with-past", onnx="MT5OnnxConfig",
         ),
         "m2m-100": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
-            onnx="M2M100OnnxConfig",
+            "default", "default-with-past", "seq2seq-lm", "seq2seq-lm-with-past", onnx="M2M100OnnxConfig",
         ),
         # TODO: owlvit is actually not yet supported in exporters
         # "owlvit": supported_tasks_mapping(
@@ -510,21 +457,10 @@ class TasksManager:
             onnx="PegasusOnnxConfig",
         ),
         "perceiver": supported_tasks_mapping(
-            "masked-lm",
-            "image-classification",
-            "sequence-classification",
-            onnx="PerceiverOnnxConfig",
+            "masked-lm", "image-classification", "sequence-classification", onnx="PerceiverOnnxConfig",
         ),
-        "poolformer": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="PoolFormerOnnxConfig",
-        ),
-        "resnet": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="ResNetOnnxConfig",
-        ),
+        "poolformer": supported_tasks_mapping("default", "image-classification", onnx="PoolFormerOnnxConfig",),
+        "resnet": supported_tasks_mapping("default", "image-classification", onnx="ResNetOnnxConfig",),
         "roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -549,29 +485,12 @@ class TasksManager:
             onnx="RoFormerOnnxConfig",
         ),
         "segformer": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            "semantic-segmentation",
-            onnx="SegformerOnnxConfig",
+            "default", "image-classification", "semantic-segmentation", onnx="SegformerOnnxConfig",
         ),
-        "sew": supported_tasks_mapping(
-            "default",
-            "audio-ctc",
-            "audio-classification",
-            onnx="SEWOnnxConfig",
-        ),
-        "sew-d": supported_tasks_mapping(
-            "default",
-            "audio-ctc",
-            "audio-classification",
-            onnx="SEWDOnnxConfig",
-        ),
+        "sew": supported_tasks_mapping("default", "audio-ctc", "audio-classification", onnx="SEWOnnxConfig",),
+        "sew-d": supported_tasks_mapping("default", "audio-ctc", "audio-classification", onnx="SEWDOnnxConfig",),
         "speech-to-text": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "speech2seq-lm",
-            "speech2seq-lm-with-past",
-            onnx="Speech2TextOnnxConfig",
+            "default", "default-with-past", "speech2seq-lm", "speech2seq-lm-with-past", onnx="Speech2TextOnnxConfig",
         ),
         "squeezebert": supported_tasks_mapping(
             "default",
@@ -582,28 +501,13 @@ class TasksManager:
             "question-answering",
             onnx="SqueezeBertOnnxConfig",
         ),
-        "swin": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            "masked-im",
-            onnx="SwinOnnxConfig",
-        ),
+        "swin": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="SwinOnnxConfig",),
         "t5": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
-            onnx="T5OnnxConfig",
+            "default", "default-with-past", "seq2seq-lm", "seq2seq-lm-with-past", onnx="T5OnnxConfig",
         ),
-        "unet": supported_tasks_mapping(
-            "semantic-segmentation",
-            onnx="UNetOnnxConfig",
-        ),
+        "unet": supported_tasks_mapping("semantic-segmentation", onnx="UNetOnnxConfig",),
         "unispeech": supported_tasks_mapping(
-            "default",
-            "audio-ctc",
-            "audio-classification",
-            onnx="UniSpeechOnnxConfig",
+            "default", "audio-ctc", "audio-classification", onnx="UniSpeechOnnxConfig",
         ),
         "unispeech-sat": supported_tasks_mapping(
             "default",
@@ -613,10 +517,7 @@ class TasksManager:
             "audio-xvector",
             onnx="UniSpeechSATOnnxConfig",
         ),
-        "vae": supported_tasks_mapping(
-            "semantic-segmentation",
-            onnx="VaeOnnxConfig",
-        ),
+        "vae": supported_tasks_mapping("semantic-segmentation", onnx="VaeOnnxConfig",),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "wavlm": supported_tasks_mapping(
             "default",
@@ -643,11 +544,7 @@ class TasksManager:
             onnx="Wav2Vec2ConformerOnnxConfig",
         ),
         "whisper": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "speech2seq-lm",
-            "speech2seq-lm-with-past",
-            onnx="WhisperOnnxConfig",
+            "default", "default-with-past", "speech2seq-lm", "speech2seq-lm-with-past", onnx="WhisperOnnxConfig",
         ),
         "xlm": supported_tasks_mapping(
             "default",
@@ -671,11 +568,7 @@ class TasksManager:
             "question-answering",
             onnx="XLMRobertaOnnxConfig",
         ),
-        "yolos": supported_tasks_mapping(
-            "default",
-            "object-detection",
-            onnx="YolosOnnxConfig",
-        ),
+        "yolos": supported_tasks_mapping("default", "object-detection", onnx="YolosOnnxConfig",),
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip-text-model"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE

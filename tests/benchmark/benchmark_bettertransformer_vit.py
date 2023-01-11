@@ -11,24 +11,16 @@ from optimum.bettertransformer import BetterTransformer
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--num-batches",
-        type=int,
-        default=50,
-        help="",
+        "--num-batches", type=int, default=50, help="",
     )
     parser.add_argument(
-        "--model-name",
-        type=str,
-        default="google/vit-base-patch16-224",
-        help="",
+        "--model-name", type=str, default="google/vit-base-patch16-224", help="",
     )
     parser.add_argument(
-        "--use-cuda",
-        action="store_true",
+        "--use-cuda", action="store_true",
     )
     parser.add_argument(
-        "--use-half",
-        action="store_true",
+        "--use-half", action="store_true",
     )
     return parser
 
@@ -92,25 +84,13 @@ if __name__ == "__main__":
     output_file.write("num_batches,batch_size,is_cuda,is_half,HF_time,BT_time,Speedup\n")
     for bs in BATCH_SIZES:
 
-        total_bt_time, total_hf_time = benchmark(
-            args.model_name,
-            args.num_batches,
-            bs,
-            args.use_cuda,
-            args.use_half,
-        )
+        total_bt_time, total_hf_time = benchmark(args.model_name, args.num_batches, bs, args.use_cuda, args.use_half,)
 
         speedup = total_hf_time / total_bt_time
 
         output_file.write(
             "{},{},{},{},{},{},{}\n".format(
-                args.num_batches,
-                bs,
-                args.use_cuda,
-                args.use_half,
-                total_hf_time,
-                total_bt_time,
-                speedup,
+                args.num_batches, bs, args.use_cuda, args.use_half, total_hf_time, total_bt_time, speedup,
             )
         )
     output_file.close()

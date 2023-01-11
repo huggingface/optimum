@@ -107,10 +107,7 @@ def main():
 
         # Copy all HTML files from subpackage into optimum
         rename_copy_subpackage_html_paths(
-            subpackage,
-            subpackage_path,
-            optimum_path,
-            args.version,
+            subpackage, subpackage_path, optimum_path, args.version,
         )
 
         # Load subpackage table of contents

@@ -147,11 +147,7 @@ class ORTDecoder:
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
 
     def prepare_output_buffer(
-        self,
-        output_name,
-        batch_size=None,
-        sequence_length=None,
-        past_sequence_length=None,
+        self, output_name, batch_size=None, sequence_length=None, past_sequence_length=None,
     ):
         """
         Prepare the buffer of outputs(`logits`/`key_values`/`loss`) with 1D tensors.
@@ -223,9 +219,7 @@ class ORTDecoder:
 
         # Bind the logits
         logits_shape, logits_buffer = self.prepare_output_buffer(
-            output_name="logits",
-            batch_size=input_ids.size(0),
-            sequence_length=input_ids.size(1),
+            output_name="logits", batch_size=input_ids.size(0), sequence_length=input_ids.size(1),
         )
         io_binding.bind_output(
             "logits",
@@ -374,10 +368,7 @@ class ORTModelDecoder(ORTModel):
             )
 
         super().__init__(
-            decoder_session,
-            config,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
+            decoder_session, config, use_io_binding=use_io_binding, model_save_dir=model_save_dir,
         )
         self.use_cache = decoder_with_past_session is not None
         self.decoder = ORTDecoder(
@@ -443,10 +434,7 @@ class ORTModelDecoder(ORTModel):
             providers_options = None
 
         decoder_session = onnxruntime.InferenceSession(
-            str(decoder_path),
-            providers=providers,
-            sess_options=session_options,
-            provider_options=providers_options,
+            str(decoder_path), providers=providers, sess_options=session_options, provider_options=providers_options,
         )
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
@@ -749,9 +737,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
         + TEXT_GENERATION_EXAMPLE.format(
-            processor_class=_TOKENIZER_FOR_DOC,
-            model_class="ORTModelForCausalLM",
-            checkpoint="optimum/gpt2",
+            processor_class=_TOKENIZER_FOR_DOC, model_class="ORTModelForCausalLM", checkpoint="optimum/gpt2",
         )
     )
     def forward(
@@ -766,9 +752,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
             outputs = self.decoder(input_ids=input_ids, attention_mask=attention_mask)
         else:
             outputs = self.decoder_with_past(
-                input_ids=input_ids[:, -1:],
-                past_key_values=past_key_values,
-                attention_mask=attention_mask,
+                input_ids=input_ids[:, -1:], past_key_values=past_key_values, attention_mask=attention_mask,
             )
 
         return CausalLMOutputWithCrossAttentions(logits=outputs.logits, past_key_values=outputs.past_key_values)

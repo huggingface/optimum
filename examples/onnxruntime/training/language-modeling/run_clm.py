@@ -181,8 +181,7 @@ class DataTrainingArguments:
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
     )
     keep_linebreaks: bool = field(
         default=True, metadata={"help": "Whether to keep line breaks when using TXT files or not."}
@@ -207,8 +206,7 @@ class InferenceArguments:
     """
 
     inference_with_ort: bool = field(
-        default=False,
-        metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
+        default=False, metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
     )
 
 

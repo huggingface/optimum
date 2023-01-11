@@ -78,8 +78,7 @@ class DataTrainingArguments:
     """
 
     task_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
+        default=None, metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
     )
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
@@ -210,8 +209,7 @@ class InferenceArguments:
     """
 
     inference_with_ort: bool = field(
-        default=False,
-        metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
+        default=False, metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
     )
 
 
