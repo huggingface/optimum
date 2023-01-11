@@ -632,7 +632,7 @@ class DummyTrainingLabelsInputGenerator(DummyTextInputGenerator):
 
 
 class DummyVisualBertInputGenerator(DummyTextInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("visual_embeds", "visual_token_type_ids", "visual_attention_mask")
+    SUPPORTED_INPUT_NAMES = ("visual_embeds", "visual_token_type_ids", "visual_attention_mask","input_ids", "attention_mask","token_type_ids")
     # todo: see how to add ,"region_to_phrase_position" since that input name raises error (ValueError: Config dummy inputs are not a subset of the model inputs)
     def __init__(
         self,
@@ -649,7 +649,7 @@ class DummyVisualBertInputGenerator(DummyTextInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         # TODO maybe the following should be checked with the model checkpoint_path and checking existance of for example "vqa" substring is better
-        if self.task in ["default", "visual-question-answering", "region-to-phrase-alignment"]:
+        if self.task in ["default", "visual-question-answering", "region-to-phrase-alignment",]:
             visual_embedding_dim = 2048
         elif self.task == "multiple-choice":
             visual_embedding_dim = 512
@@ -669,3 +669,6 @@ class DummyVisualBertInputGenerator(DummyTextInputGenerator):
             return torch.ones(visual_embeddings.shape[:-1], dtype=torch.long)
         elif input_name == "region_to_phrase_position":
             return torch.ones((1, +self.sequence_length + visual_embeddings.shape[-2]), dtype=torch.long)
+        elif input_name in ["input_ids", "attention_mask","token_type_ids"]:
+            return super(DummyVisualBertInputGenerator, self).generate(input_name,framework)
+        else: print("unknown input")

@@ -76,7 +76,7 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
 
 class VisualBertOnnxConfig(BertOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisualBertInputGenerator)
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisualBertInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
     # TODO: DEFAULT_ONNX_OPSET??
     @property
