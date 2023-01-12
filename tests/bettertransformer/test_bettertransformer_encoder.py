@@ -43,7 +43,6 @@ ALL_ENCODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-rembert",
     "hf-internal-testing/tiny-random-RobertaModel",
-    "hf-internal-testing/tiny-random-RoCBertModel",
     "hf-internal-testing/tiny-random-SplinterModel",
     "hf-internal-testing/tiny-random-TapasModel",
     "hf-internal-testing/tiny-xlm-roberta",
