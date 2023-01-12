@@ -255,6 +255,14 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
 
+class BetterTransformersRoCBertTest(BetterTransformersEncoderTest):
+    all_models_to_test = ["hf-internal-testing/tiny-random-RoCBertModel"]
+
+    # unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)
+    def test_raise_autocast(self):
+        pass
+
+
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Full testing suite of the `BetterTransformers` integration into Hugging Face
