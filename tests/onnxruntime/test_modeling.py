@@ -157,7 +157,7 @@ class ORTModelTestMixin(unittest.TestCase):
 
     def _setup(self, model_args: Dict):
         """
-        Export the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
+        Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
         We don't use unittest setUpClass, in order to still be able to run individual tests.
         """
         model_arch = model_args["model_arch"]
