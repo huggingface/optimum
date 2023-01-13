@@ -20,8 +20,4 @@ from optimum.onnxruntime import ORTModel
 
 provider = sys.argv[1]
 
-print("Using the provider:", provider)
-
 model = ORTModel.from_pretrained("philschmid/distilbert-onnx", provider=provider)
-
-print(model.model.get_providers())
