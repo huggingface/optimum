@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import gc
+import json
 import os
 import shutil
 import subprocess
@@ -296,13 +297,17 @@ class ORTModelIntegrationTest(unittest.TestCase):
         # see https://stackoverflow.com/questions/856116/changing-ld-library-path-at-runtime-for-ctypes
         # testing only for TensorRT as having ORT_CUDA_UNAVAILABLE is hard
         if is_onnxruntime_gpu_installed:
-            for provider in ["TensorrtExecutionProvider"]:
-                out = subprocess.run(
-                    f"CUDA_PATH='' LD_LIBRARY_PATH='' python tests/onnxruntime/load_model.py {provider}",
-                    shell=True,
-                    capture_output=True,
-                )
-                self.assertTrue("requirements could not be loaded" in out.stderr.decode("utf-8"))
+            commands = [
+                "from optimum.onnxruntime import ORTModel",
+                "model = ORTModel.from_pretrained('philschmid/distilbert-onnx', provider='TensorrtExecutionProvider')",
+            ]
+
+            full_command = json.dumps(";".join(commands))
+
+            out = subprocess.run(
+                f"CUDA_PATH='' LD_LIBRARY_PATH='' python -c {full_command}", shell=True, capture_output=True
+            )
+            self.assertTrue("requirements could not be loaded" in out.stderr.decode("utf-8"))
         else:
             logger.info("Skipping broken CUDA/TensorRT install test")
 
