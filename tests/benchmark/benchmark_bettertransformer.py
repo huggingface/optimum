@@ -9,31 +9,52 @@ from optimum.bettertransformer import BetterTransformer
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--num-batches", type=int, default=50, help="",
+        "--num-batches",
+        type=int,
+        default=50,
+        help="",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=64, help="",
+        "--batch-size",
+        type=int,
+        default=64,
+        help="",
     )
     parser.add_argument(
-        "--avg-seqlen", type=int, default=256, help="",
+        "--avg-seqlen",
+        type=int,
+        default=256,
+        help="",
     )
     parser.add_argument(
-        "--max-seqlen", type=int, default=256, help="",
+        "--max-seqlen",
+        type=int,
+        default=256,
+        help="",
     )
     parser.add_argument(
-        "--model-name", type=str, default="bert-base-uncased", help="",
+        "--model-name",
+        type=str,
+        default="bert-base-uncased",
+        help="",
     )
     parser.add_argument(
-        "--seqlen-stdev", type=int, default=10, help="",
+        "--seqlen-stdev",
+        type=int,
+        default=10,
+        help="",
     )
     parser.add_argument(
-        "--use-cuda", action="store_true",
+        "--use-cuda",
+        action="store_true",
     )
     parser.add_argument(
-        "--use-half", action="store_true",
+        "--use-half",
+        action="store_true",
     )
     parser.add_argument(
-        "--use-mask", action="store_true",
+        "--use-mask",
+        action="store_true",
     )
     return parser
 
@@ -49,11 +70,21 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     lengths = torch.normal(mean_tensor, stdev_tensor).to(torch.int)
     lengths = torch.clamp(lengths, min=0, max=max_sequence_length)
 
-    tokens = torch.full((batch_size, max_sequence_length), pad_idx,)
+    tokens = torch.full(
+        (batch_size, max_sequence_length),
+        pad_idx,
+    )
     # lengths[0:2] = max_sequence_length-1
     for i in range(batch_size):
-        tokens[i, : lengths[i]] = torch.randint(pad_idx + 1, vocab_size - 1, size=(lengths[i],),)
-    mask = torch.full((batch_size, max_sequence_length), 0,)
+        tokens[i, : lengths[i]] = torch.randint(
+            pad_idx + 1,
+            vocab_size - 1,
+            size=(lengths[i],),
+        )
+    mask = torch.full(
+        (batch_size, max_sequence_length),
+        0,
+    )
     for i in range(batch_size):
         mask[i, : lengths[i]] = 1
     return tokens, lengths, mask

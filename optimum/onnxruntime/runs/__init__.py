@@ -99,7 +99,9 @@ class OnnxRuntimeRun(Run):
         )
 
         # onnxruntime benchmark
-        ort_session = ORTModel.load_model(str(Path("./") / self.quantized_model_path),)
+        ort_session = ORTModel.load_model(
+            str(Path("./") / self.quantized_model_path),
+        )
 
         # necessary to pass the config for the pipeline not to complain later
         self.ort_model = task_ortmodel_map[self.task](ort_session, config=trfs_model.config)

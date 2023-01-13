@@ -22,7 +22,9 @@ class QuestionAnsweringProcessing(DatasetProcessing):
 
         # Preprocessing the raw_datasets
         def preprocess_function(
-            examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase,
+            examples,
+            data_keys: Dict[str, str],
+            tokenizer: PreTrainedTokenizerBase,
         ):
             max_seq_len = min(tokenizer.model_max_length, 384)
             doc_stride = min(max_seq_len // 2, 128)
@@ -60,7 +62,11 @@ class QuestionAnsweringProcessing(DatasetProcessing):
             assert self.calibration_split
             # Run the tokenizer on the calibration dataset
             calibration_dataset = raw_datasets[self.calibration_split].map(
-                partial(preprocess_function, tokenizer=self.preprocessor, data_keys=self.data_keys,),
+                partial(
+                    preprocess_function,
+                    tokenizer=self.preprocessor,
+                    data_keys=self.data_keys,
+                ),
                 batched=True,
                 load_from_cache_file=True,
                 desc="Running tokenizer on calibration dataset",

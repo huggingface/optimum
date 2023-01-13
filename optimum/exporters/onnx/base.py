@@ -138,7 +138,10 @@ class OnnxConfig(ExportConfig, ABC):
         "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size"}}),
         "object-detection": OrderedDict(
-            {"logits": {0: "batch_size", 1: "sequence_length"}, "pred_boxes": {0: "batch_size", 1: "sequence_length"},}
+            {
+                "logits": {0: "batch_size", 1: "sequence_length"},
+                "pred_boxes": {0: "batch_size", 1: "sequence_length"},
+            }
         ),
         "question-answering": OrderedDict(
             {
@@ -572,7 +575,11 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
             behavior = ConfigBehavior(behavior)
         return self.__class__(
-            self._config, task=self.task, patching_specs=self._patching_specs, use_past=use_past, behavior=behavior,
+            self._config,
+            task=self.task,
+            patching_specs=self._patching_specs,
+            use_past=use_past,
+            behavior=behavior,
         )
 
     @property
@@ -634,7 +641,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         "sequence-classification": {"labels": {0: "batch_size"}},
         "token-classification": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "multiple-choice": {"labels": {0: "batch_size"}},
-        "question-answering": {"start_positions": {0: "batch_size"}, "end_positions": {0: "batch_size"},},
+        "question-answering": {
+            "start_positions": {0: "batch_size"},
+            "end_positions": {0: "batch_size"},
+        },
         "image-classification": {"labels": {0: "batch_size"}},
         "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
     }

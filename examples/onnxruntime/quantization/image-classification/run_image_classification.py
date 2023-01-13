@@ -121,10 +121,12 @@ class OptimizationArguments:
     """
 
     quantization_approach: str = field(
-        default="dynamic", metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
+        default="dynamic",
+        metadata={"help": "The quantization approach. Supported approach are static and dynamic."},
     )
     per_channel: bool = field(
-        default=False, metadata={"help": "Whether to quantize the weights per channel."},
+        default=False,
+        metadata={"help": "Whether to quantize the weights per channel."},
     )
     reduce_range: bool = field(
         default=False,
@@ -152,10 +154,12 @@ class OptimizationArguments:
         },
     )
     calibration_batch_size: int = field(
-        default=8, metadata={"help": "The batch size for the calibration step."},
+        default=8,
+        metadata={"help": "The batch size for the calibration step."},
     )
     calibration_histogram_percentile: float = field(
-        default=99.999, metadata={"help": "The percentile used for the percentile calibration method."},
+        default=99.999,
+        metadata={"help": "The percentile used for the percentile calibration method."},
     )
     calibration_moving_average: bool = field(
         default=False,
@@ -173,7 +177,8 @@ class OptimizationArguments:
         },
     )
     execution_provider: str = field(
-        default="CPUExecutionProvider", metadata={"help": "ONNX Runtime execution provider to use for inference."},
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -186,7 +191,8 @@ class OnnxExportArguments:
     # TODO: currently onnxruntime put external data in different path than the model proto, which will cause problem on re-loading it.
     # https://github.com/microsoft/onnxruntime/issues/12576
     use_external_data_format: bool = field(
-        default=False, metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+        default=False,
+        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
     )
 
 
@@ -244,7 +250,10 @@ def main():
         if data_args.validation_dir is not None:
             data_files["validation"] = os.path.join(data_args.validation_dir, "**")
         dataset = load_dataset(
-            "imagefolder", data_files=data_files, cache_dir=model_args.cache_dir, task="image-classification",
+            "imagefolder",
+            data_files=data_files,
+            cache_dir=model_args.cache_dir,
+            task="image-classification",
         )
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.0.0/en/image_process#imagefolder.
@@ -257,7 +266,14 @@ def main():
 
     # Define torchvision transforms to be applied to each image.
     normalize = Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std)
-    transforms = Compose([Resize(feature_extractor.size), CenterCrop(feature_extractor.size), ToTensor(), normalize,])
+    transforms = Compose(
+        [
+            Resize(feature_extractor.size),
+            CenterCrop(feature_extractor.size),
+            ToTensor(),
+            normalize,
+        ]
+    )
 
     def preprocess_function(example_batch):
         """Apply transforms across a batch."""
@@ -323,7 +339,8 @@ def main():
             calibration_config = AutoCalibrationConfig.entropy(calibration_dataset)
         elif optim_args.calibration_method == "percentile":
             calibration_config = AutoCalibrationConfig.percentiles(
-                calibration_dataset, percentile=optim_args.calibration_histogram_percentile,
+                calibration_dataset,
+                percentile=optim_args.calibration_histogram_percentile,
             )
         else:
             calibration_config = AutoCalibrationConfig.minmax(

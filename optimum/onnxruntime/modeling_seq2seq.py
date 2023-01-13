@@ -244,7 +244,9 @@ class ORTEncoder:
         return output_shape, output_buffer
 
     def prepare_io_binding(
-        self, input_ids: Optional[torch.Tensor] = None, attention_mask: Optional[torch.Tensor] = None,
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
     ):
         io_binding = self.session.io_binding()
 
@@ -272,7 +274,8 @@ class ORTEncoder:
 
         # bind last_hidden_state
         output_shape, output_buffer = self.prepare_output_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1),
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
         )
         io_binding.bind_output(
             "last_hidden_state",
@@ -288,7 +291,12 @@ class ORTEncoder:
         return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(SEQ2SEQ_ENCODER_INPUTS_DOCSTRING)
-    def forward(self, input_ids: torch.LongTensor, attention_mask: torch.LongTensor, **kwargs,) -> BaseModelOutput:
+    def forward(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.LongTensor,
+        **kwargs,
+    ) -> BaseModelOutput:
 
         if self._device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask)
@@ -329,7 +337,8 @@ class ORTEncoderForWhisper(ORTEncoder):
     """
 
     def prepare_io_binding(
-        self, input_features: torch.FloatTensor = None,
+        self,
+        input_features: torch.FloatTensor = None,
     ):
         io_binding = self.session.io_binding()
 
@@ -346,7 +355,8 @@ class ORTEncoderForWhisper(ORTEncoder):
 
         # bind logits
         output_shape, output_buffer = self.prepare_output_buffer(
-            batch_size=input_features.size(0), sequence_length=input_features.size(2) // 2,
+            batch_size=input_features.size(0),
+            sequence_length=input_features.size(2) // 2,
         )
         io_binding.bind_output(
             "last_hidden_state",
@@ -362,7 +372,11 @@ class ORTEncoderForWhisper(ORTEncoder):
         return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(WHISPER_ENCODER_INPUTS_DOCSTRING)
-    def forward(self, input_features: torch.FloatTensor, **kwargs,) -> BaseModelOutput:
+    def forward(
+        self,
+        input_features: torch.FloatTensor,
+        **kwargs,
+    ) -> BaseModelOutput:
         if self._device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_features)
 
@@ -498,7 +512,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         # bind outputs
         # bind logits
         logits_shape, logits_buffer = self.prepare_output_buffer(
-            output_name="logits", batch_size=input_ids.size(0), sequence_length=input_ids.size(1),
+            output_name="logits",
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
         )
         io_binding.bind_output(
             "logits",
@@ -842,10 +858,16 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             providers_options = None
 
         encoder_session = ort.InferenceSession(
-            str(encoder_path), providers=providers, sess_options=session_options, provider_options=providers_options,
+            str(encoder_path),
+            providers=providers,
+            sess_options=session_options,
+            provider_options=providers_options,
         )
         decoder_session = ort.InferenceSession(
-            str(decoder_path), providers=providers, sess_options=session_options, provider_options=providers_options,
+            str(decoder_path),
+            providers=providers,
+            sess_options=session_options,
+            provider_options=providers_options,
         )
 
         decoder_with_past_session = None
@@ -974,8 +996,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         decoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
             ONNX_DECODER_NAME
         )
-        decoder_with_past_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
-            ONNX_DECODER_WITH_PAST_NAME
+        decoder_with_past_regular_onnx_filenames = (
+            ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
         )
 
         if encoder_path.name not in encoder_regular_onnx_filenames:
@@ -1198,7 +1220,9 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     @add_start_docstrings_to_model_forward(
         SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
         + TRANSLATION_EXAMPLE.format(
-            processor_class=_TOKENIZER_FOR_DOC, model_class="ORTModelForSeq2SeqLM", checkpoint="optimum/t5-small",
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForSeq2SeqLM",
+            checkpoint="optimum/t5-small",
         )
     )
     def forward(
@@ -1336,7 +1360,9 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         # Decode
         if past_key_values is None or self.decoder_with_past is None:
             decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids, encoder_hidden_states=encoder_outputs.last_hidden_state, labels=labels,
+                input_ids=decoder_input_ids,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                labels=labels,
             )
         else:
             decoder_outputs = self.decoder_with_past(

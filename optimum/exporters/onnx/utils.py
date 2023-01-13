@@ -100,7 +100,8 @@ def get_encoder_decoder_models_for_export(
 
 
 def get_decoder_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig",
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    config: "OnnxConfig",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
     """
     Returns two versions of the decoder that can be used together to perform fast generation:

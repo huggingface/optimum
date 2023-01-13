@@ -32,7 +32,9 @@ def generate_doc_dataclass(cls) -> str:
 
 
 def add_dynamic_docstring(
-    *docstr, text, dynamic_elements,
+    *docstr,
+    text,
+    dynamic_elements,
 ):
     def docstring_decorator(fn):
         func_doc = (fn.__doc__ or "") + "".join(docstr)

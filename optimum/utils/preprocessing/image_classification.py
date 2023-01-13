@@ -31,7 +31,12 @@ class ImageClassificationProcessing(DatasetProcessing):
 
         normalize = Normalize(mean=self.preprocessor.image_mean, std=self.preprocessor.image_std)
         transforms = Compose(
-            [Resize(self.preprocessor.size), CenterCrop(self.preprocessor.size), ToTensor(), normalize,]
+            [
+                Resize(self.preprocessor.size),
+                CenterCrop(self.preprocessor.size),
+                ToTensor(),
+                normalize,
+            ]
         )
 
         # Preprocessing the raw_datasets

@@ -59,7 +59,11 @@ class TokenClassificationProcessing(DatasetProcessing):
         if self.static_quantization:
             # Run the tokenizer on the calibration dataset
             calibration_dataset = raw_datasets[self.calibration_split].map(
-                partial(preprocess_function, tokenizer=self.preprocessor, data_keys=self.data_keys,),
+                partial(
+                    preprocess_function,
+                    tokenizer=self.preprocessor,
+                    data_keys=self.data_keys,
+                ),
                 batched=True,
                 load_from_cache_file=False,
                 desc="Running tokenizer on calibration dataset",

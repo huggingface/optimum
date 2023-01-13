@@ -76,7 +76,7 @@ class _DecoderWithLMhead(PreTrainedModel):
 
         if self.config.model_type == "t5" and self.config.tie_word_embeddings:
             # T5 needs its output to be rescaled before projecting on vocab
-            last_hidden_state = last_hidden_state * (self.config.d_model ** -0.5)
+            last_hidden_state = last_hidden_state * (self.config.d_model**-0.5)
 
         lm_logits = self.lm_head(last_hidden_state)
 

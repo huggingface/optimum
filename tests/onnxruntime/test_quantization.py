@@ -31,8 +31,13 @@ from parameterized import parameterized
 
 class ORTQuantizerTest(unittest.TestCase):
     LOAD_CONFIGURATION = {
-        "local_asset": {"model_or_path": "assets/onnx",},
-        "local_asset_different_name": {"model_or_path": "assets/onnx", "file_name": "different_name.onnx",},
+        "local_asset": {
+            "model_or_path": "assets/onnx",
+        },
+        "local_asset_different_name": {
+            "model_or_path": "assets/onnx",
+            "file_name": "different_name.onnx",
+        },
         "ort_model_class": {
             "model_or_path": ORTModelForSequenceClassification.from_pretrained(
                 "optimum/distilbert-base-uncased-finetuned-sst-2-english"
@@ -84,7 +89,8 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
 
             quantizer = ORTQuantizer.from_pretrained(model)
             quantizer.quantize(
-                save_dir=output_dir, quantization_config=qconfig,
+                save_dir=output_dir,
+                quantization_config=qconfig,
             )
 
             expected_ort_config = ORTConfig(quantization=qconfig)
@@ -138,9 +144,14 @@ class ORTStaticQuantizationTest(unittest.TestCase):
                 dataset_split="train",
             )
             calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
-            ranges = quantizer.fit(dataset=calibration_dataset, calibration_config=calibration_config,)
+            ranges = quantizer.fit(
+                dataset=calibration_dataset,
+                calibration_config=calibration_config,
+            )
             quantizer.quantize(
-                save_dir=output_dir, calibration_tensors_range=ranges, quantization_config=qconfig,
+                save_dir=output_dir,
+                calibration_tensors_range=ranges,
+                quantization_config=qconfig,
             )
 
             expected_ort_config = ORTConfig(quantization=qconfig)

@@ -53,5 +53,10 @@ class StableDropoutTestCase(TestCase):
         # Expected to fail with opset_version < 12
         with self.assertRaises(Exception):
             torch.onnx.export(
-                sd, input, devnull, opset_version=11, do_constant_folding=do_constant_folding, training=training,
+                sd,
+                input,
+                devnull,
+                opset_version=11,
+                do_constant_folding=do_constant_folding,
+                training=training,
             )

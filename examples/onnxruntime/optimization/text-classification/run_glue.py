@@ -80,7 +80,8 @@ class DataTrainingArguments:
     """
 
     task_name: Optional[str] = field(
-        default=None, metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
+        default=None,
+        metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
     )
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
@@ -171,7 +172,8 @@ class OptimizationArguments:
         },
     )
     execution_provider: str = field(
-        default="CPUExecutionProvider", metadata={"help": "ONNX Runtime execution provider to use for inference."},
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -182,7 +184,8 @@ class OnnxExportArguments:
     """
 
     use_external_data_format: bool = field(
-        default=False, metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+        default=False,
+        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
     )
     one_external_file: bool = field(
         default=True,

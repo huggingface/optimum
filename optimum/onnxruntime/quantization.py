@@ -109,7 +109,9 @@ class ORTQuantizer(OptimumQuantizer):
 
     @classmethod
     def from_pretrained(
-        cls, model_or_path: Union["ORTModel", str, Path], file_name: Optional[str] = None,
+        cls,
+        model_or_path: Union["ORTModel", str, Path],
+        file_name: Optional[str] = None,
     ) -> "ORTQuantizer":
         """
         Instantiates a `ORTQuantizer` from a an ONNX model file or an `ORTModel`.
@@ -452,7 +454,10 @@ class ORTQuantizer(OptimumQuantizer):
             )
 
         calib_dataset = load_dataset(
-            dataset_name, name=dataset_config_name, split=dataset_split, use_auth_token=use_auth_token,
+            dataset_name,
+            name=dataset_config_name,
+            split=dataset_split,
+            use_auth_token=use_auth_token,
         )
 
         if num_samples is not None:

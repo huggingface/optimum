@@ -88,7 +88,9 @@ class OnnxExportTestCase(unittest.TestCase):
                 )
             else:
                 subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}{tmpdir}", shell=True, check=True,
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}{tmpdir}",
+                    shell=True,
+                    check=True,
                 )
 
     def test_all_models_tested(self):

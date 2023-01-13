@@ -317,8 +317,14 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BartDummyTextInputGenerator,
-        {"default": DummySeq2SeqDecoderTextInputGenerator, "causal-lm": DummyDecoderTextInputGenerator,},
-        {"default": DummySeq2SeqPastKeyValuesGenerator, "causal-lm": DummyPastKeyValuesGenerator,},
+        {
+            "default": DummySeq2SeqDecoderTextInputGenerator,
+            "causal-lm": DummyDecoderTextInputGenerator,
+        },
+        {
+            "default": DummySeq2SeqPastKeyValuesGenerator,
+            "causal-lm": DummyPastKeyValuesGenerator,
+        },
     )
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
@@ -554,7 +560,9 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        vocab_size="vocab_size", sequence_length="max_position_embeddings", allow_new=True,
+        vocab_size="vocab_size",
+        sequence_length="max_position_embeddings",
+        allow_new=True,
     )
 
     @property
@@ -624,7 +632,10 @@ class VaeOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 14
 
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_channels="latent_channels", allow_new=True,)
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_channels="latent_channels",
+        allow_new=True,
+    )
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
@@ -651,7 +662,8 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
-        allow_new=True, MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+        allow_new=True,
+        MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
     )
 
     @property
@@ -667,7 +679,9 @@ class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
 class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
     MIN_TORCH_VERSION = version.parse("1.12")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
-        allow_new=True, MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings", image_size="input_size",
+        allow_new=True,
+        MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+        image_size="input_size",
     )
     DEFAULT_ONNX_OPSET = 12
 

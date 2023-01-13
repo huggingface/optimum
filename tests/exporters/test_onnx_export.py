@@ -68,7 +68,11 @@ class OnnxUtilsTestCase(TestCase):
         """
         self.assertEqual(
             OnnxConfig.flatten_output_collection_property("past_key", [[0], [1], [2]]),
-            {"past_key.0": 0, "past_key.1": 1, "past_key.2": 2,},
+            {
+                "past_key.0": 0,
+                "past_key.1": 1,
+                "past_key.2": 2,
+            },
         )
 
 
@@ -288,7 +292,13 @@ class OnnxExportTestCase(TestCase):
     @require_torch
     @require_vision
     def test_pytorch_export(
-        self, test_name, name, model_name, task, onnx_config_class_constructor, for_ort: bool,
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        for_ort: bool,
     ):
         if os.environ.get("RUN_SLOW", False):
             shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_SLOW
@@ -310,7 +320,13 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @require_torch_gpu
     def test_pytorch_export_on_cuda(
-        self, test_name, name, model_name, task, onnx_config_class_constructor, for_ort: bool,
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        for_ort: bool,
     ):
         if os.environ.get("RUN_SLOW", False):
             shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_SLOW

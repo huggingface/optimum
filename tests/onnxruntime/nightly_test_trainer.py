@@ -99,7 +99,11 @@ _TASKS_DATASETS_CONFIGS = {
 }
 
 _SEQ2SEQ_TASKS_DATASETS_CONFIGS = {
-    "seq2seq-lm": {"dataset": ["xsum"], "metric": ["rouge"], "data_collator_class": DataCollatorForSeq2Seq,}
+    "seq2seq-lm": {
+        "dataset": ["xsum"],
+        "metric": ["rouge"],
+        "data_collator_class": DataCollatorForSeq2Seq,
+    }
 }
 
 
@@ -561,7 +565,10 @@ class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
         data_metric_config=_TASKS_DATASETS_CONFIGS["sequence-classification"],
     ):
         with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = ORTTrainingArguments(output_dir=tmp_dir, push_to_hub=True,)
+            training_args = ORTTrainingArguments(
+                output_dir=tmp_dir,
+                push_to_hub=True,
+            )
             trainer, test_dataset = get_ort_trainer(
                 model_name,
                 feature,
@@ -675,7 +682,8 @@ class ORTTrainerIntegrationDDPTest(unittest.TestCase):
     def test_trainer_ddp_glue(self):
 
         subprocess.run(
-            f"cp examples/onnxruntime/training/text-classification/run_glue.py ./", shell=True,
+            f"cp examples/onnxruntime/training/text-classification/run_glue.py ./",
+            shell=True,
         )
 
         subprocess.run(
@@ -897,26 +905,58 @@ if is_torch_available():
     }
 
     optim_test_params = [
-        (OptimizerNames.ADAMW_HF, transformers.optimization.AdamW, default_adam_kwargs,),
-        (OptimizerNames.ADAMW_HF.value, transformers.optimization.AdamW, default_adam_kwargs,),
-        (OptimizerNames.ADAMW_TORCH, torch.optim.AdamW, default_adam_kwargs,),
+        (
+            OptimizerNames.ADAMW_HF,
+            transformers.optimization.AdamW,
+            default_adam_kwargs,
+        ),
+        (
+            OptimizerNames.ADAMW_HF.value,
+            transformers.optimization.AdamW,
+            default_adam_kwargs,
+        ),
+        (
+            OptimizerNames.ADAMW_TORCH,
+            torch.optim.AdamW,
+            default_adam_kwargs,
+        ),
         (
             OptimizerNames.ADAFACTOR,
             transformers.optimization.Adafactor,
-            {"scale_parameter": False, "relative_step": False, "lr": ORTTrainingArguments.learning_rate,},
+            {
+                "scale_parameter": False,
+                "relative_step": False,
+                "lr": ORTTrainingArguments.learning_rate,
+            },
         ),
-        (ORTOptimizerNames.ADAMW_ORT_FUSED, onnxruntime.training.optim.FusedAdam, default_adam_kwargs,),
+        (
+            ORTOptimizerNames.ADAMW_ORT_FUSED,
+            onnxruntime.training.optim.FusedAdam,
+            default_adam_kwargs,
+        ),
     ]
 
     if is_apex_available():
         import apex
 
-        optim_test_params.append((OptimizerNames.ADAMW_APEX_FUSED, apex.optimizers.FusedAdam, default_adam_kwargs,))
+        optim_test_params.append(
+            (
+                OptimizerNames.ADAMW_APEX_FUSED,
+                apex.optimizers.FusedAdam,
+                default_adam_kwargs,
+            )
+        )
 
     if is_bitsandbytes_available():
         import bitsandbytes as bnb
 
-        optim_test_params.append((OptimizerNames.ADAMW_BNB, bnb.optim.Adam8bit, default_adam_kwargs,))
+        optim_test_params.append(
+            (
+                OptimizerNames.ADAMW_BNB,
+                bnb.optim.Adam8bit,
+                default_adam_kwargs,
+            )
+        )
 
 
 @slow
@@ -1001,7 +1041,9 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
         }
         with patch.dict("sys.modules", modules):
             self.check_optim_and_kwargs(
-                OptimizerNames.ADAMW_ORT_FUSED, default_adam_kwargs, mock.optimizers.FusedAdam,
+                OptimizerNames.ADAMW_ORT_FUSED,
+                default_adam_kwargs,
+                mock.optimizers.FusedAdam,
             )
 
 

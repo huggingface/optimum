@@ -412,7 +412,10 @@ def export_pytorch(
 
 
 def export_tensorflow(
-    model: "TFPreTrainedModel", config: OnnxConfig, opset: int, output: Path,
+    model: "TFPreTrainedModel",
+    config: OnnxConfig,
+    opset: int,
+    output: Path,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a TensorFlow model to an ONNX Intermediate Representation.

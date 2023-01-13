@@ -88,7 +88,10 @@ class OptimizedModel(ABC):
         raise NotImplementedError
 
     def save_pretrained(
-        self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs,
+        self,
+        save_directory: Union[str, os.PathLike],
+        push_to_hub: bool = False,
+        **kwargs,
     ):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
@@ -149,7 +152,11 @@ class OptimizedModel(ABC):
         self.git_config_username_and_email(git_email=user["email"], git_user=user["fullname"])
 
         api.create_repo(
-            token=huggingface_token, name=repository_id, organization=user["name"], exist_ok=True, private=private,
+            token=huggingface_token,
+            name=repository_id,
+            organization=user["name"],
+            exist_ok=True,
+            private=private,
         )
         for path, subdirs, files in os.walk(save_directory):
             for name in files:

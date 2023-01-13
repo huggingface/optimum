@@ -109,7 +109,10 @@ def replace_atenops_to_gather(model: ModelProto):
         if node.op_type in ["ATenOp", "ATen"]:
             op_num = node.name.split("_")[-1]
             new_node = onnx.helper.make_node(
-                "Gather", name="Gather_" + op_num, inputs=[node.input[0], node.input[1]], outputs=node.output,
+                "Gather",
+                name="Gather_" + op_num,
+                inputs=[node.input[0], node.input[1]],
+                outputs=node.output,
             )
 
             model.graph.node.remove(node)
@@ -162,7 +165,9 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
             model1.graph.output.remove(model_output_1)
 
             new_output = onnx.helper.make_tensor_value_info(
-                model_output_2.name, model_output_2.type.tensor_type.elem_type, _infer_output_shape(model_output_2),
+                model_output_2.name,
+                model_output_2.type.tensor_type.elem_type,
+                _infer_output_shape(model_output_2),
             )
             model1.graph.output.insert(idx, new_output)
 
@@ -237,7 +242,11 @@ def merge_decoders(
 
     # Make subgraphs
     no_past_branch = onnx.helper.make_graph(
-        nodes=decoder.graph.node, name="no_past", inputs=[], outputs=decoder.graph.output, initializer=[],
+        nodes=decoder.graph.node,
+        name="no_past",
+        inputs=[],
+        outputs=decoder.graph.output,
+        initializer=[],
     )
     with_past_branch = onnx.helper.make_graph(
         nodes=decoder_with_past.graph.node,
@@ -248,7 +257,11 @@ def merge_decoders(
     )
 
     # Merge subgraphs with a `If` node
-    use_cache = onnx.helper.make_tensor_value_info(name="use_cache", elem_type=onnx.TensorProto.BOOL, shape=[1],)
+    use_cache = onnx.helper.make_tensor_value_info(
+        name="use_cache",
+        elem_type=onnx.TensorProto.BOOL,
+        shape=[1],
+    )
     if_node = onnx.helper.make_node(
         "If",
         inputs=["use_cache"],
@@ -273,7 +286,12 @@ def merge_decoders(
     merged_model = onnx.helper.make_model(
         merged_graph,
         producer_name=producer_name,
-        opset_imports=[onnx.helper.make_opsetid(domain=onnx.defs.ONNX_DOMAIN, version=decoder_opset,)],
+        opset_imports=[
+            onnx.helper.make_opsetid(
+                domain=onnx.defs.ONNX_DOMAIN,
+                version=decoder_opset,
+            )
+        ],
     )
     onnx.checker.check_model(merged_model)
 

@@ -46,7 +46,10 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument(
-        "--device", type=str, default="cpu", help='The device to use to do the export. Defaults to "cpu".',
+        "--device",
+        type=str,
+        default="cpu",
+        help='The device to use to do the export. Defaults to "cpu".',
     )
     optional_group.add_argument(
         "--opset",
@@ -105,10 +108,16 @@ def parse_args_onnx(parser):
         help=f"Text tasks only. Num choices {doc_input}",
     )
     input_group.add_argument(
-        "--width", type=int, default=DEFAULT_DUMMY_SHAPES["width"], help=f"Image tasks only. Width {doc_input}",
+        "--width",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["width"],
+        help=f"Image tasks only. Width {doc_input}",
     )
     input_group.add_argument(
-        "--height", type=int, default=DEFAULT_DUMMY_SHAPES["height"], help=f"Image tasks only. Height {doc_input}",
+        "--height",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["height"],
+        help=f"Image tasks only. Height {doc_input}",
     )
     input_group.add_argument(
         "--num_channels",

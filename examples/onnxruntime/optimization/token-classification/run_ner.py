@@ -98,10 +98,12 @@ class DataTrainingArguments:
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
     validation_file: Optional[str] = field(
-        default=None, metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
+        default=None,
+        metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
     )
     test_file: Optional[str] = field(
-        default=None, metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
+        default=None,
+        metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
     )
     text_column_name: Optional[str] = field(
         default=None, metadata={"help": "The column name of text to input in the file (a csv or JSON file)."}
@@ -113,7 +115,8 @@ class DataTrainingArguments:
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None,
+        metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_seq_length: int = field(
         default=None,
@@ -193,7 +196,8 @@ class OptimizationArguments:
         },
     )
     execution_provider: str = field(
-        default="CPUExecutionProvider", metadata={"help": "ONNX Runtime execution provider to use for inference."},
+        default="CPUExecutionProvider",
+        metadata={"help": "ONNX Runtime execution provider to use for inference."},
     )
 
 
@@ -204,7 +208,8 @@ class OnnxExportArguments:
     """
 
     use_external_data_format: bool = field(
-        default=False, metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
+        default=False,
+        metadata={"help": "Whether to use external data format to store model whose size is >= 2Gb."},
     )
     one_external_file: bool = field(
         default=True,
@@ -477,7 +482,9 @@ def main():
         )
 
         ort_model = ORTModel(
-            optimized_model_path, execution_provider=optim_args.execution_provider, compute_metrics=compute_metrics,
+            optimized_model_path,
+            execution_provider=optim_args.execution_provider,
+            compute_metrics=compute_metrics,
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
 
@@ -504,7 +511,9 @@ def main():
         )
 
         ort_model = ORTModel(
-            optimized_model_path, execution_provider=optim_args.execution_provider, compute_metrics=compute_metrics,
+            optimized_model_path,
+            execution_provider=optim_args.execution_provider,
+            compute_metrics=compute_metrics,
         )
         outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(outputs.predictions, axis=2)

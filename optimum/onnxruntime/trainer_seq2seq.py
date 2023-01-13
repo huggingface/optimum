@@ -596,7 +596,10 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         if torch.cuda.is_available():
             self.model.to("cuda")
 
-        generated_tokens = self.model.generate(generation_inputs, **gen_kwargs,)
+        generated_tokens = self.model.generate(
+            generation_inputs,
+            **gen_kwargs,
+        )
         # in case the batch is shorter than max length, the output should be padded
         if gen_kwargs.get("max_length") is not None and generated_tokens.shape[-1] < gen_kwargs["max_length"]:
             generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
@@ -696,7 +699,10 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
-        generated_tokens = self.model.generate(generation_inputs, **gen_kwargs,)
+        generated_tokens = self.model.generate(
+            generation_inputs,
+            **gen_kwargs,
+        )
         # in case the batch is shorter than max length, the output should be padded
         if gen_kwargs.get("max_length") is not None and generated_tokens.shape[-1] < gen_kwargs["max_length"]:
             generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])

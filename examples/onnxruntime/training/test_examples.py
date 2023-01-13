@@ -28,7 +28,12 @@ from transformers.testing_utils import CaptureLogger, TestCasePlus, get_gpu_coun
 
 SRC_DIRS = [
     os.path.join(os.path.dirname(__file__), dirname)
-    for dirname in ["text-classification", "token-classification", "question-answering", "translation",]
+    for dirname in [
+        "text-classification",
+        "token-classification",
+        "question-answering",
+        "translation",
+    ]
 ]
 sys.path.extend(SRC_DIRS)
 if SRC_DIRS is not None:

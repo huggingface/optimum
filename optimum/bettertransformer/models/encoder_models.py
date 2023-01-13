@@ -256,7 +256,11 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.in_proj_bias = nn.Parameter(
             torch.cat(
-                [bart_layer.self_attn.q_proj.bias, bart_layer.self_attn.k_proj.bias, bart_layer.self_attn.v_proj.bias,]
+                [
+                    bart_layer.self_attn.q_proj.bias,
+                    bart_layer.self_attn.k_proj.bias,
+                    bart_layer.self_attn.v_proj.bias,
+                ]
             )
         )
 
@@ -482,7 +486,11 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
         )
         self.in_proj_bias = nn.Parameter(
             torch.cat(
-                [bert_layer.attention.q_lin.bias, bert_layer.attention.k_lin.bias, bert_layer.attention.v_lin.bias,]
+                [
+                    bert_layer.attention.q_lin.bias,
+                    bert_layer.attention.k_lin.bias,
+                    bert_layer.attention.v_lin.bias,
+                ]
             )
         )
 
@@ -979,7 +987,11 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         )
         self.in_proj_bias = nn.Parameter(
             torch.cat(
-                [fsmt_layer.self_attn.q_proj.bias, fsmt_layer.self_attn.k_proj.bias, fsmt_layer.self_attn.v_proj.bias,]
+                [
+                    fsmt_layer.self_attn.q_proj.bias,
+                    fsmt_layer.self_attn.k_proj.bias,
+                    fsmt_layer.self_attn.v_proj.bias,
+                ]
             )
         )
 
@@ -1087,10 +1099,22 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
-            torch.cat([layer.self_attn.q_proj.weight, layer.self_attn.k_proj.weight, layer.self_attn.v_proj.weight,])
+            torch.cat(
+                [
+                    layer.self_attn.q_proj.weight,
+                    layer.self_attn.k_proj.weight,
+                    layer.self_attn.v_proj.weight,
+                ]
+            )
         )
         self.in_proj_bias = nn.Parameter(
-            torch.cat([layer.self_attn.q_proj.bias, layer.self_attn.k_proj.bias, layer.self_attn.v_proj.bias,])
+            torch.cat(
+                [
+                    layer.self_attn.q_proj.bias,
+                    layer.self_attn.k_proj.bias,
+                    layer.self_attn.v_proj.bias,
+                ]
+            )
         )
 
         # Out proj layer

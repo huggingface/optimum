@@ -49,7 +49,10 @@ if is_torch_available():
 _is_torch_onnx_support_available = is_torch_available() and (
     TORCH_MINIMUM_VERSION.major,
     TORCH_MINIMUM_VERSION.minor,
-) <= (torch_version.major, torch_version.minor,)
+) <= (
+    torch_version.major,
+    torch_version.minor,
+)
 
 
 def is_torch_onnx_support_available():

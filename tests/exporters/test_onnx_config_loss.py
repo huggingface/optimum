@@ -58,7 +58,12 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     # Export model from PyTorch to ONNX
                     onnx_model_path = Path(os.path.join(tmp_dir, f"{model.config.model_type}.onnx"))
                     opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
-                    _ = export(model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path,)
+                    _ = export(
+                        model=model,
+                        config=wrapped_onnx_config,
+                        opset=opset,
+                        output=onnx_model_path,
+                    )
 
                     # ONNX Runtime Inference
                     ort_sess = onnxruntime.InferenceSession(
@@ -195,7 +200,10 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
 
             onnx_model_path = Path(tmp_dir).joinpath(ONNX_DECODER_NAME)
             export(
-                model=model, config=wrapped_onnx_config_decoder, opset=opset, output=onnx_model_path,
+                model=model,
+                config=wrapped_onnx_config_decoder,
+                opset=opset,
+                output=onnx_model_path,
             )
 
             # ONNX Runtime Inference

@@ -295,7 +295,10 @@ class ORTModel(OptimizedModel):
             providers_options = None
 
         return ort.InferenceSession(
-            path, providers=providers, sess_options=session_options, provider_options=providers_options,
+            path,
+            providers=providers,
+            sess_options=session_options,
+            provider_options=providers_options,
         )
 
     def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME, **kwargs):
@@ -1043,7 +1046,8 @@ class ORTModelForSequenceClassification(ORTModel):
 
         # bind logits
         logits_shape, logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), num_labels=self.config.num_labels,
+            batch_size=input_ids.size(0),
+            num_labels=self.config.num_labels,
         )
         io_binding.bind_output(
             "logits",
@@ -1211,7 +1215,9 @@ class ORTModelForTokenClassification(ORTModel):
 
         # bind logits
         logits_shape, logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1), num_labels=self.config.num_labels,
+            batch_size=input_ids.size(0),
+            sequence_length=input_ids.size(1),
+            num_labels=self.config.num_labels,
         )
         io_binding.bind_output(
             "logits",
@@ -1501,7 +1507,8 @@ class ORTModelForImageClassification(ORTModel):
         return logits_shape, logits_buffer
 
     def prepare_io_binding(
-        self, pixel_values: torch.Tensor,
+        self,
+        pixel_values: torch.Tensor,
     ):
         io_binding = self.model.io_binding()
 
@@ -1540,7 +1547,9 @@ class ORTModelForImageClassification(ORTModel):
         )
     )
     def forward(
-        self, pixel_values: torch.Tensor, **kwargs,
+        self,
+        pixel_values: torch.Tensor,
+        **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(pixel_values)
