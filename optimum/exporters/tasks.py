@@ -718,7 +718,7 @@ class TasksManager:
             return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
-    def get_supported_model_type_for_task(task: str, exporter: str):
+    def get_supported_model_type_for_task(task: str, exporter: str) -> List[str]:
         """
         Returns the list of supported architectures by the exporter for a given task.
         """
