@@ -49,6 +49,7 @@ class BetterTransformerManager:
         "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
         "rembert": ("RemBertLayer", BertLayerBetterTransformer),
         "roberta": ("RobertaLayer", BertLayerBetterTransformer),
+        "roc_bert": ("RoCBertLayer", BertLayerBetterTransformer),
         "splinter": ("SplinterLayer", BertLayerBetterTransformer),
         "tapas": ("TapasLayer", BertLayerBetterTransformer),
         "vilt": ("ViltLayer", ViltLayerBetterTransformer),

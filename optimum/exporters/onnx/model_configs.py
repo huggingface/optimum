@@ -119,7 +119,7 @@ class CamembertOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
-class FlaubertOnnxConfig(DistilBertOnnxConfig):
+class FlaubertOnnxConfig(BertOnnxConfig):
     pass
 
 
@@ -263,7 +263,7 @@ class MT5OnnxConfig(T5OnnxConfig):
 
 
 class LongT5OnnxConfig(T5OnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14
 
 
 class BartDummyTextInputGenerator(DummyTextInputGenerator):

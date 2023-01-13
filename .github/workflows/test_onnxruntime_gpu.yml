@@ -2,11 +2,14 @@ name: ONNX Runtime / Test GPU
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
   schedule:
     - cron: 0 7 * * * # every day at 7am
+  pull_request:
+    types: [labeled]
+  # uncomment to enable on PR merge on main branch:
+  #push:
+  #  branches:
+  #    - main
 
 jobs:
   start-runner:
@@ -59,7 +62,7 @@ jobs:
           docker build -f tests/onnxruntime/Dockerfile_onnxruntime_gpu -t onnxruntime-gpu .
       - name: Test with unittest within docker container
         run: |
-          docker run --gpus all --workdir=/workspace/optimum/tests onnxruntime-gpu:latest
+          docker run --rm --gpus all --workdir=/workspace/optimum/tests onnxruntime-gpu:latest
 
   stop-runner:
     name: Stop self-hosted EC2 runner
