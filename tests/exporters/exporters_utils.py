@@ -68,6 +68,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilenet-v1": "google/mobilenet_v1_0.75_192",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mt5": "lewtun/tiny-random-mt5",
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",

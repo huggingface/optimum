@@ -111,6 +111,10 @@ class DistilBertOnnxConfig(BertOnnxConfig):
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
 
 
+class MPNetOnnxConfig(DistilBertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+
+
 class RobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
