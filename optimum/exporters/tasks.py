@@ -141,6 +141,7 @@ class TasksManager:
         "stable-diffusion": "diffusers",
     }
 
+    # TODO: some models here support causal-lm export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
         "audio-spectrogram-transformer": supported_tasks_mapping(
