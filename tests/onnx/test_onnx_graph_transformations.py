@@ -27,7 +27,11 @@ import huggingface_hub
 import onnx
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
-from optimum.onnx.graph_transformations import merge_decoders, model_to_int32, remove_duplicate_weights
+from optimum.onnx.graph_transformations import (
+    cast_slice_nodes_inputs_to_int32,
+    merge_decoders,
+    remove_duplicate_weights,
+)
 from parameterized import parameterized
 
 
@@ -104,7 +108,7 @@ class OnnxToInt32Test(TestCase):
             save_path = str(Path(repo_path, "decoder_model_int32.onnx"))
             model = onnx.load(path)
 
-            model = model_to_int32(model)
+            model = cast_slice_nodes_inputs_to_int32(model)
 
             onnx.save(
                 model,
