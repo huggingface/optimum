@@ -154,7 +154,7 @@ class NormalizedConfigManager:
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot_small": BartLikeNormalizedTextConfig,
-        "bloom": NormalizedTextConfig.with_args(hidden_size="n_embd"),
+        "bloom": NormalizedTextConfig.with_args(hidden_size="n_embd", num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,
