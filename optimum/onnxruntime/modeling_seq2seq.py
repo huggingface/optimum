@@ -768,7 +768,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         ABC.__init__(self)
 
         self.shared_attributes_init(
-            self,
             encoder_session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
