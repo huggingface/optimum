@@ -87,10 +87,10 @@ from transformers.trainer_utils import (
     set_seed,
     speed_metrics,
 )
-from transformers.utils import check_min_version, logging
+from transformers.utils import logging
 
 from ..exporters import TasksManager
-from ..exporters.onnx import export
+from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
@@ -104,7 +104,13 @@ from .modeling_ort import (
 )
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
-from .utils import is_onnxruntime_training_available, wrap_onnx_config_for_loss
+from .utils import (
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    ONNX_WEIGHTS_NAME,
+    is_onnxruntime_training_available,
+    wrap_onnx_config_for_loss,
+)
 
 
 if is_apex_available():
@@ -946,9 +952,10 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
         else:
-            onnx_model_path = Path(
-                os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
-            )
+            # onnx_model_path = Path(
+            #     os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
+            # )
+            onnx_model_path = Path(self.args.output_dir)
 
             logger.info("[INFO] Exporting the model to ONNX...")
             if self.args.deepspeed and self.args.fp16:
@@ -970,8 +977,10 @@ class ORTTrainer(Trainer):
         else:
             ort_model_cls = ORTModelForCustomTasks
 
-        model_id, file_name = os.path.split(self.onnx_model_path)
-        ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
+        # model_id, file_name = os.path.split(self.onnx_model_path)
+        model_id = self.onnx_model_path
+        # ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
+        ort_model = ort_model_cls.from_pretrained(model_id=model_id)
 
         args = self.args
 
@@ -1464,14 +1473,21 @@ class ORTTrainer(Trainer):
             model=model, exporter="onnx", task=self.feature
         )
         onnx_config = onnx_config_constructor(model.config)
-
         opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
 
         if with_loss:
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        _ = export(model, onnx_config, model_path, opset, device=device)
+        _ = export(
+            model=model,
+            config=onnx_config,
+            opset=opset,
+            output=model_path / ONNX_WEIGHTS_NAME,
+            device=device,
+        )
+
+        model.config.save_pretrained(model_path)
 
     def _wrap_model(self, model, training=True, dataloader=None):
         # TODO: torchdynamo works for inference with PyTorch in ORTTrainer, will move `inference_with_ort` to training arguments and
