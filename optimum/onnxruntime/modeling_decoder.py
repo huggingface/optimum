@@ -363,6 +363,7 @@ class ORTModelDecoder(ORTModel):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
+        self.config = config
 
         # TODO: remove at version 2.0
         def show_deprecated_argument(arg_name):

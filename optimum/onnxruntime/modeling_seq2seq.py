@@ -774,6 +774,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
         )
+        self.config = config
 
         self.encoder = self._initialize_encoder(
             session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
