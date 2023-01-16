@@ -211,6 +211,12 @@ class ORTModel(OptimizedModel):
 
         self.use_io_binding = check_io_binding(self.providers, use_io_binding)
 
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_input_names = list(self.model_inputs.keys())
+        self.model_output_names = list(self.model_outputs.keys())
+        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
+
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
@@ -617,10 +623,6 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_output_buffer(self, batch_size, sequence_length, hidden_size, output_name: str):
         """Prepares the buffer of output_name with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
@@ -788,10 +790,6 @@ class ORTModelForQuestionAnswering(ORTModel):
 
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, sequence_length, output_name: str):
         """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
@@ -987,11 +985,6 @@ class ORTModelForSequenceClassification(ORTModel):
 
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, num_labels):
         """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
@@ -1157,10 +1150,6 @@ class ORTModelForTokenClassification(ORTModel):
 
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, sequence_length, num_labels):
         """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length, config.num_labels)."""
@@ -1322,10 +1311,6 @@ class ORTModelForMultipleChoice(ORTModel):
 
     auto_model_class = AutoModelForMultipleChoice
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size, num_choices):
         """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
@@ -1491,10 +1476,6 @@ class ORTModelForImageClassification(ORTModel):
 
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
 
     def prepare_logits_buffer(self, batch_size):
         """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
@@ -1627,12 +1608,6 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
     auto_model_class = AutoModelForSemanticSegmentation
 
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_input_names = list(self.model_inputs.keys())
-        self.model_output_names = list(self.model_outputs.keys())
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
@@ -1730,13 +1705,6 @@ class ORTModelForCustomTasks(ORTModel):
     """
     Model for any custom tasks if the ONNX model is stored in a single file.
     """
-
-    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_input_names = list(self.model_inputs.keys())
-        self.model_output_names = list(self.model_outputs.keys())
 
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(
