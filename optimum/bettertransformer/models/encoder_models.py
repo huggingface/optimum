@@ -1092,7 +1092,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         **The implementation is valid only for the vision model, that does not use `causal_attention_mask`.**
 
         Args:
-            prnt_layer (`torch.nn.Module`):
+            layer (`torch.nn.Module`):
                 The original `CLIPEncoderLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
@@ -1270,6 +1270,8 @@ class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
             seqlen = attention_mask.shape[1]
             lengths = torch.sum(~attention_mask, 1)
+
+            attention_mask = attention_mask.unsqueeze(1).unique(dim=0).squeeze()
 
             if hidden_states.shape[0] != attention_mask.shape[0]:
                 hidden_states = hidden_states.transpose(1, 0)
