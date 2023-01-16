@@ -481,6 +481,15 @@ class TasksManager:
             "image-classification",
             onnx="MobileNetV2OnnxConfig",
         ),
+        "mpnet": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="MPNetOnnxConfig",
+        ),
         "mt5": supported_tasks_mapping(
             "default",
             "default-with-past",
