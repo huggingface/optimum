@@ -952,9 +952,6 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
         else:
-            # onnx_model_path = Path(
-            #     os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
-            # )
             onnx_model_path = Path(self.args.output_dir)
 
             logger.info("[INFO] Exporting the model to ONNX...")
@@ -977,9 +974,7 @@ class ORTTrainer(Trainer):
         else:
             ort_model_cls = ORTModelForCustomTasks
 
-        # model_id, file_name = os.path.split(self.onnx_model_path)
         model_id = self.onnx_model_path
-        # ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
         ort_model = ort_model_cls.from_pretrained(model_id=model_id)
 
         args = self.args
@@ -1180,9 +1175,7 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
         else:
-            onnx_model_path = Path(
-                os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
-            )
+            onnx_model_path = Path(self.args.output_dir)
 
             logger.info("[INFO] Exporting the model to ONNX...")
             if self.args.deepspeed and self.args.fp16:
@@ -1204,8 +1197,8 @@ class ORTTrainer(Trainer):
         else:
             ort_model_cls = ORTModelForCustomTasks
 
-        model_id, file_name = os.path.split(self.onnx_model_path)
-        ort_model = ort_model_cls.from_pretrained(model_id=model_id, file_name=file_name)
+        model_id = self.onnx_model_path
+        ort_model = ort_model_cls.from_pretrained(model_id=model_id)
 
         args = self.args
 
