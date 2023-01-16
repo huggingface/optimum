@@ -1516,6 +1516,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
 
 class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
+        "bloom",
         "codegen",
         "gpt2",
         "gpt_neo",
@@ -1981,6 +1982,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bart",
         "bigbird_pegasus",
+        "blenderbot",
+        "blenderbot-small",
         "longt5",
         "m2m_100",
         "marian",
