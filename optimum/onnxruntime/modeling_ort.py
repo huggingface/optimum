@@ -162,15 +162,17 @@ class ORTModel(OptimizedModel):
         """
         return cls._AUTOMODELS_TO_TASKS[auto_model_class.__name__]
 
-    def __init__(
+    def shared_attributes_init(
         self,
         model: ort.InferenceSession,
-        config: "PretrainedConfig",
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
     ):
+        """
+        Initializes attributes that may be shared among several ONNX Runtime inference sesssions.
+        """
         # TODO: remove at version 2.0
         if kwargs.pop("latest_model_name", None) is not None:
             logger.warning(
@@ -182,7 +184,6 @@ class ORTModel(OptimizedModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        super().__init__(model, config)
         self.providers = model.get_providers()
         self._device = get_device_for_provider(self.providers[0])
 
@@ -198,8 +199,6 @@ class ORTModel(OptimizedModel):
             self.model_save_dir = Path(model_save_dir)
         else:
             self.model_save_dir = model_save_dir
-        self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
 
         self.preprocessors = preprocessors if preprocessors is not None else []
 
@@ -215,6 +214,28 @@ class ORTModel(OptimizedModel):
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
+
+    def __init__(
+        self,
+        model: ort.InferenceSession,
+        config: "PretrainedConfig",
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        **kwargs,
+    ):
+        super().__init__(model, config)
+
+        self.model_path = Path(model._model_path)
+        self.model_name = self.model_path.name
+
+        self.shared_attributes_init(
+            model,
+            use_io_binding,
+            model_save_dir,
+            preprocessors,
+            **kwargs,
+        )
 
     # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
     @property

@@ -358,6 +358,13 @@ class ORTModelDecoder(ORTModel):
             preprocessors (`Optional[List]`, defaults to `None`):
                 The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
         """
+        self.shared_attributes_init(
+            decoder_session,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+        )
+        self.config = config
+
         # TODO: remove at version 2.0
         def show_deprecated_argument(arg_name):
             if kwargs.pop(arg_name, None) is not None:
@@ -373,12 +380,6 @@ class ORTModelDecoder(ORTModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        super().__init__(
-            decoder_session,
-            config,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-        )
         self.use_cache = decoder_with_past_session is not None
         self.decoder = ORTDecoder(
             session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
