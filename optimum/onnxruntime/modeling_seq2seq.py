@@ -767,14 +767,14 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         ABC.__init__(self)
 
-        ORTModel.__init__(
+        self.shared_attributes_init(
             self,
             encoder_session,
-            config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
         )
+
         self.encoder = self._initialize_encoder(
             session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )
