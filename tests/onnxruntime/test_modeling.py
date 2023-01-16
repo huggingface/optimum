@@ -856,9 +856,11 @@ class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
-        )
+        ).to("cuda")
         set_seed(SEED)
-        io_model = ORTModelForQuestionAnswering.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForQuestionAnswering.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=True
+        ).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
@@ -988,11 +990,11 @@ class ORTModelForSequenceClassificationIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
-        )
+        ).to("cuda")
         set_seed(SEED)
         io_model = ORTModelForSequenceClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=True
-        )
+        ).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
@@ -1097,11 +1099,11 @@ class ORTModelForTokenClassificationIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForTokenClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
-        )
+        ).to("cuda")
         set_seed(SEED)
         io_model = ORTModelForTokenClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=True
-        )
+        ).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
@@ -1203,9 +1205,11 @@ class ORTModelForFeatureExtractionIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
-        )
+        ).to("cuda")
         set_seed(SEED)
-        io_model = ORTModelForFeatureExtraction.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForFeatureExtraction.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=True
+        ).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
@@ -1272,9 +1276,13 @@ class ORTModelForMultipleChoiceIntegrationTest(unittest.TestCase):
     @require_torch_gpu
     def test_compare_to_io_binding(self, model_id):
         set_seed(SEED)
-        onnx_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForMultipleChoice.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=False
+        ).to("cuda")
         set_seed(SEED)
-        io_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForMultipleChoice.from_pretrained(model_id, from_transformers=True, use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         num_choices = 4
@@ -1425,9 +1433,13 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     def test_compare_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False).to(
+            "cuda"
+        )
         set_seed(SEED)
-        io_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
@@ -1447,9 +1459,13 @@ class ORTModelForCausalLMIntegrationTest(unittest.TestCase):
     def test_compare_generation_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False).to(
+            "cuda"
+        )
         set_seed(SEED)
-        io_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
@@ -1551,11 +1567,11 @@ class ORTModelForImageClassificationIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForImageClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
-        )
+        ).to("cuda")
         set_seed(SEED)
         io_model = ORTModelForImageClassification.from_pretrained(
             model_id, from_transformers=True, use_io_binding=True
-        )
+        ).to("cuda")
 
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -1661,11 +1677,11 @@ class ORTModelForSemanticSegmentationIntegrationTest(unittest.TestCase):
         set_seed(SEED)
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
             model_id, from_transformers=True, use_io_binding=False
-        )
+        ).to("cuda")
         set_seed(SEED)
         io_model = ORTModelForSemanticSegmentation.from_pretrained(
             model_id, from_transformers=True, use_io_binding=True
-        )
+        ).to("cuda")
 
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -1840,9 +1856,13 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     def test_compare_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False).to(
+            "cuda"
+        )
         set_seed(SEED)
-        io_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
@@ -1865,9 +1885,13 @@ class ORTModelForSeq2SeqLMIntegrationTest(unittest.TestCase):
     def test_compare_generation_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=False).to(
+            "cuda"
+        )
         set_seed(SEED)
-        io_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
@@ -1998,9 +2022,13 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
         data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt")
 
-        model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=True)
+        model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=True).to(
+            "cuda"
+        )
         outputs_model_with_pkv = model_with_pkv.generate(**features)
-        model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_cache=False)
+        model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
+            model_id, from_transformers=True, use_cache=False
+        ).to("cuda")
         outputs_model_without_pkv = model_without_pkv.generate(**features)
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
@@ -2010,9 +2038,13 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
     def test_compare_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=False
+        ).to("cuda")
         set_seed(SEED)
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True).to(
+            "cuda"
+        )
 
         processor = get_preprocessor(model_id)
 
@@ -2038,9 +2070,13 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(unittest.TestCase):
     def test_compare_generation_to_io_binding(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         set_seed(SEED)
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=False)
+        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+            model_id, from_transformers=True, use_io_binding=False
+        ).to("cuda")
         set_seed(SEED)
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True)
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_io_binding=True).to(
+            "cuda"
+        )
 
         processor = get_preprocessor(model_id)
 
@@ -2109,9 +2145,9 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
     def test_compare_to_io_binding(self, *args, **kwargs):
         model_arch, model_id = args
         set_seed(SEED)
-        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False)
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False).to("cuda")
         set_seed(SEED)
-        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True)
+        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True).to("cuda")
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
