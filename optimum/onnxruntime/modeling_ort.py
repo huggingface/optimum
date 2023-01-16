@@ -380,6 +380,7 @@ class ORTModel(OptimizedModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        **kwargs,
     ) -> "ORTModel":
         model_path = Path(model_id)
         regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
@@ -480,6 +481,7 @@ class ORTModel(OptimizedModel):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
@@ -492,6 +494,7 @@ class ORTModel(OptimizedModel):
         kwargs_to_get_model = {
             "subfolder": subfolder,
             "revision": revision,
+            "trust_remote_code": trust_remote_code,
         }
 
         model = TasksManager.get_model_from_task(task, model_id, **kwargs_to_get_model)
