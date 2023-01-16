@@ -94,10 +94,12 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+# TODO: this config is bug prone, as `encoder_attention_heads` and `decoder_attention_heads` may be different
 BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="encoder_attention_heads",
     hidden_size="d_model",
 )
+
 GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="n_head", hidden_size="n_embd")
 T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
@@ -118,58 +120,29 @@ class NormalizedConfigManager:
     """
 
     """
-    We should make sure to have all model types, i.e. at least
-        ['albert',
-        'bart',
-        'beit',
-        'bert',
-        'big-bird',
-        'bigbird-pegasus',
-        'blenderbot',
-        'blenderbot-small',
-        'bloom',
-        'camembert',
+    TODO: missing normalized configs (currently not useful)
+        ['beit',
         'clip',
-        'codegen',
         'convbert',
         'convnext',
         'data2vec-text',
         'data2vec-vision',
-        'deberta',
-        'deberta-v2',
         'deit',
         'detr',
-        'distilbert',
-        'electra',
         'flaubert',
-        'gpt2',
-        'gptj',
-        'gpt-neo',
         'groupvit',
         'ibert',
         'layoutlm',
         'layoutlmv3',
         'levit',
-        'longt5',
-        'marian',
-        'mbart',
         'mobilebert',
         'mobilevit',
-        'mt5',
-        'm2m-100',
         'owlvit',
         'perceiver',
-        'resnet',
-        'roberta',
         'roformer',
         'segformer',
         'squeezebert',
-        't5',
         'vit',
-        'whisper',
-        'xlm',
-        'xlm-roberta',
-        'yolos']
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -179,6 +152,9 @@ class NormalizedConfigManager:
         "bert": NormalizedTextConfig,
         "big_bird": NormalizedTextConfig,
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
+        "blenderbot": BartLikeNormalizedTextConfig,
+        "blenderbot_small": BartLikeNormalizedTextConfig,
+        "bloom": NormalizedTextConfig.with_args(hidden_size="n_embd", num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,
