@@ -1983,7 +1983,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         "bart",
         "bigbird_pegasus",
         "blenderbot",
-        "blenderbot-small",
+        "blenderbot_small",
         "longt5",
         "m2m_100",
         "marian",
