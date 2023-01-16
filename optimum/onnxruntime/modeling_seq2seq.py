@@ -37,7 +37,7 @@ from ..exporters.onnx import export_models, get_encoder_decoder_models_for_expor
 from ..exporters.tasks import TasksManager
 from ..onnx.utils import _get_external_data_paths
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
-from ..utils.file_utils import find_files_matching_pattern, validate_file_exists
+from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import TypeHelper
 from .modeling_decoder import ORTDecoder
@@ -493,6 +493,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
         )
+
         self.encoder = self._initialize_encoder(
             session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )
@@ -562,41 +563,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        providers = [provider]
-        if provider == "TensorrtExecutionProvider":
-            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
-            providers.append("CUDAExecutionProvider")
-
-        # `providers` and `provider_options` need to be of the same length
-        if provider_options is not None:
-            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
-        else:
-            providers_options = None
-
-        encoder_session = ort.InferenceSession(
-            str(encoder_path),
-            providers=providers,
-            sess_options=session_options,
-            provider_options=providers_options,
-        )
-        decoder_session = ort.InferenceSession(
-            str(decoder_path),
-            providers=providers,
-            sess_options=session_options,
-            provider_options=providers_options,
-        )
+        encoder_session = ORTModel.load_model(encoder_path, provider, session_options, provider_options)
+        decoder_session = ORTModel.load_model(decoder_path, provider, session_options, provider_options)
 
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         if decoder_with_past_path is not None:
-            decoder_with_past_session = ort.InferenceSession(
-                str(decoder_with_past_path),
-                providers=providers,
-                sess_options=session_options,
-                provider_options=providers_options,
+            decoder_with_past_session = ORTModel.load_model(
+                decoder_with_past_path, provider, session_options, provider_options
             )
 
         return encoder_session, decoder_session, decoder_with_past_session
@@ -743,7 +718,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         preprocessors = None
         if model_path.is_dir():
-            model = cls.load_model(
+            inference_sessions = cls.load_model(
                 encoder_path=encoder_path,
                 decoder_path=decoder_path,
                 decoder_with_past_path=decoder_with_past_path,
@@ -797,7 +772,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             if last_decoder_with_past_name is not None:
                 last_decoder_with_past_name = new_model_save_dir / last_decoder_with_past_name
 
-            model = cls.load_model(
+            inference_sessions = cls.load_model(
                 encoder_path=new_model_save_dir / paths["last_encoder_model_name"],
                 decoder_path=new_model_save_dir / paths["last_decoder_model_name"],
                 decoder_with_past_path=last_decoder_with_past_name,
@@ -810,9 +785,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             model_save_dir = new_model_save_dir
 
         return cls(
-            *model[:2],
+            *inference_sessions[:2],
             config,
-            decoder_with_past_session=model[2],
+            decoder_with_past_session=inference_sessions[2],
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
