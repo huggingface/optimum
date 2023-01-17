@@ -1468,15 +1468,18 @@ class ORTTrainer(Trainer):
         onnx_config = onnx_config_constructor(model.config)
         opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
 
+        is_decoder = isinstance(onnx_config, OnnxConfigWithPast)
+
         if with_loss:
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
+        output_path = model_path / ONNX_DECODER_NAME if is_decoder else model_path / ONNX_WEIGHTS_NAME
         _ = export(
             model=model,
             config=onnx_config,
             opset=opset,
-            output=model_path / ONNX_WEIGHTS_NAME,
+            output=output_path,
             device=device,
         )
 
