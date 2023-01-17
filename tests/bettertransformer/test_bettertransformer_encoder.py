@@ -18,39 +18,42 @@ import unittest
 
 import torch
 import transformers
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 
-from optimum.bettertransformer import BETTER_TRANFORMER_LAYERS_MAPPING_DICT, BetterTransformer
+from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils.testing_utils import (
-    convert_to_hf_classes,
+    grid_parameters,
     is_torch_greater_than_113,
     require_accelerate,
     require_torch_gpu,
 )
+from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_ENCODER_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-DistilBertModel",
     "hf-internal-testing/tiny-random-AlbertModel",
-    "hf-internal-testing/tiny-random-RobertaModel",
-    "hf-internal-testing/tiny-xlm-roberta",
-    "hf-internal-testing/tiny-random-SplinterModel",
-    "hf-internal-testing/tiny-random-ErnieModel",
-    "hf-internal-testing/tiny-random-camembert",
-    "hf-internal-testing/tiny-random-ElectraModel",
-    "hf-internal-testing/tiny-random-LayoutLMModel",
-    "hf-internal-testing/tiny-random-Data2VecTextModel",
-    "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-BertModel",
-    "ybelkada/random-tiny-BertGenerationModel",
+    "hf-internal-testing/tiny-random-camembert",
+    "hf-internal-testing/tiny-random-Data2VecTextModel",
+    "hf-internal-testing/tiny-random-DistilBertModel",
+    "hf-internal-testing/tiny-random-ElectraModel",
+    "hf-internal-testing/tiny-random-ErnieModel",
+    "hf-internal-testing/tiny-random-LayoutLMModel",
+    "hf-internal-testing/tiny-random-MarkupLMModel",
+    "hf-internal-testing/tiny-random-rembert",
+    "hf-internal-testing/tiny-random-RobertaModel",
+    "hf-internal-testing/tiny-random-RoFormerModel",
+    "hf-internal-testing/tiny-random-SplinterModel",
     "hf-internal-testing/tiny-random-TapasModel",
+    "hf-internal-testing/tiny-xlm-roberta",
+    "ybelkada/random-tiny-BertGenerationModel",
 ]
 
 ALL_ENCODER_DECODER_MODELS_TO_TEST = [
+    "hf-internal-testing/tiny-random-bart",
     "hf-internal-testing/tiny-random-FSMTModel",
-    "hf-internal-testing/tiny-random-BartModel",
-    "hf-internal-testing/tiny-random-MBartModel",
+    "hf-internal-testing/tiny-random-mbart",
     "hf-internal-testing/tiny-random-nllb",
 ]
 
@@ -77,37 +80,12 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         }
         return input_dict
 
-    def _loop_all_classes(self):
-        r"""
-        An utility function to automatically loop over all classes to test.
-        this is a generator that will generate random config class for each
-        model to test.
-        """
-        for layer_class in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
-            if layer_class == "EncoderLayer":
-                # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
-                class_name = "FSMT"
-            elif layer_class == "TransformerBlock":
-                # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-                class_name = "DistilBert"
-            elif "EncoderLayer" in layer_class:
-                class_name = layer_class[:-12]
-            else:
-                class_name = layer_class[:-5]
-            random_config = getattr(transformers, class_name + "Config")
-            yield random_config()
-
     def test_dict_class_consistency(self):
-        r"""
-        A test to check if the modified dictionnary is consistent (same number of keys + successfully import
-        the correct `PreTrainedModel` module). This also checks if the list of models to test has the same
-        number of classes than the list of convertable models.
         """
-        for keys in BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys():
-            self.assertTrue(("Layer" in keys) or ("Block" in keys))
-
-        ALL_SUPPORTED_HF_CLASSES = convert_to_hf_classes(BETTER_TRANFORMER_LAYERS_MAPPING_DICT)
-        self.assertEqual(len(ALL_SUPPORTED_HF_CLASSES.keys()), len(BETTER_TRANFORMER_LAYERS_MAPPING_DICT.keys()))
+        A test to check BetterTransformerManager.MODEL_MAPPING has good names.
+        """
+        for model_type, item in BetterTransformerManager.MODEL_MAPPING.items():
+            self.assertTrue(("Layer" in item[0]) or ("Block" in item[0]))
 
     def test_raise_pos_emb(self):
         r"""
@@ -121,17 +99,31 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
             hf_model = AutoModel.from_config(random_config).eval()
             _ = BetterTransformer.transform(hf_model, keep_original_model=False)
 
-    def test_raise_activation_fun(self):
+    @parameterized.expand(BetterTransformerManager.MODEL_MAPPING.keys())
+    def test_raise_activation_fun(self, model_type: str):
         r"""
         A tests that checks if the conversion raises an error if the model contains an activation function
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
-        for hf_random_config in self._loop_all_classes():
-            hf_random_config.hidden_act = "silu"
+        layer_class = BetterTransformerManager.MODEL_MAPPING[model_type][0]
 
-            hf_random_model = AutoModel.from_config(hf_random_config).eval()
-            with self.assertRaises(ValueError):
-                _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+        if layer_class == "EncoderLayer":
+            # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
+            class_name = "FSMT"
+        elif layer_class == "TransformerBlock":
+            # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
+            class_name = "DistilBert"
+        elif "EncoderLayer" in layer_class:
+            class_name = layer_class[:-12]
+        else:
+            class_name = layer_class[:-5]
+
+        hf_random_config = getattr(transformers, class_name + "Config")()  # random config class for the model to test
+        hf_random_config.hidden_act = "silu"
+
+        hf_random_model = AutoModel.from_config(hf_random_config).eval()
+        with self.assertRaises(ValueError):
+            _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
     @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
     @torch.no_grad()
@@ -147,7 +139,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         hf_model = AutoModel.from_pretrained(model_name).eval()
         bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
-        BATCH_SIZE = 1
+        BATCH_SIZE = 8
         SEQ_LEN = 16
         MAX_SEQ_LEN = 32
         STD_SEQ_LEN = 10  # let's take a large sequence length standard deviation
@@ -155,6 +147,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         N_REPEAT = 10
 
         input_ids, _, attention_mask = get_batch(BATCH_SIZE, SEQ_LEN, MAX_SEQ_LEN, STD_SEQ_LEN, VOCAB_SIZE)
+        for i in range(1, BATCH_SIZE):
+            attention_mask[i, SEQ_LEN // 4 :] = 0
 
         mean_hf_time = 0
         mean_bt_time = 0
@@ -262,6 +256,14 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
 
+class BetterTransformersRoCBertTest(BetterTransformersEncoderTest):
+    all_models_to_test = ["hf-internal-testing/tiny-random-RoCBertModel"]
+
+    # unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)
+    def test_raise_autocast(self):
+        pass
+
+
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Full testing suite of the `BetterTransformers` integration into Hugging Face
@@ -277,13 +279,24 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id=None):
-        input_dict = {
-            "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
-            "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
-            "decoder_input_ids": torch.LongTensor([[0], [0]]),
-        }
-        return input_dict
+    def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        padding = preprocessor_kwargs.pop("padding", True)
+        inputs = tokenizer(["a dummy input", "and two"], return_tensors="pt", padding=padding, **preprocessor_kwargs)
+        inputs["decoder_input_ids"] = inputs["input_ids"]  # just a hack for m2m100
+        return inputs
+
+    # run the test over all possible combinations of `model_id` and `padding`
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": ALL_ENCODER_DECODER_MODELS_TO_TEST,
+                "padding": ["max_length", True],
+            }
+        )
+    )
+    def test_logits(self, test_name: str, model_id, padding, max_length=20):
+        super().test_logits([model_id], padding=padding, max_length=max_length)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
@@ -295,7 +308,10 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     mean_tensor = torch.Tensor([avg_seqlen]).expand(batch_size)
     stdev_tensor = torch.Tensor([seqlen_stdev]).expand(batch_size)
     lengths = torch.normal(mean_tensor, stdev_tensor).to(torch.int)
-    lengths = torch.clamp(lengths, min=0, max=max_sequence_length)
+
+    # need at least a sequence length of 1 for BetterTransformer to work
+    lengths = torch.clamp(lengths, min=1, max=max_sequence_length)
+
     tokens = torch.full(
         (batch_size, max_sequence_length),
         pad_idx,

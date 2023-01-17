@@ -31,4 +31,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        RUN_SLOW=1 pytest exporters --durations=0
+        pytest exporters -s --durations=0

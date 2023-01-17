@@ -12,9 +12,25 @@ specific language governing permissions and limitations under the License.
 
 # Export a model to ONNX with optimum.exporters.onnx
 
-If you need to deploy 🤗 Transformers models in production environments, we recommend
+## Summary
+
+Exporting a model to ONNX is as simple as
+
+```bash
+optimum-cli export onnx --model gpt2 gpt2_onnx/
+```
+
+Check out the help for more options:
+
+```bash
+optimum-cli export onnx --help
+```
+
+## Why use ONNX?
+
+If you need to deploy 🤗 Transformers or 🤗 Diffusers models in production environments, we recommend
 exporting them to a serialized format that can be loaded and executed on specialized
-runtimes and hardware. In this guide, we'll show you how to export 🤗 Transformers
+runtimes and hardware. In this guide, we'll show you how to export these
 models to [ONNX (Open Neural Network eXchange)](http://onnx.ai).
 
 ONNX is an open standard that defines a common set of operators and a common file format
@@ -34,7 +50,6 @@ graph optimization and quantization. Check the `optimum.onnxruntime` subpackage 
 
 </Tip>
 
-
 🤗 Optimum provides support for the ONNX export by leveraging configuration objects.
 These configuration objects come ready made for a number of model architectures, and are
 designed to be easily extendable to other architectures.
@@ -43,31 +58,43 @@ designed to be easily extendable to other architectures.
 
 ## Exporting a model to ONNX using the CLI
 
-To export a 🤗 Transformers model to ONNX, you'll first need to install some extra
+To export a 🤗 Transformers or 🤗 Diffusers model to ONNX, you'll first need to install some extra
 dependencies:
 
 ```bash
 pip install optimum[exporters]
 ```
 
-The `optimum.exporters.onnx` package can then be used as a Python module:
+The Optimum ONNX export can be used through Optimum command-line:
 
 ```bash
-python -m optimum.exporters.onnx --help
+optimum-cli export onnx --help
 
-usage: Hugging Face Optimum ONNX exporter [-h] -m MODEL [--task TASK] [--opset OPSET] [--atol ATOL] [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] output
+usage: optimum-cli <command> [<args>] export onnx [-h] -m MODEL [--task TASK] [--for-ort] [--device DEVICE] [--opset OPSET] [--atol ATOL]
+                                                  [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--batch_size BATCH_SIZE]
+                                                  [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT]
+                                                  [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE] [--nb_max_frames NB_MAX_FRAMES]
+                                                  [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
+                                                  output
 
-positional arguments:
-  output                Path indicating the directory where to store generated ONNX model.
-
-optional arguments:
-  -h, --help            show this help message and exit
+Required arguments:
   -m MODEL, --model MODEL
                         Model ID on huggingface.co or path on disk to load model from.
-  --task TASK           The type of task to export the model with.
-  --opset OPSET         ONNX opset version to export the model with.
-  --atol ATOL           Absolute difference tolerance when validating the model.
-  --framework {pt,tf}   The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is available in the environment.
+  output                Path indicating the directory where to store generated ONNX model.
+
+Optional arguments:
+  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on
+                        the model, but are among: ['default', 'masked-lm', 'causal-lm', 'seq2seq-lm', 'sequence-classification', 'token-classification',
+                        'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-
+                        segmentation', 'speech2seq-lm', 'stable-diffusion']. For decoder models, use `xxx-with-past` to export the model using past key
+                        values in the decoder.
+  --for-ort             This exports models ready to be run with Optimum's ORTModel. Useful for encoder-decoder models forconditional generation. If
+                        enabled the encoder and decoder of the model are exported separately.
+  --device DEVICE       The device to use to do the export. Defaults to "cpu".
+  --opset OPSET         If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.
+  --atol ATOL           If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
+  --framework {pt,tf}   The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is
+                        available in the environment.
   --pad_token_id PAD_TOKEN_ID
                         This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
   --cache_dir CACHE_DIR
@@ -77,7 +104,7 @@ optional arguments:
 Exporting a checkpoint can be done as follows:
 
 ```bash
-python -m optimum.exporters.onnx --model distilbert-base-uncased-distilled-squad distilbert_base_uncased_squad_onnx/
+optimum-cli export onnx --model distilbert-base-uncased-distilled-squad distilbert_base_uncased_squad_onnx/
 ```
 
 You should see the following logs (along with potential logs from PyTorch / TensorFlow that were hidden here for clarity):
@@ -104,7 +131,7 @@ As you can see, the task was automatically detected. This was possible because t
 For local models, providing the `--task` argument is needed or it will default to the model architecture without any task specific head:
 
 ```bash
-python -m optimum.exporters.onnx --model local_path --task question-answering distilbert_base_uncased_squad_onnx/
+optimum-cli export onnx --model local_path --task question-answering distilbert_base_uncased_squad_onnx/
 ```
 
 Note that providing the `--task` argument for a model on the Hub will disable the automatic task detection.
@@ -145,7 +172,7 @@ It is also possible to export the model to ONNX directly from the `ORTModelForQu
 >>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert-base-uncased-distilled-squad", from_transformers=True)
 ```
 
-For more information, check the `optimum.onnxrutime` documentation [page on this topic](/onnxruntime/overview).
+For more information, check the `optimum.onnxruntime` documentation [page on this topic](/onnxruntime/overview).
 
 </Tip>
 
@@ -153,16 +180,48 @@ The process is identical for TensorFlow checkpoints on the Hub. For example, we 
 organization](https://huggingface.co/keras-io) as follows:
 
 ```bash
-python -m optimum.exporters.onnx --model keras-io/transformers-qa distilbert_base_cased_squad_onnx/
+optimum-cli export onnx --model keras-io/transformers-qa distilbert_base_cased_squad_onnx/
+```
+
+### Exporting a model to be used with Optimum's ORTModel
+
+Models exported through `optimum-cli export onnx` can be used directly in [`~onnxruntime.ORTModel`] by passing the parameter `--for-ort`. This is especially useful for encoder-decoder models, where in this case the export will split the encoder and decoder into two `.onnx` files, as the encoder is usually only run once while the decoder may be run several times in autogenerative tasks.
+
+### Exporting a model using past keys/values in the decoder
+
+When exporting a decoder model used for generation, it can be useful to encapsulate in the exported ONNX the [reuse of past keys and values](https://discuss.huggingface.co/t/what-is-the-purpose-of-use-cache-in-decoder/958/2). This allows to avoid recomputing the same intermediate activations during the generation.
+
+In the ONNX export, the past keys/values are reused by default. This behavior corresponds to `--task seq2seq-lm-with-past`, `--task causal-lm-with-past`, or `--task speech2seq-lm-with-past`. If for any purpose you would like to disable the export with past keys/values reuse, passing explicitly to `optimum-cli export onnx` the task `seq2seq-lm`, `causal-lm` or `speech2seq-lm` is required.
+
+A model exported using past key/values can be reused directly into Optimum's [`~onnxruntime.ORTModel`]:
+
+```bash
+optimum-cli export onnx --model gpt2 --for-ort --task causal-lm-with-past gpt2_onnx/
+```
+
+and
+
+```python
+from transformers import AutoTokenizer
+from optimum.onnxruntime import ORTModelForCausalLM
+
+tokenizer = AutoTokenizer.from_pretrained("/path/to/gpt2_onnx/")
+model = ORTModelForCausalLM.from_pretrained("/path/to/gpt2_onnx/")
+
+inputs = tokenizer("My name is Arthur and I live in", return_tensors="pt")
+
+gen_tokens = model.generate(**inputs)
+print(tokenizer.batch_decode(gen_tokens))
+# prints ['My name is Arthur and I live in the United States of America. I am a member of the']
 ```
 
 ## Selecting a task
 
-Each configuration comes with a set of _tasks_ that enable you to export models for different types of tasks. You can
-check the list of supported tasks for both PyTorch and TensorFlow [here](/exporters/task_manager).
+Specifying a `--task` should not be necessary in most cases when exporting from a model on the Hugging Face Hub.
 
-For each configuration, you can find the list of supported tasks via the
-[`~exporters.tasks.TasksManager`]. For example, for DistilBERT, for the ONNX export, we have:
+However, in case you need to check for a given a model architecture what tasks the ONNX export supports, we got you covered. First, you can check the list of supported tasks for both PyTorch and TensorFlow [here](/exporters/task_manager).
+
+For each model architecture, you can find the list of supported tasks via the [`~exporters.tasks.TasksManager`]. For example, for DistilBERT, for the ONNX export, we have:
 
 ```python
 >>> from optimum.exporters.tasks import TasksManager
@@ -172,4 +231,4 @@ For each configuration, you can find the list of supported tasks via the
 ["default", "masked-lm", "causal-lm", "sequence-classification", "token-classification", "question-answering"]
 ```
 
-You can then pass one of these tasks to the `--task` argument in the `optimum.exporters.onnx` package CLI, as mentioned above.
+You can then pass one of these tasks to the `--task` argument in the `optimum-cli export onnx` command, as mentioned above.

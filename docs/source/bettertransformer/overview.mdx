@@ -12,11 +12,12 @@ specific language governing permissions and limitations under the License.
 
 # Overview
 
-🤗 Optimum provides an integration with `BetterTransformer`, a stable API from PyTorch to benefit from interesting speedups on CPU & GPU through sparsity and fused kernels.
+🤗 Optimum provides an integration with `Better Transformer`, a fast path of standard PyTorch Transformer APIs to benefit from interesting speedups on CPU & GPU through sparsity and fused kernels. For now, it supports Transformer encoders, basically fast path of [`nn.TransformerEncoderLayer`](https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/),
+support for decoders and training path is coming soon.
 
 ## Quickstart
 
-Since its 1.13 version, PyTorch released the stable version of `BetterTransformer` in its library. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NIVIDIA GPUs.
+Since its 1.13 version, [PyTorch released](https://pytorch.org/blog/PyTorch-1.13-release/) the stable version of a fast path for its standard Transformer APIs that provides out of the box performance improvements for transformer-based models. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NIVIDIA GPUs.
 You can now use this feature in 🤗 Optimum together with Transformers and use it for major models in the Hugging Face ecosystem.
 
 ### Supported models
@@ -28,6 +29,7 @@ The list of supported model below:
 - [BERT](https://arxiv.org/abs/1810.04805)
 - [BERT-generation](https://arxiv.org/abs/1907.12461)
 - [CamemBERT](https://arxiv.org/abs/1911.03894)
+- [CLIP](https://arxiv.org/abs/2103.00020)
 - [Data2VecText](https://arxiv.org/abs/2202.03555)
 - [DistilBert](https://arxiv.org/abs/1910.01108)
 - [DeiT](https://arxiv.org/abs/2012.12877)
@@ -39,7 +41,10 @@ The list of supported model below:
 - [MarkupLM](https://arxiv.org/abs/2110.08518)
 - [MBart](https://arxiv.org/abs/2001.08210)
 - [M2M100](https://arxiv.org/abs/2010.11125)
+- [RemBERT](https://arxiv.org/abs/2010.12821)
 - [RoBERTa](https://arxiv.org/abs/1907.11692)
+- [RoCBert](https://aclanthology.org/2022.acl-long.65.pdf)
+- [RoFormer](https://arxiv.org/abs/2104.09864)
 - [Splinter](https://arxiv.org/abs/2101.00438)
 - [Tapas](https://arxiv.org/abs/2211.06550)
 - [ViLT](https://arxiv.org/abs/2102.03334)
@@ -50,6 +55,8 @@ The list of supported model below:
 - [Whisper](https://cdn.openai.com/papers/whisper.pdf)
 - [XLMRoberta](https://arxiv.org/abs/1911.02116)
 - [YOLOS](https://arxiv.org/abs/2106.00666)
+
+Note that for encoder-decoder models, only the encoder part is supported by PyTorch's BetterTransformer for now.
 
 Let us know by opening an issue in 🤗 Optimum if you want more models to be supported, or check out the contribution guideline if you want to add it by yourself!
 
