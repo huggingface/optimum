@@ -30,6 +30,7 @@ def parse_args_onnxruntime_optimize(parser):
         "-O4", action="store_true", help="Same as O3 with mixed precision (see: https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization for more details)."
     )
 
+
 class ONNXRuntimmeOptimizeCommand:
     def __init__(self, args):
         self.args = args

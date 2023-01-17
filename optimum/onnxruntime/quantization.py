@@ -134,7 +134,7 @@ class ORTQuantizer(OptimumQuantizer):
 
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise ValueError(ort_quantizer_error_message)
-        elif isinstance(model_or_path, Path):
+        elif isinstance(model_or_path, Path) and not file_name:
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_or_path}")
