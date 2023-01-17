@@ -18,7 +18,7 @@ import shutil
 from abc import abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Union, Tuple
 
 import numpy as np
 import torch
@@ -209,13 +209,7 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        self.use_io_binding = check_io_binding(self.providers, use_io_binding)
-
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_input_names = list(self.model_inputs.keys())
-        self.model_output_names = list(self.model_outputs.keys())
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
+        self._use_io_binding =  use_io_binding
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -244,6 +238,14 @@ class ORTModel(OptimizedModel):
             **kwargs,
         )
 
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(model.get_inputs())}
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
+        self.model_input_names = list(self.model_inputs.keys())
+        self.model_output_names = list(self.model_outputs.keys())
+        # TODO: which one to keep?
+        # self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
+        # self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+
     # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
     @property
     def device(self) -> torch.device:
@@ -256,6 +258,16 @@ class ORTModel(OptimizedModel):
     @device.setter
     def device(self, value: torch.device):
         self._device = value
+
+
+    @property
+    def use_io_binding(self):
+        return check_io_binding(self.providers, self._use_io_binding)
+
+    @use_io_binding.setter
+    def use_io_binding(self, value: bool):
+        self._use_io_binding = value
+
 
     def to(self, device: Union[torch.device, str, int]):
         """
@@ -598,39 +610,41 @@ class ORTModel(OptimizedModel):
             **kwargs,
         )
 
-    def prepare_output_buffer(self, output_shape, output_name: str):
+    def _prepare_output_buffer(self, model: ort.InferenceSession, output_shape: Tuple[int], output_name: str):
         """Prepares the buffer of output_name with a 1D tensor."""
-        ort_type = TypeHelper.get_output_type(self.model, output_name)
+        ort_type = TypeHelper.get_output_type(model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
         output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
         return output_buffer
 
-    def prepare_io_binding(self, *model_inputs):
-        io_binding = self.model.io_binding()
+    def _prepare_io_binding(self, model: ort.InferenceSession, *model_inputs):
+        io_binding = model.io_binding()
+        input_names = list(input_.name for input_ in model.get_inputs())
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
 
         input_name_to_tensor = {}
         for idx, tensor in enumerate(model_inputs):
             if tensor is None:
                 continue
-            if idx >= len(self.model_input_names):
+            if idx >= len(input_names):
                 raise ValueError(
                     "Too many inputs were provided here, the underlying ONNX model has the following inputs: "
-                    f"{', '.join(self.model_input_names)}"
+                    f"{', '.join(input_names)}"
                 )
-            name = self.model_input_names[idx]
+            name = input_names[idx]
             input_name_to_tensor[name] = tensor
             tensor = tensor.contiguous()
             io_binding.bind_input(
                 name,
                 tensor.device.type,
                 self.device.index,
-                self.name_to_np_type[name],
+                name_to_np_type[name],
                 tuple(tensor.shape),
                 tensor.data_ptr(),
             )
 
         dimensions = {}
-        for input_ in self.model.get_inputs():
+        for input_ in model.get_inputs():
             shape = input_.shape
             for idx, axis in enumerate(shape):
                 if isinstance(axis, str):
@@ -638,15 +652,15 @@ class ORTModel(OptimizedModel):
 
         output_shapes = {}
         output_buffers = {}
-        for output_node in self.model.get_outputs():
+        for output_node in model.get_outputs():
             output_name = output_node.name
             output_shape = tuple(map(lambda x: dimensions.get(x, x), output_node.shape))
-            output_buffer = self.prepare_output_buffer(output_shape, output_name)
+            output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
             io_binding.bind_output(
                 output_name,
                 output_buffer.device.type,
                 self.device.index,
-                self.name_to_np_type[output_name],
+                name_to_np_type[output_name],
                 output_shape,
                 output_buffer.data_ptr(),
             )
@@ -655,6 +669,9 @@ class ORTModel(OptimizedModel):
 
         # TODO: are output shapes needed?
         return io_binding, output_shapes, output_buffers
+
+    def prepare_io_binding(self, *model_inputs):
+        return self._prepare_io_binding(self.model, *model_inputs)
 
 
 FEATURE_EXTRACTION_EXAMPLE = r"""

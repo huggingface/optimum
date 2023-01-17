@@ -215,23 +215,15 @@ class ORTEncoder:
     def __init__(
         self,
         session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        device: torch.device,
-        use_io_binding: Optional[bool] = None,
-        main_input_name: str = "input_ids",
+        parent_model: "ORTModelForConditionalGeneration",
     ):
         self.session = session
-        self.config = config
-        self._device = device
-        self.use_io_binding = use_io_binding
-        self.main_input_name = main_input_name
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.config.model_type)(
-            self.config
-        )
+        self.parent_model = parent_model
+        self.main_input_name = self.parent_model.main_input_name
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
 
+    
     @add_start_docstrings_to_model_forward(SEQ2SEQ_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
@@ -240,8 +232,10 @@ class ORTEncoder:
         **kwargs,
     ) -> BaseModelOutput:
 
-        if self._device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask)
+        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
+                    self.session, input_ids, attention_mask
+            )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -284,8 +278,8 @@ class ORTEncoderForWhisper(ORTEncoder):
         input_features: torch.FloatTensor,
         **kwargs,
     ) -> BaseModelOutput:
-        if self._device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_features)
+        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(self.session, input_features)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -901,13 +895,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         device: torch.device,
         use_io_binding: Optional[bool] = None,
     ) -> ORTEncoder:
-        return ORTEncoder(
-            session=session,
-            config=config,
-            device=device,
-            use_io_binding=use_io_binding,
-            main_input_name=self.main_input_name,
-        )
+        return ORTEncoder(session, self)
 
     @add_start_docstrings_to_model_forward(
         SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
