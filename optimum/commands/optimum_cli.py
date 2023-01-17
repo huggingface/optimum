@@ -30,7 +30,6 @@ def main():
     EnvironmentCommand.register_subcommand(commands_parser)
     ONNXRuntimeCommand.register_subcommand(commands_parser)
 
-
     args = parser.parse_args()
 
     if not hasattr(args, "func"):

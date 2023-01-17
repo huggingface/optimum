@@ -17,9 +17,7 @@ def onnxruntime_quantize_factory(args):
 class ONNXRuntimeCommand(BaseOptimumCLICommand):
     @staticmethod
     def register_subcommand(parser: ArgumentParser):
-        onnxruntime_parser = parser.add_parser(
-            "onnxruntime", help="ONNX Runtime optimize and quantize utilities."
-        )
+        onnxruntime_parser = parser.add_parser("onnxruntime", help="ONNX Runtime optimize and quantize utilities.")
         onnxruntime_sub_parsers = onnxruntime_parser.add_subparsers()
 
         optimize_parser = onnxruntime_sub_parsers.add_parser("optimize", help="Optimize ONNX models.")
