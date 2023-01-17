@@ -18,7 +18,7 @@ import importlib
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Type, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
@@ -141,6 +141,7 @@ class TasksManager:
         "stable-diffusion": "diffusers",
     }
 
+    # TODO: some models here support causal-lm export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
         "audio-spectrogram-transformer": supported_tasks_mapping(
@@ -480,6 +481,15 @@ class TasksManager:
             "image-classification",
             onnx="MobileNetV2OnnxConfig",
         ),
+        "mpnet": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="MPNetOnnxConfig",
+        ),
         "mt5": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -715,6 +725,17 @@ class TasksManager:
             )
         else:
             return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+
+    @staticmethod
+    def get_supported_model_type_for_task(task: str, exporter: str) -> List[str]:
+        """
+        Returns the list of supported architectures by the exporter for a given task.
+        """
+        return [
+            model_type.replace("-", "_")
+            for model_type in TasksManager._SUPPORTED_MODEL_TYPE
+            if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+        ]
 
     @staticmethod
     def format_task(task: str) -> str:

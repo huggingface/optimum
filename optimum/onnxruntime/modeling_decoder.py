@@ -358,6 +358,13 @@ class ORTModelDecoder(ORTModel):
             preprocessors (`Optional[List]`, defaults to `None`):
                 The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
         """
+        self.shared_attributes_init(
+            decoder_session,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+        )
+        self.config = config
+
         # TODO: remove at version 2.0
         def show_deprecated_argument(arg_name):
             if kwargs.pop(arg_name, None) is not None:
@@ -373,12 +380,6 @@ class ORTModelDecoder(ORTModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        super().__init__(
-            decoder_session,
-            config,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-        )
         self.use_cache = decoder_with_past_session is not None
         self.decoder = ORTDecoder(
             session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
@@ -425,39 +426,16 @@ class ORTModelDecoder(ORTModel):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html.
         """
-        available_providers = onnxruntime.get_available_providers()
-        if provider not in available_providers:
-            raise ValueError(
-                f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
-            )
+        decoder_session = ORTModel.load_model(decoder_path, provider, session_options, provider_options)
 
-        providers = [provider]
-        if provider == "TensorrtExecutionProvider":
-            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
-            providers.append("CUDAExecutionProvider")
-
-        # `providers` and `provider_options` need to be of the same length
-        if provider_options is not None:
-            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
-        else:
-            providers_options = None
-
-        decoder_session = onnxruntime.InferenceSession(
-            str(decoder_path),
-            providers=providers,
-            sess_options=session_options,
-            provider_options=providers_options,
-        )
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         if decoder_with_past_path is not None:
-            decoder_with_past_session = onnxruntime.InferenceSession(
-                str(decoder_with_past_path),
-                providers=providers,
-                sess_options=session_options,
-                provider_options=None if provider_options is None else providers_options,
+            decoder_with_past_session = ORTModel.load_model(
+                decoder_with_past_path, provider, session_options, provider_options
             )
+
         return decoder_session, decoder_with_past_session
 
     def _save_pretrained(

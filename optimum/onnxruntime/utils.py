@@ -88,6 +88,7 @@ class ORTConfigManager:
         "electra": "bert",
         "gpt2": "gpt2",
         "gpt_neo": "gpt2",
+        "longt5": "bert",
         "marian": "bart",
         "mbart": "bart",
         "mt5": "bart",

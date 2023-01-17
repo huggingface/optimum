@@ -43,6 +43,7 @@ ALL_ENCODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-rembert",
     "hf-internal-testing/tiny-random-RobertaModel",
+    "hf-internal-testing/tiny-random-RoFormerModel",
     "hf-internal-testing/tiny-random-SplinterModel",
     "hf-internal-testing/tiny-random-TapasModel",
     "hf-internal-testing/tiny-xlm-roberta",
@@ -253,6 +254,14 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         """
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
+
+
+class BetterTransformersRoCBertTest(BetterTransformersEncoderTest):
+    all_models_to_test = ["hf-internal-testing/tiny-random-RoCBertModel"]
+
+    # unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)
+    def test_raise_autocast(self):
+        pass
 
 
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
