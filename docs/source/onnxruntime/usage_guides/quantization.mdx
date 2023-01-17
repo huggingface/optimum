@@ -28,6 +28,39 @@ explains the main concepts that you will be using when performing quantization w
 
 </Tip>
 
+## Quantizing a model to be used with Optimum's CLI
+
+The Optimum ONNXRuntime quantization can be used through Optimum command-line:
+
+```bash
+optimum-cli onnxruntime quantize --help
+usage: optimum-cli <command> [<args>] onnxruntime quantize [-h] --onnx_model ONNX_MODEL [-o OUTPUT] (--arm64 | --avx2 | --avx512 | --avx512_vnni | --tensorrt)
+
+options:
+  -h, --help            show this help message and exit
+  --arm64               Quantization for the ARM64 architecture.
+  --avx2                Quantization with AVX-2 instructions.
+  --avx512              Quantization with AVX-512 instructions.
+  --avx512_vnni         Quantization with AVX-512 and VNNI instructions.
+  --tensorrt            Quantization for NVIDIA TensorRT optimizer.
+
+Required arguments:
+  --onnx_model ONNX_MODEL
+                        Path indicating where the ONNX models to quantize are located.
+
+Optional arguments:
+  -o OUTPUT, --output OUTPUT
+                        Path indicating the directory where to store generated ONNX model. (defaults to --onnx_model value).
+```
+
+Quantizing an ONNX model can be done as follows:
+
+```bash
+ optimum-cli onnxruntime quantize --onnx_model onnx_model_location/ --avx512
+```
+
+This quantize all the ONNX files in `onnx_model_location` with the AVX-512 instructions. The quantized models will be created in the same directory by default unless the `--output` argument is specified.
+
 ## Creating an `ORTQuantizer`
 
 The [`~optimum.onnxruntime.ORTQuantizer`] class is used to quantize your ONNX model. The class can be initialized using
