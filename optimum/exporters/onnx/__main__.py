@@ -118,8 +118,11 @@ def main():
         if task == "stable-diffusion":
             output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
             models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
-            # Saving the model preprocessor as this is needed sometimes.
+            # Saving the additional components needed to perform inference.
             model.tokenizer.save_pretrained(args.output.parent.joinpath("tokenizer"))
+            model.scheduler.save_pretrained(args.output.parent.joinpath("scheduler"))
+            model.feature_extractor.save_pretrained(args.output.parent.joinpath("feature_extractor"))
+            model.save_config(args.output.parent)
         else:
             if model.config.is_encoder_decoder and task.startswith("causal-lm"):
                 raise ValueError(
