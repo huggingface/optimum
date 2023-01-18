@@ -15,10 +15,12 @@
 
 import logging
 import shutil
+import re
+from inspect import signature
 from abc import abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Union, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Union, Tuple, Callable, Literal, Set
 
 import numpy as np
 import torch
@@ -617,20 +619,41 @@ class ORTModel(OptimizedModel):
         output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
         return output_buffer
 
-    def _prepare_io_binding(self, model: ort.InferenceSession, *model_inputs):
+    def _prepare_io_binding(
+            self, 
+            model: ort.InferenceSession, 
+            *model_inputs, 
+            known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
+            forward_function: Optional[Callable[..., Any]] = None,
+            outputs_to_bind: Union[Set[str], Literal["all"]] = "all",
+            outputs_to_not_bind: Optional[Union[Set[str], str]] = None 
+    ):
         io_binding = model.io_binding()
+
         input_names = list(input_.name for input_ in model.get_inputs())
+        # Re-ordering method inspired from OnnxConfig.ordered_inputs
+        sig = signature(self.forward if forward_function is None else forward_function)
+        ordered_input_names = []
+        for param in sig.parameters:
+            param_regex = re.compile(rf"{param}(\.\d*)?")
+            for name in input_names:
+                if re.search(param_regex, name):
+                    ordered_input_names.append(name)
+        input_names = ordered_input_names
+
         name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
 
         input_name_to_tensor = {}
         for idx, tensor in enumerate(model_inputs):
             if tensor is None:
                 continue
-            if idx >= len(input_names):
-                raise ValueError(
-                    "Too many inputs were provided here, the underlying ONNX model has the following inputs: "
-                    f"{', '.join(input_names)}"
-                )
+            # if idx >= len(input_names):
+            #     raise ValueError(
+            #         "Too many inputs were provided here, the underlying ONNX model has the following inputs: "
+            #         f"{', '.join(input_names)}"
+            #     )
+            # if input_names[idx] == "input_ids":
+            #     import pdb; pdb.set_trace()
             name = input_names[idx]
             input_name_to_tensor[name] = tensor
             tensor = tensor.contiguous()
@@ -652,9 +675,27 @@ class ORTModel(OptimizedModel):
 
         output_shapes = {}
         output_buffers = {}
+
+        if known_output_shapes is None:
+            known_output_shapes = {}
+
+        if outputs_to_not_bind is None:
+            outputs_to_not_bind = {}
+        elif isinstance(outputs_to_not_bind, str):
+            outputs_to_not_bind = {outputs_to_not_bind}
+
         for output_node in model.get_outputs():
             output_name = output_node.name
-            output_shape = tuple(map(lambda x: dimensions.get(x, x), output_node.shape))
+            if output_name in outputs_to_not_bind:
+                continue
+            # if outputs_to_bind != "all" and output_name not in outputs_to_bind:
+            #     continue
+            if output_name in known_output_shapes:
+                output_shape = known_output_shapes[output_name]
+            else:
+                output_shape = tuple(map(lambda x: dimensions.get(x, x), output_node.shape))
+            if "present" in output_name:
+                print(output_shape)
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
             io_binding.bind_output(
                 output_name,

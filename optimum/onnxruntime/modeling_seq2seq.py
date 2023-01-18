@@ -17,14 +17,12 @@ Transformers.
 """
 
 import logging
-import re
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq
 from transformers.file_utils import add_start_docstrings_to_model_forward
@@ -36,11 +34,10 @@ from huggingface_hub import hf_hub_download
 from ..exporters.onnx import export_models, get_encoder_decoder_models_for_export
 from ..exporters.tasks import TasksManager
 from ..onnx.utils import _get_external_data_paths
-from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .io_binding import TypeHelper
-from .modeling_decoder import ORTDecoder
+from .base import ORTEncoder, ORTDecoder, ORTDecoderForSeq2Seq
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
@@ -207,62 +204,6 @@ DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
 
 
-class ORTEncoder:
-    """
-    Encoder part of the encoder-decoder model for ONNX Runtime inference.
-    """
-
-    def __init__(
-        self,
-        session: ort.InferenceSession,
-        parent_model: "ORTModelForConditionalGeneration",
-    ):
-        self.session = session
-        self.parent_model = parent_model
-        self.main_input_name = self.parent_model.main_input_name
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-
-    
-    @add_start_docstrings_to_model_forward(SEQ2SEQ_ENCODER_INPUTS_DOCSTRING)
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        attention_mask: torch.LongTensor,
-        **kwargs,
-    ) -> BaseModelOutput:
-
-        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                    self.session, input_ids, attention_mask
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(
-                last_hidden_state=output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
-            )
-        else:
-            onnx_inputs = {"input_ids": input_ids.cpu().detach().numpy()}
-
-            # Add the attention_mask inputs when needed
-            if "attention_mask" in self.input_names:
-                onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
-
-            # Run inference
-            outputs = self.session.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self._device)
-
-            return BaseModelOutput(last_hidden_state=last_hidden_state)
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-
 class ORTEncoderForWhisper(ORTEncoder):
     """
     Encoder model for ONNX Runtime inference for Whisper model.
@@ -300,97 +241,6 @@ class ORTEncoderForWhisper(ORTEncoder):
             return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
-class ORTDecoderForSeq2Seq(ORTDecoder):
-    """
-    Decoder model with a language modeling head on top for ONNX Runtime inference.
-    """
-
-    @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        encoder_hidden_states: torch.FloatTensor,
-        encoder_attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
-    ) -> Seq2SeqLMOutput:
-        # Flatten the past_key_values
-        if past_key_values is not None:
-            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
-
-        if self._device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids, encoder_hidden_states, encoder_attention_mask, past_key_values, labels
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
-            # self-attention layer and 2 to the cross-attention layer)
-            past_key_values = tuple()
-            for name in self.key_value_output_names:
-                past_key_values += (output_buffers[name].view(output_shapes[name]),)
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # cross-attention per decoder layer
-            num_pkv = 4
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-
-            logits = output_buffers["logits"].view(output_shapes["logits"])
-
-            loss = None
-            if "loss" in self.session_output_names:
-                loss = output_buffers["loss"].view(output_shapes["loss"])
-        else:
-            onnx_inputs = {
-                "input_ids": input_ids.cpu().detach().numpy(),
-            }
-
-            # Add the encoder_attention_mask inputs when needed
-            if "encoder_attention_mask" in self.session_input_names:
-                onnx_inputs["encoder_attention_mask"] = encoder_attention_mask.cpu().detach().numpy()
-
-            # Add the encoder_hidden_states inputs when needed
-            if "encoder_hidden_states" in self.session_input_names:
-                onnx_inputs["encoder_hidden_states"] = encoder_hidden_states.cpu().detach().numpy()
-
-            if past_key_values is not None:
-                # Add the past_key_values to the decoder inputs
-                for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                    onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
-
-            if "labels" in self.session_input_names:
-                # TODO: Any preprocessing like  `self._shift_right(labels)`?
-                onnx_inputs["labels"] = labels.cpu().detach().numpy()
-
-            # Run inference
-            outputs = self.session.run(None, onnx_inputs)
-
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
-            # self-attention layer and 2 to the cross-attention layer)
-            past_key_values = tuple(
-                torch.from_numpy(outputs[self.session_outputs[key]]).to(self._device)
-                for key in self.key_value_output_names
-            )
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # cross-attention per decoder layer
-            num_pkv = 4
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-            logits = torch.from_numpy(outputs[self.session_outputs["logits"]]).to(self._device)
-
-            loss = None
-            if "loss" in self.session_output_names:
-                loss = torch.from_numpy(outputs[self.session_outputs["loss"]]).to(self._device)
-
-        # converts output to namedtuple for pipelines post-processing
-        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
 
 
 class ORTModelForConditionalGeneration(ORTModel, ABC):
@@ -493,9 +343,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self.encoder_model_path = Path(encoder_session._model_path)
         self.encoder_model_name = self.encoder_model_path.name
 
-        self.decoder = ORTDecoderForSeq2Seq(
-            session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
-        )
+        self.decoder = ORTDecoderForSeq2Seq(decoder_session, self)
         self.decoder_model_path = Path(decoder_session._model_path)
         self.decoder_model_name = self.decoder_model_path.name
 
@@ -507,12 +355,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self.decoder_with_past_model_path = None
         self.decoder_with_past_model_name = None
         if self.use_cache:
-            self.decoder_with_past = ORTDecoderForSeq2Seq(
-                session=decoder_with_past_session,
-                config=self.config,
-                device=self._device,
-                use_io_binding=self.use_io_binding,
-            )
+            self.decoder_with_past = ORTDecoderForSeq2Seq(decoder_with_past_session, self)
             self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
 

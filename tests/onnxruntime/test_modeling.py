@@ -67,10 +67,10 @@ from optimum.onnxruntime import (
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
 )
-from optimum.onnxruntime.modeling_decoder import ORTDecoder
+from optimum.onnxruntime.base import ORTDecoder
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
-from optimum.onnxruntime.modeling_seq2seq import ORTEncoder
+from optimum.onnxruntime.base import ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.testing_utils import grid_parameters, require_hf_token

@@ -32,10 +32,9 @@ from huggingface_hub.utils import EntryNotFoundError
 from ..exporters import TasksManager
 from ..exporters.onnx import export_models, get_decoder_models_for_export
 from ..onnx.utils import _get_external_data_paths
-from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
 
@@ -116,99 +115,6 @@ DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
 
 
-class ORTDecoder:
-    """
-    Decoder model with a language modeling head on top for ONNX Runtime inference.
-    """
-
-    def __init__(
-        self,
-        session: onnxruntime.InferenceSession,
-        config: "PretrainedConfig",
-        device: torch.device,
-        use_io_binding: Optional[bool] = None,
-    ):
-        self.session = session
-        self.config = config
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.config.model_type)(
-            self.config
-        )
-        self._device = device
-        self.use_io_binding = use_io_binding
-        self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}
-        self.session_outputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.session_input_names = list(self.session_inputs.keys())
-        self.session_output_names = list(self.session_outputs.keys())
-        # TODO: make this less hacky.
-        self.key_value_input_names = [key for key in self.session_input_names if (".key" in key) or (".value" in key)]
-        self.key_value_output_names = [
-            key for key in self.session_output_names if (".key" in key) or (".value" in key)
-        ]
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
-
-    @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-    ) -> CausalLMOutputWithCrossAttentions:
-        # Flatten the past_key_values
-        if past_key_values is not None:
-            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
-
-        if self._device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids, attention_mask, past_key_values
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
-            past_key_values = tuple()
-            for name in self.key_value_output_names:
-                past_key_values += (output_buffers[name].view(output_shapes[name]),)
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to 2 (self-attention key and value per decoder layer)
-            num_pkv = 2
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-
-            logits = output_buffers["logits"].view(output_shapes["logits"])
-        else:
-            onnx_inputs = {
-                "input_ids": input_ids.cpu().detach().numpy(),
-                "attention_mask": attention_mask.cpu().detach().numpy(),
-            }
-
-            if past_key_values is not None:
-                # Add the past_key_values to the decoder inputs
-                for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                    onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
-
-            # Run inference
-            outputs = self.session.run(None, onnx_inputs)
-
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
-            past_key_values = tuple(
-                torch.from_numpy(outputs[self.session_outputs[key]]).to(self._device)
-                for key in self.key_value_output_names
-            )
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # per decoder layer
-            num_pkv = 2
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-            logits = torch.from_numpy(outputs[self.session_outputs["logits"]]).to(self._device)
-
-        return CausalLMOutputWithCrossAttentions(logits=logits, past_key_values=past_key_values)
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-
 class ORTModelDecoder(ORTModel):
     """
     Base class for implementing models with a causal language modeling head using ONNX Runtime inference.
@@ -265,7 +171,7 @@ class ORTModelDecoder(ORTModel):
 
         self.use_cache = decoder_with_past_session is not None
         self.decoder = ORTDecoder(
-            session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
+            decoder_session, self 
         )
         self.decoder_model_path = Path(decoder_session._model_path)
         self.decoder_model_name = self.decoder_model_path.name
@@ -274,12 +180,7 @@ class ORTModelDecoder(ORTModel):
         self.decoder_with_past_model_path = None
         self.decoder_with_past_model_name = None
         if self.use_cache:
-            self.decoder_with_past = ORTDecoder(
-                session=decoder_with_past_session,
-                config=self.config,
-                device=self._device,
-                use_io_binding=self.use_io_binding,
-            )
+            self.decoder_with_past = ORTDecoder(decoder_with_past_session, self)
             self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
 
@@ -589,10 +490,10 @@ class ORTModelDecoder(ORTModel):
 
         provider = get_provider_for_device(device)
         self.device = device
-        self.decoder._device = device
+        # self.decoder._device = device
         self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
-            self.decoder_with_past._device = device
+            # self.decoder_with_past._device = device
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         self.providers = self.decoder.session.get_providers()
 
