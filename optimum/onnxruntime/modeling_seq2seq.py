@@ -1112,6 +1112,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         use_cache: bool = True,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
@@ -1135,6 +1136,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             use_auth_token=use_auth_token,
             local_files_only=local_files_only,
             force_download=force_download,
+            trust_remote_code=trust_remote_code,
         )
 
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
