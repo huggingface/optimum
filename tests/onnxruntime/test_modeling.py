@@ -26,7 +26,6 @@ import torch
 from PIL import Image
 from transformers import (
     AutoConfig,
-    AutoFeatureExtractor,
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
@@ -37,6 +36,7 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
+    AutoTokenizer,
     MBartForConditionalGeneration,
     PretrainedConfig,
     set_seed,
@@ -757,19 +757,13 @@ class ORTModelIntegrationTest(unittest.TestCase):
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     def test_trust_remote_code(self):
-        ort_model = ORTModelForImageClassification.from_pretrained(
-            "fxmarty/tiny-testing-remote-code", from_transformers=True, trust_remote_code=True
-        )
-        pt_model = AutoModelForImageClassification.from_pretrained(
-            "fxmarty/tiny-testing-remote-code", trust_remote_code=True
-        )
+        model_id = "fxmarty/tiny-testing-gpt2-remote-code"
+        ort_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, trust_remote_code=True)
+        pt_model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
 
-        feature_extractor = AutoFeatureExtractor.from_pretrained("fxmarty/tiny-testing-remote-code")
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-        url = "https://huggingface.co/datasets/huggingface/cats-image/resolve/main/cats_image.jpeg"
-        image = Image.open(requests.get(url, stream=True).raw)
-
-        inputs = feature_extractor(image, return_tensors="pt")
+        inputs = tokenizer("My name is", return_tensors="pt")
 
         with torch.inference_mode():
             pt_logits = pt_model(**inputs).logits
