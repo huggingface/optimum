@@ -20,7 +20,7 @@ REQUIRED_PKGS = [
     "packaging",
     "numpy<1.24.0",
     "huggingface_hub>=0.8.0",
-    "datasets"
+    "datasets",
 ]
 
 TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses", "diffusers"]

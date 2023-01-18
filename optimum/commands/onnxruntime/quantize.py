@@ -8,7 +8,10 @@ from ...onnxruntime.quantization import ORTQuantizer
 def parse_args_onnxruntime_quantize(parser):
     required_group = parser.add_argument_group("Required arguments")
     required_group.add_argument(
-        "--onnx_model", type=Path, required=True, help="Path to the repository where the ONNX models to quantize are located."
+        "--onnx_model",
+        type=Path,
+        required=True,
+        help="Path to the repository where the ONNX models to quantize are located.",
     )
 
     optional_group = parser.add_argument_group("Optional arguments")
@@ -47,7 +50,8 @@ class ONNXRuntimmeQuantizeCommand:
         quantizers = []
 
         quantizers = [
-            ORTQuantizer.from_pretrained(save_dir, file_name=model.name) for model in self.args.onnx_model.glob("*.onnx")
+            ORTQuantizer.from_pretrained(save_dir, file_name=model.name)
+            for model in self.args.onnx_model.glob("*.onnx")
         ]
 
         if self.args.arm64:
