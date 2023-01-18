@@ -26,6 +26,7 @@ import torch
 from PIL import Image
 from transformers import (
     AutoConfig,
+    AutoFeatureExtractor,
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
@@ -754,6 +755,30 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    def test_trust_remote_code(self):
+        ort_model = ORTModelForImageClassification.from_pretrained(
+            "fxmarty/tiny-testing-remote-code", from_transformers=True, trust_remote_code=True
+        )
+        pt_model = AutoModelForImageClassification.from_pretrained(
+            "fxmarty/tiny-testing-remote-code", trust_remote_code=True
+        )
+
+        feature_extractor = AutoFeatureExtractor.from_pretrained("fxmarty/tiny-testing-remote-code")
+
+        url = "https://huggingface.co/datasets/huggingface/cats-image/resolve/main/cats_image.jpeg"
+        image = Image.open(requests.get(url, stream=True).raw)
+
+        inputs = feature_extractor(image, return_tensors="pt")
+
+        with torch.inference_mode():
+            pt_logits = pt_model(**inputs).logits
+
+        ort_logits = ort_model(**inputs).logits
+
+        self.assertTrue(
+            torch.allclose(pt_logits, ort_logits, atol=1e-4), f" Maxdiff: {torch.abs(pt_logits - ort_logits).max()}"
+        )
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(unittest.TestCase):

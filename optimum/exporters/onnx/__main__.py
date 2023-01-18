@@ -71,7 +71,9 @@ def main():
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
 
-    model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
+    model = TasksManager.get_model_from_task(
+        task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
+    )
 
     if task != "stable-diffusion":
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
