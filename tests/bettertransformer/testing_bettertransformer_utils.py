@@ -189,7 +189,7 @@ class BetterTransformersInvertibleTestMixin:
                 hf_model = AutoModel.from_pretrained(model).eval()
                 bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
 
-                bt_model = BetterTransformer.inverse_transform(bt_model)
+                bt_model = BetterTransformer.reverse(bt_model)
                 # check if no parameter is on the `meta` device
                 for name, param in bt_model.named_parameters():
                     self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")

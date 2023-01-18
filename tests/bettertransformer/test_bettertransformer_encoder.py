@@ -325,7 +325,7 @@ class BetterTransformerInvertibleTest(BetterTransformersInvertibleTestMixin, uni
             hf_model = AutoModel.from_pretrained(model)
             # get bt model and invert it
             bt_model = BetterTransformer.transform(hf_model)
-            bt_model = BetterTransformer.inverse_transform(bt_model)
+            bt_model = BetterTransformer.reverse(bt_model)
 
             # get inputs
             inputs = self.prepare_inputs_for_class(model)
@@ -346,7 +346,7 @@ class BetterTransformerInvertibleTest(BetterTransformersInvertibleTestMixin, uni
             hf_model = AutoModel.from_pretrained(model)
             # get bt model and invert it
             bt_model = BetterTransformer.transform(hf_model)
-            bt_model = BetterTransformer.inverse_transform(bt_model)
+            bt_model = BetterTransformer.reverse(bt_model)
 
             # get modules:
             hf_modules = list(hf_model.modules())
