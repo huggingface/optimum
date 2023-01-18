@@ -21,15 +21,24 @@ for test_name in tests:
         workflox_yml = yaml.load(file, yaml.BaseLoader)
 
         workflox_yml["name"] = "dev_" + workflox_yml["name"]
-        workflox_yml["on"] = {'schedule': [{'cron': '0 7 * * *'}]}
+        workflox_yml["on"] = {"schedule": [{"cron": "0 7 * * *"}]}
 
         for i, step in enumerate(workflox_yml["jobs"]["build"]["steps"]):
             if "name" in step and step["name"] == "Install dependencies":
-                workflox_yml["jobs"]["build"]["steps"][i]["run"] += "pip install -U git+https://github.com/huggingface/transformers@main#egg=evaluate\npip install -U git+https://github.com/huggingface/transformers@main#egg=diffusers\npip install -U git+https://github.com/huggingface/transformers@main#egg=transformers\n"
+                workflox_yml["jobs"]["build"]["steps"][i][
+                    "run"
+                ] += "pip install -U git+https://github.com/huggingface/transformers@main#egg=evaluate\npip install -U git+https://github.com/huggingface/transformers@main#egg=diffusers\npip install -U git+https://github.com/huggingface/transformers@main#egg=transformers\n"
 
-
-    with open(Path("workflows", new_name), 'w') as outfile:
-        yaml.dump(workflox_yml, outfile, default_style='|', default_flow_style=False, allow_unicode=True, width=float("inf"), sort_keys=False)
+    with open(Path("workflows", new_name), "w") as outfile:
+        yaml.dump(
+            workflox_yml,
+            outfile,
+            default_style="|",
+            default_flow_style=False,
+            allow_unicode=True,
+            width=float("inf"),
+            sort_keys=False,
+        )
 
     with open(Path("workflows", new_name), "r+") as outfile:
         workflox_yml = outfile.read()
