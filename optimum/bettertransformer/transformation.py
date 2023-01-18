@@ -87,7 +87,7 @@ def revert_to_original_model(
     of a trained model.
 
     Args:
-        `model` (`torch.nn.Module`):
+        `bt_model` (`torch.nn.Module`):
             The input converted model
     Returns:
         The invert-converted model
@@ -268,7 +268,7 @@ class BetterTransformer(object):
         "1.13.0",
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
     )
-    def inverse_transform(model: torch.nn.Module, **kwargs) -> torch.nn.Module:
+    def reverse(model: torch.nn.Module, **kwargs) -> torch.nn.Module:
         # Step 1: check if the model has the attribute `use_bettertransformer`
         if not getattr(model, "use_bettertransformer", False):
             raise ValueError(
