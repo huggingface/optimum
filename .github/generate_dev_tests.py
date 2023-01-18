@@ -3,6 +3,7 @@ from pathlib import Path
 
 import yaml
 
+
 tests = [
     "test_exporters.yml",
     "test_dummy_inputs.yml",
@@ -27,7 +28,7 @@ for test_name in tests:
             if "name" in step and step["name"] == "Install dependencies":
                 workflox_yml["jobs"]["build"]["steps"][i][
                     "run"
-                ] += "pip install -U git+https://github.com/huggingface/transformers@main#egg=evaluate\npip install -U git+https://github.com/huggingface/transformers@main#egg=diffusers\npip install -U git+https://github.com/huggingface/transformers@main#egg=transformers\n"
+                ] += "pip install -U git+https://github.com/huggingface/evaluate\npip install -U git+https://github.com/huggingface/diffusers\npip install -U git+https://github.com/huggingface/transformers\n"
 
     with open(Path("workflows", new_name), "w") as outfile:
         yaml.dump(
