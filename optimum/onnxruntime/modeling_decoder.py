@@ -19,7 +19,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from transformers import AutoModelForCausalLM
 from transformers.file_utils import add_start_docstrings_to_model_forward
@@ -35,6 +34,7 @@ from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
+from .base import ORTDecoder
 from .modeling_ort import ORTModel
 from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
 
@@ -170,9 +170,7 @@ class ORTModelDecoder(ORTModel):
             )
 
         self.use_cache = decoder_with_past_session is not None
-        self.decoder = ORTDecoder(
-            decoder_session, self 
-        )
+        self.decoder = ORTDecoder(decoder_session, self)
         self.decoder_model_path = Path(decoder_session._model_path)
         self.decoder_model_name = self.decoder_model_path.name
 

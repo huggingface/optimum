@@ -14,13 +14,13 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
-import shutil
 import re
-from inspect import signature
+import shutil
 from abc import abstractmethod
+from inspect import signature
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Union, Tuple, Callable, Literal, Set
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -211,7 +211,7 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        self._use_io_binding =  use_io_binding
+        self._use_io_binding = use_io_binding
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -261,7 +261,6 @@ class ORTModel(OptimizedModel):
     def device(self, value: torch.device):
         self._device = value
 
-
     @property
     def use_io_binding(self):
         return check_io_binding(self.providers, self._use_io_binding)
@@ -269,7 +268,6 @@ class ORTModel(OptimizedModel):
     @use_io_binding.setter
     def use_io_binding(self, value: bool):
         self._use_io_binding = value
-
 
     def to(self, device: Union[torch.device, str, int]):
         """
@@ -620,13 +618,12 @@ class ORTModel(OptimizedModel):
         return output_buffer
 
     def _prepare_io_binding(
-            self, 
-            model: ort.InferenceSession, 
-            *model_inputs, 
-            known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
-            forward_function: Optional[Callable[..., Any]] = None,
-            outputs_to_bind: Union[Set[str], Literal["all"]] = "all",
-            outputs_to_not_bind: Optional[Union[Set[str], str]] = None 
+        self,
+        model: ort.InferenceSession,
+        *model_inputs,
+        known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
+        forward_function: Optional[Callable[..., Any]] = None,
+        outputs_to_not_bind: Optional[Union[Set[str], str]] = None
     ):
         io_binding = model.io_binding()
 
@@ -680,7 +677,7 @@ class ORTModel(OptimizedModel):
             known_output_shapes = {}
 
         if outputs_to_not_bind is None:
-            outputs_to_not_bind = {}
+            outputs_to_not_bind = set()
         elif isinstance(outputs_to_not_bind, str):
             outputs_to_not_bind = {outputs_to_not_bind}
 
@@ -688,14 +685,10 @@ class ORTModel(OptimizedModel):
             output_name = output_node.name
             if output_name in outputs_to_not_bind:
                 continue
-            # if outputs_to_bind != "all" and output_name not in outputs_to_bind:
-            #     continue
             if output_name in known_output_shapes:
                 output_shape = known_output_shapes[output_name]
             else:
                 output_shape = tuple(map(lambda x: dimensions.get(x, x), output_node.shape))
-            if "present" in output_name:
-                print(output_shape)
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
             io_binding.bind_output(
                 output_name,

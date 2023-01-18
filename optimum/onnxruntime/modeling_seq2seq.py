@@ -37,7 +37,7 @@ from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .base import ORTEncoder, ORTDecoder, ORTDecoderForSeq2Seq
+from .base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
@@ -220,27 +220,22 @@ class ORTEncoderForWhisper(ORTEncoder):
         **kwargs,
     ) -> BaseModelOutput:
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(self.session, input_features)
+            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
+                self.session, input_features
+            )
 
-            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(
-                last_hidden_state=output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
-            )
+            last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
             onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
 
-            # Run inference
             outputs = self.session.run(None, onnx_inputs)
             last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self._device)
 
-            return BaseModelOutput(last_hidden_state=last_hidden_state)
-
-
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
 class ORTModelForConditionalGeneration(ORTModel, ABC):

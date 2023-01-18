@@ -67,10 +67,9 @@ from optimum.onnxruntime import (
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
 )
-from optimum.onnxruntime.base import ORTDecoder
+from optimum.onnxruntime.base import ORTDecoder, ORTEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
-from optimum.onnxruntime.base import ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.testing_utils import grid_parameters, require_hf_token
@@ -1485,9 +1484,9 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForMultipleChoice.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
-        io_model = ORTModelForMultipleChoice.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+        io_model = ORTModelForMultipleChoice.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         num_choices = 4
@@ -1670,12 +1669,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        )
-        io_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True
-        )
+        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False)
+        io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True)
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
@@ -1697,12 +1692,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True
-        ).to("cuda")
+        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
+            "cuda"
+        )
+        io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
@@ -2168,12 +2161,12 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True
-        ).to("cuda")
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
+            "cuda"
+        )
+        io_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
@@ -2198,12 +2191,12 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True
-        ).to("cuda")
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
+            "cuda"
+        )
+        io_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+            "cuda"
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
@@ -2376,9 +2369,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_io_binding=False
         ).to("cuda")
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True
-        ).to("cuda")
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+            "cuda"
+        )
 
         processor = get_preprocessor(model_id)
 
@@ -2409,9 +2402,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_io_binding=False
         ).to("cuda")
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True
-        ).to("cuda")
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+            "cuda"
+        )
 
         processor = get_preprocessor(model_id)
 
@@ -2480,13 +2473,9 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
     def test_compare_to_io_binding(self, *args, **kwargs):
         model_arch, model_id = args
         set_seed(SEED)
-        onnx_model = ORTModelForCustomTasks.from_pretrained(
-            model_id, use_io_binding=False
-        ).to("cuda")
+        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False).to("cuda")
         set_seed(SEED)
-        io_model = ORTModelForCustomTasks.from_pretrained(
-            model_id, use_io_binding=True
-        ).to("cuda")
+        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True).to("cuda")
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
