@@ -623,9 +623,13 @@ class TasksManager:
             "audio-xvector",
             onnx="UniSpeechSATOnnxConfig",
         ),
-        "vae": supported_tasks_mapping(
+        "vae-encoder": supported_tasks_mapping(
             "semantic-segmentation",
-            onnx="VaeOnnxConfig",
+            onnx="VaeEncoderOnnxConfig",
+        ),
+        "vae-decoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "wavlm": supported_tasks_mapping(

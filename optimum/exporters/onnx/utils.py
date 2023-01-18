@@ -165,14 +165,23 @@ def get_stable_diffusion_models_for_export(
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
     models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
 
-    # VAE
-    vae = copy.deepcopy(pipeline.vae)
-    vae.forward = lambda latent_sample: vae.decode(z=latent_sample)
+    # VAE Encoder
+    vae_encoder = copy.deepcopy(pipeline.vae)
+    vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=vae, exporter="onnx", task="semantic-segmentation", model_type="vae"
+        model=vae_encoder, exporter="onnx", task="semantic-segmentation", model_type="vae-encoder"
     )
-    vae_onnx_config = vae_config_constructor(vae.config)
-    models_for_export["vae"] = (vae, vae_onnx_config)
+    vae_onnx_config = vae_config_constructor(vae_encoder.config)
+    models_for_export["vae_encoder"] = (vae_encoder, vae_onnx_config)
+
+    # VAE Decoder
+    vae_decoder = copy.deepcopy(pipeline.vae)
+    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
+    vae_config_constructor = TasksManager.get_exporter_config_constructor(
+        model=vae_decoder, exporter="onnx", task="semantic-segmentation", model_type="vae-decoder"
+    )
+    vae_onnx_config = vae_config_constructor(vae_decoder.config)
+    models_for_export["vae_decoder"] = (vae_decoder, vae_onnx_config)
 
     return models_for_export
 

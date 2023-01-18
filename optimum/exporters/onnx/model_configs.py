@@ -632,7 +632,32 @@ class UNetOnnxConfig(ViTOnnxConfig):
         return dummy_inputs
 
 
-class VaeOnnxConfig(ViTOnnxConfig):
+class VaeEncoderOnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_channels="in_channels",
+        image_size="sample_size",
+        allow_new=True,
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+        }
+
+
+class VaeDecoderOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 14
 
