@@ -88,9 +88,9 @@ def revert_to_original_model(
 
     Args:
         `bt_model` (`torch.nn.Module`):
-            The input converted model
+            The input `BetterTransformer` converted model
     Returns:
-        The invert-converted model
+        The original `transformers` model
     """
 
     for name, module in bt_model.named_children():
