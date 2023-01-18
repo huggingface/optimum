@@ -98,9 +98,9 @@ def revert_to_original_model(
             # we may explicitly exclude part of the model to use BetterTransformer
             revert_to_original_model(module)
 
-        is_invert_compatible = hasattr(module, "orig_layer") and module.orig_layer is not None
+        can_be_reversed = getattr(module, "orig_layer", None) is not None
 
-        if is_invert_compatible:
+        if can_be_reversed:
             bt_model._modules[name] = module._revert_back_to_original_module()
             module = None
     return bt_model
