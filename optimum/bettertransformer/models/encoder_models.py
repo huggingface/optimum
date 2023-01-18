@@ -232,9 +232,11 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
 
-    def _replace_to_original_module(self):
-        if self.old_layer is None:
-            raise ValueError("You should add the attribute `old_layer` when initializing a `BetterTransformer` layer.")
+    def _revert_back_to_original_module(self):
+        if self.orig_layer is None:
+            raise ValueError(
+                "You should add the attribute `orig_layer` when initializing a `BetterTransformer` layer."
+            )
 
         # get the qkv split index
         qkv_split_index = self.in_proj_weight.shape[0] // 3
@@ -243,41 +245,41 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
         key = self.in_proj_weight[qkv_split_index : 2 * qkv_split_index, :]
         value = self.in_proj_weight[2 * qkv_split_index :, :]
 
-        self.old_layer.attention.self.query.weight = nn.Parameter(query)
-        self.old_layer.attention.self.key.weight = nn.Parameter(key)
-        self.old_layer.attention.self.value.weight = nn.Parameter(value)
+        self.orig_layer.attention.self.query.weight = nn.Parameter(query)
+        self.orig_layer.attention.self.key.weight = nn.Parameter(key)
+        self.orig_layer.attention.self.value.weight = nn.Parameter(value)
 
         query_bias = self.in_proj_bias[:qkv_split_index]
         key_bias = self.in_proj_bias[qkv_split_index : 2 * qkv_split_index]
         value_bias = self.in_proj_bias[2 * qkv_split_index :]
 
-        self.old_layer.attention.self.query.bias = nn.Parameter(query_bias)
-        self.old_layer.attention.self.key.bias = nn.Parameter(key_bias)
-        self.old_layer.attention.self.value.bias = nn.Parameter(value_bias)
+        self.orig_layer.attention.self.query.bias = nn.Parameter(query_bias)
+        self.orig_layer.attention.self.key.bias = nn.Parameter(key_bias)
+        self.orig_layer.attention.self.value.bias = nn.Parameter(value_bias)
 
         # Output layer
-        self.old_layer.attention.output.dense.weight = self.out_proj_weight
-        self.old_layer.attention.output.dense.bias = self.out_proj_bias
+        self.orig_layer.attention.output.dense.weight = self.out_proj_weight
+        self.orig_layer.attention.output.dense.bias = self.out_proj_bias
 
         # Linear layer 1
-        self.old_layer.intermediate.dense.weight = self.linear1_weight
-        self.old_layer.intermediate.dense.bias = self.linear1_bias
+        self.orig_layer.intermediate.dense.weight = self.linear1_weight
+        self.orig_layer.intermediate.dense.bias = self.linear1_bias
 
         # Linear layer 2
-        self.old_layer.output.dense.weight = self.linear2_weight
-        self.old_layer.output.dense.bias = self.linear2_bias
+        self.orig_layer.output.dense.weight = self.linear2_weight
+        self.orig_layer.output.dense.bias = self.linear2_bias
 
         # Layer norm 1
-        self.old_layer.attention.output.LayerNorm.eps = self.norm1_eps
-        self.old_layer.attention.output.LayerNorm.weight = self.norm1_weight
-        self.old_layer.attention.output.LayerNorm.bias = self.norm1_bias
+        self.orig_layer.attention.output.LayerNorm.eps = self.norm1_eps
+        self.orig_layer.attention.output.LayerNorm.weight = self.norm1_weight
+        self.orig_layer.attention.output.LayerNorm.bias = self.norm1_bias
 
         # Layer norm 2
-        self.old_layer.output.LayerNorm.eps = self.norm2_eps
-        self.old_layer.output.LayerNorm.weight = self.norm2_weight
-        self.old_layer.output.LayerNorm.bias = self.norm2_bias
+        self.orig_layer.output.LayerNorm.eps = self.norm2_eps
+        self.orig_layer.output.LayerNorm.weight = self.norm2_weight
+        self.orig_layer.output.LayerNorm.bias = self.norm2_bias
 
-        return self.old_layer
+        return self.orig_layer
 
 
 class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):

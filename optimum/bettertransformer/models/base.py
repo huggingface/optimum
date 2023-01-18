@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -31,7 +32,21 @@ logger = logging.get_logger(__name__)
 
 
 class BetterTransformerBaseLayer(nn.Module):
-    def __init__(self, config, old_layer=None):
+    def __init__(
+        self,
+        config: "transformers.PretrainedConfig",
+        orig_layer: Optional[nn.Module] = None,
+    ):
+        r"""
+        Base layer for `BetterTransformer` integration. This class is used to wrap all the necessary
+        components for the `BetterTransformer` integration.
+
+        Args:
+            config (`transformers.PretrainedConfig`):
+                The config of the model.
+            orig_layer (`torch.nn.Module`, `optional`):
+                The original layer that needs to be modified. Defaults to `None`.
+        """
         super().__init__()
         self.norm_first = False
         self.use_gelu = False
@@ -63,12 +78,12 @@ class BetterTransformerBaseLayer(nn.Module):
                 self.num_layers = getattr(config, attr)
                 break
 
-        if old_layer is not None:
+        if orig_layer is not None:
             # Last step, store the old module skeleton by copying the old module and putting
             # it on the `meta` device.
-            self.old_layer = deepcopy(old_layer).to("meta")
+            self.orig_layer = deepcopy(orig_layer).to("meta")
         else:
-            self.old_layer = old_layer
+            self.orig_layer = orig_layer
 
     def validate_bettertransformer(self):
         r"""

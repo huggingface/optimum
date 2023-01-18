@@ -79,7 +79,9 @@ def replace_to_bettertransformer(model, config):
     return model
 
 
-def invert_to_old_model(bt_model):
+def revert_to_original_model(
+    bt_model: torch.nn.Module,
+):
     r"""
     Replaces the BT-converted model to its old variant, to be able to safely store the weights
     of a trained model.
@@ -94,12 +96,12 @@ def invert_to_old_model(bt_model):
     for name, module in bt_model.named_children():
         if len(list(module.children())) > 0:
             # we may explicitly exclude part of the model to use BetterTransformer
-            invert_to_old_model(module)
+            revert_to_original_model(module)
 
-        is_invert_compatible = hasattr(module, "old_layer") and module.old_layer is not None
+        is_invert_compatible = hasattr(module, "orig_layer") and module.orig_layer is not None
 
         if is_invert_compatible:
-            bt_model._modules[name] = module._replace_to_original_module()
+            bt_model._modules[name] = module._revert_back_to_original_module()
             module = None
     return bt_model
 
@@ -273,5 +275,5 @@ class BetterTransformer(object):
                 "You should inverse_transform a model that has been already transformed to a `BetterTransformer` format."
             )
 
-        model = invert_to_old_model(model)
+        model = revert_to_original_model(model)
         return model
