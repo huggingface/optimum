@@ -8,7 +8,7 @@ from ...onnxruntime.optimization import ORTOptimizer
 def parse_args_onnxruntime_optimize(parser):
     required_group = parser.add_argument_group("Required arguments")
     required_group.add_argument(
-        "--onnx_model", type=Path, required=True, help="Path indicating where the ONNX models to optimize are located."
+        "--onnx_model", type=Path, required=True, help="Path to the repository where the ONNX models to optimize are located."
     )
 
     optional_group = parser.add_argument_group("Optional arguments")
@@ -16,7 +16,7 @@ def parse_args_onnxruntime_optimize(parser):
         "-o",
         "--output",
         type=Path,
-        help="Path indicating the directory where to store generated ONNX model. (defaults to --onnx_model value).",
+        help="Path to the directory where to store generated ONNX model. (defaults to --onnx_model value).",
     )
 
     level_group = parser.add_mutually_exclusive_group(required=True)
@@ -52,7 +52,7 @@ class ONNXRuntimmeOptimizeCommand:
         else:
             save_dir = self.args.output
 
-        file_names = [model.name for model in save_dir.glob("*.onnx")]
+        file_names = [model.name for model in self.args.onnx_model.glob("*.onnx")]
 
         optimizer = ORTOptimizer.from_pretrained(self.args.onnx_model, file_names)
 
