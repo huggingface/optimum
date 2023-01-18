@@ -37,6 +37,7 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
+    AutoTokenizer,
     MBartForConditionalGeneration,
     PretrainedConfig,
     set_seed,
@@ -838,6 +839,24 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    def test_trust_remote_code(self):
+        model_id = "fxmarty/tiny-testing-gpt2-remote-code"
+        ort_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, trust_remote_code=True)
+        pt_model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+
+        inputs = tokenizer("My name is", return_tensors="pt")
+
+        with torch.inference_mode():
+            pt_logits = pt_model(**inputs).logits
+
+        ort_logits = ort_model(**inputs).logits
+
+        self.assertTrue(
+            torch.allclose(pt_logits, ort_logits, atol=1e-4), f" Maxdiff: {torch.abs(pt_logits - ort_logits).max()}"
+        )
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
