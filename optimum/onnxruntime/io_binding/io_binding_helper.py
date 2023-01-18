@@ -158,9 +158,9 @@ class IOBindingHelper:
         Returns an IOBinding object for an inference session. This method is for general purpose, if the inputs and outputs
         are determined, you can prepare data buffers directly to avoid tensor transfers across frameworks.
         """
-        if not all(input_name in inputs.keys() for input_name in ort_model.model_input_names):
+        if not all(input_name in inputs.keys() for input_name in ort_model.input_names):
             raise ValueError(
-                f"The ONNX model takes {ort_model.model_input_names} as inputs, but only {inputs.keys()} are given."
+                f"The ONNX model takes {ort_model.input_names.keys()} as inputs, but only {inputs.keys()} are given."
             )
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(ort_model.model)
@@ -169,7 +169,7 @@ class IOBindingHelper:
         io_binding = ort_model.model.io_binding()
 
         # Bind inputs
-        for input_name in ort_model.model_input_names:
+        for input_name in ort_model.input_names:
             onnx_input = inputs.pop(input_name)
             onnx_input = onnx_input.contiguous()
 
@@ -183,7 +183,7 @@ class IOBindingHelper:
             )
 
         # Bind outputs
-        for name in ort_model.model_output_names:
+        for name in ort_model.output_names:
             io_binding.bind_output(name, ort_model.device.type, device_id=ort_model.device.index)
 
         return io_binding

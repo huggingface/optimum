@@ -587,12 +587,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         common_outputs = super(OnnxConfigWithPast, self).outputs
         # Renaming the outputs axes properly.
         for name, axes_names in common_outputs.items():
-            # TODO: validate that.
             if self._behavior is ConfigBehavior.ENCODER:
                 sequence_name = "encoder_sequence_length"
             else:
                 sequence_name = "encoder_sequence_length" if "encoder" in name else "decoder_sequence_length"
-                # sequence_name = "encoder_sequence_length"
             for axis_idx, name in axes_names.items():
                 if "sequence" in name:
                     axes_names[axis_idx] = sequence_name
@@ -601,10 +599,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                     axes_names[axis_idx] = name
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
-
-        # TODO: should we keep the hidden states for the decoders?
-        # if self._behavior is  ConfigBehavior.DECODER:
-        #     common_outputs.pop("encoder_hidden_states")
 
         return common_outputs
 

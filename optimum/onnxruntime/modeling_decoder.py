@@ -488,10 +488,8 @@ class ORTModelDecoder(ORTModel):
 
         provider = get_provider_for_device(device)
         self.device = device
-        # self.decoder._device = device
         self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
-            # self.decoder_with_past._device = device
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         self.providers = self.decoder.session.get_providers()
 

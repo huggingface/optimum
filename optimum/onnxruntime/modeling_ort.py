@@ -240,13 +240,8 @@ class ORTModel(OptimizedModel):
             **kwargs,
         )
 
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(model.get_inputs())}
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
-        self.model_input_names = list(self.model_inputs.keys())
-        self.model_output_names = list(self.model_outputs.keys())
-        # TODO: which one to keep?
-        # self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-        # self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model)
+        self.inputs_names = {output_key.name: idx for idx, output_key in enumerate(model.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
 
     # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
     @property
@@ -795,7 +790,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
+            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return BaseModelOutput(last_hidden_state=last_hidden_state)
@@ -895,8 +890,8 @@ class ORTModelForQuestionAnswering(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
-            end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
+            start_logits = torch.from_numpy(outputs[self.output_names["start_logits"]]).to(self.device)
+            end_logits = torch.from_numpy(outputs[self.output_names["end_logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
@@ -1006,7 +1001,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return SequenceClassifierOutput(logits=logits)
@@ -1101,7 +1096,7 @@ class ORTModelForTokenClassification(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return TokenClassifierOutput(logits=logits)
@@ -1188,7 +1183,7 @@ class ORTModelForMultipleChoice(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return MultipleChoiceModelOutput(logits=logits)
@@ -1277,7 +1272,7 @@ class ORTModelForImageClassification(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]])
+            logits = torch.from_numpy(outputs[self.output_names["logits"]])
 
             # converts output to namedtuple for pipelines post-processing
             return ImageClassifierOutput(logits=logits)
@@ -1353,7 +1348,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
             io_binding.synchronize_outputs()
 
             outputs = {}
-            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+            for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
 
             # converts output to namedtuple for pipelines post-processing
@@ -1449,7 +1444,7 @@ class ORTModelForCustomTasks(ORTModel):
             io_binding.synchronize_outputs()
 
             outputs = {}
-            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+            for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
 
             # converts output to namedtuple for pipelines post-processing
