@@ -944,6 +944,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        **kwargs,
     ):
         model_path = Path(model_id)
 
