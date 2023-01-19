@@ -50,6 +50,18 @@ class NormalizedConfig:
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
         attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
+
+        # Maybe the attribute exists as is. 
+        # TODO: should we enable this? It would mean that we don't have to specify an attribute when it has the same name
+        # as the "normalized" expected way.
+        # if attr is None:
+        #     attr = getattr(self.config, leaf_attr_name, None)
+
+        # If the attribute was not specified manually, try to fallback on the attribute_map.
+        if attr is None:
+            attribute_map = getattr(self.config, "attribute_map", {})
+            attr = getattr(self.config, attribute_map.get(leaf_attr_name, ""), None)
+
         if attr is None:
             raise AttributeError(f'Could not find the attribute named "{leaf_attr_name}" in the normalized config.')
         return attr
