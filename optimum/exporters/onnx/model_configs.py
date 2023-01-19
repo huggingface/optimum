@@ -218,8 +218,14 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
 
         name = "past_key_values" if direction == "inputs" else "present"
         for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
-            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
+            inputs_or_outputs[f"{name}.{i}.key"] = {
+                0: "batch_size x num_heads",
+                2: "past_sequence_length + sequence_length",
+            }
+            inputs_or_outputs[f"{name}.{i}.value"] = {
+                0: "batch_size x num_heads",
+                1: "past_sequence_length + sequence_length",
+            }
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):

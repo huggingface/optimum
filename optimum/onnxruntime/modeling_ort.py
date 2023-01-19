@@ -607,12 +607,8 @@ class ORTModel(OptimizedModel):
         """Prepares the buffer of output_name with a 1D tensor."""
         ort_type = TypeHelper.get_output_type(model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-        try:
-            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
-        except:
-            import pdb
-
-            pdb.set_trace()
+        # import pdb; pdb.set_trace()
+        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
         return output_buffer
 
     def _prepare_io_binding(

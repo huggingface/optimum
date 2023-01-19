@@ -14,7 +14,7 @@
 """Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
 
 from abc import abstractmethod
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput
@@ -106,17 +106,55 @@ class ORTDecoder(ORTModelPart):
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
 
+        # Attributes useful when computing the past key/values output shapes.
+        self.expected_key_symbolic_shape = None
+        self.expected_value_symbolic_shape = None
+        for output in self.session.get_outputs():
+            if ".key" in output.name:
+                self.expected_key_symbolic_shape = output.shape
+            if ".value" in output.name:
+                self.expected_value_symbolic_shape = output.shape
+
+        self.key_sequence_length_idx = -2
+        if (
+            isinstance(self.expected_key_symbolic_shape[-1], str)
+            and "sequence_length" in self.expected_key_symbolic_shape[-1]
+        ):
+            self.key_sequence_length_idx = -1
+
+        self.value_sequence_length_idx = -2
+        if (
+            isinstance(self.expected_value_symbolic_shape[-1], str)
+            and "sequence_length" in self.expected_value_symbolic_shape[-1]
+        ):
+            self.value_sequence_length_idx = -1
+
     def compute_past_key_values_output_shapes(
         self, input_ids, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
-    ) -> Dict[str, int]:
+    ) -> Dict[str, List[int]]:
         batch_size = input_ids.size(0)
         num_attention_heads = self.normalized_config.num_attention_heads
         embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
         sequence_length = input_ids.size(1)
         if past_key_values is not None:
             sequence_length += past_key_values[0].size(2)
-        past_key_value_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
-        return {name: past_key_value_shape for name in self.key_value_output_names}
+
+        half_shape = [batch_size, num_attention_heads]
+        if len(self.expected_key_symbolic_shape) == 3:
+            half_shape[0] *= half_shape.pop(1)
+
+        key_shape = [sequence_length, embed_size_per_head]
+        if self.key_sequence_length_idx == -1:
+            key_shape[0], key_shape[1] = key_shape[1], key_shape[0]
+
+        value_shape = [sequence_length, embed_size_per_head]
+        if self.value_sequence_length_idx == -1:
+            value_shape[0], value_shape[1] = value_shape[1], value_shape[0]
+
+        key_shape = half_shape + key_shape
+        value_shape = half_shape + value_shape
+
+        return {name: key_shape if "key" in name else value_shape for name in self.key_value_output_names}
 
     def forward(
         self,
@@ -224,7 +262,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = tuple(
-                past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layers
+                past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
             )
 
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:

@@ -51,12 +51,6 @@ class NormalizedConfig:
             config = getattr(config, attr)
         attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
 
-        # Maybe the attribute exists as is. 
-        # TODO: should we enable this? It would mean that we don't have to specify an attribute when it has the same name
-        # as the "normalized" expected way.
-        # if attr is None:
-        #     attr = getattr(self.config, leaf_attr_name, None)
-
         # If the attribute was not specified manually, try to fallback on the attribute_map.
         if attr is None:
             attribute_map = getattr(self.config, "attribute_map", {})
@@ -166,7 +160,7 @@ class NormalizedConfigManager:
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot_small": BartLikeNormalizedTextConfig,
-        "bloom": NormalizedTextConfig.with_args(hidden_size="n_embd", num_layers="n_layer"),
+        "bloom": NormalizedTextConfig.with_args(hidden_size="hidden_size", num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,

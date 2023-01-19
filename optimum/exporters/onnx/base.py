@@ -126,12 +126,13 @@ class OnnxConfig(ExportConfig, ABC):
     _TASK_TO_COMMON_OUTPUTS = {
         "causal-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "default": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
-        "image-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        # TODO: Is this the same thing as semantic-segmentation?
         "image-segmentation": OrderedDict(
             {
-                "logits": {0: "batch_size", 1: "sequence_length"},
-                "pred_boxes": {0: "batch_size", 1: "sequence_length"},
-                "pred_masks": {0: "batch_size", 1: "sequence_length"},
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_boxes": {0: "batch_size", 1: "num_queries"},
+                "pred_masks": {0: "batch_size", 1: "num_queries"},
             }
         ),
         "masked-im": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -139,8 +140,8 @@ class OnnxConfig(ExportConfig, ABC):
         "multiple-choice": OrderedDict({"logits": {0: "batch_size"}}),
         "object-detection": OrderedDict(
             {
-                "logits": {0: "batch_size", 1: "sequence_length"},
-                "pred_boxes": {0: "batch_size", 1: "sequence_length"},
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_boxes": {0: "batch_size", 1: "num_queries"},
             }
         ),
         "question-answering": OrderedDict(
