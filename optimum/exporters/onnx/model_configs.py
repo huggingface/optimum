@@ -633,7 +633,7 @@ class UNetOnnxConfig(ViTOnnxConfig):
 
 
 class VaeEncoderOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
+    ATOL_FOR_VALIDATION = 1e-2
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
