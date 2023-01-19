@@ -1246,7 +1246,7 @@ class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Model hyper parameters
         self.num_heads = prnt_layer.self_attn.num_attn_heads
-        self.embed_dim = prnt_layer.self_attn.head_dim
+        self.embed_dim = prnt_layer.self_attn.head_dim * self.num_heads
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
