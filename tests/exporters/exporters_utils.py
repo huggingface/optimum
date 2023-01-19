@@ -195,5 +195,5 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_STABLE_DIFFUSION_MODEL = {
-    ("runwayml/stable-diffusion-v1-5"),
+    ("hf-internal-testing/tiny-stable-diffusion-torch"),
 }

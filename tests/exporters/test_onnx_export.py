@@ -373,9 +373,11 @@ class OnnxExportTestCase(TestCase):
             "vae_decoder/model.onnx",
         ]
         models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
+        model, _ = models_and_onnx_configs["vae_encoder"]
+        model.forward = lambda sample: {"latent_sample": model.encode(x=sample)["latent_dist"].parameters}
 
         with TemporaryDirectory() as tmpdirname:
-            onnx_inputs, onnx_outputs = export_models(
+            _, onnx_outputs = export_models(
                 models_and_onnx_configs=models_and_onnx_configs,
                 opset=14,
                 output_dir=Path(tmpdirname),
@@ -385,7 +387,6 @@ class OnnxExportTestCase(TestCase):
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
-                atol=1e-3,
                 output_dir=Path(tmpdirname),
                 output_names=output_names,
             )
