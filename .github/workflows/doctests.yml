@@ -1,4 +1,5 @@
-name: ONNX Runtime / Test GPU
+name: Optimum common / Test python code in documentation and docstrings
+# Note: this test uses transformers stable and optimum dev
 
 on:
   workflow_dispatch:
