@@ -361,8 +361,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     @property
     def inputs_for_causal_lm(self):
         common_inputs = {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
         if self.use_past_in_inputs:
             for i in range(self._normalized_config.decoder_num_layers):
@@ -380,8 +380,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     @property
     def inputs_for_other_tasks(self):
         return {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
 
     @property
@@ -400,6 +400,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super().outputs
         else:
             common_outputs = super(OnnxConfigWithPast, self).outputs
+            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "sequence_length"}
             if self.use_present_in_outputs:
                 for i in range(self._normalized_config.encoder_num_layers):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
