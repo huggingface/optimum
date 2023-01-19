@@ -14,7 +14,7 @@
 # limitations under the License.
 """ Style utils to preprocess files for doc tests.
 
-    The doc precossing function can be run on a list of files and/org
+    The doc processing function can be run on a list of files and/or
     directories of files. It will recursively check if the files have
     a python code snippet by looking for a ```python or ```py syntax.
     In the default mode - `remove_new_line==False` the script will
