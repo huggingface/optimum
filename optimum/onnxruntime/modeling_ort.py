@@ -16,7 +16,6 @@
 import logging
 import re
 import shutil
-from abc import abstractmethod
 from inspect import signature
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -287,7 +286,6 @@ class ORTModel(OptimizedModel):
 
         return self
 
-    @abstractmethod
     def forward(self, *args, **kwargs):
         raise NotImplementedError
 

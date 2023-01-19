@@ -301,7 +301,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
             past_key_values = tuple(
-                torch.from_numpy(outputs[self.output_names[key]]).to(self._device)
+                torch.from_numpy(outputs[self.output_names[key]]).to(self.device)
                 for key in self.key_value_output_names
             )
 
