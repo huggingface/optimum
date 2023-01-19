@@ -55,6 +55,7 @@ class BetterTransformerBaseLayer(nn.Module):
         self.num_heads = None
         self.embed_dim = None
         self.num_layers = None
+        self.original_layers_mapping = {}
 
         # Get activation function
         for attr in KNOWN_ACTIVATION_ATTRIBUTES:
@@ -140,11 +141,41 @@ class BetterTransformerBaseLayer(nn.Module):
                 " Please use `model.eval()` before running the model.",
             )
 
-    def _replace_to_original_module(self):
+    def _recurse_setattr(self, module, name, value):
+        r"""
+        A wrapper function to recursively set attributes to a module.
+        """
+        if "." not in name:
+            setattr(module, name, value)
+        else:
+            name, rest = name.split(".", 1)
+            self._recurse_setattr(getattr(module, name), rest, value)
+
+    def _revert_back_to_original_module(self):
         r"""
         A wrapper function to replace the current layer with the previous non-BetterTransformer
         layer.
         """
-        raise NotImplementedError(
-            "Please implement this method in the `BetterTransformerLayer` class to benefit from the `BetterTransformer` inverse transformation."
-        )
+        for modified_layer_key_names, original_layer_key_names in self.original_layers_mapping.items():
+            # to deal with qkv layers for example
+            if isinstance(original_layer_key_names, list):
+                # retrieve the current weight
+                current_weight = getattr(self, modified_layer_key_names)
+
+                # split the current weight n chunks
+                split_index = current_weight.shape[0] // len(original_layer_key_names)
+                for i, module in enumerate(original_layer_key_names):
+                    self._recurse_setattr(
+                        self.orig_layer, module, nn.Parameter(current_weight[i * split_index : (i + 1) * split_index])
+                    )
+            elif isinstance(original_layer_key_names, str):
+                self._recurse_setattr(
+                    self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
+                )
+            else:
+                raise ValueError(
+                    f"Invalid type {type(modified_layer_key_names)} for `original_layers_mapping`",
+                    " please use either `str` or `list`.",
+                )
+
+        return self.orig_layer
