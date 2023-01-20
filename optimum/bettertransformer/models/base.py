@@ -17,7 +17,7 @@ from typing import List, Optional
 import torch
 import torch.nn as nn
 
-from ...utils import logging
+from ...utils import logging, recurse_setattr
 
 
 KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation_function"]
@@ -144,16 +144,6 @@ class BetterTransformerBaseLayer(nn.Module):
                 " Please use `model.eval()` before running the model.",
             )
 
-    def _recurse_setattr(self, module, name, value):
-        r"""
-        A wrapper function to recursively set attributes to a module.
-        """
-        if "." not in name:
-            setattr(module, name, value)
-        else:
-            name, rest = name.split(".", 1)
-            self._recurse_setattr(getattr(module, name), rest, value)
-
     def _revert_back_to_original_module(self):
         r"""
         A wrapper function to replace the current layer with the previous non-BetterTransformer
@@ -170,16 +160,14 @@ class BetterTransformerBaseLayer(nn.Module):
                 split_index = current_weight.shape[0] // len(original_layer_key_names)
                 for i, module in enumerate(original_layer_key_names):
                     if module not in self.keys_to_ignore:
-                        self._recurse_setattr(
+                        recurse_setattr(
                             self.orig_layer,
                             module,
                             nn.Parameter(current_weight[i * split_index : (i + 1) * split_index]),
                         )
             elif isinstance(original_layer_key_names, str):
                 if module not in self.keys_to_ignore:
-                    self._recurse_setattr(
-                        self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
-                    )
+                    recurse_setattr(self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names))
             else:
                 raise ValueError(
                     f"Invalid type {type(modified_layer_key_names)} for `original_layers_mapping`",
