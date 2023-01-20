@@ -591,13 +591,23 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             if self._behavior is ConfigBehavior.ENCODER:
                 sequence_name = "encoder_sequence_length"
             else:
-                sequence_name = "encoder_sequence_length" if "encoder" in name else "decoder_sequence_length"
-            for axis_idx, name in axes_names.items():
-                if "sequence" in name:
-                    axes_names[axis_idx] = sequence_name
-                # We reset the value as the order in common_outputs (OrderedDict) is lost otherwise
+                if "encoder" in name:
+                    sequence_name = "encoder_sequence_length"
                 else:
-                    axes_names[axis_idx] = name
+                    sequence_name = "decoder_sequence_length"
+
+            new_axes_names = {}
+            for axis_idx, axis_name in axes_names.items():
+                if "sequence" in axis_name:
+                    if not self.use_past_in_inputs:
+                        new_axes_names[axis_idx] = sequence_name
+                    else:
+                        # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
+                        new_axes_names[axis_idx] = "1"
+                else:
+                    new_axes_names[axis_idx] = axis_name
+            common_outputs[name] = new_axes_names
+
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
 
@@ -608,11 +618,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
         name = "past_key_values" if direction == "inputs" else "present"
-        encoder_sequence = "past_encoder_sequence_length"
+        encoder_sequence = "encoder_sequence_length"
         decoder_sequence = (
-            "past_decoder_sequence_length"
-            if direction == "inputs"
-            else "past_decoder_sequence_length + sequence_length"
+            "past_decoder_sequence_length" if direction == "inputs" else "past_decoder_sequence_length + 1"
         )
         for i in range(self._normalized_config.decoder_num_layers):
             inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence}

@@ -94,8 +94,10 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
+            common_inputs.pop("attention_mask")
             if self.use_past_in_inputs:
-                common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
+                # TODO: validate the axis name for attention_mask
+                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
                 common_inputs["decoder_input_ids"] = {0: "batch_size"}
             else:
                 common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
@@ -104,6 +106,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 self.add_past_key_values(common_inputs, direction="inputs")
 
         if self._behavior is ConfigBehavior.DECODER:
+            # TODO: it is actually encoder_last_hidden_state
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
@@ -135,7 +138,8 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-            reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
+            # TODO: validate that it should be removed.
+            # reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
         return reference_model_inputs
 
 

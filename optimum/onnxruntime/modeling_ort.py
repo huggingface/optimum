@@ -610,9 +610,28 @@ class ORTModel(OptimizedModel):
         """Prepares the buffer of output_name with a 1D tensor."""
         ort_type = TypeHelper.get_output_type(model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-        # import pdb; pdb.set_trace()
         output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
         return output_buffer
+
+    def _output_shape_inference(self, axis_name: Union[str, int], dimensions: Dict[str, int]) -> Union[str, int]:
+        # TODO: add docstring
+        if isinstance(axis_name, int):
+            return axis_name
+        result = dimensions.get(axis_name, None)
+        if result is None:
+            subparts = axis_name.split("+")
+            result = 0
+            for subname in subparts:
+                subname = subname.strip()
+                subresult = dimensions.get(subname, None)
+                if subresult is None:
+                    try:
+                        subresult = int(subname)
+                    except ValueError:
+                        result = None
+                        break
+                result += subresult
+        return axis_name if result is None else result
 
     def _prepare_io_binding(
         self,
@@ -685,7 +704,11 @@ class ORTModel(OptimizedModel):
             if output_name in known_output_shapes:
                 output_shape = known_output_shapes[output_name]
             else:
-                output_shape = tuple(map(lambda x: dimensions.get(x, x), output_node.shape))
+                # output_shape = tuple(map(lambda x: dimensions.get(x, x), output_node.shape))
+                output_shape = []
+                for axis_name in output_node.shape:
+                    output_shape.append(self._output_shape_inference(axis_name, dimensions))
+                # output_shape = tuple(map(self._output_shape_inference, output_node.shape))
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
             io_binding.bind_output(
                 output_name,
