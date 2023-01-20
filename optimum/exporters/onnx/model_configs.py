@@ -592,7 +592,7 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
         return dummy_inputs
 
 
-class UNetOnnxConfig(ViTOnnxConfig):
+class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
@@ -647,8 +647,6 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
         allow_new=True,
     )
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
-
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
         return {
@@ -672,8 +670,6 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
         num_channels="latent_channels",
         allow_new=True,
     )
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
