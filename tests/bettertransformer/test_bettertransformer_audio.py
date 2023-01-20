@@ -255,3 +255,24 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
 
             # Assert that the outputs are the same
             self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
+
+    @parameterized.expand([(False,)])
+    def test_raise_save_pretrained_error(self, keep_original_model=False):
+        r"""
+        Test if the converted model raises an error when calling `save_pretrained`
+        but not when the model is reverted
+        """
+        for model in self.all_models_to_test:
+            # get hf and bt model
+            hf_model = AutoModel.from_pretrained(model)
+            # get bt model and invert it
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+
+            with self.assertRaises(ValueError):
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    bt_model.save_pretrained(tmpdirname)
+
+            # revert model and save it
+            bt_model = BetterTransformer.reverse(bt_model)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                bt_model.save_pretrained(tmpdirname)

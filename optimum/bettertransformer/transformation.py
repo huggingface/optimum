@@ -27,6 +27,19 @@ if is_accelerate_available():
 ERROR_MESSAGE = r"The Better Transformers implementation for the model {model_name} has not been implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer` implementation."
 
 
+def raise_save_or_push_incompatible(dummy, /, *_, **__):
+    r"""
+    Simply raise an error if the user tries to save or push a model that is not compatible with
+    `BetterTransformer` and needs to be reverted to the original model before calling these
+    functions.
+    """
+    raise ValueError(
+        "You are trying to save or push a model that has been converted with `BetterTransformer`.",
+        " Please revert the model to its original state before calling `save_pretrained` or `push_to_hub`.",
+        " By calling model = BetterTransformer.reverse(model) before saving or pushing.",
+    )
+
+
 def replace_to_bettertransformer(model, config):
     r"""
     Replaces the current model to its `BetterTransformer` implementation. Loops recursively into the model and replaces the
@@ -259,8 +272,13 @@ class BetterTransformer(object):
                 model = dispatch_model(model, model.hf_device_map)
 
         # Step 8: overwrite the `save_pretrained` method
-        # by adding a context manager
-        setattr(model_fast, "save_pretrained", warn_uncompatible_save(model_fast.save_pretrained))
+        # by raising an error if the user tries to save the model
+        # or push it to the hub.
+        model_fast._old_save_pretrained = model_fast.save_pretrained
+        model_fast._old_push_to_hub = model_fast.push_to_hub
+
+        model_fast.save_pretrained = raise_save_or_push_incompatible
+        model_fast.push_to_hub = raise_save_or_push_incompatible
 
         return model_fast
 
@@ -275,5 +293,11 @@ class BetterTransformer(object):
                 "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer format, which appears to not be the case."
             )
 
+        # Step 1: revert the model
         model = revert_to_original_model(model)
+
+        # Step 2: retrieve the old `save_pretrained` and `push_to_hub` methods
+        model.save_pretrained = model._old_save_pretrained
+        model.push_to_hub = model._old_push_to_hub
+
         return model

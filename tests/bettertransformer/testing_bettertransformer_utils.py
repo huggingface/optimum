@@ -119,7 +119,7 @@ class BetterTransformersTestMixin:
         Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
         """
         for model_id in self.all_models_to_test:
-            with self.assertWarns(UserWarning), tempfile.TemporaryDirectory() as tmpdirname:
+            with self.assertRaises(ValueError), tempfile.TemporaryDirectory() as tmpdirname:
                 hf_model = AutoModel.from_pretrained(model_id).eval()
                 bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
                 bt_model.save_pretrained(tmpdirname)
@@ -273,6 +273,26 @@ class BetterTransformersTestMixin:
 
             # Assert that the outputs are the same
             self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
+
+    @parameterized.expand([(True,), (False,)])
+    def test_raise_save_pretrained_error(self, keep_original_model=True):
+        r"""
+        Test if the converted model raises an error when calling `save_pretrained`
+        but not when the model is reverted
+        """
+        for model in self.all_models_to_test:
+            # get hf and bt model
+            hf_model = AutoModel.from_pretrained(model)
+            # get bt model and invert it
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+
+            with self.assertRaises(ValueError), tempfile.TemporaryDirectory() as tmpdirname:
+                bt_model.save_pretrained(tmpdirname)
+
+            # revert model and save it
+            bt_model = BetterTransformer.reverse(bt_model)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                bt_model.save_pretrained(tmpdirname)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
