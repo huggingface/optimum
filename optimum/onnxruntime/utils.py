@@ -187,6 +187,11 @@ def validate_provider_availability(provider: str):
                     raise ImportError(
                         f"`onnxruntime-gpu` is installed, but GPU dependencies are not loaded. It is likely there is a conflicting install between `onnxruntime` and `onnxruntime-gpu`. Please install only `onnxruntime-gpu` in order to use {provider}."
                     )
+                elif os.path.isfile(path_cuda_lib) and is_onnxruntime_training_available():
+                    if provider == "TensorrtExecutionProvider":
+                        raise ImportError(
+                            f"Asked to use {provider}, but `onnxruntime-training` package doesn't support {provider}. Please use `CUDAExecutionProvider` instead."
+                        )
                 else:
                     raise ImportError(
                         f"Asked to use {provider}, but `onnxruntime-gpu` package was not found. Make sure to install `onnxruntime-gpu` package instead of `onnxruntime`."

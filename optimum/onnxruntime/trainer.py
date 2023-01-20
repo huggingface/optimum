@@ -55,6 +55,7 @@ from transformers.file_utils import (
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
+from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 from transformers.pytorch_utils import is_torch_less_than_1_11
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -90,7 +91,7 @@ from transformers.trainer_utils import (
 from transformers.utils import logging
 
 from ..exporters import TasksManager
-from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
+from ..exporters.onnx import OnnxConfigWithPast, export
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
@@ -99,10 +100,11 @@ from .modeling_ort import (
     ORTModelForImageClassification,
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
+    ORTModelForSemanticSegmentation,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
 )
-from .modeling_seq2seq import ORTModelForSeq2SeqLM
+from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
 from .utils import (
     ONNX_DECODER_NAME,
@@ -139,13 +141,18 @@ SCALER_NAME = "scaler.pt"
 class ORTFeaturesManager:
     _TASKS_TO_ORTMODELS = {
         "default": ORTModelForFeatureExtraction,
-        "question-answering": ORTModelForQuestionAnswering,
+        "masked-lm": ORTModelForFeatureExtraction,
+        "causal-lm": ORTModelForCausalLM,
+        "causal-lm-with-past": ORTModelForCausalLM,
+        "seq2seq-lm": ORTModelForSeq2SeqLM,
+        "seq2seq-lm-with-past": ORTModelForSeq2SeqLM,
         "sequence-classification": ORTModelForSequenceClassification,
         "token-classification": ORTModelForTokenClassification,
         "multiple-choice": ORTModelForMultipleChoice,
-        "causal-lm": ORTModelForCausalLM,
+        "question-answering": ORTModelForQuestionAnswering,
         "image-classification": ORTModelForImageClassification,
-        "seq2seq-lm": ORTModelForSeq2SeqLM,
+        "semantic-segmentation": ORTModelForSemanticSegmentation,
+        "speech2seq-lm": ORTModelForSpeechSeq2Seq,
     }
 
     SUPPORTED_FEATURES = _TASKS_TO_ORTMODELS.keys()
@@ -960,7 +967,9 @@ class ORTTrainer(Trainer):
             else:
                 export_device = "cpu"
 
-            with_loss = has_labels and not self.label_smoother
+            with_loss = (
+                has_labels and not self.label_smoother
+            )  # With `label_smoother` the loss will be computed outside modeling
             self._export(onnx_model_path, with_loss=with_loss, device=export_device)
 
             self.exported_with_loss = with_loss
@@ -975,9 +984,15 @@ class ORTTrainer(Trainer):
             ort_model_cls = ORTModelForCustomTasks
 
         model_id = self.onnx_model_path
-        ort_model = ort_model_cls.from_pretrained(model_id=model_id)
-
         args = self.args
+        # Temporary fix for decoder, now `use_cache` set to False which
+        # TODO: Use cache once `ORTModelForCausalLM` supports `loss` as output
+        if ort_model_cls == ORTModelForCausalLM:
+            ort_model = ort_model_cls.from_pretrained(
+                model_id=model_id, use_cache=False, provider="CUDAExecutionProvider"
+            )
+        else:
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id, provider="CUDAExecutionProvider")
 
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
@@ -1030,11 +1045,9 @@ class ORTTrainer(Trainer):
 
             # Update containers on host
             if loss is not None:
-                loss = loss.to(args.device)
                 losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if labels is not None:
-                labels = labels.to(args.device)
                 labels = self._pad_across_processes(labels)
                 labels = self._nested_gather(labels)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
@@ -1048,7 +1061,6 @@ class ORTTrainer(Trainer):
                 )
 
             if logits is not None:
-                logits = logits.to(args.device) if isinstance(logits, torch.Tensor) else logits
                 logits = self._pad_across_processes(logits)
                 logits = self._nested_gather(logits)
                 if self.preprocess_logits_for_metrics is not None:
@@ -1149,7 +1161,12 @@ class ORTTrainer(Trainer):
         for key in list(metrics.keys()):
             if not key.startswith(f"{metric_key_prefix}_"):
                 metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
-
+        print(ort_model_cls)
+        print("self.feature is", self.feature)
+        print("self.device is", args.device)
+        print("use io binding?", ort_model.use_io_binding)
+        print("loss", loss)
+        raise
         return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
 
     def prediction_loop_ort(
@@ -1198,9 +1215,11 @@ class ORTTrainer(Trainer):
             ort_model_cls = ORTModelForCustomTasks
 
         model_id = self.onnx_model_path
-        ort_model = ort_model_cls.from_pretrained(model_id=model_id)
-
         args = self.args
+        if ort_model_cls == ORTModelForCausalLM:
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id, use_cache=False).to(args.device)
+        else:
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
 
         if not has_length(dataloader):
             raise ValueError("dataloader must implement a working __len__")
@@ -1372,7 +1391,7 @@ class ORTTrainer(Trainer):
                 if has_labels or loss_without_labels:
                     with self.compute_loss_context_manager():
                         loss, outputs = self.compute_loss_ort(model, inputs, return_outputs=True)
-                    loss = torch.tensor(loss).mean()
+                    loss = loss.mean().detach()
 
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
@@ -1393,11 +1412,7 @@ class ORTTrainer(Trainer):
         if prediction_loss_only:
             return (loss, None, None)
 
-        if isinstance(logits, (list, tuple)):
-            logits = [torch.tensor(arr) for arr in logits]
-
         logits = nested_detach(logits)
-
         if len(logits) == 1:
             logits = logits[0]
 
@@ -1412,24 +1427,25 @@ class ORTTrainer(Trainer):
             labels = inputs.pop("labels")
         else:
             labels = None
-
         outputs = model(**inputs)
-
-        if self.label_smoother:
-            # With label smoother, loss will be calculated out of box
-            # So the outputs of InferenceSession need to be converted to tensor and sent to the same device
-            outputs = torch.tensor(outputs).to(labels.device)
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
 
         if labels is not None:
-            loss = self.label_smoother(outputs, labels)
+            if "causal-lm" in self.feature:
+                loss = self.label_smoother(outputs, labels, shift_labels=True)
+            else:
+                loss = self.label_smoother(outputs, labels)
         else:
-            # Outputs of onnxruntime.InferenceSession is a list.
-            # Loss is by default the first element in the outputs.
-            loss = outputs[0]
+            if isinstance(outputs, dict) and "loss" not in outputs:
+                raise ValueError(
+                    "The model did not return a loss from the inputs, only the following keys: "
+                    f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
+                )
+            # We don't use .loss here since the model may return tuples instead of ModelOutput.
+            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
 
@@ -1461,6 +1477,14 @@ class ORTTrainer(Trainer):
                 # Taking CPU to export the model
                 self.model.to("cpu")
             model = unwrap_model(self.model)
+
+        # TODO: Remove once `ORTModelForCausalLM` supports `loss` as an output
+        if "-with-past" in self.feature:
+            correct_feature = self.feature.replace("-with-past", "")
+            raise NotImplementedError(
+                "`use_cache` is not yet supported for ONNX Runtime inference in `ORTTrainer`, please replace "
+                f"{self.feature} task by {correct_feature}."
+            )
 
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             model=model, exporter="onnx", task=self.feature

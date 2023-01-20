@@ -140,7 +140,7 @@ class IOBindingHelper:
     def to_pytorch_via_dlpack(ort_value: OrtValue) -> torch.Tensor:
         from torch._C import _from_dlpack
 
-        torch_tensor = ort_value.to_dlpacks(_from_dlpack)
+        torch_tensor = _from_dlpack(ort_value.to_dlpack())
         return torch_tensor
 
     @staticmethod
