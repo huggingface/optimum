@@ -1010,9 +1010,8 @@ class TasksManager:
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
-        if model is None:
-            if model_type is None or model_name is None:
-                raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
+        if model is None and model_type is None:
+            raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
 
         if model_type is None:
             model_type = getattr(model.config, "model_type", model_type)
