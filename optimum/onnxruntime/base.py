@@ -106,6 +106,9 @@ class ORTDecoder(ORTModelPart):
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
 
+        if len(self.key_value_output_names) == 0:
+            raise RuntimeError("Could not find the past key values in the provided modell.")
+
         # Attributes useful when computing the past key/values output shapes.
         self.expected_key_symbolic_shape = None
         self.expected_value_symbolic_shape = None

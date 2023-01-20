@@ -233,7 +233,7 @@ class ORTEncoderForWhisper(ORTEncoder):
             onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
 
             outputs = self.session.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self._device)
+            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self.device)
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -332,9 +332,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         )
         self.config = config
 
-        self.encoder = self._initialize_encoder(
-            session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
-        )
+        self.encoder = self._initialize_encoder(encoder_session)
         self.encoder_model_path = Path(encoder_session._model_path)
         self.encoder_model_name = self.encoder_model_path.name
 
@@ -355,13 +353,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
 
     @abstractmethod
-    def _initialize_encoder(
-        self,
-        session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        device: torch.device,
-        use_io_binding: Optional[bool] = None,
-    ) -> "ORTEncoder":
+    def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         pass
 
     @staticmethod
@@ -709,12 +701,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         validate_provider_availability(provider)  # raise error if the provider is not available
 
         self.device = device
-        self.encoder._device = device
         self.encoder.session.set_providers([provider], provider_options=[provider_options])
-        self.decoder._device = device
         self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
-            self.decoder_with_past._device = device
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         self.providers = self.encoder.session.get_providers()
 
@@ -729,13 +718,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
 
-    def _initialize_encoder(
-        self,
-        session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        device: torch.device,
-        use_io_binding: Optional[bool] = None,
-    ) -> ORTEncoder:
+    def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoder(session, self)
 
     @add_start_docstrings_to_model_forward(
@@ -835,26 +818,14 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         "whisper": ORTEncoderForWhisper,
     }
 
-    def _initialize_encoder(
-        self,
-        session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        device: torch.device,
-        use_io_binding: Optional[bool] = None,
-    ) -> ORTEncoder:
-        if config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
+    def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
+        if self.config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
             raise KeyError(
-                f"{config.model_type} is not supported yet. "
+                f"{self.config.model_type} is not supported yet. "
                 f"Only {list(self._MODEL_TYPE_TO_ORTENCODER.keys())} are supported. "
-                f"If you want to support {config.model_type} please propose a PR or open up an issue."
+                f"If you want to support {self.config.model_type} please propose a PR or open up an issue."
             )
-        return self._MODEL_TYPE_TO_ORTENCODER[config.model_type](
-            session=session,
-            config=config,
-            device=device,
-            use_io_binding=use_io_binding,
-            main_input_name=self.main_input_name,
-        )
+        return self._MODEL_TYPE_TO_ORTENCODER[self.config.model_type](session, self)
 
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, feature_size, sequence_length")
