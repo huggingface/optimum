@@ -561,6 +561,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
 class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -593,6 +594,8 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
 
 class UNetOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -634,6 +637,8 @@ class UNetOnnxConfig(ViTOnnxConfig):
 
 class VaeEncoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-2
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -659,6 +664,8 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
 
 class VaeDecoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(

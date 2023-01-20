@@ -165,7 +165,7 @@ def get_stable_diffusion_models_for_export(
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
     models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
 
-    # VAE Encoder
+    # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
     vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -174,7 +174,7 @@ def get_stable_diffusion_models_for_export(
     vae_onnx_config = vae_config_constructor(vae_encoder.config)
     models_for_export["vae_encoder"] = (vae_encoder, vae_onnx_config)
 
-    # VAE Decoder
+    # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = copy.deepcopy(pipeline.vae)
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
