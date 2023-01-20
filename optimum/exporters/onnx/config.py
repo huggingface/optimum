@@ -245,7 +245,6 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         from ..tasks import TasksManager
 
-        from pdb import set_trace; set_trace()
         # retrieve the encoder config
         encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             exporter="onnx", task="default", model_type=config.encoder.model_type
@@ -261,7 +260,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
         self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
 
-        if isinstance(self.decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
+        if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
             self._past_key_values_generator = (DummySeq2SeqPastKeyValuesGenerator,)
         else:
             self._past_key_values_generator = (DummyPastKeyValuesGenerator,)
