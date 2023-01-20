@@ -36,8 +36,6 @@ from transformers.integrations import (  # isort: split
 import numpy as np
 import torch
 import torch.distributed as dist
-import transformers
-from packaging import version
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
@@ -55,7 +53,6 @@ from transformers.file_utils import (
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 from transformers.pytorch_utils import is_torch_less_than_1_11
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -1161,12 +1158,7 @@ class ORTTrainer(Trainer):
         for key in list(metrics.keys()):
             if not key.startswith(f"{metric_key_prefix}_"):
                 metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
-        print(ort_model_cls)
-        print("self.feature is", self.feature)
-        print("self.device is", args.device)
-        print("use io binding?", ort_model.use_io_binding)
-        print("loss", loss)
-        raise
+
         return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
 
     def prediction_loop_ort(
@@ -1200,7 +1192,9 @@ class ORTTrainer(Trainer):
             else:
                 export_device = "cpu"
 
-            with_loss = has_labels and not self.label_smoother
+            with_loss = (
+                has_labels and not self.label_smoother
+            )  # With `label_smoother` the loss will be computed outside modeling
             self._export(onnx_model_path, with_loss=with_loss, device=export_device)
 
             self.exported_with_loss = with_loss
@@ -1216,10 +1210,14 @@ class ORTTrainer(Trainer):
 
         model_id = self.onnx_model_path
         args = self.args
+        # Temporary fix for decoder, now `use_cache` set to False which
+        # TODO: Use cache once `ORTModelForCausalLM` supports `loss` as output
         if ort_model_cls == ORTModelForCausalLM:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id, use_cache=False).to(args.device)
+            ort_model = ort_model_cls.from_pretrained(
+                model_id=model_id, use_cache=False, provider="CUDAExecutionProvider"
+            )
         else:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id, provider="CUDAExecutionProvider")
 
         if not has_length(dataloader):
             raise ValueError("dataloader must implement a working __len__")
@@ -1261,14 +1259,11 @@ class ORTTrainer(Trainer):
             inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
             if loss is not None:
-                loss = loss.to(args.device)
                 losses = loss.repeat(batch_size)
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
-                logits = logits.to(args.device)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
-                labels = labels.to(args.device)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
             if inputs_decode is not None:
                 inputs_host = (
