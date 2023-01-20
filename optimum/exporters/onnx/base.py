@@ -137,7 +137,7 @@ class OnnxConfig(ExportConfig, ABC):
         ),
         "masked-im": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "multiple-choice": OrderedDict({"logits": {0: "batch_size"}}),
+        "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
             {
                 "logits": {0: "batch_size", 1: "num_queries"},
