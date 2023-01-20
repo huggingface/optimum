@@ -632,7 +632,7 @@ class UNetOnnxConfig(ViTOnnxConfig):
         return dummy_inputs
 
 
-class VaeEncoderOnnxConfig(ViTOnnxConfig):
+class VaeEncoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-2
     DEFAULT_ONNX_OPSET = 14
 
@@ -657,7 +657,7 @@ class VaeEncoderOnnxConfig(ViTOnnxConfig):
         }
 
 
-class VaeDecoderOnnxConfig(ViTOnnxConfig):
+class VaeDecoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 14
 

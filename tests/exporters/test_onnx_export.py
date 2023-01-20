@@ -388,5 +388,6 @@ class OnnxExportTestCase(TestCase):
                 models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
                 output_dir=Path(tmpdirname),
+                atol=1e-3,
                 output_names=output_names,
             )
