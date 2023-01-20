@@ -56,6 +56,9 @@ class BetterTransformerBaseLayer(nn.Module):
         self.embed_dim = None
         self.num_layers = None
         self.original_layers_mapping = {}
+        # some models does not have some attributes thus needs to be ignored
+        # e.g. whisper does not have self_attn.k_proj.bias but has self_attn.v_proj.bias & self_attn.q_proj.bias
+        self.keys_to_ignore = []
 
         # Get activation function
         for attr in KNOWN_ACTIVATION_ATTRIBUTES:
@@ -162,16 +165,21 @@ class BetterTransformerBaseLayer(nn.Module):
                 # retrieve the current weight
                 current_weight = getattr(self, modified_layer_key_names)
 
-                # split the current weight n chunks
+                # split the current weight n chunks - this is useful to split
+                # the qkv layers into q, k, v layers for example.
                 split_index = current_weight.shape[0] // len(original_layer_key_names)
                 for i, module in enumerate(original_layer_key_names):
-                    self._recurse_setattr(
-                        self.orig_layer, module, nn.Parameter(current_weight[i * split_index : (i + 1) * split_index])
-                    )
+                    if module not in self.keys_to_ignore:
+                        self._recurse_setattr(
+                            self.orig_layer,
+                            module,
+                            nn.Parameter(current_weight[i * split_index : (i + 1) * split_index]),
+                        )
             elif isinstance(original_layer_key_names, str):
-                self._recurse_setattr(
-                    self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
-                )
+                if module not in self.keys_to_ignore:
+                    self._recurse_setattr(
+                        self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
+                    )
             else:
                 raise ValueError(
                     f"Invalid type {type(modified_layer_key_names)} for `original_layers_mapping`",

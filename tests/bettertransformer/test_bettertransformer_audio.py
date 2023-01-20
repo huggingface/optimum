@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 import unittest
 
 import numpy as np
@@ -19,6 +20,7 @@ import torch
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 from optimum.bettertransformer import BetterTransformer
+from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -141,3 +143,109 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
                 bt_model = BetterTransformer.transform(hf_random_model)
                 bt_model.train()
                 _ = bt_model(**inputs)
+
+    @parameterized.expand([(False,)])
+    def test_invert_modules(self, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same modules
+        Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
+        with `keep_original_model=True` for this model.
+        """
+        for model in self.all_models_to_test:
+            # get hf and bt model
+            hf_model = AutoModel.from_pretrained(model)
+            # get bt model and invert it
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+            bt_model = BetterTransformer.reverse(bt_model)
+
+            # get modules:
+            hf_modules = list(hf_model.modules())
+            bt_modules = list(bt_model.modules())
+
+            # Assert that the modules are the same
+            self.assertEqual(len(hf_modules), len(bt_modules))
+            for hf_module, bt_module in zip(hf_modules, bt_modules):
+                self.assertEqual(type(hf_module), type(bt_module))
+                # check the modules have the same methods
+                self.assertEqual(dir(hf_module), dir(bt_module))
+
+                # check the modules have the same attributes
+                hf_module_attributes = [attr for attr in dir(hf_module) if not attr.startswith("_")]
+                bt_module_attributes = [attr for attr in dir(bt_module) if not attr.startswith("_")]
+
+                self.assertEqual(hf_module_attributes, bt_module_attributes)
+
+    @parameterized.expand([(False,)])
+    def test_save_load_invertible(self, keep_original_model=False):
+        r"""
+        Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
+        with `keep_original_model=True` for this model.
+        """
+        for model in self.all_models_to_test:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                hf_model = AutoModel.from_pretrained(model).eval()
+                bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+
+                bt_model = BetterTransformer.reverse(bt_model)
+                # check if no parameter is on the `meta` device
+
+                for name, param in bt_model.named_parameters():
+                    self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
+
+                bt_model.save_pretrained(tmpdirname)
+
+                bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
+
+                # check if the state dict is the same
+                # first check if the keys are the same
+                self.assertEqual(
+                    set(bt_model.state_dict().keys()),
+                    set(bt_model_from_load.state_dict().keys()),
+                )
+                # check also with HF model
+                self.assertEqual(
+                    set(hf_model.state_dict().keys()),
+                    set(bt_model_from_load.state_dict().keys()),
+                )
+
+                for key in bt_model.state_dict().keys():
+                    self.assertTrue(
+                        torch.allclose(
+                            bt_model.state_dict()[key],
+                            bt_model_from_load.state_dict()[key],
+                        )
+                    )
+
+                    self.assertTrue(
+                        torch.allclose(
+                            hf_model.state_dict()[key],
+                            bt_model_from_load.state_dict()[key],
+                        )
+                    )
+
+    @parameterized.expand([(False,)])
+    def test_invert_model_logits(self, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same logits.
+        Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
+        with `keep_original_model=True` for this model.
+        """
+        for model in self.all_models_to_test:
+            # get hf and bt model
+            hf_model = AutoModel.from_pretrained(model)
+            # get bt model and invert it
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+            bt_model = BetterTransformer.reverse(bt_model)
+
+            # get inputs
+            inputs = self.prepare_inputs_for_class(model)
+
+            # get outputs
+            torch.manual_seed(42)
+            output_bt = bt_model(**inputs)
+
+            torch.manual_seed(42)
+            output_hf = hf_model(**inputs)
+
+            # Assert that the outputs are the same
+            self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))

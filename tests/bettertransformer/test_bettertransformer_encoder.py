@@ -28,7 +28,7 @@ from optimum.utils.testing_utils import (
     require_torch_gpu,
 )
 from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersInvertibleTestMixin, BetterTransformersTestMixin
+from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_ENCODER_MODELS_TO_TEST = [
@@ -55,8 +55,6 @@ ALL_ENCODER_DECODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-mbart",
     "hf-internal-testing/tiny-random-nllb",
 ]
-
-ALL_INVERTIBLE_MODELS_TO_TEST = ["hf-internal-testing/tiny-random-BertModel"]
 
 
 class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -290,80 +288,6 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     )
     def test_logits(self, test_name: str, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
-
-
-class BetterTransformerInvertibleTest(BetterTransformersInvertibleTestMixin, unittest.TestCase):
-    r"""
-    `BetterTransformers` integration into Hugging Face `transformers` ecosystem includes also the
-    inverse transform of the models. This test suite checks that the inverse conversion is correct.
-    This class inherits from `BetterTransformersInvertibleTestMixin` which contains the state dict tests.
-
-    Check the docstring of each test to understand the purpose of each test. Basically we test:
-    - if the conversion dictionnary is consistent, ie if the converted model have the exact same
-    state_dict as the original model.
-    - if the converted inverted model produces the same logits as the original model.
-    - if the converted inverted model has the same module, signature and parameters as the original model.
-    """
-    all_models_to_test = ALL_INVERTIBLE_MODELS_TO_TEST
-
-    def tearDown(self):
-        gc.collect()
-
-    def prepare_inputs_for_class(self, model_id=None):
-        input_dict = {
-            "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
-            "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
-        }
-        return input_dict
-
-    def test_logits(self):
-        r"""
-        Test that the inverse converted model and hf model have the same logits
-        """
-        for model in self.all_models_to_test:
-            # get hf and bt model
-            hf_model = AutoModel.from_pretrained(model)
-            # get bt model and invert it
-            bt_model = BetterTransformer.transform(hf_model)
-            bt_model = BetterTransformer.reverse(bt_model)
-
-            # get inputs
-            inputs = self.prepare_inputs_for_class(model)
-
-            # get outputs
-            output_bt = bt_model(**inputs)
-            output_hf = hf_model(**inputs)
-
-            # Assert that the outputs are the same
-            self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
-
-    def test_modules(self):
-        r"""
-        Test that the inverse converted model and hf model have the same modules
-        """
-        for model in self.all_models_to_test:
-            # get hf and bt model
-            hf_model = AutoModel.from_pretrained(model)
-            # get bt model and invert it
-            bt_model = BetterTransformer.transform(hf_model)
-            bt_model = BetterTransformer.reverse(bt_model)
-
-            # get modules:
-            hf_modules = list(hf_model.modules())
-            bt_modules = list(bt_model.modules())
-
-            # Assert that the modules are the same
-            self.assertEqual(len(hf_modules), len(bt_modules))
-            for hf_module, bt_module in zip(hf_modules, bt_modules):
-                self.assertEqual(type(hf_module), type(bt_module))
-                # check the modules have the same methods
-                self.assertEqual(dir(hf_module), dir(bt_module))
-
-                # check the modules have the same attributes
-                hf_module_attributes = [attr for attr in dir(hf_module) if not attr.startswith("_")]
-                bt_module_attributes = [attr for attr in dir(bt_module) if not attr.startswith("_")]
-
-                self.assertEqual(hf_module_attributes, bt_module_attributes)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import tempfile
-import unittest
 from typing import List, Optional
 
 import torch
@@ -21,6 +20,7 @@ from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import flatten_dict
+from parameterized import parameterized
 
 
 class BetterTransformersTestMixin:
@@ -176,21 +176,45 @@ class BetterTransformersTestMixin:
             self.assertTrue(isinstance(converted_model, hf_random_model.__class__))
             self.assertTrue(hasattr(converted_model, "generate"))
 
+    # @parameterized.expand([(True,), (False,)])
+    def test_invert_modules(self, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same modules
+        """
+        for model in self.all_models_to_test:
+            # get hf and bt model
+            hf_model = AutoModel.from_pretrained(model)
+            # get bt model and invert it
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+            bt_model = BetterTransformer.reverse(bt_model)
 
-class BetterTransformersInvertibleTestMixin:
-    r"""
-    `BetterTransformersTestMixin` to wrap the tests for invertible models.
-    """
-    all_models_to_test = []
+            # get modules:
+            hf_modules = list(hf_model.modules())
+            bt_modules = list(bt_model.modules())
 
-    def test_save_load_invertible(self):
+            # Assert that the modules are the same
+            self.assertEqual(len(hf_modules), len(bt_modules))
+            for hf_module, bt_module in zip(hf_modules, bt_modules):
+                self.assertEqual(type(hf_module), type(bt_module))
+                # check the modules have the same methods
+                self.assertEqual(dir(hf_module), dir(bt_module))
+
+                # check the modules have the same attributes
+                hf_module_attributes = [attr for attr in dir(hf_module) if not attr.startswith("_")]
+                bt_module_attributes = [attr for attr in dir(bt_module) if not attr.startswith("_")]
+
+                self.assertEqual(hf_module_attributes, bt_module_attributes)
+
+    @parameterized.expand([(True,), (False,)])
+    def test_save_load_invertible(self, keep_original_model=True):
         for model in self.all_models_to_test:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 hf_model = AutoModel.from_pretrained(model).eval()
-                bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
+                bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
 
                 bt_model = BetterTransformer.reverse(bt_model)
                 # check if no parameter is on the `meta` device
+
                 for name, param in bt_model.named_parameters():
                     self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
 
@@ -224,6 +248,31 @@ class BetterTransformersInvertibleTestMixin:
                             bt_model_from_load.state_dict()[key],
                         )
                     )
+
+    @parameterized.expand([(True,), (False,)])
+    def test_invert_model_logits(self, keep_original_model=True):
+        r"""
+        Test that the inverse converted model and hf model have the same logits
+        """
+        for model in self.all_models_to_test:
+            # get hf and bt model
+            hf_model = AutoModel.from_pretrained(model)
+            # get bt model and invert it
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+            bt_model = BetterTransformer.reverse(bt_model)
+
+            # get inputs
+            inputs = self.prepare_inputs_for_class(model)
+
+            # get outputs
+            torch.manual_seed(42)
+            output_bt = bt_model(**inputs)
+
+            torch.manual_seed(42)
+            output_hf = hf_model(**inputs)
+
+            # Assert that the outputs are the same
+            self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):
