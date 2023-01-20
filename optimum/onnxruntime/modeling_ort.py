@@ -1274,7 +1274,7 @@ class ORTModelForImageClassification(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.output_names["logits"]])
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return ImageClassifierOutput(logits=logits)
