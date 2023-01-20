@@ -164,6 +164,7 @@ class OnnxConfig(ExportConfig, ABC):
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
     }
 
     def __init__(

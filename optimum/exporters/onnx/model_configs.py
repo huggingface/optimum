@@ -29,6 +29,7 @@ from ...utils import (
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
+    NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
@@ -39,6 +40,7 @@ from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqCon
 from .config import (
     AudioOnnxConfig,
     AudioToTextOnnxConfig,
+    EncoderDecoderOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
     TextEncoderOnnxConfig,
@@ -540,6 +542,10 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
+class DonutSwinOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
@@ -929,3 +935,48 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         Speech2TextDummyAudioInputGenerator,
     ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+
+
+# TODO: Replace the TextSeq2SeqOnnxConfig inheritance with VisionToTextOnnxConfig when added.
+# The change below however does not affect the export for the model
+class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
+        decoder_num_layers="decoder_layers",
+        num_layers="decoder_layers",  # Used for the causal-lm task past key values input generation.
+        decoder_num_attention_heads="decoder_attention_heads",
+        eos_token_id="eos_token_id",
+        hidden_size="cross_attention_hidden_size",
+    )
+
+    # TODO: Check modelling code to fix the issue with use_cache for trocr
+    USE_PRESENT_IN_OUTPUTS = False
+
+
+class VisionEncoderDecoderNormalizedConfig(NormalizedEncoderDecoderConfig):
+    ENCODER_CONFIG = "encoder"
+    DECODER_CONFIG = "decoder"
+
+
+class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = VisionEncoderDecoderNormalizedConfig
+    ATOL_FOR_VALIDATION = 1e-4
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyVisionInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+        if self.use_past_in_inputs:
+            common_inputs["decoder_input_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+        if self.use_past_in_inputs:
+            self.add_past_key_values(common_inputs, direction="inputs")
+
+        return common_inputs

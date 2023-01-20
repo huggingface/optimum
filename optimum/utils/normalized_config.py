@@ -101,6 +101,30 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+class NormalizedEncoderDecoderConfig(NormalizedSeq2SeqConfig, NormalizedVisionConfig):
+    ENCODER_CONFIG = None
+    DECODER_CONFIG = None
+
+    ENCODER_NORMALIZED_CONFIG_CLASS = None
+    DECODER_NORMALIZED_CONFIG_CLASS = None
+
+    def __getattr__(self, attr_name):
+        if (
+            self.ENCODER_CONFIG is not None
+            and self.ENCODER_NORMALIZED_CONFIG_CLASS is not None
+            and attr_name.upper() in dir(self.ENCODER_NORMALIZED_CONFIG_CLASS)
+        ):
+            return self.ENCODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+        elif (
+            self.DECODER_CONFIG is not None
+            and self.DECODER_NORMALIZED_CONFIG_CLASS is not None
+            and attr_name.upper() in dir(self.DECODER_NORMALIZED_CONFIG_CLASS)
+        ):
+            return self.DECODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+
+        return super().__getattr__(attr_name)
+
+
 # TODO: this config is bug prone, as `encoder_attention_heads` and `decoder_attention_heads` may be different
 BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="encoder_attention_heads",
@@ -199,3 +223,27 @@ class NormalizedConfigManager:
     def get_normalized_config_class(cls, model_type: str) -> Type:
         cls.check_supported_model(model_type)
         return cls._conf[model_type]
+
+
+class NormalizedEncoderDecoderConfig(NormalizedSeq2SeqConfig, NormalizedVisionConfig):
+    ENCODER_CONFIG = None
+    DECODER_CONFIG = None
+
+    ENCODER_NORMALIZED_CONFIG_CLASS = None
+    DECODER_NORMALIZED_CONFIG_CLASS = None
+
+    def __getattr__(self, attr_name):
+        if (
+            self.ENCODER_CONFIG is not None
+            and self.ENCODER_NORMALIZED_CONFIG_CLASS is not None
+            and attr_name.upper() in dir(self.ENCODER_NORMALIZED_CONFIG_CLASS)
+        ):
+            return self.ENCODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+        elif (
+            self.DECODER_CONFIG is not None
+            and self.DECODER_NORMALIZED_CONFIG_CLASS is not None
+            and attr_name.upper() in dir(self.DECODER_NORMALIZED_CONFIG_CLASS)
+        ):
+            return self.DECODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+
+        return super().__getattr__(attr_name)
