@@ -272,7 +272,7 @@ class BetterTransformer(object):
         # Step 1: check if the model has the attribute `use_bettertransformer`
         if not getattr(model, "use_bettertransformer", False):
             raise ValueError(
-                "You should inverse_transform a model that has been already transformed to a `BetterTransformer` format."
+                "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer format, which appears to not be the case."
             )
 
         model = revert_to_original_model(model)
