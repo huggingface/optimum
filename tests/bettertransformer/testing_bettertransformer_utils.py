@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import tempfile
 from typing import List, Optional
 
@@ -176,7 +177,7 @@ class BetterTransformersTestMixin:
             self.assertTrue(isinstance(converted_model, hf_random_model.__class__))
             self.assertTrue(hasattr(converted_model, "generate"))
 
-    # @parameterized.expand([(True,), (False,)])
+    @parameterized.expand([(True,), (False,)])
     def test_invert_modules(self, keep_original_model=False):
         r"""
         Test that the inverse converted model and hf model have the same modules
@@ -195,15 +196,14 @@ class BetterTransformersTestMixin:
             # Assert that the modules are the same
             self.assertEqual(len(hf_modules), len(bt_modules))
             for hf_module, bt_module in zip(hf_modules, bt_modules):
-                self.assertEqual(type(hf_module), type(bt_module))
-                # check the modules have the same methods
-                self.assertEqual(dir(hf_module), dir(bt_module))
+                # check the modules have the same signature and code
+                # for the `forward` and `__init__` methods
+                # as those are the only functions we change
+                self.assertEqual(inspect.signature(hf_module.forward), inspect.signature(bt_module.forward))
+                self.assertEqual(inspect.signature(hf_module.__init__), inspect.signature(bt_module.__init__))
 
-                # check the modules have the same attributes
-                hf_module_attributes = [attr for attr in dir(hf_module) if not attr.startswith("_")]
-                bt_module_attributes = [attr for attr in dir(bt_module) if not attr.startswith("_")]
-
-                self.assertEqual(hf_module_attributes, bt_module_attributes)
+                self.assertEqual(inspect.getsource(hf_module.forward), inspect.getsource(bt_module.forward))
+                self.assertEqual(inspect.getsource(hf_module.__init__), inspect.getsource(bt_module.__init__))
 
     @parameterized.expand([(True,), (False,)])
     def test_save_load_invertible(self, keep_original_model=True):

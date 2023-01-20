@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
 
 import torch
 import torch.nn as nn
@@ -34,7 +38,7 @@ logger = logging.get_logger(__name__)
 class BetterTransformerBaseLayer(nn.Module):
     def __init__(
         self,
-        config: "transformers.PretrainedConfig",
+        config: "PretrainedConfig",
         orig_layer: Optional[nn.Module] = None,
     ):
         r"""
