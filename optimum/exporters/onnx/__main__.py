@@ -118,7 +118,12 @@ def main():
         args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
     ):
         if task == "stable-diffusion":
-            output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+            output_names = [
+                "text_encoder/model.onnx",
+                "unet/model.onnx",
+                "vae_encoder/model.onnx",
+                "vae_decoder/model.onnx",
+            ]
             models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
             # Saving the additional components needed to perform inference.
             model.tokenizer.save_pretrained(args.output.parent.joinpath("tokenizer"))
