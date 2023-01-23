@@ -1711,7 +1711,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to("cuda")
+        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
+            "cuda"
+        )
         io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
@@ -2219,7 +2221,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
         onnx_outputs = onnx_model.generate(**tokens, num_beams=5)
         io_outputs = io_model.generate(**tokens, num_beams=5)
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))

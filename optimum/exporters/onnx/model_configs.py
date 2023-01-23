@@ -14,7 +14,7 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple, Mapping
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
 
 from packaging import version
 

@@ -69,7 +69,7 @@ class ORTEncoder(ORTModelPart):
     ) -> BaseModelOutput:
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
             model_inputs = [input_ids]
-            if "attention_mask" in  self.input_names:
+            if "attention_mask" in self.input_names:
                 model_inputs.append(attention_mask)
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session, *model_inputs
@@ -319,7 +319,6 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             if "labels" in self.input_names:
                 model_inputs.append(labels)
 
-
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
                 *model_inputs,
@@ -332,7 +331,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             for name, shape in output_shapes.items():
                 if name in self.key_value_output_names:
                     output_shapes[name] = shape[:2] + (-1,) + shape[3:]
-                    
+
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
