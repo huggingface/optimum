@@ -13,7 +13,7 @@ specific language governing permissions and limitations under the License.
 # How to accelerate training with ONNX Runtime
 
 Optimum integrates ONNX Runtime Training through an `ORTTrainer` API that extends `Trainer` in [Transformers](https://huggingface.co/docs/transformers/index).
-With the solution, training time can be improved by greater than 35% for many popular Hugging Face models compared to PyTorch under eager mode.
+With this extension, training time can be reduced by more than 35% for many popular Hugging Face models compared to PyTorch under eager mode.
 
 [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] APIs make it easy to compose __[ONNX Runtime (ORT)](https://onnxruntime.ai/)__ with other features in [`Trainer`](https://huggingface.co/docs/transformers/main_classes/trainer).
 It contains feature-complete training loop and evaluation loop, and supports hyperparameter search, mixed-precision training and distributed training with multiple [NVIDIA](https://techcommunity.microsoft.com/t5/ai-machine-learning-blog/accelerate-pytorch-transformer-model-training-with-onnx-runtime/ba-p/2540471)
