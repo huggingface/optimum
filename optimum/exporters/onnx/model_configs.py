@@ -945,7 +945,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
         num_layers="decoder_layers",
         decoder_num_attention_heads="decoder_attention_heads",
         eos_token_id="eos_token_id",
-        hidden_size="d_model",
+        hidden_size="cross_attention_hidden_size",
     )
 
 
