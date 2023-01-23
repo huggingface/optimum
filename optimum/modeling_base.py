@@ -45,24 +45,28 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
                     user or organization name, like `dbmdz/bert-base-german-cased`.
                 - A path to a *directory* containing a model saved using [`~OptimizedModel.save_pretrained`],
                     e.g., `./my_model_directory/`.
-        from_transformers (`bool`, *optional*, defaults to `False`):
+        from_transformers (`bool`, defaults to `False`):
             Defines whether the provided `model_id` contains a vanilla Transformers checkpoint.
-        force_download (`bool`, *optional*, defaults to `True`):
+        force_download (`bool`, defaults to `True`):
             Whether or not to force the (re-)download of the model weights and configuration files, overriding the
             cached versions if they exist.
-        use_auth_token (`Optional[str]`, *optional*):
+        use_auth_token (`Optional[str]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `transformers-cli login` (stored in `~/.huggingface`).
-        cache_dir (`Optional[str]`, *optional*):
+        cache_dir (`Optional[str]`, defaults to `None`):
             Path to a directory in which a downloaded pretrained model configuration should be cached if the
             standard cache should not be used.
-        subfolder (`str`, *optional*, defaults to `""`):
+        subfolder (`str`, defaults to `""`):
             In case the relevant files are located inside a subfolder of the model repo either locally or on huggingface.co, you can
             specify the folder name here.
-        config (`Optional[transformers.PretrainedConfig]`, *optional*):
+        config (`Optional[transformers.PretrainedConfig]`, defaults to `None`):
             The model configuration.
-        local_files_only(`bool`, *optional*, defaults to `False`):
+        local_files_only (`Optional[bool]`, defaults to `False`):
             Whether or not to only look at local files (i.e., do not try to download the model).
+        trust_remote_code (`bool`, defaults to `False`):
+            Whether or not to allow for custom code defined on the Hub in their own modeling. This option should only be set
+            to `True` for repositories you trust and in which you have read the code, as it will execute code present on
+            the Hub on your local machine.
 """
 
 
@@ -75,7 +79,7 @@ class OptimizedModel(ABC):
         super().__init__()
         self.model = model
         self.config = config
-        self._preprocessors = []
+        self.preprocessors = []
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -118,7 +122,7 @@ class OptimizedModel(ABC):
         os.makedirs(save_directory, exist_ok=True)
 
         self.config.save_pretrained(save_directory)
-        for preprocessor in self._preprocessors:
+        for preprocessor in self.preprocessors:
             preprocessor.save_pretrained(save_directory)
         self._save_pretrained(save_directory, **kwargs)
 
@@ -208,6 +212,7 @@ class OptimizedModel(ABC):
         use_auth_token: Optional[Union[bool, str]] = False,
         force_download: bool = False,
         subfolder: str = "",
+        trust_remote_code: bool = False,
     ) -> "PretrainedConfig":
         try:
             config = AutoConfig.from_pretrained(
@@ -217,6 +222,7 @@ class OptimizedModel(ABC):
                 force_download=force_download,
                 use_auth_token=use_auth_token,
                 subfolder=subfolder,
+                trust_remote_code=trust_remote_code,
             )
         except OSError as e:
             # if config not found in subfolder, search for it at the top level
@@ -227,6 +233,7 @@ class OptimizedModel(ABC):
                     cache_dir=cache_dir,
                     force_download=force_download,
                     use_auth_token=use_auth_token,
+                    trust_remote_code=trust_remote_code,
                 )
                 logger.info(
                     f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
@@ -262,6 +269,7 @@ class OptimizedModel(ABC):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         **kwargs,
     ) -> "OptimizedModel":
         """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
@@ -279,8 +287,9 @@ class OptimizedModel(ABC):
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
-        config: Union["PretrainedConfig"] = None,
+        config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         **kwargs,
     ) -> "OptimizedModel":
         """
@@ -321,6 +330,13 @@ class OptimizedModel(ABC):
                 subfolder=subfolder,
             )
 
+        if not from_transformers and trust_remote_code is not False:
+            logger.warning(
+                "The argument `trust_remote_code` is to be used along with from_transformers=True. It will be ignored."
+            )
+        elif from_transformers and trust_remote_code is None:
+            trust_remote_code = False
+
         from_pretrained_method = cls._from_transformers if from_transformers else cls._from_pretrained
         return from_pretrained_method(
             model_id=model_id,
@@ -331,5 +347,6 @@ class OptimizedModel(ABC):
             use_auth_token=use_auth_token,
             subfolder=subfolder,
             local_files_only=local_files_only,
+            trust_remote_code=trust_remote_code,
             **kwargs,
         )

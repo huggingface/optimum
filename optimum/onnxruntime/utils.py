@@ -16,17 +16,14 @@
 import importlib.util
 import os
 from enum import Enum
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
-from transformers.onnx import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from transformers.utils import logging
 
-import onnx
 import onnxruntime as ort
-import pkg_resources
 
-from ..onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
+from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
 
 logger = logging.get_logger(__name__)
@@ -91,6 +88,7 @@ class ORTConfigManager:
         "electra": "bert",
         "gpt2": "gpt2",
         "gpt_neo": "gpt2",
+        "longt5": "bert",
         "marian": "bart",
         "mbart": "bart",
         "mt5": "bart",
@@ -129,39 +127,8 @@ def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
 
 
-# TODO: shouldn't it be in optimum/onnx/graph_transformations.py?
-def fix_atenops_to_gather(model_path):
-    # Fix broken ATenOp nodes back to Gather nodes.
-    model = onnx.load(model_path)
-    onnx.checker.check_model(model)
-
-    nodes = model.graph.node
-
-    for node in nodes:
-        if node.op_type in ["ATenOp", "ATen"]:
-            logger.info(f"----Start fixing node: {node.name}----")
-            op_num = node.name.split("_")[-1]
-            new_node = onnx.helper.make_node(
-                "Gather",
-                name="Gather_" + op_num,
-                inputs=[node.input[0], node.input[1]],
-                outputs=node.output,
-            )
-
-            model.graph.node.remove(node)
-            model.graph.node.insert(int(op_num), new_node)
-
-    onnx.checker.check_model(model)
-    onnx.save(model, model_path)
-
-
 def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
-    if isinstance(onnx_config, OnnxSeq2SeqConfigWithPast):
-        return OnnxSeq2SeqConfigWithPastAndLoss(onnx_config)
-    elif isinstance(onnx_config, OnnxConfigWithPast):
-        return OnnxConfigWithPastAndLoss(onnx_config)
-    else:
-        return OnnxConfigWithLoss(onnx_config)
+    return OnnxConfigWithLoss(onnx_config)
 
 
 def get_device_for_provider(provider: str) -> torch.device:
@@ -169,7 +136,7 @@ def get_device_for_provider(provider: str) -> torch.device:
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
     return (
-        torch.device("cuda")
+        torch.device("cuda:0")
         if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]
         else torch.device("cpu")
     )
@@ -243,6 +210,22 @@ def validate_provider_availability(provider: str):
         raise ValueError(
             f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
         )
+
+
+def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
+    """
+    Whether to use IOBinding or not.
+    """
+    if providers[0] == "CUDAExecutionProvider" and use_io_binding is None:
+        use_io_binding = True
+    elif providers[0] != "CUDAExecutionProvider":
+        if use_io_binding is True:
+            logger.warning(
+                "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
+            )
+        use_io_binding = False
+
+    return use_io_binding
 
 
 class ORTQuantizableOperator(Enum):

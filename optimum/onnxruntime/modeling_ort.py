@@ -27,6 +27,7 @@ from transformers import (
     AutoModelForImageClassification,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
+    AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
 )
@@ -37,21 +38,25 @@ from transformers.modeling_outputs import (
     ModelOutput,
     MultipleChoiceModelOutput,
     QuestionAnsweringModelOutput,
+    SemanticSegmenterOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
 
 import onnxruntime as ort
 from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
+from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    check_io_binding,
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
@@ -141,24 +146,33 @@ class ORTModel(OptimizedModel):
         - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
-    _AUTOMODELS_TO_TASKS = {cls_: task for task, cls_ in TasksManager._TASKS_TO_AUTOMODELS.items()}
+    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in TasksManager._TASKS_TO_AUTOMODELS.items()}
     model_type = "onnx_model"
     auto_model_class = AutoModel
 
     @classproperty
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class, None)
+        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class.__name__, None)
 
-    def __init__(
+    @classmethod
+    def _auto_model_to_task(cls, auto_model_class):
+        """
+        Get the task corresponding to a class (for example AutoModelForXXX in transformers).
+        """
+        return cls._AUTOMODELS_TO_TASKS[auto_model_class.__name__]
+
+    def shared_attributes_init(
         self,
         model: ort.InferenceSession,
-        config: "PretrainedConfig",
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
     ):
+        """
+        Initializes attributes that may be shared among several ONNX Runtime inference sesssions.
+        """
         # TODO: remove at version 2.0
         if kwargs.pop("latest_model_name", None) is not None:
             logger.warning(
@@ -170,8 +184,6 @@ class ORTModel(OptimizedModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        super().__init__(model, config)
-        self.use_io_binding = use_io_binding
         self.providers = model.get_providers()
         self._device = get_device_for_provider(self.providers[0])
 
@@ -187,10 +199,8 @@ class ORTModel(OptimizedModel):
             self.model_save_dir = Path(model_save_dir)
         else:
             self.model_save_dir = model_save_dir
-        self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
 
-        self._preprocessors = preprocessors if preprocessors is not None else []
+        self.preprocessors = preprocessors if preprocessors is not None else []
 
         if self._device is None:
             logger.warning(
@@ -198,16 +208,34 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
-            logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
-            )
-            self.use_io_binding = False
+        self.use_io_binding = check_io_binding(self.providers, use_io_binding)
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
+
+    def __init__(
+        self,
+        model: ort.InferenceSession,
+        config: "PretrainedConfig",
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        **kwargs,
+    ):
+        super().__init__(model, config)
+
+        self.model_path = Path(model._model_path)
+        self.model_name = self.model_path.name
+
+        self.shared_attributes_init(
+            model,
+            use_io_binding,
+            model_save_dir,
+            preprocessors,
+            **kwargs,
+        )
 
     # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
     @property
@@ -281,15 +309,20 @@ class ORTModel(OptimizedModel):
         if not isinstance(path, str):
             path = str(path)
 
-        # `providers` list must of be of the same length as `provider_options` list
+        # `providers` and `provider_options` need to be of the same length
+        if provider_options is not None:
+            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
+        else:
+            providers_options = None
+
         return ort.InferenceSession(
             path,
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
 
-    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME):
+    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME, **kwargs):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
@@ -301,9 +334,15 @@ class ORTModel(OptimizedModel):
             file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
                 The filename to use when saving the model.
         """
-        # TODO: support models with external data
-        dst_path = Path(save_directory).joinpath(file_name)
-        shutil.copyfile(self.model_path, dst_path)
+        src_paths = [self.model_path]
+        dst_file_names = [file_name]
+
+        # add external data paths in case of large models
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+
+        for src_path, dst_file_name in zip(src_paths, dst_file_names):
+            dst_path = Path(save_directory) / dst_file_name
+            shutil.copyfile(src_path, dst_path)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
@@ -335,7 +374,7 @@ class ORTModel(OptimizedModel):
 
         if len(onnx_files) == 0:
             if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {pattern} in {path}.")
             return None
         elif len(onnx_files) > 1:
             if argument_name is not None:
@@ -343,7 +382,7 @@ class ORTModel(OptimizedModel):
                     f"Too many ONNX model files were found in {path}, specify which one to load by using the "
                     f"{argument_name} argument."
                 )
-        return onnx_files[0].name
+        return onnx_files[0]
 
     @classmethod
     def _from_pretrained(
@@ -360,8 +399,9 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        **kwargs,
     ) -> "ORTModel":
         model_path = Path(model_id)
         regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
@@ -415,6 +455,23 @@ class ORTModel(OptimizedModel):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
+
+            # try download external data
+            try:
+                model_data_cache_path = hf_hub_download(
+                    repo_id=model_id,
+                    subfolder=subfolder,
+                    filename=file_name + "_data",
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                )
+            except EntryNotFoundError:
+                # model doesn't use external data
+                pass
+
             model = ORTModel.load_model(
                 model_cache_path, provider=provider, session_options=session_options, provider_options=provider_options
             )
@@ -445,24 +502,25 @@ class ORTModel(OptimizedModel):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
             "revision": revision,
+            "trust_remote_code": trust_remote_code,
         }
 
         model = TasksManager.get_model_from_task(task, model_id, **kwargs_to_get_model)
-        model_type = model.config.model_type.replace("_", "-")
         onnx_config_class = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_id
+            model=model, exporter="onnx", task=task, model_name=model_id
         )
 
         onnx_config = onnx_config_class(model.config)
@@ -583,7 +641,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
     auto_model_class = AutoModel
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -754,7 +812,7 @@ class ORTModelForQuestionAnswering(ORTModel):
 
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -953,7 +1011,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
     auto_model_class = AutoModelForSequenceClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
@@ -1123,7 +1181,7 @@ class ORTModelForTokenClassification(ORTModel):
 
     auto_model_class = AutoModelForTokenClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1288,7 +1346,7 @@ class ORTModelForMultipleChoice(ORTModel):
 
     auto_model_class = AutoModelForMultipleChoice
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1457,7 +1515,7 @@ class ORTModelForImageClassification(ORTModel):
 
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
         super().__init__(model, config, use_io_binding, **kwargs)
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
@@ -1541,6 +1599,118 @@ class ORTModelForImageClassification(ORTModel):
             return ImageClassifierOutput(logits=logits)
 
 
+SEMANTIC_SEGMENTATION_EXAMPLE = r"""
+    Example of semantic segmentation:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from transformers import {processor_class}
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = preprocessor(images=image, return_tensors="pt")
+
+    >>> outputs = model(**inputs)
+    >>> logits = outputs.logits
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> import requests
+    >>> from PIL import Image
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_image_segmenter = pipeline("image-segmentation", model=model, feature_extractor=preprocessor)
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> pred = onnx_image_segmenter(url)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model with an all-MLP decode head on top e.g. for ADE20k, CityScapes.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForSemanticSegmentation(ORTModel):
+    """
+    Semantic Segmentation model for ONNX.
+    """
+
+    auto_model_class = AutoModelForSemanticSegmentation
+
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
+        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
+        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        self.model_input_names = list(self.model_inputs.keys())
+        self.model_output_names = list(self.model_outputs.keys())
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
+        + SEMANTIC_SEGMENTATION_EXAMPLE.format(
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
+            model_class="ORTModelForSemanticSegmentation",
+            checkpoint="optimum/segformer-b0-finetuned-ade-512-512",
+        )
+    )
+    def forward(self, **kwargs):
+        if self.device.type == "cuda" and self.use_io_binding:
+            io_binding = IOBindingHelper.prepare_io_binding(self, **kwargs)
+
+            # run inference with binding
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            outputs = {}
+            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+                outputs[name] = IOBindingHelper.to_pytorch(output)
+
+            # converts output to namedtuple for pipelines post-processing
+            return SemanticSegmenterOutput(logits=outputs["logits"])
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
+
+            # run inference
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            outputs = self._prepare_onnx_outputs(onnx_outputs)
+
+            # converts output to namedtuple for pipelines post-processing
+            return SemanticSegmenterOutput(logits=outputs["logits"])
+
+    def _prepare_onnx_inputs(self, **kwargs):
+        model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
+        onnx_inputs = {}
+        # converts pytorch inputs into numpy inputs for onnx
+        for input in model_inputs.keys():
+            onnx_inputs[input] = kwargs.pop(input).cpu().detach().numpy()
+
+        return onnx_inputs
+
+    def _prepare_onnx_outputs(self, onnx_outputs):
+        model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
+        outputs = {}
+        # converts onnxruntime outputs into tensor for standard outputs
+        for output, idx in model_outputs.items():
+            outputs[output] = torch.from_numpy(onnx_outputs[idx]).to(self.device)
+
+        return outputs
+
+
 CUSTOM_TASKS_EXAMPLE = r"""
     Example of custom tasks(e.g. a sentence transformers taking `pooler_output` as output):
 
@@ -1585,8 +1755,8 @@ class ORTModelForCustomTasks(ORTModel):
     Model for any custom tasks if the ONNX model is stored in a single file.
     """
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding=True, **kwargs)
+    def __init__(self, model=None, config=None, use_io_binding=None, **kwargs):
+        super().__init__(model, config, use_io_binding, **kwargs)
         self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
         self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
         self.model_input_names = list(self.model_inputs.keys())

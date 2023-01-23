@@ -72,7 +72,7 @@ def find_files_matching_pattern(
     pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
     if model_path.is_dir():
         path = model_path
-        files = model_path.glob("**/*.onnx")
+        files = model_path.glob(glob_pattern)
         files = [p for p in files if re.search(pattern, str(p))]
     else:
         path = model_name_or_path

@@ -26,8 +26,6 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.onnx import export
-from transformers.onnx.features import FeaturesManager
 from transformers.trainer_pt_utils import (
     DistributedTensorGatherer,
     IterableDatasetShard,
@@ -46,20 +44,12 @@ from transformers.trainer_utils import (
 )
 from transformers.utils import check_min_version, logging
 
-import onnxruntime
-
-from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
-from ..onnx.modeling_seq2seq import _DecoderWithLMhead
+from ..exporters import TasksManager
+from ..exporters.onnx import export
 from .modeling_ort import ORTModel, ORTModelForCustomTasks
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .trainer import ORTTrainer
-from .utils import (
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_ENCODER_NAME,
-    fix_atenops_to_gather,
-    wrap_onnx_config_for_loss,
-)
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, wrap_onnx_config_for_loss
 
 
 if version.parse(torch.__version__) >= version.parse("1.8"):
@@ -795,12 +785,20 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             model = unwrap_model(self.model)
 
         use_cache = kwargs.get("use_cache", True)
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
-        onnx_config = model_onnx_config(model.config)
-        opset = onnx_config.default_onnx_opset if opset is None else opset
-        onnx_config_encoder = EncoderOnnxConfig(model.config, task="default")
-        onnx_config_decoder = DecoderOnnxConfig(model.config, task=self.feature, use_past=False)
-        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=self.feature, use_past=True)
+
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=self.feature
+        )
+        onnx_config = onnx_config_constructor(model.config)
+
+        opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
+
+        encoder = model.get_encoder()
+        decoder = model.get_decoder()
+
+        onnx_config_encoder = onnx_config.with_behavior("encoder")
+        onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)
+        onnx_config_decoder_with_past = onnx_config.with_behavior("decoder", use_past=True)
 
         if with_loss:
             # Add `loss` to the ONNX config of decoders
@@ -808,17 +806,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             onnx_config_decoder_with_past = wrap_onnx_config_for_loss(onnx_config_decoder_with_past)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        # Extract the encoder for ONNX export
-        encoder = model.get_encoder()
-        # Concatenate the decoder with the language model head for ONNX export
-        decoder_with_lm_head = _DecoderWithLMhead(model)
-
-        # transformers >= 4.21.0 is required to export with specified device
-        check_min_version("4.21.0")
         # Export the encoder
         if not decoders_only:
             _ = export(
-                preprocessor=self.tokenizer,
                 model=encoder,
                 config=onnx_config_encoder,
                 opset=opset,
@@ -827,8 +817,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             )
         # Export the decoder without the past key values
         export(
-            preprocessor=self.tokenizer,
-            model=decoder_with_lm_head,
+            model=model,
             config=onnx_config_decoder,
             opset=opset,
             output=Path(save_dir).joinpath(ONNX_DECODER_NAME),
@@ -837,8 +826,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         # Export the decoder with the past key values
         if use_cache:
             export(
-                preprocessor=self.tokenizer,
-                model=decoder_with_lm_head,
+                model=model,
                 config=onnx_config_decoder_with_past,
                 opset=opset,
                 output=Path(save_dir).joinpath(ONNX_DECODER_WITH_PAST_NAME),
