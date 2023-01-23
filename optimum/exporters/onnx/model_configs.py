@@ -568,6 +568,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
 class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -598,8 +599,10 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
         return dummy_inputs
 
 
-class UNetOnnxConfig(ViTOnnxConfig):
+class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -639,16 +642,41 @@ class UNetOnnxConfig(ViTOnnxConfig):
         return dummy_inputs
 
 
-class VaeOnnxConfig(ViTOnnxConfig):
+class VaeEncoderOnnxConfig(VisionOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-2
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_channels="in_channels",
+        image_size="sample_size",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+        }
+
+
+class VaeDecoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         num_channels="latent_channels",
         allow_new=True,
     )
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
