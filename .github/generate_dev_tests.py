@@ -20,7 +20,6 @@ for test_name in tests:
 
     with open(Path("workflows", test_name), "r") as file:
         workflox_yml = yaml.load(file, yaml.BaseLoader)
-        #workflox_yml = yaml.safe_load(file)
 
         workflox_yml["name"] = "dev_" + workflox_yml["name"]
         workflox_yml["on"] = {"schedule": [{"cron": "0 7 * * *"}]}
