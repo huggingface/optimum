@@ -110,6 +110,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
 }
 
 
