@@ -106,8 +106,13 @@ class ORTDecoder(ORTModelPart):
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
 
+        # To handle the old case when past_key_values were following the format: past_key_values_{idx}
+        if not self.key_value_input_names:
+            self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
+            self.key_value_output_names = [key for key in self.output_names if "key_values" in key]
+
         if len(self.key_value_output_names) == 0:
-            raise RuntimeError("Could not find the past key values in the provided modell.")
+            raise RuntimeError("Could not find the past key values in the provided model.")
 
         # Attributes useful when computing the past key/values output shapes.
         self.expected_key_symbolic_shape = None
@@ -115,8 +120,16 @@ class ORTDecoder(ORTModelPart):
         for output in self.session.get_outputs():
             if ".key" in output.name:
                 self.expected_key_symbolic_shape = output.shape
-            if ".value" in output.name:
+            elif ".value" in output.name:
                 self.expected_value_symbolic_shape = output.shape
+            # To handle the old case when past_key_values were following the format: past_key_values_{idx}
+            elif "key_values" in output.name:
+                if self.expected_key_symbolic_shape is None:
+                    self.expected_key_symbolic_shape = output.shape
+                else:
+                    self.expected_value_symbolic_shape = output.shape
+            if self.expected_key_symbolic_shape is not None and self.expected_value_symbolic_shape is not None:
+                break
 
         self.key_sequence_length_idx = -2
         if (
@@ -177,11 +190,17 @@ class ORTDecoder(ORTModelPart):
 
             past_key_values_inputs = past_key_values if past_key_values is not None else [None]
 
+            model_inputs = [input_ids]
+
+            if "attention_mask" in self.input_names:
+                model_inputs.append(attention_mask)
+
+            if past_key_values is not None:
+                model_inputs += past_key_valuess
+
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
-                input_ids,
-                attention_mask,
-                *past_key_values_inputs,
+                *model_inputs,
                 known_output_shapes=past_key_values_shapes,
             )
 
@@ -275,20 +294,33 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 past_key_values=past_key_values,
             )
 
-            past_key_values_inputs = past_key_values if past_key_values is not None else [None]
+            # past_key_values_inputs = past_key_values if past_key_values is not None else [None]
 
             def filter_out_output(output_name):
                 return not output_name.startswith("present") and output_name not in {"loss", "logits"}
 
             outputs_to_not_bind = {name for name in self.output_names if filter_out_output(name)}
 
+            model_inputs = [input_ids]
+
+            if "encoder_hidden_states" in self.input_names:
+                model_inputs.append(encoder_hidden_states)
+
+            if past_key_values is not None:
+                model_inputs += past_key_valuess
+
+            if "labels" in self.input_names:
+                model_inputs.append(labels)
+
+
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
-                input_ids,
-                encoder_hidden_states,
-                # encoder_attention_mask,
-                *past_key_values_inputs,
-                # labels,
+                *model_inputs,
+                # input_ids,
+                # encoder_hidden_states,
+                # # encoder_attention_mask,
+                # *past_key_values_inputs,
+                # # labels,
                 known_output_shapes=past_key_values_shapes,
                 forward_function=self.forward,
                 outputs_to_not_bind=outputs_to_not_bind,
