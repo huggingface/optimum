@@ -945,11 +945,8 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
         num_layers="decoder_layers",  # Used for the causal-lm task past key values input generation.
         decoder_num_attention_heads="decoder_attention_heads",
         eos_token_id="eos_token_id",
-        hidden_size="cross_attention_hidden_size",
+        hidden_size="d_model",
     )
-
-    # TODO: Check modelling code to fix the issue with use_cache for trocr
-    USE_PRESENT_IN_OUTPUTS = False
 
 
 class VisionEncoderDecoderNormalizedConfig(NormalizedEncoderDecoderConfig):
@@ -961,22 +958,44 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = VisionEncoderDecoderNormalizedConfig
     ATOL_FOR_VALIDATION = 1e-4
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyVisionInputGenerator,
-        DummySeq2SeqDecoderTextInputGenerator,
-    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        patching_specs: Optional[List["PatchingSpec"]] = None,
+        use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+    ):
+        super().__init__(config, task, patching_specs, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+
+        # TODO: Check modelling code to fix the issue with use_cache for trocr
+        if config.decoder.model_type == "trocr":
+            if self.use_past_in_inputs:
+                raise ValueError("Exporting past key values is not supported with TrOCR model!")
+
+            self.use_present_in_outputs = False
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {
-            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
-        }
-        if self.use_past_in_inputs:
-            common_inputs["decoder_input_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+        common_inputs = {}
 
-        if self.use_past_in_inputs:
-            self.add_past_key_values(common_inputs, direction="inputs")
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["pixel_values"] = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs

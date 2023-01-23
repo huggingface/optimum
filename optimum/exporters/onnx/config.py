@@ -245,27 +245,45 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         from ..tasks import TasksManager
 
-        # retrieve the encoder config
-        encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            exporter="onnx", task="default", model_type=config.encoder.model_type
-        )
-        self._encoder_onnx_config = encoder_onnx_config_constructor(config.encoder)
+        if self._behavior is not ConfigBehavior.DECODER:
+            # retrieve the encoder config
+            encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                exporter="onnx", task="default", model_type=config.encoder.model_type
+            )
+            self._encoder_onnx_config = encoder_onnx_config_constructor(config.encoder)
+            self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
 
-        # retrieve the decoder config
-        decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            exporter="onnx", task="default", model_type=config.decoder.model_type
-        )
-        self._decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, use_past=use_past)
+        if self._behavior is not ConfigBehavior.ENCODER:
+            # retrieve the decoder config
+            decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                exporter="onnx", task="default", model_type=config.decoder.model_type
+            )
+            self._decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, use_past=use_past)
 
-        self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
-        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
+            self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
 
-        if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
-            self._past_key_values_generator = (DummySeq2SeqPastKeyValuesGenerator,)
-        else:
-            self._past_key_values_generator = (DummyPastKeyValuesGenerator,)
+            if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
+                self._past_key_values_generator = (
+                    DummySeq2SeqDecoderTextInputGenerator,
+                    DummySeq2SeqPastKeyValuesGenerator,
+                )
+            else:
+                self._past_key_values_generator = (
+                    DummySeq2SeqDecoderTextInputGenerator,
+                    DummyPastKeyValuesGenerator,
+                )
 
-        self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
+            self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
+
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
 
     def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         return self._decoder_onnx_config.add_past_key_values(inputs_or_outputs, direction)
@@ -275,3 +293,10 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs
