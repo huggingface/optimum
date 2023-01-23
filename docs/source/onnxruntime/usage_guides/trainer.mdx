@@ -24,14 +24,14 @@ With the ONNX Runtime backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] take adv
 * Efficient memory planning
 * Kernel optimization
 * ORT fused Adam optimizer: batches the elementwise updates applied to all the model's parameters into one or a few kernel launches
-* More efficient FP16 optimizer: eliminates a great deal of device to hos memory copies
+* More efficient FP16 optimizer: eliminates a great deal of device to host memory copies
 * Mixed precision training
 
-Test it out to achieve __lower latency, higher throughput, and larger maximum batch size__ while training models in 🤗Transformers!
+Test it out to achieve __lower latency, higher throughput, and larger maximum batch size__ while training models in 🤗 Transformers!
 
 ## Performance
 
-The chart shows impressive acceleration __from 39% to 130%__ for Hugging Face models with Optimum when __using ONNX Runtime and DeepSpeed ZeRO Stage 1__ for training.
+The chart below shows impressive acceleration __from 39% to 130%__ for Hugging Face models with Optimum when __using ONNX Runtime and DeepSpeed ZeRO Stage 1__ for training.
 The performance measurements were done on selected Hugging Face models with PyTorch as the baseline run, only ONNX Runtime for training as the second run, and ONNX
 Runtime + DeepSpeed ZeRO Stage 1 as the final run, showing maximum gains. The Optimizer used for the baseline PyTorch runs is the AdamW optimizer and the ORT Training
 runs use the Fused Adam Optimizer(available in `ORTTrainingArguments`). The runs were performed on a single Nvidia A100 node with 8 GPUs.
