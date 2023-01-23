@@ -18,15 +18,14 @@ With the solution, training time can be improved by greater than 35% for many po
 [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] APIs make it easy to compose __[ONNX Runtime (ORT)](https://onnxruntime.ai/)__ with other features in [`Trainer`](https://huggingface.co/docs/transformers/main_classes/trainer).
 It contains feature-complete training loop and evaluation loop, and supports hyperparameter search, mixed-precision training and distributed training with multiple [NVIDIA](https://techcommunity.microsoft.com/t5/ai-machine-learning-blog/accelerate-pytorch-transformer-model-training-with-onnx-runtime/ba-p/2540471)
 and [AMD](https://cloudblogs.microsoft.com/opensource/2021/07/13/onnx-runtime-release-1-8-1-previews-support-for-accelerated-training-on-amd-gpus-with-the-amd-rocm-open-software-platform/) GPUs.
-With ONNX Runtime backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] take advantage of:
+With the ONNX Runtime backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] take advantage of:
 
-* Computation graph optimizations: node fusions, node eliminations...
+* Computation graph optimizations: constant foldings, node eliminations, node fusions
 * Efficient memory planning
 * Kernel optimization
 * ORT fused Adam optimizer: batches the elementwise updates applied to all the model's parameters into one or a few kernel launches
 * More efficient FP16 optimizer: eliminates a great deal of device to hos memory copies
 * Mixed precision training
-* ...
 
 Test it out to achieve __lower latency, higher throughput, and larger maximum batch size__ while training models in 🤗Transformers!
 
@@ -35,7 +34,7 @@ Test it out to achieve __lower latency, higher throughput, and larger maximum ba
 The chart shows impressive acceleration __from 39% to 130%__ for Hugging Face models with Optimum when __using ONNX Runtime and DeepSpeed ZeRO Stage 1__ for training.
 The performance measurements were done on selected Hugging Face models with PyTorch as the baseline run, only ONNX Runtime for training as the second run, and ONNX
 Runtime + DeepSpeed ZeRO Stage 1 as the final run, showing maximum gains. The Optimizer used for the baseline PyTorch runs is the AdamW optimizer and the ORT Training
-runs use the Fused Adam Optimizer. The runs were performed on a single Nvidia A100 node with 8 GPUs.
+runs use the Fused Adam Optimizer(available in `ORTTrainingArguments`). The runs were performed on a single Nvidia A100 node with 8 GPUs.
 
 <figure class="image table text-center m-0 w-full">
   <img src="https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/onnxruntime-training-benchmark.png" alt="ONNX Runtime Training Benchmark"/>
