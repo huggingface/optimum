@@ -942,7 +942,7 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
 class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         decoder_num_layers="decoder_layers",
-        num_layers="decoder_layers",  # Used for the causal-lm task past key values input generation.
+        num_layers="decoder_layers",
         decoder_num_attention_heads="decoder_attention_heads",
         eos_token_id="eos_token_id",
         hidden_size="d_model",
