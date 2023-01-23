@@ -74,11 +74,10 @@ class ORTCalibrationDataReader(CalibrationDataReader):
 
         except StopIteration:
             pass
-        finally:
-            if featurized_samples is not None and len(featurized_samples) > 0:
-                return featurized_samples
-            else:
-                return None
+
+        if featurized_samples is not None and len(featurized_samples) > 0:
+            return featurized_samples
+        return None
 
 
 class ORTQuantizer(OptimumQuantizer):
@@ -135,7 +134,7 @@ class ORTQuantizer(OptimumQuantizer):
 
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise ValueError(ort_quantizer_error_message)
-        elif isinstance(model_or_path, Path):
+        elif isinstance(model_or_path, Path) and file_name is None:
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_or_path}")
@@ -166,12 +165,12 @@ class ORTQuantizer(OptimumQuantizer):
         force_symmetric_range: bool = False,
     ) -> Dict[str, Tuple[float, float]]:
         """
-        Performs the calibration step and collect the quantization ranges.
+        Performs the calibration step and computes the quantization ranges.
 
         Args:
             dataset (`Dataset`):
                 The dataset to use when performing the calibration step.
-            calibration_config (`CalibrationConfig`):
+            calibration_config ([`~CalibrationConfig`]):
                 The configuration containing the parameters related to the calibration step.
             onnx_augmented_model_name (`Union[str, Path]`, *optional*, defaults to `"augmented_model.onnx"`):
                 The path used to save the augmented model used to collect the quantization ranges.
@@ -220,7 +219,7 @@ class ORTQuantizer(OptimumQuantizer):
         force_symmetric_range: bool = False,
     ):
         """
-        Performs the calibration step and collect the quantization ranges.
+        Performs the calibration step and collects the quantization ranges without computing them.
 
         Args:
             dataset (`Dataset`):
@@ -239,9 +238,6 @@ class ORTQuantizer(OptimumQuantizer):
                 Whether to use the GPU when collecting the quantization ranges values.
             force_symmetric_range (`bool`, *optional*, defaults to `False`):
                 Whether to make the quantization ranges symmetric.
-
-        Returns:
-            The dictionary mapping the nodes name to their quantization ranges.
         """
         # If no calibrator, then create one
         if calibration_config.method is not None:
@@ -263,6 +259,8 @@ class ORTQuantizer(OptimumQuantizer):
 
     def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
         """
+        Computes the quantization ranges.
+
         Returns:
             The dictionary mapping the nodes name to their quantization ranges.
         """
@@ -477,5 +475,4 @@ class ORTQuantizer(OptimumQuantizer):
         model = onnx.load(self.onnx_model_path)
         model_inputs = {input.name for input in model.graph.input}
         ignored_columns = list(set(dataset.column_names) - model_inputs)
-
         return dataset.remove_columns(ignored_columns)

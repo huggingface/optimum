@@ -1,3 +1,4 @@
+import collections
 import importlib.util
 import itertools
 import os
@@ -8,7 +9,21 @@ from typing import Any, Dict, Iterable
 
 from packaging import version
 
-from optimum.utils import is_accelerate_available
+from . import is_accelerate_available, is_diffusers_available
+
+
+def flatten_dict(dictionary: Dict):
+    """
+    Flatten a nested dictionaries as a flat dictionary.
+    """
+    items = []
+    for k, v in dictionary.items():
+        new_key = k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 
 def require_accelerate(test_case):
@@ -82,36 +97,33 @@ def require_ort_training(test_case):
     )(test_case)
 
 
-def convert_to_hf_classes(mapping_dict):
-    r"""
-    Utility function useful in the context of testing `BetterTransformers` integration.
+def require_diffusers(test_case):
+    return unittest.skipUnless(is_diffusers_available(), "test requires diffusers")(test_case)
+
+
+def grid_parameters(
+    parameters: Dict[str, Iterable[Any]], yield_dict: bool = False, add_test_name: bool = True
+) -> Iterable:
     """
-    import transformers
+    Generates an iterable over the grid of all combinations of parameters.
 
-    hf_names_dict = {}
-    for fast_layer_key in mapping_dict.keys():
-        if fast_layer_key == "TransformerBlock":
-            # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-            prefix = "DistilBert"
-        # For enc-decoder models the prefix is different
-        elif "EncoderLayer" in fast_layer_key:
-            prefix = fast_layer_key[:-12]
-        else:
-            prefix = fast_layer_key[:-5]
-
-        # some `PreTrainedModel` models are not registerd in the auto mapping
-        if hasattr(transformers, prefix + "PreTrainedModel"):
-            hf_class = getattr(transformers, prefix + "PreTrainedModel")
-        else:
-            hf_class = getattr(transformers, prefix + "Model")
-
-        hf_names_dict[fast_layer_key] = hf_class
-    return hf_names_dict
-
-
-def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
-    """
-    Generate an iterable over the grid of all combinations of parameters
+    Args:
+        `parameters` (`Dict[str, Iterable[Any]]`):
+            Dictionary of multiple values to generate a grid from.
+        `yield_dict` (`bool`, defaults to `False`):
+            If True, a dictionary with all keys, and sampled values will be returned. Otherwise, return sampled values as a list.
+        `add_test_name` (`bool`, defaults to `True`):
+            Whether to add the test name in the yielded list or dictionary.
     """
     for params in itertools.product(*parameters.values()):
-        yield list(params)
+        test_name = "_".join([str(param) for param in params])
+        if yield_dict is True:
+            res_dict = {}
+            for i, key in enumerate(parameters.keys()):
+                res_dict[key] = params[i]
+            if add_test_name is True:
+                res_dict["test_name"] = test_name
+            yield res_dict
+        else:
+            returned_list = [test_name] + list(params) if add_test_name is True else list(params)
+            yield returned_list

@@ -12,11 +12,26 @@ specific language governing permissions and limitations under the License.
 
 # Quantization
 
-🤗 Optimum provides an `optimum.onnxruntime` package that enables you to apply quantization on many model hosted on the 🤗 hub using the [ONNX Runtime](https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/python/tools/quantization/README.md) quantization tool.
+🤗 Optimum provides an `optimum.onnxruntime` package that enables you to apply quantization on many models hosted on
+the Hugging Face Hub using the [ONNX Runtime](https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/python/tools/quantization/README.md)
+quantization tool.
+
+The quantization process is abstracted via the [`~optimum.onnxruntime.ORTConfig`] and
+the [`~optimum.onnxruntime.ORTQuantizer`] classes. The former allows you to specify how quantization should be done,
+while the latter effectively handles quantization.
+
+<Tip>
+
+You can read the [conceptual guide on quantization](/concept_guides/quantization) to learn about quantization. It
+explains the main concepts that you will be using when performing quantization with the
+[`~optimum.onnxruntime.ORTQuantizer`].
+
+</Tip>
 
 ## Creating an `ORTQuantizer`
 
-The `ORTQuantizer` class is used to quantize your ONNX model. The class can be initialized using the `from_pretrained()` method, which supports different checkpoint formats.
+The [`~optimum.onnxruntime.ORTQuantizer`] class is used to quantize your ONNX model. The class can be initialized using
+the `from_pretrained()` method, which supports different checkpoint formats.
 
 1. Using an already initialized `ORTModelForXXX` class.
 
@@ -24,7 +39,9 @@ The `ORTQuantizer` class is used to quantize your ONNX model. The class can be i
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForSequenceClassification
 
 # Loading ONNX Model from the Hub
->>> ort_model = ORTModelForSequenceClassification.from_pretrained("optimum/distilbert-base-uncased-finetuned-sst-2-english")
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(
+>>>     "optimum/distilbert-base-uncased-finetuned-sst-2-english"
+>>> )
 
 # Create a quantizer from a ORTModelForXXX
 >>> quantizer = ORTQuantizer.from_pretrained(ort_model)
@@ -52,10 +69,12 @@ The `ORTQuantizer` class is used to quantize your ONNX model. The class can be i
 ```
 
 
-## Dynamic Quantization example 
+## Apply Dynamic Quantization
 
-The `ORTQuantizer` class can be used to dynamically quantize your ONNX model. Below you will find an easy end-to-end example on how to dynamically quantize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
-    
+The [`~optimum.onnxruntime.ORTQuantizer`] class can be used to quantize dynamically your ONNX model. Below you will
+find an easy end-to-end example on how to quantize dynamically
+[distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
+
 ```python
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForSequenceClassification
 >>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
@@ -67,7 +86,7 @@ The `ORTQuantizer` class can be used to dynamically quantize your ONNX model. Be
 # Create quantizer
 >>> quantizer = ORTQuantizer.from_pretrained(onnx_model)
 
-# Define the quantization strategy by creating the appropriate configuration 
+# Define the quantization strategy by creating the appropriate configuration
 >>> dqconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=False)
 
 # Quantize the model
@@ -77,9 +96,11 @@ The `ORTQuantizer` class can be used to dynamically quantize your ONNX model. Be
 )
 ```
 
-## Static Quantization example 
+## Static Quantization example
 
-The `ORTQuantizer` class can be used to statically quantize your ONNX model. Below you will find an easy end-to-end example on how to statically quantize [distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
+The [`~optimum.onnxruntime.ORTQuantizer`] class can be used to quantize statically your ONNX model. Below you will find
+an easy end-to-end example on how to quantize statically
+[distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english).
 
 ```python
 >>> from functools import partial
@@ -126,9 +147,17 @@ The `ORTQuantizer` class can be used to statically quantize your ONNX model. Bel
 
 ## Quantize Seq2Seq models
 
-The `ORTQuantizer` currently doesn't support multi-file models, like `ORTModelForSeq2SeqLM`. If you want to quantize a Seq2Seq model, you have to quantize each model's component individually using the `ORTQuantizer` class. Currently, only dynamic quantization is supported for Seq2Seq model.
+The [`~optimum.onnxruntime.ORTQuantizer`] class currently doesn't support multi-file models, like
+[`~optimum.onnxruntime.ORTModelForSeq2SeqLM`]. If you want to quantize a Seq2Seq model, you have to quantize each
+model's component individually.
 
-1. Load seq2seq model as `ORTModelForSeq2SeqLM`. 
+<Tip warning={true}>
+
+Currently, only dynamic quantization is supported for Seq2Seq models.
+
+</Tip>
+
+1. Load seq2seq model as `ORTModelForSeq2SeqLM`.
 
 ```python
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForSeq2SeqLM
@@ -156,12 +185,12 @@ The `ORTQuantizer` currently doesn't support multi-file models, like `ORTModelFo
 >>> quantizer = [encoder_quantizer, decoder_quantizer, decoder_wp_quantizer]
 ```
 
-3. Quantize all models 
+3. Quantize all models
 
 ```python
-# Define the quantization strategy by creating the appropriate configuration 
+# Define the quantization strategy by creating the appropriate configuration
 >>> dqconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=False)
 
-# Quantize the model
+# Quantize the models individually
 >>> [q.quantize(save_dir=".",quantization_config=dqconfig) for q in quantizer]
 ```

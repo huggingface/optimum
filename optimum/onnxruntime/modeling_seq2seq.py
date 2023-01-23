@@ -31,10 +31,11 @@ from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 import onnxruntime as ort
-from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_download, hf_hub_url
+from huggingface_hub import hf_hub_download
 
-from ..exporters.onnx.convert import export_encoder_decoder_model as export
+from ..exporters.onnx import export_models, get_encoder_decoder_models_for_export
 from ..exporters.tasks import TasksManager
+from ..onnx.utils import _get_external_data_paths
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
@@ -55,6 +56,8 @@ if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin
+
+from huggingface_hub.utils import EntryNotFoundError
 
 
 if TYPE_CHECKING:
@@ -214,7 +217,7 @@ class ORTEncoder:
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         main_input_name: str = "input_ids",
     ):
         self.session = session
@@ -686,7 +689,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         config ([`PretrainedConfig`]):
             Instance of the configuration associated to the model. Initializing with a config file does
             not load the weights associated with the model, only the configuration.
-        use_io_binding (`bool`):
+        use_io_binding (`Optional[bool]`, defaults to `None`):
             Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True`
             if the device is CUDA, otherwise defaults to `False`.
         use_cache (`bool`):
@@ -722,7 +725,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         decoder_session: ort.InferenceSession,
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[ort.InferenceSession] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
@@ -738,7 +741,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 does not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[ort.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
-            use_io_binding (`bool`, *optional*, defaults to `True`):
+            use_io_binding (`bool`, *optional*, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`str`, *optional*, defaults to `""`):
@@ -764,14 +767,14 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         ABC.__init__(self)
 
-        ORTModel.__init__(
-            self,
+        self.shared_attributes_init(
             encoder_session,
-            config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
         )
+        self.config = config
+
         self.encoder = self._initialize_encoder(
             session=encoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
         )
@@ -807,7 +810,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ) -> "ORTEncoder":
         pass
 
@@ -841,35 +844,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        providers = [provider]
-        if provider == "TensorrtExecutionProvider":
-            # follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
-            providers.append("CUDAExecutionProvider")
-
-        encoder_session = ort.InferenceSession(
-            str(encoder_path),
-            providers=providers,
-            sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
-        )
-        decoder_session = ort.InferenceSession(
-            str(decoder_path),
-            providers=providers,
-            sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
-        )
+        encoder_session = ORTModel.load_model(encoder_path, provider, session_options, provider_options)
+        decoder_session = ORTModel.load_model(decoder_path, provider, session_options, provider_options)
 
         decoder_with_past_session = None
         # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
         # will be enabled
         if decoder_with_past_path is not None:
-            decoder_with_past_session = ort.InferenceSession(
-                str(decoder_with_past_path),
-                providers=providers,
-                sess_options=session_options,
-                provider_options=None if provider_options is None else [provider_options],
+            decoder_with_past_session = ORTModel.load_model(
+                decoder_with_past_path, provider, session_options, provider_options
             )
 
         return encoder_session, decoder_session, decoder_with_past_session
@@ -881,6 +864,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        **kwargs,
     ):
         """
         Saves the model encoder, decoder and decoder with past key values as well as its configuration file to a
@@ -900,14 +884,18 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The decoder with past key values model file name overwriting the default file name, allowing to save
                 the decoder model with a different name.
         """
-        src_file_names = [self.encoder_model_path, self.decoder_model_path]
+        src_paths = [self.encoder_model_path, self.decoder_model_path]
         dst_file_names = [encoder_file_name, decoder_file_name]
         if self.use_cache:
-            src_file_names.append(self.decoder_with_past_model_path)
+            src_paths.append(self.decoder_with_past_model_path)
             dst_file_names.append(decoder_with_past_file_name)
 
-        for src_path, dst_file_name in zip(src_file_names, dst_file_names):
+        # add external data paths in case of large models
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+
+        for src_path, dst_file_name in zip(src_paths, dst_file_names):
             dst_path = Path(save_directory) / dst_file_name
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 
     @classmethod
@@ -928,13 +916,14 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        **kwargs,
     ):
         model_path = Path(model_id)
 
         if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
-            encoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            encoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 ENCODER_ONNX_FILE_PATTERN,
                 "encoder_file_name",
@@ -942,8 +931,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
+        else:
+            encoder_path = model_path / subfolder / encoder_file_name
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            decoder_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
+            decoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 DECODER_ONNX_FILE_PATTERN,
                 "decoder_file_name",
@@ -951,16 +942,28 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 use_auth_token=use_auth_token,
                 revision=revision,
             )
-        if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-            decoder_with_past_file_name = ORTModelForConditionalGeneration.infer_onnx_filename(
-                model_id,
-                DECODER_WITH_PAST_ONNX_FILE_PATTERN,
-                "decoder_with_past_file_name",
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-                fail_if_not_found=use_cache,
-            )
+        else:
+            decoder_path = model_path / subfolder / decoder_file_name
+
+        if use_cache is True:
+            if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
+                try:
+                    decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
+                        model_id,
+                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        "decoder_with_past_file_name",
+                        subfolder=subfolder,
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                    )
+                except FileNotFoundError as e:
+                    raise FileNotFoundError(
+                        "The parameter `use_cache=True` was passed to `ORTModelForConditionalGeneration.from_pretrained()`"
+                        " but no ONNX file using past key values could be found in"
+                        f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
+                    )
+            else:
+                decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
         encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
             ONNX_ENCODER_NAME
@@ -972,30 +975,34 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
         )
 
-        if encoder_file_name not in encoder_regular_onnx_filenames:
+        if encoder_path.name not in encoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {encoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                f"The ONNX file {encoder_path.name} is not a regular name used in optimum.onnxruntime, the "
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        if decoder_file_name not in decoder_regular_onnx_filenames:
+        if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
-                f"The ONNX file {decoder_file_name} is not a regular name used in optimum.onnxruntime, the "
+                f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime, the "
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
-        if decoder_with_past_file_name not in decoder_with_past_regular_onnx_filenames:
+        if (
+            use_cache is True
+            and decoder_with_past_path is not None
+            and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames
+        ):
             logger.warning(
-                f"The ONNX file {decoder_with_past_file_name} is not a regular name used in optimum.onnxruntime, "
+                f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime, "
                 "the ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        decoder_with_past_path = model_path / decoder_with_past_file_name if use_cache else None
+        decoder_with_past_path = decoder_with_past_path if use_cache else None
 
         preprocessors = None
         if model_path.is_dir():
-            model = cls.load_model(
-                encoder_path=model_path / encoder_file_name,
-                decoder_path=model_path / decoder_file_name,
+            inference_sessions = cls.load_model(
+                encoder_path=encoder_path,
+                decoder_path=decoder_path,
                 decoder_with_past_path=decoder_with_past_path,
                 provider=provider,
                 session_options=session_options,
@@ -1005,9 +1012,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
-                "last_encoder_model_name": encoder_file_name,
-                "last_decoder_model_name": decoder_file_name,
-                "last_decoder_with_past_model_name": decoder_with_past_file_name if use_cache else None,
+                "last_encoder_model_name": encoder_path.name,
+                "last_decoder_model_name": decoder_path.name,
+                "last_decoder_with_past_model_name": decoder_with_past_path.name if use_cache else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -1023,6 +1030,22 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
+                # try download external data
+                try:
+                    model_data_cache_path = hf_hub_download(
+                        repo_id=model_id,
+                        subfolder=subfolder,
+                        filename=filename + "_data",
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        local_files_only=local_files_only,
+                    )
+                except EntryNotFoundError:
+                    # model doesn't use external data
+                    pass
+
                 paths[attr_name] = Path(model_cache_path).name
             new_model_save_dir = Path(model_cache_path).parent
             preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
@@ -1031,7 +1054,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             if last_decoder_with_past_name is not None:
                 last_decoder_with_past_name = new_model_save_dir / last_decoder_with_past_name
 
-            model = cls.load_model(
+            inference_sessions = cls.load_model(
                 encoder_path=new_model_save_dir / paths["last_encoder_model_name"],
                 decoder_path=new_model_save_dir / paths["last_decoder_model_name"],
                 decoder_with_past_path=last_decoder_with_past_name,
@@ -1044,9 +1067,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             model_save_dir = new_model_save_dir
 
         return cls(
-            *model[:2],
+            *inference_sessions[:2],
             config,
-            decoder_with_past_session=model[2],
+            decoder_with_past_session=inference_sessions[2],
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
@@ -1063,15 +1086,16 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         use_cache: bool = True,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
@@ -1086,24 +1110,21 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             use_auth_token=use_auth_token,
             local_files_only=local_files_only,
             force_download=force_download,
+            trust_remote_code=trust_remote_code,
         )
 
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_name
-        )
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
-        onnx_opset = onnx_config.DEFAULT_ONNX_OPSET
 
-        export(
-            model,
-            onnx_config,
-            onnx_opset,
-            save_dir_path.joinpath(ONNX_ENCODER_NAME),
-            save_dir_path.joinpath(ONNX_DECODER_NAME),
-            save_dir_path.joinpath(ONNX_DECODER_WITH_PAST_NAME),
+        output_names = [ONNX_ENCODER_NAME, ONNX_DECODER_NAME]
+        if use_cache is True:
+            output_names.append(ONNX_DECODER_WITH_PAST_NAME)
+        models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
+        export_models(
+            models_and_onnx_configs=models_and_onnx_configs,
+            opset=onnx_config.DEFAULT_ONNX_OPSET,
+            output_dir=save_dir_path,
+            output_names=output_names,
         )
 
         config.save_pretrained(save_dir_path)
@@ -1163,7 +1184,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ) -> ORTEncoder:
         return ORTEncoder(
             session=session,
@@ -1275,7 +1296,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         session: ort.InferenceSession,
         config: "PretrainedConfig",
         device: torch.device,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
     ) -> ORTEncoder:
         if config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
             raise KeyError(

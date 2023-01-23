@@ -406,7 +406,7 @@ class FuseBiasInLinear(ReversibleTransformation):
 
         def insert_concat(linear_input):
             shape = linear_input.shape[:-1] + (1,)
-            return torch.cat([linear_input, torch_ones(shape)], dim=-1)
+            return torch.cat([linear_input, torch_ones(shape, device=linear_input.device)], dim=-1)
 
         tracer = torch.fx.proxy.GraphAppendingTracer(graph_module.graph)
         for node in graph_module.graph.nodes:
