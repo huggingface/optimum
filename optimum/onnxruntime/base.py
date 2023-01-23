@@ -68,8 +68,11 @@ class ORTEncoder(ORTModelPart):
         **kwargs,
     ) -> BaseModelOutput:
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
+            model_inputs = [input_ids]
+            if "attention_mask" in  self.input_names:
+                model_inputs.append(attention_mask)
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session, input_ids, attention_mask
+                self.session, *model_inputs
             )
 
             io_binding.synchronize_inputs()
@@ -107,8 +110,9 @@ class ORTDecoder(ORTModelPart):
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
 
         # To handle the old case when past_key_values were following the format: past_key_values_{idx}
-        if not self.key_value_input_names:
+        if len(self.key_value_input_names) == 0:
             self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
+        if len(self.key_value_output_names) == 0:
             self.key_value_output_names = [key for key in self.output_names if "key_values" in key]
 
         if len(self.key_value_output_names) == 0:
@@ -307,7 +311,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 model_inputs.append(encoder_hidden_states)
 
             if past_key_values is not None:
-                model_inputs += past_key_valuess
+                model_inputs += past_key_values
 
             if "labels" in self.input_names:
                 model_inputs.append(labels)
