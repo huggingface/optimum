@@ -406,7 +406,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super().outputs
         else:
             common_outputs = super(OnnxConfigWithPast, self).outputs
-            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "sequence_length"}
+            if self.task != "causal-lm":
+                common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "sequence_length"}
             if self.use_present_in_outputs:
                 for i in range(self._normalized_config.encoder_num_layers):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
