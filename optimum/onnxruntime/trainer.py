@@ -983,7 +983,7 @@ class ORTTrainer(Trainer):
         args = self.args
         # Temporary fix for decoder, now `use_cache` set to False which
         # TODO: Use cache once `ORTModelForCausalLM` supports `loss` as output
-        if ort_model_cls == ORTModelForCausalLM:
+        if ort_model_cls is ORTModelForCausalLM:
             ort_model = ort_model_cls.from_pretrained(
                 model_id=model_id, use_cache=False, provider="CUDAExecutionProvider"
             )
