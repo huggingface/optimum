@@ -14,7 +14,7 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple, Mapping
 
 from packaging import version
 
@@ -893,6 +893,24 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
 
         return dummy_inputs_generators
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
+        return common_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self._behavior is ConfigBehavior.ENCODER:
+            for name, dyanmic_axes in common_outputs.items():
+                if name == "last_hidden_state":
+                    common_outputs[name][1] = f"{common_outputs[name][1]} / 2"
+                else:
+                    common_outputs[name] = dynamic_axes
+        return common_outputs
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):

@@ -307,6 +307,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
             model_inputs = [input_ids]
 
+            if "encoder_attention_mask" in self.input_names:
+                model_inputs.append(encoder_attention_mask)
+
             if "encoder_hidden_states" in self.input_names:
                 model_inputs.append(encoder_hidden_states)
 
@@ -320,16 +323,16 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
                 *model_inputs,
-                # input_ids,
-                # encoder_hidden_states,
-                # # encoder_attention_mask,
-                # *past_key_values_inputs,
-                # # labels,
                 known_output_shapes=past_key_values_shapes,
                 forward_function=self.forward,
                 outputs_to_not_bind=outputs_to_not_bind,
             )
 
+            # Set -1 for sequence_length as it could be larger than the real sequence_length
+            for name, shape in output_shapes.items():
+                if name in self.key_value_output_names:
+                    output_shapes[name] = shape[:2] + (-1,) + shape[3:]
+                    
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()

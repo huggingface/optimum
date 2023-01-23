@@ -660,13 +660,6 @@ class ORTModel(OptimizedModel):
         for idx, tensor in enumerate(model_inputs):
             if tensor is None:
                 continue
-            # if idx >= len(input_names):
-            #     raise ValueError(
-            #         "Too many inputs were provided here, the underlying ONNX model has the following inputs: "
-            #         f"{', '.join(input_names)}"
-            #     )
-            # if input_names[idx] == "input_ids":
-            #     import pdb; pdb.set_trace()
             name = input_names[idx]
             input_name_to_tensor[name] = tensor
             tensor = tensor.contiguous()
