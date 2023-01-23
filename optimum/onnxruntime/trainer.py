@@ -964,9 +964,8 @@ class ORTTrainer(Trainer):
             else:
                 export_device = "cpu"
 
-            with_loss = (
-                has_labels and not self.label_smoother
-            )  # With `label_smoother` the loss will be computed outside modeling
+            # With `label_smoother` the loss will be computed outside modeling
+            with_loss = has_labels and not self.label_smoother
             self._export(onnx_model_path, with_loss=with_loss, device=export_device)
 
             self.exported_with_loss = with_loss
