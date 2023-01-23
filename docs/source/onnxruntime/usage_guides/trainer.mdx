@@ -10,18 +10,41 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-# How to accelerate training
+# How to accelerate training with ONNX Runtime
 
-===== TODO: add more conceptual explanation of ONNX Runtime training.
+Optimum integrates ONNX Runtime Training through an `ORTTrainer` API that extends `Trainer` in [Transformers](https://huggingface.co/docs/transformers/index).
+With the solution, training time can be improved by greater than 35% for many popular Hugging Face models compared to PyTorch under eager mode.
 
-The [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] classes provide APIs for training PyTorch models with __[ONNX Runtime (ORT)](https://onnxruntime.ai/)__.
-Taking ONNX Runtime as backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] optimize the computation graph and the memory usage. They also support
-mixed precision training implemented by ORT, as well as distributed training on multiple GPUs. With them, you will be able to achieve
-__lower latency, higher throughput, and larger maximum batch size__ while training models in 🤗Transformers.
+[`ORTTrainer`] and [`ORTSeq2SeqTrainer`] APIs make it easy to compose __[ONNX Runtime (ORT)](https://onnxruntime.ai/)__ with other features in [`Trainer`](https://huggingface.co/docs/transformers/main_classes/trainer).
+It contains feature-complete training loop and evaluation loop, and supports hyperparameter search, mixed-precision training and distributed training with multiple [NVIDIA](https://techcommunity.microsoft.com/t5/ai-machine-learning-blog/accelerate-pytorch-transformer-model-training-with-onnx-runtime/ba-p/2540471)
+and [AMD](https://cloudblogs.microsoft.com/opensource/2021/07/13/onnx-runtime-release-1-8-1-previews-support-for-accelerated-training-on-amd-gpus-with-the-amd-rocm-open-software-platform/) GPUs.
+With ONNX Runtime backend, [`ORTTrainer`] and [`ORTSeq2SeqTrainer`] take advantage of:
+
+* Computation graph optimizations: node fusions, node eliminations...
+* Efficient memory planning
+* Kernel optimization
+* ORT fused Adam optimizer: batches the elementwise updates applied to all the model's parameters into one or a few kernel launches
+* More efficient FP16 optimizer: eliminates a great deal of device to hos memory copies
+* Mixed precision training
+* ...
+
+Test it out to achieve __lower latency, higher throughput, and larger maximum batch size__ while training models in 🤗Transformers!
 
 ## Performance
 
-===== TODO: add ONNX Runtime training benchmark results.
+The chart shows impressive acceleration __from 39% to 130%__ for Hugging Face models with Optimum when __using ONNX Runtime and DeepSpeed ZeRO Stage 1__ for training.
+The performance measurements were done on selected Hugging Face models with PyTorch as the baseline run, only ONNX Runtime for training as the second run, and ONNX
+Runtime + DeepSpeed ZeRO Stage 1 as the final run, showing maximum gains. The Optimizer used for the baseline PyTorch runs is the AdamW optimizer and the ORT Training
+runs use the Fused Adam Optimizer. The runs were performed on a single Nvidia A100 node with 8 GPUs.
+
+<figure class="image table text-center m-0 w-full">
+  <img src="https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/onnxruntime-training-benchmark.png" alt="ONNX Runtime Training Benchmark"/>
+</figure>
+
+The version information used for these runs is as follows:
+```
+PyTorch: 1.14.0.dev20221103+cu116; ORT: 1.14.0.dev20221103001+cu116; DeepSpeed: 0.6.6; HuggingFace: 4.24.0.dev0; Optimum: 1.4.1.dev0; Cuda: 11.6.2
+```
 
 ## Start by setting up the environment
 
@@ -89,7 +112,8 @@ empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compare
 -training_args = TrainingArguments(
 +training_args = ORTTrainingArguments(
     output_dir="path/to/save/folder/",
-    optim-"adamw_ort_fused",
+-   optim = "adamw_hf",
++   optim="adamw_ort_fused",
     ...
 )
 
@@ -124,7 +148,8 @@ empowered by ONNX Runtime. Here is an example of how to use `ORTSeq2SeqTrainer` 
 -training_args = Seq2SeqTrainingArguments(
 +training_args = ORTSeq2SeqTrainingArguments(
     output_dir="path/to/save/folder/",
-    optim-"adamw_ort_fused",
+-   optim = "adamw_hf",
++   optim="adamw_ort_fused",
     ...
 )
 
@@ -157,14 +182,15 @@ Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
 
 -training_args = TrainingArguments(
 +training_args =  ORTTrainingArguments(
-    output_dir=tmp_dir,
+    output_dir="path/to/save/folder/",
     num_train_epochs=1,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
     warmup_steps=500,
     weight_decay=0.01,
-    logging_dir=tmp_dir,
-    optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
+    logging_dir="path/to/save/folder/",
+-   optim = "adamw_hf",
++   optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
 )
 ```
 
@@ -190,14 +216,15 @@ Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
 
 -training_args = Seq2SeqTrainingArguments(
 +training_args =  ORTSeq2SeqTrainingArguments(
-    output_dir=tmp_dir,
+    output_dir="path/to/save/folder/",
     num_train_epochs=1,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
     warmup_steps=500,
     weight_decay=0.01,
-    logging_dir=tmp_dir,
-    optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
+    logging_dir="path/to/save/folder/",
+-   optim = "adamw_hf",
++   optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
 )
 ```
 
