@@ -15,11 +15,16 @@ tests = [
     "test_optimum_common.yml",
 ]
 
+class Dumper(yaml.Dumper):
+    def increase_indent(self, flow=False, *args, **kwargs):
+        return super().increase_indent(flow=flow, indentless=False)
+
 for test_name in tests:
     new_name = "dev_" + test_name
 
     with open(Path("workflows", test_name), "r") as file:
         workflox_yml = yaml.load(file, yaml.BaseLoader)
+        #workflox_yml = yaml.safe_load(file)
 
         workflox_yml["name"] = "dev_" + workflox_yml["name"]
         workflox_yml["on"] = {"schedule": [{"cron": "0 7 * * *"}]}
@@ -34,12 +39,23 @@ for test_name in tests:
         yaml.dump(
             workflox_yml,
             outfile,
-            default_style="|",
             default_flow_style=False,
             allow_unicode=True,
             width=float("inf"),
             sort_keys=False,
         )
+    
+    with open(Path("workflows", new_name), "r+") as outfile:
+        workflox_yml = outfile.read()
+        workflox_yml = workflox_yml.replace("'", "")
+        workflox_yml = workflox_yml.replace("run:", "run: |\n       ")
+
+        workflox_yml = "\n".join([ll.rstrip() for ll in workflox_yml.splitlines() if ll.strip()])
+
+        outfile.seek(0)
+        outfile.write(workflox_yml)
+        outfile.truncate()
+
 
     with open(Path("workflows", new_name), "r+") as outfile:
         workflox_yml = outfile.read()
