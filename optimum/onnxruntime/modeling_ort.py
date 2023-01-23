@@ -614,7 +614,15 @@ class ORTModel(OptimizedModel):
         return output_buffer
 
     def _output_shape_inference(self, axis_name: Union[str, int], dimensions: Dict[str, int]) -> Union[str, int]:
-        # TODO: add docstring
+        """
+        Infers the output shape of a given dynamic axis by using the `dimensions` mapping.
+
+        For instance, for the following inputs:
+            axis_name = "past_sequence_length + sequence_length"
+            dimensions = {"batch_size": 2, "sequence_length": 3, "past_sequence_length": 7}
+
+        The inferred shape is 3 + 7 = 10.
+        """
         if isinstance(axis_name, int):
             return axis_name
         result = dimensions.get(axis_name, None)
@@ -636,11 +644,32 @@ class ORTModel(OptimizedModel):
     def _prepare_io_binding(
         self,
         model: ort.InferenceSession,
-        *model_inputs,
+        *model_inputs: torch.Tensor,
         known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
         forward_function: Optional[Callable[..., Any]] = None,
         outputs_to_not_bind: Optional[Union[Set[str], str]] = None
-    ):
+    ) -> Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
+        """
+        Prepares IO binding for ONNX Runtime.
+
+        Args:
+            model (`ort.InferenceSession`):
+                The model for which we want to bind the inputs and outputs.
+            *model_inputs:
+                The inputs of the model.
+            known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
+                It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
+                values. It is possible to explicitely pass the shape via this argument.
+            forward_function (`Optional[Callable[..., Any]]`, defaults to `None`):
+                The forward function of the python wrapper for the model.
+            outputs_to_not_bind (`Optional[Union[Set[str], str]]`, defaults to `None`):
+                The names of the outputs that should not be bound.
+
+        Returns:
+            `Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]`: The IOBinding object, a dictionary
+            containing the shape of each output, and another one pointing to the buffers containing the outputs data.
+
+        """
         io_binding = model.io_binding()
 
         input_names = list(input_.name for input_ in model.get_inputs())
@@ -714,7 +743,6 @@ class ORTModel(OptimizedModel):
             output_shapes[output_name] = output_shape
             output_buffers[output_name] = output_buffer
 
-        # TODO: are output shapes needed?
         return io_binding, output_shapes, output_buffers
 
     def prepare_io_binding(self, *model_inputs):
