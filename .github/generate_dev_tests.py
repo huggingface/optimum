@@ -15,10 +15,6 @@ tests = [
     "test_optimum_common.yml",
 ]
 
-class Dumper(yaml.Dumper):
-    def increase_indent(self, flow=False, *args, **kwargs):
-        return super().increase_indent(flow=flow, indentless=False)
-
 for test_name in tests:
     new_name = "dev_" + test_name
 
