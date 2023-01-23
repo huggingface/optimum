@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from itertools import chain
 from typing import List, Optional
 from unittest.mock import Mock, patch
 
@@ -25,6 +26,7 @@ import nltk
 import numpy as np
 from datasets import load_dataset
 from transformers import (
+    AutoModelForCausalLM,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
@@ -43,7 +45,6 @@ from transformers.testing_utils import (
     require_sigopt,
     require_torch,
     require_torch_bf16_gpu,
-    require_torch_gpu,
     require_wandb,
     slow,
 )
@@ -72,10 +73,11 @@ from parameterized import parameterized
 
 nltk.download("punkt")
 
-_MODELS_TO_TEST = {
-    ("bert", "bert-base-cased"),
+_ENCODERS_TO_TEST = {
     ("distilbert", "distilbert-base-cased"),
-    ("roberta", "roberta-base"),
+}
+
+_DECODERS_TO_TEST = {
     ("gpt2", "gpt2"),
 }
 
@@ -84,7 +86,7 @@ _SEQ2SEQ_MODELS_TO_TEST = {
     ("bart", "facebook/bart-base"),
 }
 
-_TASKS_DATASETS_CONFIGS = {
+_ENCODER_TASKS_DATASETS_CONFIGS = {
     "sequence-classification": {
         "dataset": ["glue", "sst2"],
         "metric": ["glue", "sst2"],
@@ -98,12 +100,32 @@ _TASKS_DATASETS_CONFIGS = {
     },
 }
 
+_DECODER_TASKS_DATASETS_CONFIGS = {
+    "causal-lm": {
+        "dataset": ["wikitext", "wikitext-2-raw-v1"],
+        "metric": ["accuracy"],
+        "data_collator": default_data_collator,
+    },
+    # TODO: with past is diabled for the moment due to the `ORTModel` output constraint.
+    # "causal-lm-with-past": {
+    #     "dataset": ["wikitext", "wikitext-2-raw-v1"],
+    #     "metric": ["accuracy"],
+    #     "data_collator_class": DataCollatorWithPadding,
+    # },
+}
+
 _SEQ2SEQ_TASKS_DATASETS_CONFIGS = {
     "seq2seq-lm": {
         "dataset": ["xsum"],
         "metric": ["rouge"],
         "data_collator_class": DataCollatorForSeq2Seq,
-    }
+    },
+    # TODO: with past is diabled for the moment due to the `ORTModel` output constraint.
+    # "seq2seq-lm-with-past": {
+    #     "dataset": ["xsum"],
+    #     "metric": ["rouge"],
+    #     "data_collator_class": DataCollatorForSeq2Seq,
+    # },
 }
 
 
@@ -181,13 +203,15 @@ def load_and_prepare(feature):
     preprocess_mapping = {
         "sequence-classification": load_and_prepare_glue,
         "token-classification": load_and_prepare_ner,
+        "causal-lm": load_and_prepare_clm,
+        "causal-lm-with-past": load_and_prepare_clm,
         "seq2seq-lm": load_and_prepare_xsum,
+        "seq2seq-lm-with-past": load_and_prepare_xsum,
     }
     return preprocess_mapping[feature]
 
 
 def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, padding="max_length", **kwargs):
-
     # Prepare model
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -233,7 +257,6 @@ def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, paddin
 
 
 def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding="max_length", **kwargs):
-
     # Load dataset and metric
     dataset = load_dataset(*data_metric_config["dataset"])
     metric = load(*data_metric_config["metric"])
@@ -316,6 +339,82 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
             "f1": results["overall_f1"],
             "accuracy": results["overall_accuracy"],
         }
+
+    return model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics
+
+
+def load_and_prepare_clm(model_name, data_metric_config, padding="max_length", **kwargs):
+    # Load dataset and metric
+    dataset = load_dataset(*data_metric_config["dataset"])
+    metric = load(*data_metric_config["metric"])
+
+    # Prepare model
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # Prepare dataset
+    max_seq_length = min(max_seq_length, tokenizer.model_max_length)
+
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        model.config.pad_token_id = model.config.eos_token_id
+
+    data_collator = _get_data_collator(data_metric_config)
+    column_names = dataset["train"].column_names
+    text_column_name = "text" if "text" in column_names else column_names[0]
+    block_size = tokenizer.model_max_length
+
+    def tokenize_function(examples):
+        output = tokenizer(examples[text_column_name], padding=padding, max_length=max_seq_length)
+        return output
+
+    def group_texts(examples):
+        concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
+        total_length = len(concatenated_examples[list(examples.keys())[0]])
+        if total_length >= block_size:
+            total_length = (total_length // block_size) * block_size
+        result = {
+            k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+            for k, t in concatenated_examples.items()
+        }
+        result["labels"] = result["input_ids"].copy()
+        return result
+
+    def preprocess_logits_for_metrics(logits, labels):
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        return logits.argmax(dim=-1)
+
+    def compute_metrics(eval_preds):
+        preds, labels = eval_preds
+        labels = labels[:, 1:].reshape(-1)
+        preds = preds[:, :-1].reshape(-1)
+        return metric.compute(predictions=preds, references=labels)
+
+    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=column_names)
+    lm_dataset = tokenized_dataset.map(
+        group_texts,
+        batched=True,
+        desc=f"Grouping texts in chunks of {block_size}",
+    )
+    train_dataset = lm_dataset["train"]
+    valid_dataset = lm_dataset["validation"]
+    test_dataset = lm_dataset["test"].remove_columns(["labels"])
+
+    max_train_samples = kwargs.get("max_train_samples", None)
+    max_valid_samples = kwargs.get("max_valid_samples", None)
+    max_test_samples = kwargs.get("max_test_samples", None)
+    if max_train_samples:
+        train_dataset = train_dataset.select(range(max_train_samples))
+    if max_valid_samples:
+        valid_dataset = valid_dataset.select(range(max_valid_samples))
+    if max_test_samples:
+        test_dataset = test_dataset.select(range(max_test_samples))
+
+    def compute_metrics(eval_pred):
+        predictions = eval_pred.predictions[0] if isinstance(eval_pred.predictions, tuple) else eval_pred.predictions
+        predictions = np.argmax(predictions, axis=1)
+        return metric.compute(predictions=predictions, references=eval_pred.label_ids)
 
     return model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics
 
@@ -411,7 +510,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
         self.warmup_steps = 500
         self.weight_decay = 0.01
 
-    @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
+    @parameterized.expand(_get_models_to_test(_ENCODERS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_inference_with_ort(self, test_name, model_name, feature, data_metric_config):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -445,7 +544,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
             gc.collect()
 
-    @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
+    @parameterized.expand(_get_models_to_test(_ENCODERS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_inference_with_pytorch(self, test_name, model_name, feature, data_metric_config):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -481,7 +580,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
     @slow
     @parameterized.expand(
-        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+        _get_models_to_test(_ENCODERS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
     )
     def test_trainer_fp16(self, test_name, model_name, feature, data_metric_config):
 
@@ -520,7 +619,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
     @unittest.skip("Skip BF6 test.")
     @slow
     @require_torch_bf16_gpu
-    @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
+    @parameterized.expand(_get_models_to_test(_ENCODERS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
     def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
 
@@ -602,7 +701,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
         self.weight_decay = 0.01
 
     @parameterized.expand(
-        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+        _get_models_to_test(_ENCODERS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
     )
     def test_trainer_fp16_ds_stage1(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -639,7 +738,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
             gc.collect()
 
     @parameterized.expand(
-        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+        _get_models_to_test(_ENCODERS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
     )
     def test_trainer_fp16_ds_stage2(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
