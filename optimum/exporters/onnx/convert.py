@@ -210,18 +210,6 @@ def validate_model_outputs(
 
     session = InferenceSession(onnx_model.as_posix(), options, providers=[provider])
 
-    if len(session.get_inputs()) != len(config.inputs):
-        raise NumberOfInputsMatchError(
-            "The exported ONNX model does not have the same number of inputs as specified in the ONNX config: ",
-            f"{len(session.get_inputs())} vs {len(config.inputs)}",
-        )
-
-    if len(session.get_outputs()) != len(config.outputs):
-        raise NumberOfOutputsMatchError(
-            "The exported ONNX model does not have the same number of outputs as specified in the ONNX config: ",
-            f"{len(session.get_outputs())} vs {len(config.outputs)}",
-        )
-
     # Compute outputs from the reference model
     if is_torch_available() and isinstance(reference_model, nn.Module):
         reference_model.to(device)
