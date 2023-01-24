@@ -36,13 +36,12 @@ The [`~pipelines.pipeline`] function automatically loads a default model and tok
 >>> from optimum.pipelines import pipeline
 
 >>> classifier = pipeline(task="text-classification", accelerator="ort")
-
 ```
 
 2. Pass your input text/image to the [`~pipelines.pipeline`] function:
 
 ```python
->>> classifier("I like you. I love you.")
+>>> classifier("I like you. I love you.")  # doctest: +IGNORE_RESULT
 [{'label': 'POSITIVE', 'score': 0.9998838901519775}]
 ```
 
@@ -91,8 +90,9 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 >>> # Loading the PyTorch checkpoint and converting to the ONNX format by providing
 >>> # from_transformers=True
 >>> model = ORTModelForQuestionAnswering.from_pretrained(
->>>   "deepset/roberta-base-squad2", from_transformers=True
->>> )
+...     "deepset/roberta-base-squad2",
+...     from_transformers=True
+... )
 
 >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer, accelerator="ort")
 >>> question = "What's my name?"
@@ -151,10 +151,10 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import (
->>>   AutoQuantizationConfig,
->>>   ORTModelForSequenceClassification,
->>>   ORTOptimizer
->>> )
+...     AutoQuantizationConfig,
+...     ORTModelForSequenceClassification,
+...     ORTQuantizer
+... )
 >>> from optimum.pipelines import pipeline
 
 >>> # Load the tokenizer and export the model to the ONNX format
@@ -168,7 +168,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> quantizer = ORTQuantizer.from_pretrained(model)
 
 >>> # Apply dynamic quantization and save the resulting model
->>> quantizer.quantize(save_dir=save_dir, quantization_config=qconfig)
+>>> quantizer.quantize(save_dir=save_dir, quantization_config=qconfig)  # doctest: +IGNORE_RESULT
 
 >>> # Load the quantized model from a local repository
 >>> model = ORTModelForSequenceClassification.from_pretrained(save_dir)
@@ -177,11 +177,12 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> onnx_clx = pipeline("text-classification", model=model, accelerator="ort")
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
->>> print(pred)
+>>> print(pred)  # doctest: +IGNORE_RESULT
+>>> # [{'label': 'POSITIVE', 'score': 0.9974810481071472}]
 
 >>> # Save and push the model to the hub (in practice save_dir could be used here instead)
 >>> model.save_pretrained("new_path_for_directory")
->>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
+>>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)  # doctest: +SKIP
 ```
 
 ### Optimizing with `ORTOptimizer`
@@ -189,10 +190,10 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import (
->>>   AutoOptimizationConfig,
->>>   ORTModelForSequenceClassification,
->>>   ORTOptimizer
->>> )
+...     AutoOptimizationConfig,
+...     ORTModelForSequenceClassification,
+...     ORTOptimizer
+... )
 >>> from optimum.onnxruntime.configuration import OptimizationConfig
 >>> from optimum.pipelines import pipeline
 
@@ -207,7 +208,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> optimization_config = AutoOptimizationConfig.O3()
 >>> optimizer = ORTOptimizer.from_pretrained(model)
 
->>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
+>>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)  # doctest: +IGNORE_RESULT
 
 # Load the optimized model from a local repository
 >>> model = ORTModelForSequenceClassification.from_pretrained(save_dir)
@@ -216,10 +217,11 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> onnx_clx = pipeline("text-classification", model=model, accelerator="ort")
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
->>> print(pred)
+>>> print(pred)  # doctest: +IGNORE_RESULT
+>>> # [{'label': 'POSITIVE', 'score': 0.9973127245903015}]
 
 # Save and push the model to the hub
->>> tokenizer.save_pretrained("new_path_for_directory")
+>>> tokenizer.save_pretrained("new_path_for_directory")  # doctest: +IGNORE_RESULT
 >>> model.save_pretrained("new_path_for_directory")
->>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
+>>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)  # doctest: +SKIP
 ```

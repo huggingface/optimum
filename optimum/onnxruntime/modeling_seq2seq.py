@@ -189,7 +189,7 @@ AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE = r"""
     Example using `transformers.pipeline`:
 
     ```python
-    >>> from transformers import {processor_class}
+    >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
     >>> from datasets import load_dataset
 

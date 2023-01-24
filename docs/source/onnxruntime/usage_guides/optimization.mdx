@@ -26,8 +26,8 @@ The [`~onnxruntime.ORTOptimizer`] class is used to optimize your ONNX model. The
 
 # Loading ONNX Model from the Hub
 >>> model = ORTModelForSequenceClassification.from_pretrained(
->>>     "optimum/distilbert-base-uncased-finetuned-sst-2-english"
->>> )
+...     "optimum/distilbert-base-uncased-finetuned-sst-2-english"
+... )
 
 # Create an optimizer from an ORTModelForXXX
 >>> optimizer = ORTOptimizer.from_pretrained(model)
@@ -39,7 +39,7 @@ The [`~onnxruntime.ORTOptimizer`] class is used to optimize your ONNX model. The
 >>> from optimum.onnxruntime import ORTOptimizer
 
 # This assumes a model.onnx exists in path/to/model
->>> optimizer = ORTOptimizer.from_pretrained("path/to/model")
+>>> optimizer = ORTOptimizer.from_pretrained("path/to/model")  # doctest: +SKIP
 ```
 
 ## Optimization Configuration
@@ -92,8 +92,8 @@ Below you will find an easy end-to-end example on how to optimize [distilbert-ba
 
 ```python
 >>> from optimum.onnxruntime import (
->>>     AutoOptimizationConfig, ORTOptimizer, ORTModelForSequenceClassification
->>> )
+...     AutoOptimizationConfig, ORTOptimizer, ORTModelForSequenceClassification
+... )
 
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 >>> save_dir = "distilbert_optimized"
@@ -108,7 +108,7 @@ Below you will find an easy end-to-end example on how to optimize [distilbert-ba
 >>> optimization_config = AutoOptimizationConfig.O2()
 
 >>> # Optimize the model
->>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
+>>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)  # doctest: +IGNORE_RESULT
 ```
 
 
@@ -129,13 +129,13 @@ Below you will find an easy end-to-end example on how to optimize a Seq2Seq mode
 
 >>> # Define the optimization strategy by creating the appropriate configuration
 >>> optimization_config = OptimizationConfig(
->>>     optimization_level=2,
->>>     enable_transformers_specific_optimizations=True,
->>>     optimize_for_gpu=False,
->>> )
+...     optimization_level=2,
+...     enable_transformers_specific_optimizations=True,
+...     optimize_for_gpu=False,
+... )
 
 >>> # Optimize the model
->>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
+>>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)  # doctest: +IGNORE_RESULT
 
 >>> tokenizer = AutoTokenizer.from_pretrained(model_id)
 >>> optimized_model = ORTModelForSeq2SeqLM.from_pretrained(save_dir)

@@ -35,7 +35,7 @@ It is possible to know which tasks are supported for a model for a given backend
 >>> distilbert_tasks = list(TasksManager.get_supported_tasks_for_model_type(model_type, backend).keys())
 
 >>> print(distilbert_tasks)
-["default", "masked-lm", "causal-lm", "sequence-classification", "token-classification", "question-answering"]
+['default', 'masked-lm', 'sequence-classification', 'multiple-choice', 'token-classification', 'question-answering']
 ```
 
 </Tip>
