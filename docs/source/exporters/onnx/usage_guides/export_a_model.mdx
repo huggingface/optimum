@@ -99,6 +99,8 @@ Optional arguments:
                         This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
   --cache_dir CACHE_DIR
                         Path indicating where to store cache.
+  --trust-remote-code   Allow to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust
+                        and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
 ```
 
 Exporting a checkpoint can be done as follows:
