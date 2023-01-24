@@ -42,7 +42,11 @@ def _get_models_to_test(export_models_dict: Dict):
                 tasks = list(task_config_mapping.keys())
                 model_tasks = {model_names_tasks: tasks}
             else:
-                n_tested_tasks = sum(len(tasks) for tasks in model_names_tasks.values())
+                unique_tasks = set()
+                for tasks in model_names_tasks.values():
+                    for task in tasks:
+                        unique_tasks.add(task)
+                n_tested_tasks = len(unique_tasks)
                 if n_tested_tasks != len(task_config_mapping):
                     raise ValueError(f"Not all tasks are tested for {model_type}.")
                 model_tasks = model_names_tasks  # possibly, test different tasks on different models
@@ -53,14 +57,14 @@ def _get_models_to_test(export_models_dict: Dict):
 
                     if any(
                         task.startswith(ort_special_task)
-                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
+                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
                     ):
                         models_to_test.append((f"{model_type}_{task}_forort", model_name, task, True))
 
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
-            if model_type not in ["segformer", "xlm-roberta", "perceiver"]:
+            if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
                 models_to_test.append((f"{model_type}_no_task", model_name, None, False))
 
         return sorted(models_to_test)
