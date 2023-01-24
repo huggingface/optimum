@@ -2221,9 +2221,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
         onnx_outputs = onnx_model.generate(**tokens, num_beams=5)
         io_outputs = io_model.generate(**tokens, num_beams=5)
-        import pdb
-
-        pdb.set_trace()
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))

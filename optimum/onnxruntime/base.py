@@ -150,8 +150,21 @@ class ORTDecoder(ORTModelPart):
             self.value_sequence_length_idx = -1
 
     def compute_past_key_values_output_shapes(
-        self, input_ids, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+        self, input_ids: torch.Tensor, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     ) -> Dict[str, List[int]]:
+        """
+        Computes the outputs of the past key / value because it is not always easy to perform shape inference on them,
+        which is needed for creating IO binding output buffers.
+
+        Args:
+            input_ids (`torch.Tensor`):
+                The input ids that are associated with the current inputs.
+            past_key_values (`Optional[Tuple[Tuple[torch.Tensor]]]`, defaults to `None`):
+                The past key values associated with the current inputs.
+
+        Returns:
+            `Dict[str, List[int]]`: The dictionary mapping each past key value output name to its corresponding shape.
+        """
         batch_size = input_ids.size(0)
         num_attention_heads = self.normalized_config.num_attention_heads
         embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
@@ -161,7 +174,8 @@ class ORTDecoder(ORTModelPart):
 
         half_shape = [batch_size, num_attention_heads]
         if len(self.expected_key_symbolic_shape) == 3:
-            half_shape[0] *= half_shape.pop(1)
+            half_shape[0] = batch_size * num_attention_heads
+            half_shape.pop(1)
 
         key_shape = [sequence_length, embed_size_per_head]
         if self.key_sequence_length_idx == -1:
@@ -297,8 +311,6 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 encoder_hidden_states,
                 past_key_values=past_key_values,
             )
-
-            # past_key_values_inputs = past_key_values if past_key_values is not None else [None]
 
             def filter_out_output(output_name):
                 return not output_name.startswith("present") and output_name not in {"loss", "logits"}

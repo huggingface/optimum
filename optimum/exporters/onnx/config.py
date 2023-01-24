@@ -106,7 +106,6 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 self.add_past_key_values(common_inputs, direction="inputs")
 
         if self._behavior is ConfigBehavior.DECODER:
-            # TODO: it is actually encoder_last_hidden_state
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs

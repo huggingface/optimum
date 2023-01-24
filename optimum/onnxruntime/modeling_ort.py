@@ -726,7 +726,6 @@ class ORTModel(OptimizedModel):
             if output_name in known_output_shapes:
                 output_shape = known_output_shapes[output_name]
             else:
-                # output_shape = tuple(map(lambda x: dimensions.get(x, x), output_node.shape))
                 output_shape = []
                 for axis_name in output_node.shape:
                     output_shape.append(self._output_shape_inference(axis_name, dimensions))

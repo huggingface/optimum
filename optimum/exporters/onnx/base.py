@@ -124,6 +124,10 @@ class OnnxConfig(ExportConfig, ABC):
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
     _TASK_TO_COMMON_OUTPUTS = {
+        "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
         "causal-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "default": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
@@ -158,12 +162,8 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
+        "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
     }
 
     def __init__(
@@ -588,13 +588,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         common_outputs = super(OnnxConfigWithPast, self).outputs
         # Renaming the outputs axes properly.
         for name, axes_names in common_outputs.items():
-            if self._behavior is ConfigBehavior.ENCODER:
+            if self._behavior is ConfigBehavior.ENCODER or "encoder" in name:
                 sequence_name = "encoder_sequence_length"
             else:
-                if "encoder" in name:
-                    sequence_name = "encoder_sequence_length"
-                else:
-                    sequence_name = "decoder_sequence_length"
+                sequence_name = "decoder_sequence_length"
 
             new_axes_names = {}
             for axis_idx, axis_name in axes_names.items():
