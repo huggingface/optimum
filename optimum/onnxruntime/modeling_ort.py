@@ -277,6 +277,13 @@ class ORTModel(OptimizedModel):
         """
         device, provider_options = parse_device(device)
 
+        if device.type == "cuda" and self._use_io_binding is False:
+            self.use_io_binding = True
+            logger.info(
+                "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
+                "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
+            )
+
         self.device = device
         provider = get_provider_for_device(self.device)
         validate_provider_availability(provider)  # raise error if the provider is not available
