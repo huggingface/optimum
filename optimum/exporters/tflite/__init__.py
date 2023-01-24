@@ -14,4 +14,4 @@
 # limitations under the License.
 
 from .base import TFLiteConfig  # noqa
-from .config import TextEncoderTFliteConfig  # noqa
+from .convert import export, validate_model_outputs  # noqa

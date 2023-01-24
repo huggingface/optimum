@@ -14,20 +14,21 @@
 # limitations under the License.
 """TensorFlow Lite configuration base classes."""
 
-from ctypes import ArgumentError
-from collections import OrderedDict
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional, Union, Any
+from collections import OrderedDict
+from ctypes import ArgumentError
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from transformers.utils import is_tf_available
 # TODO: handle tensorflow dependency.
 import tensorflow as tf
+from transformers.utils import is_tf_available
 
 from ..base import ExportConfig
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, TFPreTrainedModel
+
     from ...utils import DummyInputGenerator
 
     if is_tf_available():
@@ -123,9 +124,7 @@ class TFLiteConfig(ExportConfig, ABC):
             num_channels=num_channels,
             feature_size=feature_size,
             nb_max_frames=nb_max_frames,
-
         )
-
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in self.MANDATORY_AXES:
@@ -147,7 +146,7 @@ class TFLiteConfig(ExportConfig, ABC):
             axis_dim = kwargs[name]
             if axis_dim is None:
                 if self._normalized_config.has_attribute(name):
-                    axis_dim =  getattr(self._normalized_config, name)
+                    axis_dim = getattr(self._normalized_config, name)
                 else:
                     raise MissingMandatoryAxisDimension(
                         f"The value for the {name} axis is missing, it is needed to perform the export to TensorFlow Lite."
@@ -156,7 +155,6 @@ class TFLiteConfig(ExportConfig, ABC):
 
     def _create_dummy_input_generator_classes(self) -> List["DummyInputGenerator"]:
         return [cls_(self.task, self._normalized_config, **self._axes) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES]
-
 
     @property
     @abstractmethod
@@ -167,34 +165,39 @@ class TFLiteConfig(ExportConfig, ABC):
     def outputs(self) -> List[str]:
         return list(self._TASK_TO_COMMON_OUTPUTS[self.task].keys())
 
-    @property
-    def inputs_specs(self) -> List["TensorSpec"]:
+    def generate_dummy_inputs(self) -> Dict[str, "tf.Tensor"]:
         dummy_inputs_generators = self._create_dummy_input_generator_classes()
-        inputs_specs = []
+        dummy_inputs = {}
 
         for input_name in self.inputs:
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    dummy_input = dummy_input_gen.generate(input_name, framework="tf")
-                    inputs_specs.append(tf.TensorSpec(dummy_input.shape, dtype=dummy_input.dtype, name=input_name))
+                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework="tf")
                     input_was_inserted = True
                     break
             if not input_was_inserted:
                 raise RuntimeError(
-                    f'Could not generate input specs for "{input_name}". Try adding a proper dummy input generator to the model TFLite config.'
+                    f'Could not generate dummy inputs for "{input_name}". Try adding a proper dummy input generator to the model TFLite config.'
                 )
 
-        return inputs_specs
+        return dummy_inputs
 
+    @property
+    def inputs_specs(self) -> List["TensorSpec"]:
+        dummy_inputs = self.generate_dummy_inputs()
+        return [
+            tf.TensorSpec(dummy_input.shape, dtype=dummy_input.dtype, name=input_name)
+            for input_name, dummy_input in dummy_inputs.items()
+        ]
 
-    def model_to_tf_function(self, model: "TFPreTrainedModel", concrete: bool = False, **model_kwargs:  Any):
-
+    def model_to_tf_function(self, model: "TFPreTrainedModel", concrete: bool = False, **model_kwargs: Any):
         def forward(*args):
             input_names = self.inputs
             if len(args) != len(input_names):
                 raise ArgumentError(
-                    f"The number of inputs provided do not match the number of expected inputs: {', '.join(input_names)}."
+                    f"The number of inputs provided ({len(args)} do not match the number of expected inputs: :"
+                    "{', '.join(input_names)}."
                 )
             kwargs = dict(zip(input_names, args))
             outputs = model.call(**kwargs, **model_kwargs)
@@ -206,4 +209,3 @@ class TFLiteConfig(ExportConfig, ABC):
             function = tf.function(forward)
 
         return function
-            
