@@ -218,10 +218,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 
 class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyTextInputGenerator,
-        DummySeq2SeqDecoderTextInputGenerator,
-    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
     def __init__(
         self,
@@ -293,8 +290,4 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-
-        return reference_model_inputs
+        return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
