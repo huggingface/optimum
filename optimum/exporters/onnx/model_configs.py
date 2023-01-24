@@ -971,7 +971,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
     ):
         super().__init__(config, task, patching_specs, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
 
-        # TODO: Check modelling code to fix the issue with use_cache for trocr
+        # TODO: Check modeling code to fix the issue with use_cache for trocr
         if config.decoder.model_type == "trocr":
             if self.use_past_in_inputs:
                 raise ValueError("Exporting past key values is not supported with TrOCR model!")

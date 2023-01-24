@@ -246,7 +246,6 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         from ..tasks import TasksManager
 
         if self._behavior is not ConfigBehavior.DECODER:
-            # retrieve the encoder config
             encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 exporter="onnx", task="default", model_type=config.encoder.model_type
             )
@@ -254,7 +253,6 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
 
         if self._behavior is not ConfigBehavior.ENCODER:
-            # retrieve the decoder config
             decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 exporter="onnx", task="default", model_type=config.decoder.model_type
             )
