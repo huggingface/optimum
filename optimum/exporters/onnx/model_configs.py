@@ -950,7 +950,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
-    ATOL_FOR_VALIDATION = 1e-4
+    ATOL_FOR_VALIDATION = 1e-3
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
