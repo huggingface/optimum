@@ -767,6 +767,8 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
             with_loss (`bool`, defaults to `True`):
                 Whether to export ONNX model with the loss in outputs.
+            decoders_only (`bool`, defaults to `False`):
+                Whether to just export decoder models.
         """
         if model is None:
             if not (self.args.fp16 and self.args.deepspeed):
