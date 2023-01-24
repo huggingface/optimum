@@ -181,6 +181,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BertOnnxConfig",
+            tflite="BertTFLiteConfig",
         ),
         "big-bird": supported_tasks_mapping(
             "default",

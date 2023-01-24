@@ -104,15 +104,6 @@ class TFLiteConfig(ExportConfig, ABC):
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
         self.task = task
 
-        # self.batch_size = batch_size
-        # self.sequence_length = sequence_length
-        # self.num_choices = num_choices
-        # self.width = width
-        # self.height = height
-        # self.num_channels = num_channels
-        # self.feature_size = feature_size
-        # self.nb_max_frames = nb_max_frames
-
         self._axes: Dict[str, int] = {}
 
         self._validate_and_update_mandatory_axes(
