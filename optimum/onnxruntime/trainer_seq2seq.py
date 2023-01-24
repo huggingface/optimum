@@ -586,7 +586,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
-        generated_tokens = self.model.generate(
+        generated_tokens = model.generate(
             generation_inputs,
             **gen_kwargs,
         )
