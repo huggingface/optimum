@@ -404,9 +404,8 @@ class ORTModelDecoder(ORTModel):
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
 
         if generation_config is None:
-            self.generation_config = GenerationConfig.from_model_config(config)
-        else:
-            self.generation_config = generation_config
+            generation_config = GenerationConfig.from_model_config(config)
+        self.generation_config = generation_config
 
     @staticmethod
     def load_model(

@@ -809,8 +809,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         if generation_config is None:
             generation_config = GenerationConfig.from_model_config(config)
-        else:
-            self.generation_config = generation_config
+        self.generation_config = generation_config
 
     @abstractmethod
     def _initialize_encoder(
