@@ -1,0 +1,41 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Normalized Configurations
+
+Model configuration classes in 🤗 Transformers are not standardized. Although Transformers implements an `attribute_map` attribute that mitigates the issue to some extent, it does not make it easy to reason on common configuration attributes in the code.
+[`~optimum.utils.normalized_config.NormalizedConfig`] classes try to fix that by allowing access to the configuration
+attribute they wrap in a standardized way.
+
+
+## Base class
+
+<Tip>
+
+While it is possible to create `NormalizedConfig` subclasses for common use-cases, it is also possible to overwrite
+the `original attribute name -> normalized attribute name` mapping directly using the
+[`~optimum.utils.normalized_config.NormalizedConfig.with_args`] class method.
+
+</Tip>
+
+[[autodoc]] optimum.utils.normalized_config.NormalizedConfig
+
+
+## Existing normalized configurations
+
+[[autodoc]] optimum.utils.normalized_config.NormalizedTextConfig
+
+[[autodoc]] optimum.utils.normalized_config.NormalizedSeq2SeqConfig
+
+[[autodoc]] optimum.utils.normalized_config.NormalizedVisionConfig
+
+[[autodoc]] optimum.utils.normalized_config.NormalizedTextAndVisionConfig

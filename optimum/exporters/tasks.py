@@ -16,11 +16,14 @@
 
 import importlib
 import os
-from functools import partial, reduce
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Type, Union
+from functools import partial
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
+
+import huggingface_hub
 
 
 if TYPE_CHECKING:
@@ -31,34 +34,6 @@ if TYPE_CHECKING:
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
-if is_torch_available():
-    from transformers.models.auto import (
-        AutoModel,
-        AutoModelForCausalLM,
-        AutoModelForImageClassification,
-        AutoModelForImageSegmentation,
-        AutoModelForMaskedImageModeling,
-        AutoModelForMaskedLM,
-        AutoModelForMultipleChoice,
-        AutoModelForObjectDetection,
-        AutoModelForQuestionAnswering,
-        AutoModelForSemanticSegmentation,
-        AutoModelForSeq2SeqLM,
-        AutoModelForSequenceClassification,
-        AutoModelForTokenClassification,
-    )
-if is_tf_available():
-    from transformers.models.auto import (
-        TFAutoModel,
-        TFAutoModelForCausalLM,
-        TFAutoModelForMaskedLM,
-        TFAutoModelForMultipleChoice,
-        TFAutoModelForQuestionAnswering,
-        TFAutoModelForSemanticSegmentation,
-        TFAutoModelForSeq2SeqLM,
-        TFAutoModelForSequenceClassification,
-        TFAutoModelForTokenClassification,
-    )
 if not is_torch_available() and not is_tf_available():
     logger.warning(
         "The export tasks are only supported for PyTorch or TensorFlow. You will not be able to export models"
@@ -80,12 +55,13 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
-            >>> kwargs = {
-            >>>     "onnx": "BertOnnxConfig",
-            >>>     "tflite": "BertTFLiteConfig",
-            >>>     ...
-            >>> }
+            >>> kwargs = {  # doctest: +SKIP
+            ...     "onnx": "BertOnnxConfig",
+            ...     "tflite": "BertTFLiteConfig",
+            ...     ...
+            ... }
             ```
+
     Returns:
         `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExportConfig` constructor.
     """
@@ -103,39 +79,77 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
 
 
 class TasksManager:
+    """
+    Handles the `task name -> model class` and `architecture -> configuration` mappings.
+    """
+
     _TASKS_TO_AUTOMODELS = {}
     _TASKS_TO_TF_AUTOMODELS = {}
     if is_torch_available():
         _TASKS_TO_AUTOMODELS = {
-            "default": AutoModel,
-            "masked-lm": AutoModelForMaskedLM,
-            "causal-lm": AutoModelForCausalLM,
-            "seq2seq-lm": AutoModelForSeq2SeqLM,
-            "sequence-classification": AutoModelForSequenceClassification,
-            "token-classification": AutoModelForTokenClassification,
-            "multiple-choice": AutoModelForMultipleChoice,
-            "object-detection": AutoModelForObjectDetection,
-            "question-answering": AutoModelForQuestionAnswering,
-            "image-classification": AutoModelForImageClassification,
-            "image-segmentation": AutoModelForImageSegmentation,
-            "masked-im": AutoModelForMaskedImageModeling,
-            "semantic-segmentation": AutoModelForSemanticSegmentation,
+            "default": "AutoModel",
+            "masked-lm": "AutoModelForMaskedLM",
+            "causal-lm": "AutoModelForCausalLM",
+            "seq2seq-lm": "AutoModelForSeq2SeqLM",
+            "sequence-classification": "AutoModelForSequenceClassification",
+            "token-classification": "AutoModelForTokenClassification",
+            "multiple-choice": "AutoModelForMultipleChoice",
+            "object-detection": "AutoModelForObjectDetection",
+            "question-answering": "AutoModelForQuestionAnswering",
+            "image-classification": "AutoModelForImageClassification",
+            "image-segmentation": "AutoModelForImageSegmentation",
+            "masked-im": "AutoModelForMaskedImageModeling",
+            "semantic-segmentation": "AutoModelForSemanticSegmentation",
+            "speech2seq-lm": "AutoModelForSpeechSeq2Seq",
+            "audio-classification": "AutoModelForAudioClassification",
+            "audio-frame-classification": "AutoModelForAudioFrameClassification",
+            "audio-ctc": "AutoModelForCTC",
+            "audio-xvector": "AutoModelForAudioXVector",
+            "stable-diffusion": "StableDiffusionPipeline",
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
-            "default": TFAutoModel,
-            "masked-lm": TFAutoModelForMaskedLM,
-            "causal-lm": TFAutoModelForCausalLM,
-            "seq2seq-lm": TFAutoModelForSeq2SeqLM,
-            "sequence-classification": TFAutoModelForSequenceClassification,
-            "token-classification": TFAutoModelForTokenClassification,
-            "multiple-choice": TFAutoModelForMultipleChoice,
-            "question-answering": TFAutoModelForQuestionAnswering,
-            "semantic-segmentation": TFAutoModelForSemanticSegmentation,
+            "default": "TFAutoModel",
+            "masked-lm": "TFAutoModelForMaskedLM",
+            "causal-lm": "TFAutoModelForCausalLM",
+            "seq2seq-lm": "TFAutoModelForSeq2SeqLM",
+            "sequence-classification": "TFAutoModelForSequenceClassification",
+            "token-classification": "TFAutoModelForTokenClassification",
+            "multiple-choice": "TFAutoModelForMultipleChoice",
+            "question-answering": "TFAutoModelForQuestionAnswering",
+            "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
         }
 
+    _TASKS_TO_LIBRARY = {
+        "default": "transformers",
+        "masked-lm": "transformers",
+        "causal-lm": "transformers",
+        "seq2seq-lm": "transformers",
+        "sequence-classification": "transformers",
+        "token-classification": "transformers",
+        "multiple-choice": "transformers",
+        "object-detection": "transformers",
+        "question-answering": "transformers",
+        "image-classification": "transformers",
+        "image-segmentation": "transformers",
+        "masked-im": "transformers",
+        "semantic-segmentation": "transformers",
+        "speech2seq-lm": "transformers",
+        "audio-ctc": "transformers",
+        "audio-classification": "transformers",
+        "audio-frame-classification": "transformers",
+        "audio-xvector": "transformers",
+        "stable-diffusion": "diffusers",
+    }
+
+    # TODO: some models here support causal-lm export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
+        "audio-spectrogram-transformer": supported_tasks_mapping(
+            "default",
+            "audio-classification",
+            onnx="ASTOnnxConfig",
+        ),
         "albert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -161,7 +175,8 @@ class TasksManager:
         "bert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for BERT
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -171,7 +186,8 @@ class TasksManager:
         "big-bird": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for big-bird
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -219,7 +235,8 @@ class TasksManager:
         "camembert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for camembert
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -229,6 +246,10 @@ class TasksManager:
         "clip": supported_tasks_mapping(
             "default",
             onnx="CLIPOnnxConfig",
+        ),
+        "clip-text-model": supported_tasks_mapping(
+            "default",
+            onnx="CLIPTextOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
             "default",
@@ -267,6 +288,14 @@ class TasksManager:
             # "semantic-segmentation",
             onnx="Data2VecVisionOnnxConfig",
         ),
+        "data2vec-audio": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="Data2VecAudioOnnxConfig",
+        ),
         "deberta": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -303,7 +332,8 @@ class TasksManager:
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for electra
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -313,7 +343,6 @@ class TasksManager:
         "flaubert": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -349,6 +378,12 @@ class TasksManager:
         "groupvit": supported_tasks_mapping(
             "default",
             onnx="GroupViTOnnxConfig",
+        ),
+        "hubert": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="HubertOnnxConfig",
         ),
         "ibert": supported_tasks_mapping(
             "default",
@@ -417,6 +452,12 @@ class TasksManager:
             "question-answering",
             onnx="MBartOnnxConfig",
         ),
+        # TODO: enable once the missing operator is supported.
+        # "mctct": supported_tasks_mapping(
+        #     "default",
+        #     "audio-ctc",
+        #     onnx="MCTCTOnnxConfig",
+        # ),
         "mobilebert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -430,6 +471,25 @@ class TasksManager:
             "default",
             "image-classification",
             onnx="MobileViTOnnxConfig",
+        ),
+        "mobilenet-v1": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="MobileNetV1OnnxConfig",
+        ),
+        "mobilenet-v2": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="MobileNetV2OnnxConfig",
+        ),
+        "mpnet": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="MPNetOnnxConfig",
         ),
         "mt5": supported_tasks_mapping(
             "default",
@@ -445,15 +505,31 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        "owlvit": supported_tasks_mapping(
+        # TODO: owlvit is actually not yet supported in exporters
+        # "owlvit": supported_tasks_mapping(
+        #     "default",
+        #     "zero-shot-object-detection",
+        #     onnx="OwlViTOnnxConfig",
+        # ),
+        "pegasus": supported_tasks_mapping(
             "default",
-            onnx="OwlViTOnnxConfig",
+            "default-with-past",
+            "causal-lm",
+            "causal-lm-with-past",
+            "seq2seq-lm",
+            "seq2seq-lm-with-past",
+            onnx="PegasusOnnxConfig",
         ),
         "perceiver": supported_tasks_mapping(
             "masked-lm",
             "image-classification",
             "sequence-classification",
             onnx="PerceiverOnnxConfig",
+        ),
+        "poolformer": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="PoolFormerOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
             "default",
@@ -463,7 +539,8 @@ class TasksManager:
         "roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for roberta
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -473,7 +550,8 @@ class TasksManager:
         "roformer": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for roformer
+            # "causal-lm",
             "sequence-classification",
             "token-classification",
             "multiple-choice",
@@ -487,6 +565,25 @@ class TasksManager:
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),
+        "sew": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="SEWOnnxConfig",
+        ),
+        "sew-d": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="SEWDOnnxConfig",
+        ),
+        "speech-to-text": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "speech2seq-lm",
+            "speech2seq-lm-with-past",
+            onnx="Speech2TextOnnxConfig",
+        ),
         "squeezebert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -496,6 +593,12 @@ class TasksManager:
             "question-answering",
             onnx="SqueezeBertOnnxConfig",
         ),
+        "swin": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            "masked-im",
+            onnx="SwinOnnxConfig",
+        ),
         "t5": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -503,11 +606,69 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
+        "unet": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="UNetOnnxConfig",
+        ),
+        "unispeech": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            onnx="UniSpeechOnnxConfig",
+        ),
+        "unispeech-sat": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="UniSpeechSATOnnxConfig",
+        ),
+        "vae-encoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeEncoderOnnxConfig",
+        ),
+        "vae-decoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeDecoderOnnxConfig",
+        ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
+        "wavlm": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="WavLMOnnxConfig",
+        ),
+        "wav2vec2": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="Wav2Vec2OnnxConfig",
+        ),
+        "wav2vec2-conformer": supported_tasks_mapping(
+            "default",
+            "audio-ctc",
+            "audio-classification",
+            "audio-frame-classification",
+            "audio-xvector",
+            onnx="Wav2Vec2ConformerOnnxConfig",
+        ),
+        "whisper": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "speech2seq-lm",
+            "speech2seq-lm-with-past",
+            onnx="WhisperOnnxConfig",
+        ),
         "xlm": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for xlm
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -517,7 +678,8 @@ class TasksManager:
         "xlm-roberta": supported_tasks_mapping(
             "default",
             "masked-lm",
-            "causal-lm",
+            # the logic for causal-lm is not supported for xlm-roberta
+            # "causal-lm",
             "sequence-classification",
             "multiple-choice",
             "token-classification",
@@ -530,20 +692,22 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model"}
+    _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
     def get_supported_tasks_for_model_type(
         model_type: str, exporter: str, model_name: Optional[str] = None
     ) -> TaskNameToExportConfigDict:
         """
-        Retrieves the task -> exporter backend config constructors map from the model type.
+        Retrieves the `task -> exporter backend config constructors` map from the model type.
 
         Args:
             model_type (`str`):
                 The model type to retrieve the supported tasks for.
             exporter (`str`):
                 The name of the exporter.
-            model_name (`str`, *optional*):
+            model_name (`Optional[str]`, *optional*):
                 The name attribute of the model object, only used for the exception message.
 
         Returns:
@@ -555,7 +719,7 @@ class TasksManager:
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
+                f"Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
@@ -568,7 +732,18 @@ class TasksManager:
             return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
-    def task_to_task(task: str) -> str:
+    def get_supported_model_type_for_task(task: str, exporter: str) -> List[str]:
+        """
+        Returns the list of supported architectures by the exporter for a given task.
+        """
+        return [
+            model_type.replace("-", "_")
+            for model_type in TasksManager._SUPPORTED_MODEL_TYPE
+            if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+        ]
+
+    @staticmethod
+    def format_task(task: str) -> str:
         return task.replace("-with-past", "")
 
     @staticmethod
@@ -598,32 +773,42 @@ class TasksManager:
         Returns:
             The AutoModel class corresponding to the task.
         """
-        task = TasksManager.task_to_task(task)
+        task = TasksManager.format_task(task)
         TasksManager._validate_framework_choice(framework)
         if framework == "pt":
-            task_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
+            tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
         else:
-            task_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
-        if task not in task_to_automodel:
+            tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
+        if task not in tasks_to_automodel:
             raise KeyError(
-                f"Unknown task: {task}. Possible values are {list(TasksManager._TASKS_TO_AUTOMODELS.values())}"
+                f"Unknown task: {task}. Possible values are: "
+                + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
             )
-        return task_to_automodel[task]
+
+        module = importlib.import_module(TasksManager._TASKS_TO_LIBRARY[task])
+        return getattr(module, tasks_to_automodel[task])
 
     @staticmethod
-    def determine_framework(model: str, framework: str = None) -> str:
+    def determine_framework(
+        model_name_or_path: Union[str, Path], subfolder: str = "", framework: Optional[str] = None
+    ) -> str:
         """
         Determines the framework to use for the export.
 
         The priority is in the following order:
             1. User input via `framework`.
             2. If local checkpoint is provided, use the same framework as the checkpoint.
-            3. Available framework in environment, with priority given to PyTorch
+            3. If model repo, try to infer the framework from the Hub.
+            4. If could not infer, use available framework in environment, with priority given to PyTorch.
 
         Args:
-            model (`str`):
-                The name of the model to export.
-            framework (`str`, *optional*):
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            framework (`Optional[str]`, *optional*):
                 The framework to use for the export. See above for priority if none provided.
 
         Returns:
@@ -635,10 +820,11 @@ class TasksManager:
 
         framework_map = {"pt": "PyTorch", "tf": "TensorFlow"}
 
-        if os.path.isdir(model):
-            if os.path.isfile(os.path.join(model, WEIGHTS_NAME)):
+        full_model_path = Path(model_name_or_path) / subfolder
+        if full_model_path.is_dir():
+            if (full_model_path / WEIGHTS_NAME).is_file():
                 framework = "pt"
-            elif os.path.isfile(os.path.join(model, TF2_WEIGHTS_NAME)):
+            elif (full_model_path / TF2_WEIGHTS_NAME).is_file():
                 framework = "tf"
             else:
                 raise FileNotFoundError(
@@ -648,20 +834,116 @@ class TasksManager:
                 )
             logger.info(f"Local {framework_map[framework]} model found.")
         else:
-            if is_torch_available():
+            if not isinstance(model_name_or_path, str):
+                model_name_or_path = str(model_name_or_path)
+            try:
+                url = huggingface_hub.hf_hub_url(model_name_or_path, WEIGHTS_NAME, subfolder=subfolder)
+                huggingface_hub.get_hf_file_metadata(url)
                 framework = "pt"
-            elif is_tf_available():
-                framework = "tf"
-            else:
-                raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
+            except Exception:
+                pass
+
+            if framework is None:
+                try:
+                    url = huggingface_hub.hf_hub_url(model_name_or_path, TF2_WEIGHTS_NAME, subfolder=subfolder)
+                    huggingface_hub.get_hf_file_metadata(url)
+                    framework = "tf"
+                except Exception:
+                    pass
+
+        if is_torch_available():
+            framework = framework or "pt"
+        elif is_tf_available():
+            framework = framework or "tf"
+        else:
+            raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
         logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
 
         return framework
 
     @staticmethod
+    def infer_task_from_model(model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None) -> str:
+        """
+        Infers the task from the model repo.
+
+        Args:
+            model_name_or_path (`str`):
+                The model repo or local path (not supported for now).
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+
+        Returns:
+            `str`: The task name automatically detected from the model repo.
+        """
+
+        tasks_to_automodels = {}
+        class_name_prefix = ""
+        if is_torch_available():
+            tasks_to_automodels = TasksManager._TASKS_TO_AUTOMODELS
+        else:
+            tasks_to_automodels = TasksManager._TASKS_TO_TF_AUTOMODELS
+            class_name_prefix = "TF"
+
+        inferred_task_name = None
+        is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
+
+        if is_local:
+            # TODO: maybe implement that.
+            raise RuntimeError("Cannot infer the task from a local directory yet, please specify the task manually.")
+        else:
+            if subfolder != "":
+                raise RuntimeError(
+                    "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
+                )
+            model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
+            if model_info.library_name == "diffusers":
+                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
+                if "stable-diffusion" in model_info.tags:
+                    inferred_task_name = "stable-diffusion"
+            else:
+                transformers_info = model_info.transformersInfo
+                if transformers_info is None or transformers_info.get("auto_model") is None:
+                    raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
+                auto_model_class_name = transformers_info["auto_model"]
+                if not auto_model_class_name.startswith("TF"):
+                    auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
+                for task_name, class_name_for_task in tasks_to_automodels.items():
+                    if class_name_for_task == auto_model_class_name:
+                        inferred_task_name = task_name
+                        break
+        if inferred_task_name is None:
+            raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
+        logger.info(f"Automatic task detection to {inferred_task_name}.")
+        return inferred_task_name
+
+    @staticmethod
+    def get_all_tasks():
+        """
+        Retrieves all the possible tasks.
+
+        Returns:
+            `List`: all the possible tasks.
+        """
+        tasks = []
+        if is_torch_available():
+            tasks = list(TasksManager._TASKS_TO_AUTOMODELS.keys())
+        else:
+            tasks = list(TasksManager._TASKS_TO_TF_AUTOMODELS)
+        return tasks
+
+    @staticmethod
     def get_model_from_task(
-        task: str, model: str, framework: str = None, cache_dir: str = None
+        task: str,
+        model_name_or_path: Union[str, Path],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+        framework: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        **model_kwargs
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
         Retrieves a model from its name and the task to be enabled.
@@ -669,49 +951,82 @@ class TasksManager:
         Args:
             task (`str`):
                 The task required.
-            model (`str`):
-                The name of the model to export.
-            framework (`str`, *optional*):
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            framework (`Optional[str]`, *optional*):
                 The framework to use for the export. See `TasksManager.determine_framework` for the priority should
                 none be provided.
-            cache_dir (`str`, *optional*):
+            cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            model_kwargs (`Dict[str, Any]`, *optional*):
+                Keyword arguments to pass to the model `.from_pretrained()` method.
 
         Returns:
             The instance of the model.
 
         """
-        framework = TasksManager.determine_framework(model, framework)
+        framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
+        if task == "auto":
+            task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
         model_class = TasksManager.get_model_class_for_task(task, framework)
+        kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
-            model = model_class.from_pretrained(model, cache_dir=cache_dir)
+            model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
             if framework == "pt":
                 logger.info("Loading TensorFlow model in PyTorch before exporting.")
-                model = model_class.from_pretrained(model, from_tf=True, cache_dir=cache_dir)
+                kwargs["from_tf"] = True
+                model = model_class.from_pretrained(model_name_or_path, **kwargs)
             else:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
-                model = model_class.from_pretrained(model, from_pt=True, cache_dir=cache_dir)
+                kwargs["from_pt"] = True
+                model = model_class.from_pretrained(model_name_or_path, **kwargs)
         return model
 
     @staticmethod
     def get_exporter_config_constructor(
-        model_type: str, exporter: str, task: str = "default", model_name: Optional[str] = None
+        exporter: str,
+        model: Union["PreTrainedModel", "TFPreTrainedModel"] = None,
+        task: str = "default",
+        model_type: Optional[str] = None,
+        model_name: Optional[str] = None,
     ) -> ExportConfigConstructor:
         """
-        Gets the `ExportConfigConstructor` for a model type and task combination.
+        Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
 
         Args:
-            model_type (`str`):
-                The model type to retrieve the config for.
             exporter (`str`):
                 The exporter to use.
-            task (`str`, *optional*, defaults to `"default"`):
+            model (`Optional[Union[PreTrainedModel, TFPreTrainedModel]]`, defaults to `None`):
+                The instance of the model.
+            task (`str`, defaults to `"default"`):
                 The task to retrieve the config for.
+            model_type (`Optional[str]`, defaults to `None`):
+                The model type to retrieve the config for.
+            model_name (`Optional[str]`, defaults to `None`):
+                The name attribute of the model object, only used for the exception message.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
+        if model is None and model_type is None:
+            raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
+
+        if model_type is None:
+            model_type = getattr(model.config, "model_type", model_type)
+
+            if model_type is None:
+                raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")
+
+            model_type = model_type.replace("_", "-")
+            model_name = getattr(model, "name", model_name)
+
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
         if task not in model_tasks:
             raise ValueError(

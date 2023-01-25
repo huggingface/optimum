@@ -11,33 +11,42 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-import importlib.util
 
 
-CONFIG_NAME = "config.json"
-
-_onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
-_pydantic_available = importlib.util.find_spec("pydantic") is not None
-
-
-def is_onnxruntime_available():
-    return _onnxruntime_available
-
-
-def is_pydantic_available():
-    return _pydantic_available
-
-
-from .input_generators import (  # noqa
+from .import_utils import (
+    ORT_QUANTIZE_MINIMUM_VERSION,
+    TORCH_MINIMUM_VERSION,
+    check_if_pytorch_greater,
+    check_if_transformers_greater,
+    is_accelerate_available,
+    is_diffusers_available,
+    is_onnxruntime_available,
+    is_pydantic_available,
+    is_torch_onnx_support_available,
+    torch_version,
+)
+from .input_generators import (
+    DEFAULT_DUMMY_SHAPES,
+    DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
+    DummyInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
+    DummyTimestepInputGenerator,
+    DummyTrainingLabelsInputGenerator,
     DummyVisionInputGenerator,
+)
+from .normalized_config import (
     NormalizedConfig,
+    NormalizedConfigManager,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
 )
+
+
+CONFIG_NAME = "config.json"

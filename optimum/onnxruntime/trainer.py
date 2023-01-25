@@ -17,6 +17,7 @@ The ORTTrainer class, to easily train a 🤗 Transformers from scratch or finetu
 import functools
 import math
 import os
+import shutil
 import sys
 import time
 import warnings
@@ -54,8 +55,6 @@ from transformers.file_utils import (
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.onnx import export
-from transformers.onnx.features import FeaturesManager
 from transformers.pytorch_utils import is_torch_less_than_1_11
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -90,9 +89,11 @@ from transformers.trainer_utils import (
 )
 from transformers.utils import check_min_version, logging
 
+from ..exporters import TasksManager
+from ..exporters.onnx import export
+from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
-    ORTModelForCausalLM,
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
@@ -103,7 +104,7 @@ from .modeling_ort import (
 )
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
-from .utils import fix_atenops_to_gather, wrap_onnx_config_for_loss
+from .utils import is_onnxruntime_training_available, wrap_onnx_config_for_loss
 
 
 if is_apex_available():
@@ -117,6 +118,7 @@ if is_fairscale_available():
 
 if TYPE_CHECKING:
     import optuna
+
 
 logger = logging.get_logger(__name__)
 
@@ -236,12 +238,12 @@ class ORTTrainer(Trainer):
         args: ORTTrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
-        eval_dataset: Optional[Dataset] = None,
-        model_init: Callable[[], PreTrainedModel] = None,
+        eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+        model_init: Optional[Callable[[], PreTrainedModel]] = None,
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
-        preprocess_logits_for_metrics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
+        preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
         onnx_model_path: Union[str, os.PathLike] = None,
     ):
 
@@ -288,6 +290,11 @@ class ORTTrainer(Trainer):
             kwargs:
                 Additional keyword arguments used to hide deprecated arguments
         """
+        if not is_onnxruntime_training_available():
+            raise ImportError(
+                "You need to install `onnxruntime-training` to use `ORTTrainer` for training. Check out "
+                "https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer#install-onnx-runtime."
+            )
 
         if resume_from_checkpoint is False:
             resume_from_checkpoint = None
@@ -440,10 +447,15 @@ class ORTTrainer(Trainer):
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
             )
-            self.model = deepspeed_engine.module
+            self.model = unwrap_model(deepspeed_engine)
             self.model_wrapped = deepspeed_engine
             self.deepspeed = deepspeed_engine
-            self.optimizer = optimizer
+            if args.fp16:
+                from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
+                self.optimizer = FP16_Optimizer(optimizer)
+            else:
+                self.optimizer = optimizer
             self.lr_scheduler = lr_scheduler
         elif not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
@@ -471,7 +483,7 @@ class ORTTrainer(Trainer):
         self._load_optimizer_and_scheduler(resume_from_checkpoint)
 
         # Important: at this point if enabled distributed training features:
-        # self.model         is the ORTModule(Transformers Model)
+        # self.model         is the Transformers Model
         # self.model_wrapped is DDP(ORTModule(Transformers Model)), Deepspeed(ORTModule(Transformers Model)), etc.
 
         # Train!
@@ -483,6 +495,9 @@ class ORTTrainer(Trainer):
         logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size}")
         logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
         logger.info(f"  Total optimization steps = {max_steps}")
+        logger.info(
+            f"  Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+        )
 
         self.state.epoch = 0
         start_time = time.time()
@@ -520,7 +535,10 @@ class ORTTrainer(Trainer):
         self.callback_handler.optimizer = self.optimizer
         self.callback_handler.lr_scheduler = self.lr_scheduler
         self.callback_handler.train_dataloader = train_dataloader
-        self.state.trial_name = self.hp_name(trial) if self.hp_name is not None else None
+        if self.hp_name is not None and self._trial is not None:
+            # use self._trial because the SigOpt/Optuna hpo only call `_hp_search_setup(trial)` instead of passing trial
+            # parameter to Train when using DDP.
+            self.state.trial_name = self.hp_name(self._trial)
         if trial is not None:
             assignments = trial.assignments if self.hp_search_backend == HPSearchBackend.SIGOPT else trial
             self.state.trial_params = hp_params(assignments)
@@ -726,11 +744,17 @@ class ORTTrainer(Trainer):
 
         self.log(metrics)
 
-        self.control = self.callback_handler.on_train_end(args, self.state, self.control)
+        run_dir = self._get_output_dir(trial)
+        checkpoints_sorted = self._sorted_checkpoints(use_mtime=False, output_dir=run_dir)
 
-        # ONNX Runtime - Update the `session_options` for inference
-        while hasattr(model, "module") and not isinstance(model, ORTModule):
-            model = model.module
+        # Delete the last checkpoint when save_total_limit=1 if it's different from the best checkpoint.
+        if self.state.best_model_checkpoint is not None and self.args.save_total_limit == 1:
+            for checkpoint in checkpoints_sorted:
+                if checkpoint != self.state.best_model_checkpoint:
+                    logger.info(f"Deleting older checkpoint [{checkpoint}] due to args.save_total_limit")
+                    shutil.rmtree(checkpoint)
+
+        self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
@@ -794,6 +818,8 @@ class ORTTrainer(Trainer):
             raise
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
+        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
+            start_time += output.metrics[f"{metric_key_prefix}_jit_compilation_time"]
         output.metrics.update(
             speed_metrics(
                 metric_key_prefix,
@@ -881,6 +907,8 @@ class ORTTrainer(Trainer):
             raise
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
+        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
+            start_time += output.metrics[f"{metric_key_prefix}_jit_compilation_time"]
         output.metrics.update(
             speed_metrics(
                 metric_key_prefix,
@@ -1110,6 +1138,8 @@ class ORTTrainer(Trainer):
 
         if all_losses is not None:
             metrics[f"{metric_key_prefix}_loss"] = all_losses.mean().item()
+        if hasattr(self, "jit_compilation_time"):
+            metrics[f"{metric_key_prefix}_jit_compilation_time"] = self.jit_compilation_time
 
         # Prefix all keys with metric_key_prefix + '_'
         for key in list(metrics.keys()):
@@ -1140,8 +1170,6 @@ class ORTTrainer(Trainer):
         if self.onnx_model_path and (has_labels == self.exported_with_loss):
             logger.info("[INFO] Inference with given ONNX model")
             self.onnx_model_path = Path(self.onnx_model_path).as_posix()
-            # Fix exported ONNX IR
-            fix_atenops_to_gather(self.onnx_model_path)
         else:
             onnx_model_path = Path(
                 os.path.join(self.args.output_dir, self.model.config.name_or_path.split("/")[-1] + ".onnx")
@@ -1158,8 +1186,6 @@ class ORTTrainer(Trainer):
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
-            # Fix exported ONNX IR
-            fix_atenops_to_gather(self.onnx_model_path)
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
@@ -1310,7 +1336,15 @@ class ORTTrainer(Trainer):
             logits and labels (each being optional).
         """
 
-        has_labels = all(inputs.get(k) is not None for k in self.label_names)
+        has_labels = False if len(self.label_names) == 0 else all(inputs.get(k) is not None for k in self.label_names)
+        # For CLIP-like models capable of returning loss values.
+        # If `return_loss` is not specified or being `None` in `inputs`, we check if the default value of `return_loss`
+        # is `True` in `model.forward`.
+        return_loss = inputs.get("return_loss", None)
+        if return_loss is None:
+            return_loss = self.can_return_loss
+        loss_without_labels = True if len(self.label_names) == 0 and return_loss else False
+
         inputs = self._prepare_inputs(inputs)
 
         if ignore_keys is None:
@@ -1320,7 +1354,7 @@ class ORTTrainer(Trainer):
                 ignore_keys = []
 
         # labels may be popped when computing the loss (label smoothing for instance) so we grab them first.
-        if has_labels:
+        if has_labels or loss_without_labels:
             labels = nested_detach(tuple(inputs.get(name) for name in self.label_names))
             if len(labels) == 1:
                 labels = labels[0]
@@ -1333,7 +1367,7 @@ class ORTTrainer(Trainer):
                     "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet."
                 )
             else:
-                if has_labels:
+                if has_labels or loss_without_labels:
                     with self.compute_loss_context_manager():
                         loss, outputs = self.compute_loss_ort(model, inputs, return_outputs=True)
                     loss = torch.tensor(loss).mean()
@@ -1426,37 +1460,32 @@ class ORTTrainer(Trainer):
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
-        onnx_config = model_onnx_config(model.config)
-        opset = onnx_config.default_onnx_opset if opset is None else opset
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=self.feature
+        )
+        onnx_config = onnx_config_constructor(model.config)
+
+        opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
 
         if with_loss:
             onnx_config = wrap_onnx_config_for_loss(onnx_config)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        # transformers >= 4.21.0 is required to export with specified device
-        check_min_version("4.21.0")
-        _ = export(
-            preprocessor=self.tokenizer,
-            model=model,
-            config=onnx_config,
-            opset=opset,
-            output=model_path,
-            device=device,
-        )
+        _ = export(model, onnx_config, model_path, opset, device=device)
 
     def _wrap_model(self, model, training=True, dataloader=None):
+        # TODO: torchdynamo works for inference with PyTorch in ORTTrainer, will move `inference_with_ort` to training arguments and
+        # whether be able to use ipex will depend on both `self.args.torchdynamo` and `self.args.ort_mode_eval`.
+        if self.args.torchdynamo is not None:
+            import torch._dynamo as dynamo
+
+            model = dynamo.optimize(self.args.torchdynamo)(model)
 
         # TODO: ipex only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
         # whether be able to use ipex will depend on both `self.args.use_ipex` and `self.args.ort_mode_eval`.
         if self.args.use_ipex:
             dtype = torch.bfloat16 if self.use_cpu_amp else torch.float32
             model = self.ipex_optimize_model(model, training, dtype=dtype)
-
-        # TODO: jit_mode_eval only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
-        # whether be able to use jit_mode_eval will depend on both `self.args.jit_mode_eval` and `self.args.ort_mode_eval`.
-        if self.args.jit_mode_eval:
-            model = self.torch_jit_model_eval(model, dataloader, training)
 
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(
@@ -1478,9 +1507,19 @@ class ORTTrainer(Trainer):
         if self.use_apex and training:
             model, self.optimizer = amp.initialize(model, self.optimizer, opt_level=self.args.fp16_opt_level)
 
+            if args.fp16:
+                from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
+                self.optimizer = FP16_Optimizer(self.optimizer)
+
         # Multi-gpu training (should be after apex fp16 initialization)
         if self.args.n_gpu > 1:
             model = nn.DataParallel(model)
+
+        if self.args.jit_mode_eval:
+            start_time = time.time()
+            model = self.torch_jit_model_eval(model, dataloader, training)
+            self.jit_compilation_time = round(time.time() - start_time, 4)
 
         # Note: in torch.distributed mode, there's no point in wrapping the model
         # inside a DistributedDataParallel as we'll be under `no_grad` anyways.

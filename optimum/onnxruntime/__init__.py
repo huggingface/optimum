@@ -17,19 +17,29 @@ from transformers.utils import _LazyModule
 
 
 _import_structure = {
-    "configuration": ["ORTConfig"],
-    "model": ["ORTModel"],
+    "configuration": [
+        "CalibrationConfig",
+        "AutoCalibrationConfig",
+        "QuantizationMode",
+        "AutoQuantizationConfig",
+        "OptimizationConfig",
+        "AutoOptimizationConfig",
+        "ORTConfig",
+        "QuantizationConfig",
+    ],
     "modeling_ort": [
-        "ORTModelForCausalLM",
+        "ORTModel",
         "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
         "ORTModelForMultipleChoice",
         "ORTModelForQuestionAnswering",
+        "ORTModelForSemanticSegmentation",
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
     ],
-    "modeling_seq2seq": ["ORTModelForSeq2SeqLM"],
+    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq"],
+    "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
     "quantization": ["ORTQuantizer"],
     "trainer": ["ORTTrainer"],
@@ -48,19 +58,20 @@ _import_structure = {
 
 # Direct imports for type-checking
 if TYPE_CHECKING:
-    from .configuration import ORTConfig
-    from .model import ORTModel
+    from .configuration import ORTConfig, QuantizationConfig
+    from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
-        ORTModelForCausalLM,
+        ORTModel,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
+        ORTModelForSemanticSegmentation,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
-    from .modeling_seq2seq import ORTModelForSeq2SeqLM
+    from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
     from .optimization import ORTOptimizer
     from .quantization import ORTQuantizer
     from .trainer import ORTTrainer

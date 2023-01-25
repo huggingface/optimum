@@ -54,7 +54,7 @@ class ORTQuantizerTest(unittest.TestCase):
     def test_fail_from_pretrained_method(self):
         with self.assertRaises(Exception) as context:
             ORTQuantizer.from_pretrained("bert-base-cased")
-        self.assertIn("Unable to load model from bert-base-cased", str(context.exception))
+        self.assertIn("Could not find any ONNX model file in bert-base-cased", str(context.exception))
 
         with self.assertRaises(Exception) as context:
             model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")

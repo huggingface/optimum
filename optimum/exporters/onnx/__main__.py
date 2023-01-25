@@ -19,111 +19,185 @@ from pathlib import Path
 
 from transformers import AutoTokenizer
 
-from ...utils import logging
+from ...commands.export.onnx import parse_args_onnx
+from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, validate_model_outputs
+from .convert import (
+    AtolError,
+    OutputMatchError,
+    ShapeError,
+    export,
+    export_models,
+    validate_model_outputs,
+    validate_models_outputs,
+)
+from .utils import (
+    get_decoder_models_for_export,
+    get_encoder_decoder_models_for_export,
+    get_stable_diffusion_models_for_export,
+)
 
 
-logger = logging.get_logger()  # pylint: disable=invalid-name
+logger = logging.get_logger()
 logger.setLevel(logging.INFO)
 
 
 def main():
     parser = ArgumentParser("Hugging Face Optimum ONNX exporter")
-    parser.add_argument(
-        "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
-    )
-    parser.add_argument(
-        "--task",
-        default="default",
-        help="The type of tasks to export the model with.",
-    )
-    parser.add_argument("--opset", type=int, default=None, help="ONNX opset version to export the model with.")
-    parser.add_argument(
-        "--atol", type=float, default=None, help="Absolute difference tolerance when validating the model."
-    )
-    parser.add_argument(
-        "--framework",
-        type=str,
-        choices=["pt", "tf"],
-        default=None,
-        help=(
-            "The framework to use for the ONNX export."
-            " If not provided, will attempt to use the local checkpoint's original framework"
-            " or what is available in the environment."
-        ),
-    )
-    parser.add_argument(
-        "--pad_token_id",
-        type=int,
-        default=None,
-        help=(
-            "This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess"
-            " it."
-        ),
-    )
-    parser.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
-    parser.add_argument("output", type=Path, help="Path indicating where to store generated ONNX model.")
+
+    parse_args_onnx(parser)
 
     # Retrieve CLI arguments
     args = parser.parse_args()
-    args.output = args.output if args.output.is_file() else args.output.joinpath("model.onnx")
+    args.output = args.output.joinpath("model.onnx")
 
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
-    # Allocate the model
-    model = TasksManager.get_model_from_task(args.task, args.model, framework=args.framework, cache_dir=args.cache_dir)
-    model_type = model.config.model_type.replace("_", "-")
-    model_name = getattr(model, "name", None)
+    # Infer the task
+    task = args.task
+    if task == "auto":
+        try:
+            task = TasksManager.infer_task_from_model(args.model)
+        except KeyError as e:
+            raise KeyError(
+                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
 
-    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-        model_type, "onnx", task=args.task, model_name=model_name
-    )
-    onnx_config = onnx_config_constructor(model.config)
+    # get the shapes to be used to generate dummy inputs
+    input_shapes = {}
+    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+        input_shapes[input_name] = getattr(args, input_name)
 
-    needs_pad_token_id = (
-        isinstance(onnx_config, OnnxConfigWithPast)
-        and getattr(model.config, "pad_token_id", None) is None
-        and args.task in ["sequence_classification"]
+    model = TasksManager.get_model_from_task(
+        task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
     )
-    if needs_pad_token_id:
-        if args.pad_token_id is not None:
-            model.config.pad_token_id = args.pad_token_id
+
+    if task != "stable-diffusion":
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
+        onnx_config = onnx_config_constructor(model.config)
+
+        needs_pad_token_id = (
+            isinstance(onnx_config, OnnxConfigWithPast)
+            and getattr(model.config, "pad_token_id", None) is None
+            and task in ["sequence_classification"]
+        )
+        if needs_pad_token_id:
+            if args.pad_token_id is not None:
+                model.config.pad_token_id = args.pad_token_id
+            else:
+                try:
+                    tok = AutoTokenizer.from_pretrained(args.model)
+                    model.config.pad_token_id = tok.pad_token_id
+                except Exception:
+                    raise ValueError(
+                        "Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument"
+                    )
+
+        # Ensure the requested opset is sufficient
+        if args.opset is None:
+            args.opset = onnx_config.DEFAULT_ONNX_OPSET
+
+        if args.opset < onnx_config.DEFAULT_ONNX_OPSET:
+            raise ValueError(
+                f"Opset {args.opset} is not sufficient to export {model.config.model_type}. "
+                f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
+            )
+        if args.atol is None:
+            args.atol = onnx_config.ATOL_FOR_VALIDATION
+            if isinstance(args.atol, dict):
+                args.atol = args.atol[task.replace("-with-past", "")]
+
+        # Saving the model config and preprocessor as this is needed sometimes.
+        model.config.save_pretrained(args.output.parent)
+        maybe_save_preprocessors(args.model, args.output.parent)
+
+    if task == "stable-diffusion" or (
+        args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+    ):
+        if task == "stable-diffusion":
+            output_names = [
+                "text_encoder/model.onnx",
+                "unet/model.onnx",
+                "vae_encoder/model.onnx",
+                "vae_decoder/model.onnx",
+            ]
+            models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
+            # Saving the additional components needed to perform inference.
+            model.tokenizer.save_pretrained(args.output.parent.joinpath("tokenizer"))
+            model.scheduler.save_pretrained(args.output.parent.joinpath("scheduler"))
+            model.feature_extractor.save_pretrained(args.output.parent.joinpath("feature_extractor"))
+            model.save_config(args.output.parent)
         else:
-            try:
-                tok = AutoTokenizer.from_pretrained(args.model)
-                model.config.pad_token_id = tok.pad_token_id
-            except Exception:
+            if model.config.is_encoder_decoder and task.startswith("causal-lm"):
                 raise ValueError(
-                    "Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument"
+                    f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
+                    f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
+                    f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
                 )
+            if model.config.is_encoder_decoder:
+                models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
+            else:
+                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
+            output_names = None
 
-    # Ensure the requested opset is sufficient
-    if args.opset is None:
-        args.opset = onnx_config.DEFAULT_ONNX_OPSET
-
-    if args.opset < onnx_config.DEFAULT_ONNX_OPSET:
-        raise ValueError(
-            f"Opset {args.opset} is not sufficient to export {model.config.model_type}. "
-            f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
+        onnx_inputs, onnx_outputs = export_models(
+            models_and_onnx_configs=models_and_onnx_configs,
+            opset=args.opset,
+            output_dir=args.output.parent,
+            output_names=output_names,
+            input_shapes=input_shapes,
+            device=args.device,
+        )
+    else:
+        onnx_inputs, onnx_outputs = export(
+            model=model,
+            config=onnx_config,
+            output=args.output,
+            opset=args.opset,
+            input_shapes=input_shapes,
+            device=args.device,
         )
 
-    onnx_inputs, onnx_outputs = export(
-        model,
-        onnx_config,
-        args.opset,
-        args.output,
-    )
+    try:
+        if task == "stable-diffusion" or (
+            args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+        ):
+            validate_models_outputs(
+                models_and_onnx_configs=models_and_onnx_configs,
+                onnx_named_outputs=onnx_outputs,
+                atol=args.atol,
+                output_dir=args.output.parent,
+                output_names=output_names,
+                device=args.device,
+            )
+        else:
+            validate_model_outputs(
+                config=onnx_config,
+                reference_model=model,
+                onnx_model=args.output,
+                onnx_named_outputs=onnx_outputs,
+                atol=args.atol,
+                device=args.device,
+            )
 
-    if args.atol is None:
-        args.atol = onnx_config.ATOL_FOR_VALIDATION
-        if isinstance(args.atol, dict):
-            args.atol = args.atol[args.task.replace("-with-past", "")]
-
-    validate_model_outputs(onnx_config, model, args.output, onnx_outputs, args.atol)
-    logger.info(f"All good, model saved at: {args.output.as_posix()}")
+        logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
+    except ShapeError as e:
+        raise e
+    except AtolError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except OutputMatchError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except Exception as e:
+        logger.error(
+            f"An error occured with the error message: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
 
 
 if __name__ == "__main__":

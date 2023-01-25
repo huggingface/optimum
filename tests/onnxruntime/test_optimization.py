@@ -18,15 +18,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import numpy as np
 import torch
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoTokenizer
 
 import onnx
-from onnxruntime import InferenceSession
 from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
-from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig
-from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
+from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
 from parameterized import parameterized
 
@@ -48,7 +45,7 @@ class ORTOptimizerTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_model_with_optimized_model(self, model_cls, model_name):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             model = model_cls.from_pretrained(model_name, from_transformers=True)
             model.save_pretrained(tmp_dir)
@@ -75,6 +72,8 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-LongT5ForConditionalGeneration", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-LongT5ForConditionalGeneration", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", False),
@@ -90,7 +89,7 @@ class ORTOptimizerTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_seq2seq_model_with_optimized_model(self, model_cls, model_name, use_cache):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        optimization_config = OptimizationConfig(optimization_level=2, optimize_with_onnxruntime_only=False)
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
             model = model_cls.from_pretrained(model_name, from_transformers=True, use_cache=use_cache)
             model.save_pretrained(tmp_dir)
@@ -98,9 +97,6 @@ class ORTOptimizerTest(unittest.TestCase):
             optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
             optimized_model = model_cls.from_pretrained(
                 tmp_dir,
-                encoder_file_name="encoder_model_optimized.onnx",
-                decoder_file_name="decoder_model_optimized.onnx",
-                decoder_file_with_past_name="decoder_with_past_model_optimized.onnx" if use_cache else None,
                 from_transformers=False,
                 use_cache=use_cache,
             )
@@ -120,7 +116,9 @@ class ORTOptimizerTest(unittest.TestCase):
 
     def test_optimization_details(self):
         model_name = "hf-internal-testing/tiny-random-distilbert"
-        optimization_config = OptimizationConfig(optimization_level=0, optimize_with_onnxruntime_only=True)
+        optimization_config = OptimizationConfig(
+            optimization_level=0, enable_transformers_specific_optimizations=False
+        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
             model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)

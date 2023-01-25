@@ -1,8 +1,51 @@
+import collections
 import importlib.util
+import itertools
 import os
 import subprocess
 import sys
 import unittest
+from typing import Any, Dict, Iterable
+
+from packaging import version
+
+from . import is_accelerate_available, is_diffusers_available
+
+
+def flatten_dict(dictionary: Dict):
+    """
+    Flatten a nested dictionaries as a flat dictionary.
+    """
+    items = []
+    for k, v in dictionary.items():
+        new_key = k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def require_accelerate(test_case):
+    """
+    Decorator marking a test that requires accelerate. These tests are skipped when accelerate isn't installed.
+    """
+    return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
+
+
+def is_torch_greater_than_113():
+    import torch
+
+    return version.parse(torch.__version__) >= version.parse("1.13.0")
+
+
+def require_torch_gpu(test_case):
+    """Decorator marking a test that requires CUDA and PyTorch."""
+    import torch
+
+    torch_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    return unittest.skipUnless(torch_device == "cuda", "test requires CUDA")(test_case)
 
 
 def require_hf_token(test_case):
@@ -52,3 +95,35 @@ def require_ort_training(test_case):
         is_ort_training_available(),
         "test requires torch_ort correctly installed and configured",
     )(test_case)
+
+
+def require_diffusers(test_case):
+    return unittest.skipUnless(is_diffusers_available(), "test requires diffusers")(test_case)
+
+
+def grid_parameters(
+    parameters: Dict[str, Iterable[Any]], yield_dict: bool = False, add_test_name: bool = True
+) -> Iterable:
+    """
+    Generates an iterable over the grid of all combinations of parameters.
+
+    Args:
+        `parameters` (`Dict[str, Iterable[Any]]`):
+            Dictionary of multiple values to generate a grid from.
+        `yield_dict` (`bool`, defaults to `False`):
+            If True, a dictionary with all keys, and sampled values will be returned. Otherwise, return sampled values as a list.
+        `add_test_name` (`bool`, defaults to `True`):
+            Whether to add the test name in the yielded list or dictionary.
+    """
+    for params in itertools.product(*parameters.values()):
+        test_name = "_".join([str(param) for param in params])
+        if yield_dict is True:
+            res_dict = {}
+            for i, key in enumerate(parameters.keys()):
+                res_dict[key] = params[i]
+            if add_test_name is True:
+                res_dict["test_name"] = test_name
+            yield res_dict
+        else:
+            returned_list = [test_name] + list(params) if add_test_name is True else list(params)
+            yield returned_list
