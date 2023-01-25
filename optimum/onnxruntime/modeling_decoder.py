@@ -94,7 +94,7 @@ TEXT_GENERATION_EXAMPLE = r"""
     >>> inputs = tokenizer("My name is Arthur and I live in", return_tensors="pt")
 
     >>> gen_tokens = model.generate(**inputs,do_sample=True,temperature=0.9, min_length=20,max_length=20)
-    >>> tokenizer.batch_decode(gen_tokens)
+    >>> tokenizer.batch_decode(gen_tokens)  # doctest: +IGNORE_RESULT
     ```
 
     Example using `transformers.pipelines`:
