@@ -959,7 +959,11 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         self.assertGreaterEqual(outputs["score"], 0.0)
         self.assertIsInstance(outputs["answer"], str)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}))
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
     @require_torch_gpu
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
@@ -1118,7 +1122,11 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertIsInstance(outputs[0]["label"], str)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}))
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
     @require_torch_gpu
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
@@ -1128,7 +1136,9 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSequenceClassification.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        onnx_model = ORTModelForSequenceClassification.from_pretrained(
+            self.onnx_model_dirs[model_arch], provider=provider
+        )
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live in Germany."
@@ -1277,7 +1287,11 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         # compare model output class
         self.assertTrue(all(item["score"] > 0.0 for item in outputs))
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}))
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
     @require_torch_gpu
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
@@ -1287,7 +1301,9 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForTokenClassification.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        onnx_model = ORTModelForTokenClassification.from_pretrained(
+            self.onnx_model_dirs[model_arch], provider=provider
+        )
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("token-classification", model=onnx_model, tokenizer=tokenizer, device=0)
         text = "My Name is Philipp and i live in Germany."
@@ -1391,7 +1407,11 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         # compare model output class
         self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}))
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
     @require_torch_gpu
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
@@ -1881,7 +1901,11 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}))
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
     @require_torch_gpu
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
@@ -1891,7 +1915,9 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        onnx_model = ORTModelForImageClassification.from_pretrained(
+            self.onnx_model_dirs[model_arch], provider=provider
+        )
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -2005,7 +2031,11 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         self.assertTrue(outputs[0]["mask"] is not None)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}))
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
     @require_torch_gpu
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
@@ -2015,7 +2045,9 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
+            self.onnx_model_dirs[model_arch], provider=provider
+        )
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
