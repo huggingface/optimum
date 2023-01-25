@@ -17,11 +17,14 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from ctypes import ArgumentError
+from tempfile import tempdir
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-# TODO: handle tensorflow dependency.
-import tensorflow as tf
 from transformers.utils import is_tf_available
+
+
+if is_tf_available():
+    import tensorflow as tf
 
 from ..base import ExportConfig
 
@@ -102,29 +105,26 @@ class TFLiteConfig(ExportConfig, ABC):
     ):
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
+        self.mandatory_axes = ()
         self.task = task
-
         self._axes: Dict[str, int] = {}
 
-        self._validate_and_update_mandatory_axes(
-            batch_size=batch_size,
-            sequence_length=sequence_length,
-            num_choices=num_choices,
-            width=width,
-            height=height,
-            num_channels=num_channels,
-            feature_size=feature_size,
-            nb_max_frames=nb_max_frames,
-        )
+        # To avoid using **kwargs.
+        axes_values = {
+            "batch_size": batch_size,
+            "sequence_length": sequence_length,
+            "num_choices": num_choices,
+            "width": width,
+            "height": height,
+            "num_channels": num_channels,
+            "feature_size": feature_size,
+            "nb_max_frames": nb_max_frames,
+        }
+        for name, value in axes_values.items():
+            setattr(self, name, value)
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in self.MANDATORY_AXES:
-            if value is None:
-                raise ValueError(f"Cannot set `None` to {name} because it is a mandatory axis.")
-            self._axes[name] = value
-        return super().__setattr__(name, value)
-
-    def _validate_and_update_mandatory_axes(self, **kwargs):
+    def _update_mandatory_axes(self):
+        axes = []
         for axis in self.MANDATORY_AXES:
             if isinstance(axis, tuple):
                 tasks, name = axis
@@ -134,17 +134,42 @@ class TFLiteConfig(ExportConfig, ABC):
                     continue
             else:
                 name = axis
-            axis_dim = kwargs[name]
-            if axis_dim is None:
+            axes.append(name)
+        self.mandatory_axes = tuple(axes)
+
+    @property
+    def task(self) -> str:
+        return self._task
+
+    @task.setter
+    def task(self, value: str):
+        self._task = value
+        self._update_mandatory_axes()
+
+    def __getattr__(self, attr_name) -> Any:
+        if attr_name in self._axes:
+            return self._axes[attr_name]
+        else:
+            raise AttributeError(attr_name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in self.MANDATORY_AXES:
+            if value is None:
                 if self._normalized_config.has_attribute(name):
-                    axis_dim = getattr(self._normalized_config, name)
-                else:
-                    raise MissingMandatoryAxisDimension(
-                        f"The value for the {name} axis is missing, it is needed to perform the export to TensorFlow Lite."
-                    )
-            self._axes[name] = axis_dim
+                    value = getattr(self._normalized_config, name)
+            self._axes[name] = value
+        else:
+            return super().__setattr__(name, value)
+
+    def _validate_mandatory_axes(self):
+        for name, axis_dim in self._axes.items():
+            if axis_dim is None:
+                raise MissingMandatoryAxisDimension(
+                    f"The value for the {name} axis is missing, it is needed to perform the export to TensorFlow Lite."
+                )
 
     def _create_dummy_input_generator_classes(self) -> List["DummyInputGenerator"]:
+        self._validate_mandatory_axes()
         return [cls_(self.task, self._normalized_config, **self._axes) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES]
 
     @property
@@ -198,5 +223,4 @@ class TFLiteConfig(ExportConfig, ABC):
             function = tf.function(forward, input_signature=self.inputs_specs).get_concrete_function()
         else:
             function = tf.function(forward)
-
         return function

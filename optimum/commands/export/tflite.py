@@ -70,62 +70,60 @@ def parse_args_tflite(parser):
         help="Allow to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.",
     )
 
-    input_group = parser.add_argument_group(
-        "Input shapes"
-    )
+    input_group = parser.add_argument_group("Input shapes")
     doc_input = "that the TensorFlow Lite will be able to take as input."
     input_group.add_argument(
         "--batch_size",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["batch_size"],
+        default=1,
         help=f"Text tasks only. Batch size {doc_input}",
     )
     input_group.add_argument(
         "--sequence_length",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["sequence_length"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["sequence_length"],
         help=f"Text tasks only. Sequence length {doc_input}",
     )
     input_group.add_argument(
         "--num_choices",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["num_choices"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["num_choices"],
         help=f"Text tasks only. Num choices {doc_input}",
     )
     input_group.add_argument(
         "--width",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["width"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["width"],
         help=f"Image tasks only. Width {doc_input}",
     )
     input_group.add_argument(
         "--height",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["height"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["height"],
         help=f"Image tasks only. Height {doc_input}",
     )
     input_group.add_argument(
         "--num_channels",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["num_channels"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["num_channels"],
         help=f"Image tasks only. Number of channels {doc_input}",
     )
     input_group.add_argument(
         "--feature_size",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["feature_size"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["feature_size"],
         help=f"Audio tasks only. Feature size {doc_input}",
     )
     input_group.add_argument(
         "--nb_max_frames",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["nb_max_frames"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["nb_max_frames"],
         help=f"Audio tasks only. Maximum number of frames {doc_input}",
     )
     input_group.add_argument(
         "--audio_sequence_length",
         type=int,
-        default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        default=None,  # DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
 

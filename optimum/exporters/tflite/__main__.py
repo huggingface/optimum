@@ -23,16 +23,17 @@ from ...commands.export.tflite import parse_args_tflite
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
+
 # from .base import OnnxConfigWithPast
-from .convert import (
+from .convert import (  # export_models,; validate_models_outputs,
     AtolError,
     OutputMatchError,
     ShapeError,
     export,
-    # export_models,
     validate_model_outputs,
-    # validate_models_outputs,
 )
+
+
 # from .utils import (
 #     get_decoder_models_for_export,
 #     get_encoder_decoder_models_for_export,
@@ -51,7 +52,7 @@ def main():
 
     # Retrieve CLI arguments
     args = parser.parse_args()
-    args.output = args.output.joinpath("model.onnx")
+    args.output = args.output.joinpath("model.tflite")
 
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
@@ -63,7 +64,8 @@ def main():
             task = TasksManager.infer_task_from_model(args.model)
         except KeyError as e:
             raise KeyError(
-                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+                "The task could not be automatically inferred. Please provide the argument --task with the task "
+                f"from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
     # get the shapes to be used to generate dummy inputs
     # input_shapes = {}
@@ -75,8 +77,12 @@ def main():
     )
 
     if task != "stable-diffusion":
-        tflite_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="tflite", task=task)
+        tflite_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="tflite", task=task
+        )
         tflite_config = tflite_config_constructor(model.config)
+        for name in tflite_config.mandatory_axes:
+            setattr(tflite_config, name, getattr(args, name))
 
         # needs_pad_token_id = (
         #     isinstance(onnx_config, OnnxConfigWithPast)
@@ -171,7 +177,9 @@ def main():
             atol=args.atol,
         )
 
-        logger.info(f"The TensorFlow Lite export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
+        logger.info(
+            f"The TensorFlow Lite export succeeded and the exported model was saved at: {args.output.parent.as_posix()}"
+        )
     except ShapeError as e:
         raise e
     except AtolError as e:
