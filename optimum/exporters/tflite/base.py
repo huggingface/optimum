@@ -155,7 +155,7 @@ class TFLiteConfig(ExportConfig, ABC):
             raise AttributeError(attr_name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in self.MANDATORY_AXES:
+        if name in self.mandatory_axes:
             if value is None:
                 if self._normalized_config.has_attribute(name):
                     value = getattr(self._normalized_config, name)
