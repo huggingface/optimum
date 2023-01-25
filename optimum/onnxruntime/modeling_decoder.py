@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
@@ -339,6 +339,7 @@ class ORTModelDecoder(ORTModel):
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
+        generation_config: Optional[GenerationConfig] = None,
         **kwargs
     ):
         """
@@ -357,6 +358,9 @@ class ORTModelDecoder(ORTModel):
                 The directory under which the model exported to ONNX was saved.
             preprocessors (`Optional[List]`, defaults to `None`):
                 The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
+            generation_config (`Optional[GenerationConfig]`, defaults to `None`):
+                The generation configuration used by default when calling `generate()`.
+                Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
         self.shared_attributes_init(
             decoder_session,
@@ -399,6 +403,10 @@ class ORTModelDecoder(ORTModel):
             )
             self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
+
+        if generation_config is None:
+            generation_config = GenerationConfig.from_model_config(config)
+        self.generation_config = generation_config
 
     @staticmethod
     def load_model(
@@ -617,6 +625,20 @@ class ORTModelDecoder(ORTModel):
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
+        generation_config = None
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+                use_auth_token=use_auth_token,
+                revision=revision,
+                subfolder=subfolder,
+            )
+        except OSError:
+            logger.info("Generation config file not found, using a generation config created from the model config.")
+
         return cls(
             model[0],
             config,
@@ -624,6 +646,7 @@ class ORTModelDecoder(ORTModel):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
+            generation_config=generation_config,
         )
 
     @classmethod
@@ -777,3 +800,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
             tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
             for layer_past in past
         )
+
+    def can_generate(self):
+        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
+        return True
