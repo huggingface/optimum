@@ -305,7 +305,8 @@ class OnnxConfig(ExportConfig, ABC):
                     break
             if not input_was_inserted:
                 raise RuntimeError(
-                    f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to the model ONNX config.'
+                    f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to '
+                    "the model ONNX config.'
                 )
         return dummy_inputs
 

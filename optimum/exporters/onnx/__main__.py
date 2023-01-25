@@ -23,11 +23,13 @@ from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
-from .base import OnnxConfigWithPast
-from .convert import (
+from ..error_utils import (
     AtolError,
     OutputMatchError,
     ShapeError,
+)
+from .base import OnnxConfigWithPast
+from .convert import (
     export,
     export_models,
     validate_model_outputs,

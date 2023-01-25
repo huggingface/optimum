@@ -81,9 +81,8 @@ def validate_model_outputs(
     tflite_model_runner = interpreter.get_signature_runner("model")
     tflite_outputs = tflite_model_runner(**inputs)
 
-    # TODO: enable that once able to export the output names.
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
-    ref_outputs_set, tflite_output_set = set(ref_outputs_dict.keys()), set(tflite_named_outputs)
+    ref_outputs_set, tflite_output_set = set(ref_outputs.keys()), set(tflite_named_outputs)
     if not tflite_output_set.issubset(ref_outputs_set):
         raise OutputMatchError(
             "TFLite model output names do not match reference model output names.\n"

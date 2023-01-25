@@ -17,7 +17,6 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from ctypes import ArgumentError
-from tempfile import tempdir
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from transformers.utils import is_tf_available
@@ -49,45 +48,24 @@ class TFLiteConfig(ExportConfig, ABC):
     MANDATORY_AXES = ()
 
     _TASK_TO_COMMON_OUTPUTS = {
-        "causal-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "default": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
-        "image-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "image-segmentation": OrderedDict(
-            {
-                "logits": {0: "batch_size", 1: "sequence_length"},
-                "pred_boxes": {0: "batch_size", 1: "sequence_length"},
-                "pred_masks": {0: "batch_size", 1: "sequence_length"},
-            }
-        ),
-        "masked-im": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "multiple-choice": OrderedDict({"logits": {0: "batch_size"}}),
-        "object-detection": OrderedDict(
-            {
-                "logits": {0: "batch_size", 1: "sequence_length"},
-                "pred_boxes": {0: "batch_size", 1: "sequence_length"},
-            }
-        ),
-        "question-answering": OrderedDict(
-            {
-                "start_logits": {0: "batch_size", 1: "sequence_length"},
-                "end_logits": {0: "batch_size", 1: "sequence_length"},
-            }
-        ),
-        "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
-        "seq2seq-lm": OrderedDict(
-            {
-                "logits": {0: "batch_size", 1: "decoder_sequence_length"},
-                "encoder_last_hidden_state": {0: "batch_size", 1: "encoder_sequence_length"},
-            }
-        ),
-        "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
+        "causal-lm": ["logits"],
+        "default": ["last_hidden_state"],
+        "image-classification": ["logits"],
+        "image-segmentation":  ["logits", "pred_boxes", "pred_masks"],
+        "masked-im": ["logits"], 
+        "masked-lm": ["logits"], 
+        "multiple-choice": ["logits"], 
+        "object-detection": ["logits", "pred_boxes"],
+        "question-answering": ["start_logits", "end_logits"], 
+        "semantic-segmentation": ["logits"], 
+        "seq2seq-lm": ["logits", "encoder_last_hidden_state"], 
+        "sequence-classification": ["logits"], 
+        "token-classification": ["logits"], 
+        "speech2seq-lm": ["logits"], 
+        "audio-classification": ["logits"], 
+        "audio-frame-classification": ["logits"], 
+        "audio-ctc": ["logits"], 
+        "audio-xvector": ["logits"],
     }
 
     def __init__(
@@ -175,13 +153,32 @@ class TFLiteConfig(ExportConfig, ABC):
     @property
     @abstractmethod
     def inputs(self) -> List[str]:
+        """
+        List containing the names of the inputs the exported model should take.
+
+        Returns:
+            `List[str]`: A list of input names.
+        """
         raise NotImplementedError()
 
     @property
     def outputs(self) -> List[str]:
-        return list(self._TASK_TO_COMMON_OUTPUTS[self.task].keys())
+        """
+        List containing the names of the outputs the exported model should have.
+
+        Returns:
+            `List[str]`: A list of output names.
+        """
+        return self._TASK_TO_COMMON_OUTPUTS[self.task]
 
     def generate_dummy_inputs(self) -> Dict[str, "tf.Tensor"]:
+        """
+        Generates dummy inputs that the exported model should be able to process.
+        This method is actually used to determine the input specs that are needed for the export.
+
+        Returns:
+            `Dict[str, tf.Tensor]`: A dictionary mapping input names to dummy tensors.
+        """
         dummy_inputs_generators = self._create_dummy_input_generator_classes()
         dummy_inputs = {}
 
@@ -194,13 +191,20 @@ class TFLiteConfig(ExportConfig, ABC):
                     break
             if not input_was_inserted:
                 raise RuntimeError(
-                    f'Could not generate dummy inputs for "{input_name}". Try adding a proper dummy input generator to the model TFLite config.'
+                    f'Could not generate dummy inputs for "{input_name}". Try adding a proper dummy input generator '
+                    "to the model TFLite config."
                 )
 
         return dummy_inputs
 
     @property
     def inputs_specs(self) -> List["TensorSpec"]:
+        """
+        List containing the input specs for each input name in self.inputs.
+
+        Returns:
+            `List[tf.TensorSpec]`: A list of tensor specs.
+        """
         dummy_inputs = self.generate_dummy_inputs()
         return [
             tf.TensorSpec(dummy_input.shape, dtype=dummy_input.dtype, name=input_name)
@@ -210,13 +214,20 @@ class TFLiteConfig(ExportConfig, ABC):
     def model_to_signatures(
         self, model: "TFPreTrainedModel", **model_kwargs: Any
     ) -> Dict[str, "tf.types.experimental.ConcreteFunction"]:
+        """
+        Creates the signatures that will be used when exporting the model to a `tf.SavedModel`.
+        Each signature can be used to perform inference on the model for a given set of inputs.
+
+        Auto-encoder models have only one signature, decoder models can have two, one for the decoder without
+        caching, and one for the decoder with caching, seq2seq models can have three, and so on.
+        """
         input_names = self.inputs
         output_names = self.outputs
 
         def forward(*args):
             if len(args) != len(input_names):
                 raise ArgumentError(
-                    f"The number of inputs provided ({len(args)} do not match the number of expected inputs: :"
+                    f"The number of inputs provided ({len(args)} do not match the number of expected inputs: "
                     f"{', '.join(input_names)}."
                 )
             kwargs = dict(zip(input_names, args))
