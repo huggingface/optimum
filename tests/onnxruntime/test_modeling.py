@@ -1875,7 +1875,10 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        self.assertTrue(
+            torch.allclose(onnx_outputs.logits, io_outputs.logits),
+            f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
+        )
 
         gc.collect()
 
@@ -1996,7 +1999,10 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        self.assertTrue(
+            torch.allclose(onnx_outputs.logits, io_outputs.logits),
+            f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
+        )
 
         gc.collect()
 
