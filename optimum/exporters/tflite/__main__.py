@@ -19,16 +19,9 @@ from argparse import ArgumentParser
 from ...commands.export.tflite import parse_args_tflite
 from ...utils import logging
 from ...utils.save_utils import maybe_save_preprocessors
+from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
-from ..error_utils import (
-    AtolError,
-    OutputMatchError,
-    ShapeError,
-)
-from .convert import ( 
-    export,
-    validate_model_outputs,
-)
+from .convert import export, validate_model_outputs
 
 
 logger = logging.get_logger()

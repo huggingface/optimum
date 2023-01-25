@@ -15,7 +15,6 @@
 """TensorFlow Lite configuration base classes."""
 
 from abc import ABC, abstractmethod
-from collections import OrderedDict
 from ctypes import ArgumentError
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
@@ -42,6 +41,28 @@ class MissingMandatoryAxisDimension(ValueError):
 
 
 class TFLiteConfig(ExportConfig, ABC):
+    """
+    Base class for ONNX exportable model describing metadata on how to export the model through the ONNX format.
+
+    Class attributes:
+
+    - NORMALIZED_CONFIG_CLASS (`Type`) -- A class derived from [`~optimum.utils.NormalizedConfig`] specifying how to
+    normalize the model config.
+    - DUMMY_INPUT_GENERATOR_CLASSES (`Tuple[Type]`) -- A tuple of classes derived from
+    [`~optimum.utils.DummyInputGenerator`] specifying how to create dummy inputs.
+    - ATOL_FOR_VALIDATION (`Union[float, Dict[str, float]]`) -- A float or a dictionary mapping task names to float,
+    where the float values represent the absolute tolerance value to use during model conversion validation.
+
+    Args:
+        config (`transformers.PretrainedConfig`):
+            The model configuration.
+        task (`str`, defaults to `"default"`):
+            The task the model should be exported for.
+
+        The rest of the arguments are used to specify the shape of the inputs the model can take.
+        They are required or not depending on the model the `TFLiteConfig` is designed for.
+    """
+
     NORMALIZED_CONFIG_CLASS = None
     DUMMY_INPUT_GENERATOR_CLASSES = ()
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
@@ -51,20 +72,20 @@ class TFLiteConfig(ExportConfig, ABC):
         "causal-lm": ["logits"],
         "default": ["last_hidden_state"],
         "image-classification": ["logits"],
-        "image-segmentation":  ["logits", "pred_boxes", "pred_masks"],
-        "masked-im": ["logits"], 
-        "masked-lm": ["logits"], 
-        "multiple-choice": ["logits"], 
+        "image-segmentation": ["logits", "pred_boxes", "pred_masks"],
+        "masked-im": ["logits"],
+        "masked-lm": ["logits"],
+        "multiple-choice": ["logits"],
         "object-detection": ["logits", "pred_boxes"],
-        "question-answering": ["start_logits", "end_logits"], 
-        "semantic-segmentation": ["logits"], 
-        "seq2seq-lm": ["logits", "encoder_last_hidden_state"], 
-        "sequence-classification": ["logits"], 
-        "token-classification": ["logits"], 
-        "speech2seq-lm": ["logits"], 
-        "audio-classification": ["logits"], 
-        "audio-frame-classification": ["logits"], 
-        "audio-ctc": ["logits"], 
+        "question-answering": ["start_logits", "end_logits"],
+        "semantic-segmentation": ["logits"],
+        "seq2seq-lm": ["logits", "encoder_last_hidden_state"],
+        "sequence-classification": ["logits"],
+        "token-classification": ["logits"],
+        "speech2seq-lm": ["logits"],
+        "audio-classification": ["logits"],
+        "audio-frame-classification": ["logits"],
+        "audio-ctc": ["logits"],
         "audio-xvector": ["logits"],
     }
 
@@ -149,6 +170,19 @@ class TFLiteConfig(ExportConfig, ABC):
     def _create_dummy_input_generator_classes(self) -> List["DummyInputGenerator"]:
         self._validate_mandatory_axes()
         return [cls_(self.task, self._normalized_config, **self._axes) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES]
+
+    @property
+    def values_override(self) -> Optional[Dict[str, Any]]:
+        """
+        Dictionary of keys to override in the model's config before exporting.
+
+        Returns:
+            `Optional[Dict[str, Any]]`: A dictionary specifying the configuration items to override.
+        """
+        if hasattr(self._config, "use_cache"):
+            return {"use_cache": False}
+
+        return None
 
     @property
     @abstractmethod

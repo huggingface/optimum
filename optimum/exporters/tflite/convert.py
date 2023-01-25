@@ -22,7 +22,7 @@ import numpy as np
 from transformers.utils import is_tf_available
 
 from ...utils import logging
-from ..error_utils import ShapeError, AtolError, OutputMatchError
+from ..error_utils import AtolError, OutputMatchError, ShapeError
 
 
 if TYPE_CHECKING:
@@ -163,13 +163,12 @@ def export(
     logger.info(f"Using TensorFlow: {tf.__version__}")
     model.config.return_dict = True
 
-    # TODO: enable config override.
     # Check if we need to override certain configuration item
-    # if config.values_override is not None:
-    #     logger.info(f"Overriding {len(config.values_override)} configuration item(s)")
-    #     for override_config_key, override_config_value in config.values_override.items():
-    #         logger.info(f"\t- {override_config_key} -> {override_config_value}")
-    #         setattr(model.config, override_config_key, override_config_value)
+    if config.values_override is not None:
+        logger.info(f"Overriding {len(config.values_override)} configuration item(s)")
+        for override_config_key, override_config_value in config.values_override.items():
+            logger.info(f"\t- {override_config_key} -> {override_config_value}")
+            setattr(model.config, override_config_key, override_config_value)
 
     signatures = config.model_to_signatures(model)
 
