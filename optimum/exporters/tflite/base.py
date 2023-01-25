@@ -52,6 +52,16 @@ class TFLiteConfig(ExportConfig, ABC):
     [`~optimum.utils.DummyInputGenerator`] specifying how to create dummy inputs.
     - ATOL_FOR_VALIDATION (`Union[float, Dict[str, float]]`) -- A float or a dictionary mapping task names to float,
     where the float values represent the absolute tolerance value to use during model conversion validation.
+    - MANDATORY_AXES (`Tuple[Union[str, Tuple[Union[str, Tuple[str]]]]]`) -- A tuple where each element is either:
+        - An axis  name, for instance "batch_size" or "sequence_length", that indicates that the axis dimension is 
+        needed to export the model,
+        - Or a tuple containing two elements:
+            - The first one is either a string or a tuple of strings and specifies for which task(s) the axis is needed
+            - The second one is the axis name.
+        
+        For example: `MANDATORY_AXES = ("batch_size", "sequence_length", ("multiple-choice", "num_choices"))` means that
+        to export the model, the batch size and sequence length values always need to be specified, and that a value 
+        for the number of possible choices is needed when the task is multiple-choice.
 
     Args:
         config (`transformers.PretrainedConfig`):
