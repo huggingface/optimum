@@ -56,9 +56,9 @@ def main():
     )
 
     tflite_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="tflite", task=task)
-    tflite_config = tflite_config_constructor(model.config)
-    for name in tflite_config.mandatory_axes:
-        setattr(tflite_config, name, getattr(args, name))
+    # TODO: find a cleaner way to do this.
+    shapes = {name: getattr(args, name) for name in tflite_config_constructor.func.get_mandatory_axes_for_task(task)}
+    tflite_config = tflite_config_constructor(model.config, **shapes)
 
     # Ensure the requested opset is sufficient
     if args.atol is None:

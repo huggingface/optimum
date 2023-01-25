@@ -16,7 +16,7 @@
 
 from abc import ABC, abstractmethod
 from ctypes import ArgumentError
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from transformers.utils import is_tf_available
 
@@ -101,6 +101,7 @@ class TFLiteConfig(ExportConfig, ABC):
         num_channels: Optional[int] = None,
         feature_size: Optional[int] = None,
         nb_max_frames: Optional[int] = None,
+        audio_sequence_length: Optional[int] = None,
     ):
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
@@ -118,23 +119,25 @@ class TFLiteConfig(ExportConfig, ABC):
             "num_channels": num_channels,
             "feature_size": feature_size,
             "nb_max_frames": nb_max_frames,
+            "audio_sequence_length": audio_sequence_length,
         }
         for name, value in axes_values.items():
             setattr(self, name, value)
 
-    def _update_mandatory_axes(self):
+    @classmethod
+    def get_mandatory_axes_for_task(cls, task: str) -> Tuple[str]:
         axes = []
-        for axis in self.MANDATORY_AXES:
+        for axis in cls.MANDATORY_AXES:
             if isinstance(axis, tuple):
                 tasks, name = axis
                 if not isinstance(tasks, tuple):
                     tasks = (tasks,)
-                if self.task not in tasks:
+                if task not in tasks:
                     continue
             else:
                 name = axis
             axes.append(name)
-        self.mandatory_axes = tuple(axes)
+        return tuple(axes)
 
     @property
     def task(self) -> str:
@@ -143,7 +146,7 @@ class TFLiteConfig(ExportConfig, ABC):
     @task.setter
     def task(self, value: str):
         self._task = value
-        self._update_mandatory_axes()
+        self.mandatory_axes = self.get_mandatory_axes_for_task(self.task)
 
     def __getattr__(self, attr_name) -> Any:
         if attr_name in self._axes:
