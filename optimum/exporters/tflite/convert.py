@@ -135,10 +135,13 @@ def validate_model_outputs(
 
     # Compute outputs from the TensorFlow Lite model
     interpreter = tf.lite.Interpreter(model_path=tflite_model_path.as_posix())
-    interpreter.allocate_tensors()
-    for input_detail in interpreter.get_input_details():
-        interpreter.set_tensor(input_detail["index"], inputs[input_detail["name"]])
-    tflite_outputs = [interpreter.get_tensor(output["index"]) for output in interpreter.get_output_details()]
+    tflite_model_runner = interpreter.get_signature_runner("model")
+    tflite_outputs = tflite_model_runner(**inputs)
+
+    # interpreter.allocate_tensors()
+    # for input_detail in interpreter.get_input_details():
+    #     interpreter.set_tensor(input_detail["index"], inputs[input_detail["name"]])
+    # tflite_outputs = [interpreter.get_tensor(output["index"]) for output in interpreter.get_output_details()]
 
     # TODO: enable that once able to export the output names.
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
@@ -157,7 +160,7 @@ def validate_model_outputs(
     # Check the shape and values match
     shape_failures = []
     value_failures = []
-    for name, output in zip(config.outputs, tflite_outputs):
+    for name, output in tflite_outputs.items():
         ref_output = ref_outputs[name].numpy()
 
         logger.info(f'\t- Validating ONNX Model output "{name}":')
@@ -232,9 +235,13 @@ def export(
     #         logger.info(f"\t- {override_config_key} -> {override_config_value}")
     #         setattr(model.config, override_config_key, override_config_value)
 
-    func = config.model_to_tf_function(model, concrete=True)
-    converter = tf.lite.TFLiteConverter.from_concrete_functions([func])
-    tflite_model = converter.convert()
+    from tempfile import TemporaryDirectory
+    signatures = config.model_to_signatures(model)
+
+    with TemporaryDirectory() as tmp_dir_name:
+        tf.saved_model.save(model, tmp_dir_name, signatures)
+        converter = tf.lite.TFLiteConverter.from_saved_model(tmp_dir_name)
+        tflite_model = converter.convert()
 
     with open(output, "wb") as fp:
         fp.write(tflite_model)

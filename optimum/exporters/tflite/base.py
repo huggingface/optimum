@@ -207,20 +207,20 @@ class TFLiteConfig(ExportConfig, ABC):
             for input_name, dummy_input in dummy_inputs.items()
         ]
 
-    def model_to_tf_function(self, model: "TFPreTrainedModel", concrete: bool = False, **model_kwargs: Any):
+    def model_to_signatures(self, model: "TFPreTrainedModel", **model_kwargs: Any) -> Dict[str, "tf.types.experimental.ConcreteFunction"]:
+        input_names = self.inputs
+        output_names = self.outputs
+
         def forward(*args):
-            input_names = self.inputs
             if len(args) != len(input_names):
                 raise ArgumentError(
                     f"The number of inputs provided ({len(args)} do not match the number of expected inputs: :"
-                    "{', '.join(input_names)}."
+                    f"{', '.join(input_names)}."
                 )
             kwargs = dict(zip(input_names, args))
             outputs = model.call(**kwargs, **model_kwargs)
-            return {key: value for key, value in outputs.items() if key in self.outputs}
+            return {key: value for key, value in outputs.items() if key in output_names}
 
-        if concrete:
-            function = tf.function(forward, input_signature=self.inputs_specs).get_concrete_function()
-        else:
-            function = tf.function(forward)
-        return function
+        function = tf.function(forward, input_signature=self.inputs_specs).get_concrete_function()
+
+        return {"model": function}
