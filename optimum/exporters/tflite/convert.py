@@ -104,7 +104,7 @@ def validate_model_outputs(
         )
     else:
         tflite_output_names = ", ".join(tflite_output_set)
-        logger.info(f"\t-[✓] ONNX model output names match reference model ({tflite_output_names})")
+        logger.info(f"\t-[✓] TFLite model output names match reference model ({tflite_output_names})")
 
     # Check the shape and values match
     shape_failures = []
@@ -115,7 +115,7 @@ def validate_model_outputs(
 
         ref_output = ref_outputs[name].numpy()
 
-        logger.info(f'\t- Validating ONNX Model output "{name}":')
+        logger.info(f'\t- Validating TFLite Model output "{name}":')
 
         # Shape
         if not output.shape == ref_output.shape:
@@ -133,7 +133,7 @@ def validate_model_outputs(
             logger.info(f"\t\t-[✓] all values close (atol: {atol})")
 
     if shape_failures:
-        msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
+        msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (TFLite)" for t in shape_failures)
         raise ShapeError(
             f"Output shapes do not match between reference model and TensorFlow Lite exported model:\n" "{msg}"
         )
@@ -158,17 +158,13 @@ def export(
         model ([`TFPreTrainedModel`]):
             The model to export.
         config ([`~exporters.tflite.TFLiteConfig`]):
-            The ONNX configuration associated with the exported model.
+            The TFLite configuration associated with the exported model.
         output (`Path`):
-            Directory to store the exported ONNX model.
-        opset (`Optional[int]`, defaults to `None`):
-            The version of the ONNX operator set to use.
-        input_shapes (`Optional[Dict]`, defaults to `None`):
-            If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
+            Directory to store the exported TFLite model.
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
-        the ONNX configuration.
+        the TFLite configuration.
     """
     if not is_tf_available():
         raise ImportError("Cannot convert because TensorFlow is not installed. " "Please install TensorFlow first.")

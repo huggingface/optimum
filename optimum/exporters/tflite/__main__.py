@@ -34,7 +34,7 @@ logger.setLevel(logging.INFO)
 
 
 def main():
-    parser = ArgumentParser("Hugging Face Optimum ONNX exporter")
+    parser = ArgumentParser("Hugging Face Optimum TensorFlow Lite exporter")
 
     parse_args_tflite(parser)
 
