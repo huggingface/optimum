@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Defines the command line for the export with TensorFlow Lite."""
 
 import subprocess
 from pathlib import Path
 
 from ...exporters import TasksManager
-from ...utils import DEFAULT_DUMMY_SHAPES
 
 
 def parse_args_tflite(parser):
@@ -43,17 +43,6 @@ def parse_args_tflite(parser):
         default=None,
         help="If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.",
     )
-    # optional_group.add_argument(
-    #     "--framework",
-    #     type=str,
-    #     choices=["pt", "tf"],
-    #     default=None,
-    #     help=(
-    #         "The framework to use for the ONNX export."
-    #         " If not provided, will attempt to use the local checkpoint's original framework"
-    #         " or what is available in the environment."
-    #     ),
-    # )
     optional_group.add_argument(
         "--pad_token_id",
         type=int,
@@ -81,49 +70,49 @@ def parse_args_tflite(parser):
     input_group.add_argument(
         "--sequence_length",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["sequence_length"],
+        default=None,
         help=f"Text tasks only. Sequence length {doc_input}",
     )
     input_group.add_argument(
         "--num_choices",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["num_choices"],
+        default=None,
         help=f"Text tasks only. Num choices {doc_input}",
     )
     input_group.add_argument(
         "--width",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["width"],
+        default=None,
         help=f"Image tasks only. Width {doc_input}",
     )
     input_group.add_argument(
         "--height",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["height"],
+        default=None,
         help=f"Image tasks only. Height {doc_input}",
     )
     input_group.add_argument(
         "--num_channels",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["num_channels"],
+        default=None,
         help=f"Image tasks only. Number of channels {doc_input}",
     )
     input_group.add_argument(
         "--feature_size",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["feature_size"],
+        default=None,
         help=f"Audio tasks only. Feature size {doc_input}",
     )
     input_group.add_argument(
         "--nb_max_frames",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["nb_max_frames"],
+        default=None,
         help=f"Audio tasks only. Maximum number of frames {doc_input}",
     )
     input_group.add_argument(
         "--audio_sequence_length",
         type=int,
-        default=None,  # DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        default=None,
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
 

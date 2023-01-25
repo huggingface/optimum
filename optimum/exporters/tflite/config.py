@@ -17,7 +17,6 @@ Common TensorFlow Lite configuration classes that handle most of the features fo
 configurations.
 """
 
-
 from ...utils import DummyTextInputGenerator, logging
 from .base import TFLiteConfig
 

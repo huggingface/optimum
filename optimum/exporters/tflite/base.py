@@ -207,7 +207,9 @@ class TFLiteConfig(ExportConfig, ABC):
             for input_name, dummy_input in dummy_inputs.items()
         ]
 
-    def model_to_signatures(self, model: "TFPreTrainedModel", **model_kwargs: Any) -> Dict[str, "tf.types.experimental.ConcreteFunction"]:
+    def model_to_signatures(
+        self, model: "TFPreTrainedModel", **model_kwargs: Any
+    ) -> Dict[str, "tf.types.experimental.ConcreteFunction"]:
         input_names = self.inputs
         output_names = self.outputs
 

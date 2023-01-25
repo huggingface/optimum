@@ -15,6 +15,7 @@
 """TensorFlow Lite model check and export functions."""
 
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import numpy as np
@@ -44,34 +45,11 @@ class OutputMatchError(ValueError):
     pass
 
 
-# def check_dummy_inputs_are_allowed(
-#     model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
-# ):
-#     """
-#     Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
-#     Args:
-#         model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
-#             The model instance.
-#         model_inputs (`Iterable[str]`):
-#             The model input names.
-#     """
-#
-#     forward = model.forward if is_torch_available() and isinstance(model, nn.Module) else model.call
-#     forward_parameters = signature(forward).parameters
-#     forward_inputs_set = set(forward_parameters.keys())
-#     dummy_input_names = set(dummy_input_names)
-#
-#     # We are fine if config_inputs has more keys than model_inputs
-#     if not dummy_input_names.issubset(forward_inputs_set):
-#         raise ValueError(
-#             f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
-#         )
-
-
 def validate_model_outputs(
     config: "TFLiteConfig",
     reference_model: "TFPreTrainedModel",
     tflite_model_path: Path,
+    tflite_named_outputs: List[str],
     atol: Optional[float] = None,
 ):
     """
@@ -84,6 +62,8 @@ def validate_model_outputs(
             The model used for the export.
         tflite_model_path (`Path`):
             The path to the exported model.
+        tflite_named_outputs (`List[str]`):
+            The names of the outputs to check.
         atol (`Optional[float]`, defaults to `None`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
 
@@ -107,60 +87,32 @@ def validate_model_outputs(
     inputs = config.generate_dummy_inputs()
 
     ref_outputs = reference_model(**inputs)
-    # ref_outputs_dict = {}
 
-    # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
-    # for name, value in ref_outputs.items():
-    #     # Overwriting the output name as "present" since it is the name used for the ONNX outputs
-    #     # ("past_key_values" being taken for the ONNX inputs)
-    #     if name == "past_key_values":
-    #         name = "present"
-    #     if isinstance(value, (list, tuple)):
-    #         value = config.flatten_output_collection_property(name, value)
-    #         ref_outputs_dict.update(value)
-    #     else:
-    #         ref_outputs_dict[name] = value
-
-    # Create onnxruntime inputs from the reference model inputs
-    # reference_model_inputs_for_validation = config.generate_dummy_inputs_for_validation(reference_model_inputs)
-
-    # We flatten potential collection of inputs (i.e. past_keys)
-    # onnx_inputs = {}
-    # for name, value in reference_model_inputs_for_validation.items():
-    #     if isinstance(value, (list, tuple)):
-    #         value = config.flatten_output_collection_property(name, value)
-    #         onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
-    #     else:
-    #         onnx_inputs[name] = value.cpu().numpy()
-
-    # Compute outputs from the TensorFlow Lite model
     interpreter = tf.lite.Interpreter(model_path=tflite_model_path.as_posix())
     tflite_model_runner = interpreter.get_signature_runner("model")
     tflite_outputs = tflite_model_runner(**inputs)
 
-    # interpreter.allocate_tensors()
-    # for input_detail in interpreter.get_input_details():
-    #     interpreter.set_tensor(input_detail["index"], inputs[input_detail["name"]])
-    # tflite_outputs = [interpreter.get_tensor(output["index"]) for output in interpreter.get_output_details()]
-
     # TODO: enable that once able to export the output names.
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
-    # ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
-    # if not onnx_outputs_set.issubset(ref_outputs_set):
-    #     raise OutputMatchError(
-    #         "ONNX model output names do not match reference model output names.\n"
-    #         f"Reference model output names: {ref_outputs_set}\n"
-    #         f"ONNX model output names: {onnx_outputs_set}"
-    #         f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
-    #     )
-    # else:
-    #     onnx_output_names = ", ".join(onnx_outputs_set)
-    #     logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
+    ref_outputs_set, tflite_output_set = set(ref_outputs_dict.keys()), set(tflite_named_outputs)
+    if not tflite_output_set.issubset(ref_outputs_set):
+        raise OutputMatchError(
+            "TFLite model output names do not match reference model output names.\n"
+            f"Reference model output names: {ref_outputs_set}\n"
+            f"TFLite model output names: {tflite_output_set}"
+            f"Difference: {tflite_output_set.difference(ref_outputs_set)}"
+        )
+    else:
+        tflite_output_names = ", ".join(tflite_output_set)
+        logger.info(f"\t-[✓] ONNX model output names match reference model ({tflite_output_names})")
 
     # Check the shape and values match
     shape_failures = []
     value_failures = []
     for name, output in tflite_outputs.items():
+        if name not in tflite_output_set:
+            continue
+
         ref_output = ref_outputs[name].numpy()
 
         logger.info(f'\t- Validating ONNX Model output "{name}":')
@@ -235,7 +187,6 @@ def export(
     #         logger.info(f"\t- {override_config_key} -> {override_config_value}")
     #         setattr(model.config, override_config_key, override_config_value)
 
-    from tempfile import TemporaryDirectory
     signatures = config.model_to_signatures(model)
 
     with TemporaryDirectory() as tmp_dir_name:
