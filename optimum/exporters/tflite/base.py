@@ -42,7 +42,7 @@ class MissingMandatoryAxisDimension(ValueError):
 
 class TFLiteConfig(ExportConfig, ABC):
     """
-    Base class for ONNX exportable model describing metadata on how to export the model through the ONNX format.
+    Base class for TFLite exportable model describing metadata on how to export the model through the TFLite format.
 
     Class attributes:
 
