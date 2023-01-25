@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.20.1",
+    "transformers[sentencepiece]>=4.26.0",
     "torch>=1.9",
     "packaging",
     "numpy<1.24.0",
