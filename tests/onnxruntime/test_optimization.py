@@ -82,6 +82,8 @@ class ORTOptimizerTest(unittest.TestCase):
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-pegasus", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-pegasus", True),
     )
 
     @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
