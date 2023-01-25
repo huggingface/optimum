@@ -48,7 +48,7 @@ class BetterTransformerBaseLayer(nn.Module):
         Args:
             config (`transformers.PretrainedConfig`):
                 The config of the model.
-            orig_layer (`torch.nn.Module`, `optional`):
+            orig_layer (`Optional[torch.nn.Module]`, defaults to `None`):
                 The original layer that needs to be modified. Defaults to `None`.
         """
         super().__init__()
@@ -60,7 +60,7 @@ class BetterTransformerBaseLayer(nn.Module):
         self.embed_dim = None
         self.num_layers = None
         self.original_layers_mapping = {}
-        # some models does not have some attributes thus needs to be ignored
+        # Some models does not have some attributes thus needs to be ignored
         # e.g. whisper does not have self_attn.k_proj.bias but has self_attn.v_proj.bias & self_attn.q_proj.bias
         self.keys_to_ignore = []
 
@@ -154,12 +154,10 @@ class BetterTransformerBaseLayer(nn.Module):
         layer.
         """
         for modified_layer_key_names, original_layer_key_names in self.original_layers_mapping.items():
-            # to deal with qkv layers for example
             if isinstance(original_layer_key_names, list):
-                # retrieve the current weight
                 current_weight = getattr(self, modified_layer_key_names)
 
-                # split the current weight n chunks - this is useful to split
+                # Split the current weight n chunks - this is useful to split
                 # the qkv layers into q, k, v layers for example.
                 split_index = current_weight.shape[0] // len(original_layer_key_names)
                 for i, module in enumerate(original_layer_key_names):

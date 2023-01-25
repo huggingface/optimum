@@ -143,24 +143,19 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
         for model in self.all_models_to_test:
-            # get hf and bt model
             hf_model = AutoModel.from_pretrained(model)
-            # get bt model and invert it
             bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
             bt_model = BetterTransformer.reverse(bt_model)
 
-            # get inputs
             if model == "laion/CLIP-ViT-B-32-laion2B-s34B-b79K":
                 inputs = self.prepare_inputs_for_class(model_id=model, padding=True)
             else:
                 inputs = self.prepare_inputs_for_class(model_id=model, padding="max_length")
 
-            # get outputs
             torch.manual_seed(42)
             output_bt = bt_model(**inputs)
 
             torch.manual_seed(42)
             output_hf = hf_model(**inputs)
 
-            # Assert that the outputs are the same
             self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))

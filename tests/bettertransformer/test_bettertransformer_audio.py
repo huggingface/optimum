@@ -155,7 +155,6 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
         for model_id in self.all_models_to_test:
 
             bt_model = AutoModel.from_pretrained(model_id)
-            # get bt model and invert it
             bt_model = BetterTransformer.transform(bt_model, keep_original_model=keep_original_model)
             bt_model = BetterTransformer.reverse(bt_model)
 
@@ -200,8 +199,6 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
 
                 bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
 
-                # check if the state dict is the same
-                # first check if the keys are the same
                 self.assertEqual(
                     set(bt_model.state_dict().keys()),
                     set(bt_model_from_load.state_dict().keys()),

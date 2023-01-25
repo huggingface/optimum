@@ -293,10 +293,8 @@ class BetterTransformer(object):
                 "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer format, which appears to not be the case."
             )
 
-        # Step 1: revert the model
         model = revert_to_original_model(model)
 
-        # Step 2: retrieve the old `save_pretrained` and `push_to_hub` methods
         model.save_pretrained = model._old_save_pretrained
         model.push_to_hub = model._old_push_to_hub
 
