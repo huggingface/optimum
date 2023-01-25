@@ -57,11 +57,7 @@ jobs:
           docker build -f tests/onnxruntime/Dockerfile_onnxruntime_gpu -t onnxruntime-gpu .
       - name: Test with unittest within docker container
         run: |
-          docker run --rm --gpus all --workdir=/workspace/optimum/ -it onnxruntime-gpu:latest /bin/bash
-          pip install accelerate
-          touch optimum/__init__.py
-          python tests/utils/prepare_for_doc_test.py optimum docs
-          pytest --verbose -s --doctest-modules $(cat tests/utils/documentation_tests.txt) --doctest-continue-on-failure
+          docker run --rm --gpus all --workdir=/workspace/optimum/ -it onnxruntime-gpu:latest /bin/bash tests/run_doctest.sh
 
   stop-runner:
     name: Stop self-hosted EC2 runner
