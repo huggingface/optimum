@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The HuggingFace Team. All rights reserved.
+# Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import numpy as np
 from transformers.utils import is_tf_available
 
 from ...utils import logging
+from ..error_utils import ShapeError, AtolError, OutputMatchError
 
 
 if TYPE_CHECKING:
@@ -31,18 +32,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
-
-
-class ShapeError(ValueError):
-    pass
-
-
-class AtolError(ValueError):
-    pass
-
-
-class OutputMatchError(ValueError):
-    pass
 
 
 def validate_model_outputs(
