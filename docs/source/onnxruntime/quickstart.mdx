@@ -27,7 +27,7 @@ Before applying quantization or optimization, we first need to export our model 
 >>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 >>> # Save the onnx model and tokenizer
 >>> ort_model.save_pretrained(save_directory)
->>> tokenizer.save_pretrained(save_directory)
+>>> tokenizer.save_pretrained(save_directory)  # doctest: +IGNORE_RESULT
 ```
 
 Let's see now how we can apply dynamic quantization with ONNX Runtime:
@@ -39,7 +39,7 @@ Let's see now how we can apply dynamic quantization with ONNX Runtime:
 >>> qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
 >>> quantizer = ORTQuantizer.from_pretrained(ort_model)
 >>> # Apply dynamic quantization on the model
->>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
+>>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)  # doctest: +IGNORE_RESULT
 ```
 
 In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
@@ -86,7 +86,7 @@ Static quantization relies on feeding batches of data through the model to estim
 ...     operators_to_quantize=qconfig.operators_to_quantize,
 ... )
 >>> # Apply static quantization on the model
->>> quantizer.quantize(
+>>> quantizer.quantize(    # doctest: +IGNORE_RESULT
 ...     save_dir=save_directory,
 ...     calibration_tensors_range=ranges,
 ...     quantization_config=qconfig,
@@ -110,7 +110,7 @@ Next, we load an _optimizer_ to apply these optimisations to our model:
 >>> optimizer = ORTOptimizer.from_pretrained(ort_model)
 
 >>> # Optimize the model
->>> optimizer.optimize(save_dir=save_directory, optimization_config=optimization_config)
+>>> optimizer.optimize(save_dir=save_directory, optimization_config=optimization_config)  # doctest: +IGNORE_RESULT
 ```
 
 And that's it - the model is now optimized and ready for inference! As you can see, the process is similar in each case:
