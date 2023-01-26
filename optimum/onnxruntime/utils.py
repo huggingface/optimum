@@ -159,7 +159,7 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
     provider_options = {}
 
     if device.type == "cuda":
-        if device.index == None:
+        if device.index is None:
             device = torch.device("cuda:0")
 
         provider_options["device_id"] = device.index
@@ -229,7 +229,6 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
                 "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
             )
         use_io_binding = False
-
     return use_io_binding
 
 
