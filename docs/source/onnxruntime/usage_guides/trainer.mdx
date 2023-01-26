@@ -56,21 +56,22 @@ To use `ORTTrainer` or `ORTSeq2SeqTrainer`, you need to install ONNX Runtime Tra
 To set up the environment, we __strongly recommend__ you install the dependencies with Docker to ensure that the versions are correct and well
 configured. You can find dockerfiles with various combinations [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
 
-For example, if you want to install [onnxruntime-training 1.12.0](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort1.12.0-cu113) via Dockerfile:
+Here below we take the installation of `onnxruntime-training 1.13.1` as an example:
+
+* If you want to install `onnxruntime-training 1.13.1` via [Dockerfile](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort1.13.1-cu116):
 
 ```bash
-docker build -f Dockerfile-ort1.12.0-cu113 -t <imagename:tag> .
+docker build -f Dockerfile-ort1.13.1-cu116 -t <imagename:tag> .
 ```
 
-If you want to install the dependencies beyond in a local Python environment. You can pip install them once you have CUDA 11.3 and cuDNN 8 well installed.
+* If you want to install the dependencies beyond in a local Python environment. You can pip install them once you have [CUDA 11.6](https://docs.nvidia.com/cuda/archive/11.6.2/) and [cuDNN 8](https://developer.nvidia.com/cudnn) well installed.
 
 ```bash
-pip install onnx==1.12.0 ninja
-pip install onnxruntime-training==1.12.0+cu113 -f https://download.onnxruntime.ai/onnxruntime_stable_cu113.html
-pip install torch==1.12.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+pip install onnx ninja
+pip install torch==1.13.1+cu116 torchvision==0.14.1 -f https://download.pytorch.org/whl/cu116/torch_stable.html
+pip install onnxruntime-training==1.13.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
 pip install torch-ort
-pip install transformers datasets accelerate
-pip install --upgrade protobuf==3.20.1
+pip install --upgrade protobuf==3.20.2
 ```
 
 And run post-installation configuration:
