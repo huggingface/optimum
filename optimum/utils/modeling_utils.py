@@ -1,5 +1,5 @@
 def recurse_setattr(module, name, value):
-    """A wrapper function to recursively set attributes to a module."""
+    """A function to recursively set attributes to a module."""
     if "." not in name:
         setattr(module, name, value)
     else:
