@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
-from ...onnxruntime.configuration import AutoOptimizationConfig
+from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig
 from ...onnxruntime.optimization import ORTOptimizer
 
 
@@ -43,6 +43,12 @@ def parse_args_onnxruntime_optimize(parser):
         action="store_true",
         help="Same as O3 with mixed precision (see: https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization for more details).",
     )
+    level_group.add_argument(
+        "-c",
+        "--config",
+        type=Path,
+        help="`ORTConfig` file to use to optimize the model.",
+    )
 
 
 class ONNXRuntimmeOptimizeCommand:
@@ -65,7 +71,9 @@ class ONNXRuntimmeOptimizeCommand:
             optimization_config = AutoOptimizationConfig.O2()
         elif self.args.O3:
             optimization_config = AutoOptimizationConfig.O3()
-        else:
+        elif self.args.O4:
             optimization_config = AutoOptimizationConfig.O4()
+        else:
+            optimization_config = ORTConfig.get_config_dict(self.args.config).optimization
 
         optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)

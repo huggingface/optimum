@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
-from ...onnxruntime.configuration import AutoQuantizationConfig
+from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
 from ...onnxruntime.quantization import ORTQuantizer
 
 
@@ -35,6 +35,12 @@ def parse_args_onnxruntime_quantize(parser):
         "--avx512_vnni", action="store_true", help="Quantization with AVX-512 and VNNI instructions."
     )
     level_group.add_argument("--tensorrt", action="store_true", help="Quantization for NVIDIA TensorRT optimizer.")
+    level_group.add_argument(
+        "-c",
+        "--config",
+        type=Path,
+        help="`ORTConfig` file to use to optimize the model.",
+    )
 
 
 class ONNXRuntimmeQuantizeCommand:
@@ -62,8 +68,10 @@ class ONNXRuntimmeQuantizeCommand:
             qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=self.args.per_channel)
         elif self.args.avx512_vnni:
             qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.args.per_channel)
-        else:
+        elif self.args.tensorrt:
             qconfig = AutoQuantizationConfig.tensorrt(is_static=False, per_channel=self.args.per_channel)
+        else:
+            qconfig = ORTConfig.get_config_dict(self.args.config).quantization
 
         for q in quantizers:
             q.quantize(save_dir=save_dir, quantization_config=qconfig)
