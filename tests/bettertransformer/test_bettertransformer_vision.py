@@ -272,6 +272,9 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
         torch.manual_seed(42)
         output_bt = bt_model(**inputs)
 
+        # create a new model
+        hf_model = AutoModel.from_pretrained(model_id)
+
         torch.manual_seed(42)
         output_hf = hf_model(**inputs)
 
@@ -290,27 +293,3 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
         self, test_name: str, model_id, keep_original_model=False, **preprocessor_kwargs
     ):
         super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
-
-    @parameterized.expand([(True,), (False,)])
-    def test_invert_model_logits(self, keep_original_model=True, **preprocessor_kwargs):
-        r"""
-        Test that the inverse converted model and hf model have the same logits
-        """
-        # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
-        for model in self.all_models_to_test:
-            hf_model = AutoModel.from_pretrained(model)
-            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
-            bt_model = BetterTransformer.reverse(bt_model)
-
-            if model == "laion/CLIP-ViT-B-32-laion2B-s34B-b79K":
-                inputs = self.prepare_inputs_for_class(model_id=model, padding=True)
-            else:
-                inputs = self.prepare_inputs_for_class(model_id=model, padding="max_length")
-
-            torch.manual_seed(42)
-            output_bt = bt_model(**inputs)
-
-            torch.manual_seed(42)
-            output_hf = hf_model(**inputs)
-
-            self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
