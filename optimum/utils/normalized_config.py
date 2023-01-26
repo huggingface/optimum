@@ -52,16 +52,6 @@ class NormalizedConfig:
 
         attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
 
-        # attr = None
-        # real_attr_name = super().__getattribute__(leaf_attr_name.upper())
-        # if isinstance(real_attr_name, list):
-        #     for name in real_attr_name:
-        #         attr = getattr(config, name, None)
-        #         if attr is not None:
-        #             break
-        # else:
-        #     attr = getattr(config, real_attr_name, None)
-
         # If the attribute was not specified manually, try to fallback on the attribute_map.
         if attr is None:
             attribute_map = getattr(self.config, "attribute_map", {})

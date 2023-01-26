@@ -214,7 +214,7 @@ class ORTDecoder(ORTModelPart):
                 model_inputs.append(attention_mask)
 
             if past_key_values is not None:
-                model_inputs += past_key_valuess
+                model_inputs += past_key_values
 
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
