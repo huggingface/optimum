@@ -635,6 +635,8 @@ class ORTModel(OptimizedModel):
         """
         if isinstance(axis_name, int):
             return axis_name
+        elif axis_name in dimensions:
+            return dimensions[axis_name]
 
         tokens = []
         for idx, match in enumerate(re.finditer(self.output_shape_inference_pattern, axis_name)):
