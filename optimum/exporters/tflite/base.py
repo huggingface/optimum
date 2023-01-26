@@ -113,6 +113,7 @@ class TFLiteConfig(ExportConfig, ABC):
         nb_max_frames: Optional[int] = None,
         audio_sequence_length: Optional[int] = None,
     ):
+
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
         self.mandatory_axes = ()
@@ -159,13 +160,14 @@ class TFLiteConfig(ExportConfig, ABC):
         self.mandatory_axes = self.get_mandatory_axes_for_task(self.task)
 
     def __getattr__(self, attr_name) -> Any:
-        if attr_name in self._axes:
+        if attr_name != "_axes" and attr_name in self._axes:
             return self._axes[attr_name]
         else:
             raise AttributeError(attr_name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in self.mandatory_axes:
+        mandatory_axes = getattr(self, "mandatory_axes", [])
+        if name in mandatory_axes:
             if value is None:
                 if self._normalized_config.has_attribute(name):
                     value = getattr(self._normalized_config, name)
