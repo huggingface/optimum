@@ -25,3 +25,11 @@ class AtolError(ValueError):
 
 class OutputMatchError(ValueError):
     pass
+
+
+class NumberOfInputsMatchError(ValueError):
+    pass
+
+
+class NumberOfOutputsMatchError(ValueError):
+    pass

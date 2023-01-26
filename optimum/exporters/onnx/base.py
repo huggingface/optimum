@@ -124,23 +124,28 @@ class OnnxConfig(ExportConfig, ABC):
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
     _TASK_TO_COMMON_OUTPUTS = {
+        "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
         "causal-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "default": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
-        "image-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        # TODO: Is this the same thing as semantic-segmentation?
         "image-segmentation": OrderedDict(
             {
-                "logits": {0: "batch_size", 1: "sequence_length"},
-                "pred_boxes": {0: "batch_size", 1: "sequence_length"},
-                "pred_masks": {0: "batch_size", 1: "sequence_length"},
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_boxes": {0: "batch_size", 1: "num_queries"},
+                "pred_masks": {0: "batch_size", 1: "num_queries"},
             }
         ),
         "masked-im": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "multiple-choice": OrderedDict({"logits": {0: "batch_size"}}),
+        "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
             {
-                "logits": {0: "batch_size", 1: "sequence_length"},
-                "pred_boxes": {0: "batch_size", 1: "sequence_length"},
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_boxes": {0: "batch_size", 1: "num_queries"},
             }
         ),
         "question-answering": OrderedDict(
@@ -157,12 +162,8 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
+        "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
     }
 
     def __init__(
@@ -588,13 +589,23 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         common_outputs = super(OnnxConfigWithPast, self).outputs
         # Renaming the outputs axes properly.
         for name, axes_names in common_outputs.items():
-            sequence_name = "encoder_sequence_length" if "encoder" in name else "decoder_sequence_length"
-            for axis_idx, name in axes_names.items():
-                if "sequence" in name:
-                    axes_names[axis_idx] = sequence_name
-                # We reset the value as the order in common_outputs (OrderedDict) is lost otherwise
+            if self._behavior is ConfigBehavior.ENCODER or "encoder" in name:
+                sequence_name = "encoder_sequence_length"
+            else:
+                sequence_name = "decoder_sequence_length"
+
+            new_axes_names = {}
+            for axis_idx, axis_name in axes_names.items():
+                if "sequence" in axis_name:
+                    if not self.use_past_in_inputs:
+                        new_axes_names[axis_idx] = sequence_name
+                    else:
+                        # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
+                        new_axes_names[axis_idx] = "1"
                 else:
-                    axes_names[axis_idx] = name
+                    new_axes_names[axis_idx] = axis_name
+            common_outputs[name] = new_axes_names
+
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
 
@@ -605,11 +616,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
         name = "past_key_values" if direction == "inputs" else "present"
-        encoder_sequence = "past_encoder_sequence_length"
+        encoder_sequence = "encoder_sequence_length"
         decoder_sequence = (
-            "past_decoder_sequence_length"
-            if direction == "inputs"
-            else "past_decoder_sequence_length + sequence_length"
+            "past_decoder_sequence_length" if direction == "inputs" else "past_decoder_sequence_length + 1"
         )
         for i in range(self._normalized_config.decoder_num_layers):
             inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence}

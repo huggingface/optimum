@@ -27,7 +27,7 @@ import onnx
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
-from ..error_utils import AtolError, OutputMatchError, ShapeError
+from ..error_utils import AtolError, NumberOfInputsMatchError, NumberOfOutputsMatchError, OutputMatchError, ShapeError
 from .base import OnnxConfig
 from .utils import recursive_to_device
 
