@@ -769,8 +769,9 @@ FEATURE_EXTRACTION_EXAMPLE = r"""
     >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
 
     >>> outputs = model(**inputs)
-    >>> logits = outputs.logits
-    >>> list(logits.shape)
+    >>> last_hidden_state = outputs.last_hidden_state
+    >>> list(last_hidden_state.shape)
+    [1, 12, 384]
     ```
 
     Example using `transformers.pipeline`:
@@ -965,6 +966,7 @@ SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
+    [1, 2]
     ```
 
     Example using `transformers.pipelines`:
@@ -993,7 +995,7 @@ SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
 
     >>> sequence_to_classify = "Who are you voting for in 2020?"
     >>> candidate_labels = ["Europe", "public health", "politics", "elections"]
-    >>> pred = onnx_z0(sequence_to_classify, candidate_labels, multi_class=True)
+    >>> pred = onnx_z0(sequence_to_classify, candidate_labels, multi_label=True)
     ```
 """
 
@@ -1075,6 +1077,7 @@ TOKEN_CLASSIFICATION_EXAMPLE = r"""
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
+    [1, 12, 9]
     ```
 
     Example using `transformers.pipelines`:
@@ -1167,15 +1170,16 @@ MULTIPLE_CHOICE_EXAMPLE = r"""
     >>> num_choices = 4
     >>> first_sentence = ["Members of the procession walk down the street holding small horn brass instruments."] * num_choices
     >>> second_sentence = [
-    "A drum line passes by walking down the street playing their instruments.",
-    "A drum line has heard approaching them.",
-    "A drum line arrives and they're outside dancing and asleep.",
-    "A drum line turns the lead singer watches the performance."
-]
+    ...     "A drum line passes by walking down the street playing their instruments.",
+    ...     "A drum line has heard approaching them.",
+    ...     "A drum line arrives and they're outside dancing and asleep.",
+    ...     "A drum line turns the lead singer watches the performance."
+    ... ]
     >>> inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
+    
     # Unflatten the inputs values expanding it to the shape [batch_size, num_choices, seq_length]
     >>> for k, v in inputs.items():
-    >>>     inputs[k] = [v[i: i + num_choices] for i in range(0, len(v), num_choices)]
+    ...     inputs[k] = [v[i: i + num_choices] for i in range(0, len(v), num_choices)]
     >>> inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits

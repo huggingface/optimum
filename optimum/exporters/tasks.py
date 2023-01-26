@@ -55,12 +55,13 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
-            >>> kwargs = {
-            >>>     "onnx": "BertOnnxConfig",
-            >>>     "tflite": "BertTFLiteConfig",
-            >>>     ...
-            >>> }
+            >>> kwargs = {  # doctest: +SKIP
+            ...     "onnx": "BertOnnxConfig",
+            ...     "tflite": "BertTFLiteConfig",
+            ...     ...
+            ... }
             ```
+
     Returns:
         `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExportConfig` constructor.
     """

@@ -24,7 +24,7 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq
+from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
@@ -186,7 +186,7 @@ AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE = r"""
     Example using `transformers.pipeline`:
 
     ```python
-    >>> from transformers import {processor_class}
+    >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
     >>> from datasets import load_dataset
 
@@ -285,6 +285,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
+        generation_config: Optional[GenerationConfig] = None,
         **kwargs,
     ):
         """
@@ -305,6 +306,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The directory under which the model exported to ONNX was saved.
             preprocessors (`Optional[List]`, defaults to `None`):
                 The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
+            generation_config (`Optional[GenerationConfig]`, defaults to `None`):
+                The generation configuration used by default when calling `generate()`.
+                Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
         # TODO: remove at version 2.0
         def show_deprecated_argument(arg_name):
@@ -351,6 +355,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             self.decoder_with_past = ORTDecoderForSeq2Seq(decoder_with_past_session, self)
             self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
+
+        if generation_config is None:
+            generation_config = GenerationConfig.from_model_config(config)
+        self.generation_config = generation_config
 
     @abstractmethod
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
@@ -608,6 +616,20 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
+        generation_config = None
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+                use_auth_token=use_auth_token,
+                revision=revision,
+                subfolder=subfolder,
+            )
+        except OSError:
+            logger.info("Generation config file not found, using a generation config created from the model config.")
+
         return cls(
             *inference_sessions[:2],
             config,
@@ -615,6 +637,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
+            generation_config=generation_config,
         )
 
     @classmethod
@@ -708,6 +731,12 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self.providers = self.encoder.session.get_providers()
 
         return self
+
+    def can_generate(self):
+        logger.warning(
+            "ORTModelForConditionalGeneration is an abstract class and is not meant to be used for generation. Please use ORTModelForSeq2SeqLM or ORTModelForSpeechSeq2Seq."
+        )
+        return False
 
 
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
@@ -804,6 +833,10 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
                 tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
             )
         return reordered_past
+
+    def can_generate(self):
+        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
+        return True
 
 
 class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
@@ -905,3 +938,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
                 tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
             )
         return reordered_past
+
+    def can_generate(self):
+        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
+        return True
