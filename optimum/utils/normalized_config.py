@@ -50,15 +50,17 @@ class NormalizedConfig:
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
 
-        attr = None
-        real_attr_name = super().__getattribute__(leaf_attr_name.upper())
-        if isinstance(real_attr_name, list):
-            for name in real_attr_name:
-                attr = getattr(config, name, None)
-                if attr is not None:
-                    break
-        else:
-            attr = getattr(config, real_attr_name, None)
+        attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
+
+        # attr = None
+        # real_attr_name = super().__getattribute__(leaf_attr_name.upper())
+        # if isinstance(real_attr_name, list):
+        #     for name in real_attr_name:
+        #         attr = getattr(config, name, None)
+        #         if attr is not None:
+        #             break
+        # else:
+        #     attr = getattr(config, real_attr_name, None)
 
         # If the attribute was not specified manually, try to fallback on the attribute_map.
         if attr is None:
@@ -169,7 +171,7 @@ class NormalizedConfigManager:
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot_small": BartLikeNormalizedTextConfig,
-        "bloom": NormalizedTextConfig.with_args(hidden_size=["hidden_size", "n_embd"], num_layers="n_layer"),
+        "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,
