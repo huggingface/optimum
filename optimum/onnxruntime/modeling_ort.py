@@ -635,6 +635,7 @@ class ORTModel(OptimizedModel):
         """
         if isinstance(axis_name, int):
             return axis_name
+        # It is actually covered below, but this is to make things faster.
         elif axis_name in dimensions:
             return dimensions[axis_name]
 
