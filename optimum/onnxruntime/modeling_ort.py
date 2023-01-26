@@ -658,7 +658,8 @@ class ORTModel(OptimizedModel):
             else:
                 tokens.append(groups[matched_group])
 
-        # Here it should be problematic to use eval since anything not matching the pattern would trigger an exception.
+        # Here it should not be problematic to use eval since anything not matching the pattern would trigger an 
+        # exception.
         return int(eval(" ".join(tokens)))
 
     def _prepare_io_binding(
