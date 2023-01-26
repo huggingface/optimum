@@ -11,10 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import deepcopy
+from typing import TYPE_CHECKING, List, Optional
+
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
+
 import torch
 import torch.nn as nn
 
-from ...utils import logging
+from ...utils import logging, recurse_setattr
 
 
 KNOWN_ACTIVATION_ATTRIBUTES = ["hidden_act", "activation", "act_fn", "activation_function"]
@@ -29,7 +36,21 @@ logger = logging.get_logger(__name__)
 
 
 class BetterTransformerBaseLayer(nn.Module):
-    def __init__(self, config):
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        orig_layer: Optional[nn.Module] = None,
+    ):
+        r"""
+        Base layer for `BetterTransformer` integration. This class is used to wrap all the necessary
+        components for the `BetterTransformer` integration.
+
+        Args:
+            config (`transformers.PretrainedConfig`):
+                The config of the model.
+            orig_layer (`Optional[torch.nn.Module]`, defaults to `None`):
+                The original layer that needs to be modified. Defaults to `None`.
+        """
         super().__init__()
         self.norm_first = False
         self.use_gelu = False
@@ -38,6 +59,10 @@ class BetterTransformerBaseLayer(nn.Module):
         self.num_heads = None
         self.embed_dim = None
         self.num_layers = None
+        self.original_layers_mapping = {}
+        # Some models does not have some attributes thus needs to be ignored
+        # e.g. whisper does not have self_attn.k_proj.bias but has self_attn.v_proj.bias & self_attn.q_proj.bias
+        self.keys_to_ignore = []
 
         # Get activation function
         for attr in KNOWN_ACTIVATION_ATTRIBUTES:
@@ -60,6 +85,13 @@ class BetterTransformerBaseLayer(nn.Module):
             if hasattr(config, attr):
                 self.num_layers = getattr(config, attr)
                 break
+
+        if orig_layer is not None:
+            # Last step, store the old module skeleton by copying the old module and putting
+            # it on the `meta` device.
+            self.orig_layer = deepcopy(orig_layer).to("meta")
+        else:
+            self.orig_layer = orig_layer
 
     def validate_bettertransformer(self):
         r"""
@@ -115,3 +147,33 @@ class BetterTransformerBaseLayer(nn.Module):
                 "Training is not supported for `BetterTransformer` integration.",
                 " Please use `model.eval()` before running the model.",
             )
+
+    def _revert_back_to_original_module(self):
+        r"""
+        A wrapper function to replace the current layer with the previous non-BetterTransformer
+        layer.
+        """
+        for modified_layer_key_names, original_layer_key_names in self.original_layers_mapping.items():
+            if isinstance(original_layer_key_names, list):
+                current_weight = getattr(self, modified_layer_key_names)
+
+                # Split the current weight n chunks - this is useful to split
+                # the qkv layers into q, k, v layers for example.
+                split_index = current_weight.shape[0] // len(original_layer_key_names)
+                for i, module in enumerate(original_layer_key_names):
+                    if module not in self.keys_to_ignore:
+                        recurse_setattr(
+                            self.orig_layer,
+                            module,
+                            nn.Parameter(current_weight[i * split_index : (i + 1) * split_index]),
+                        )
+            elif isinstance(original_layer_key_names, str):
+                if module not in self.keys_to_ignore:
+                    recurse_setattr(self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names))
+            else:
+                raise ValueError(
+                    f"Invalid type {type(modified_layer_key_names)} for `original_layers_mapping`",
+                    " please use either `str` or `list`.",
+                )
+
+        return self.orig_layer

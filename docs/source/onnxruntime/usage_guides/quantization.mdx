@@ -73,17 +73,11 @@ the `from_pretrained()` method, which supports different checkpoint formats.
 
 # Loading ONNX Model from the Hub
 >>> ort_model = ORTModelForSequenceClassification.from_pretrained(
->>>     "optimum/distilbert-base-uncased-finetuned-sst-2-english"
->>> )
+...     "optimum/distilbert-base-uncased-finetuned-sst-2-english"
+... )
 
 # Create a quantizer from a ORTModelForXXX
 >>> quantizer = ORTQuantizer.from_pretrained(ort_model)
-
-# Configuration
->>> ...
-
-# Quantize the model
->>> quantizer.quantize(...)
 ```
 
 2. Using a local ONNX model from a directory.
@@ -92,13 +86,7 @@ the `from_pretrained()` method, which supports different checkpoint formats.
 >>> from optimum.onnxruntime import ORTQuantizer
 
 # This assumes a model.onnx exists in path/to/model
->>> quantizer = ORTQuantizer.from_pretrained("path/to/model")
-
-# Configuration
->>> ...
-
-# Quantize the model
->>> quantizer.quantize(...)
+>>> quantizer = ORTQuantizer.from_pretrained("path/to/model")  # doctest: +SKIP
 ```
 
 
@@ -112,9 +100,8 @@ find an easy end-to-end example on how to quantize dynamically
 >>> from optimum.onnxruntime import ORTQuantizer, ORTModelForSequenceClassification
 >>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
 
->>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 # Load PyTorch model and convert to ONNX
->>> onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+>>> onnx_model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True)
 
 # Create quantizer
 >>> quantizer = ORTQuantizer.from_pretrained(onnx_model)
@@ -124,9 +111,9 @@ find an easy end-to-end example on how to quantize dynamically
 
 # Quantize the model
 >>> model_quantized_path = quantizer.quantize(
-    save_dir="path/to/output/model",
-    quantization_config=dqconfig,
-)
+...     save_dir="path/to/output/model",
+...     quantization_config=dqconfig,
+... )
 ```
 
 ## Static Quantization example
@@ -151,31 +138,32 @@ an easy end-to-end example on how to quantize statically
 
 # Create the calibration dataset
 >>> def preprocess_fn(ex, tokenizer):
-    return tokenizer(ex["sentence"])
+...     return tokenizer(ex["sentence"])
 
 >>> calibration_dataset = quantizer.get_calibration_dataset(
-    "glue",
-    dataset_config_name="sst2",
-    preprocess_function=partial(preprocess_fn, tokenizer=tokenizer),
-    num_samples=50,
-    dataset_split="train",
-)
+...     "glue",
+...     dataset_config_name="sst2",
+...     preprocess_function=partial(preprocess_fn, tokenizer=tokenizer),
+...     num_samples=50,
+...     dataset_split="train",
+... )
+
 # Create the calibration configuration containing the parameters related to calibration.
 >>> calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
 
 # Perform the calibration step: computes the activations quantization ranges
 >>> ranges = quantizer.fit(
-    dataset=calibration_dataset,
-    calibration_config=calibration_config,
-    operators_to_quantize=qconfig.operators_to_quantize,
-)
+...     dataset=calibration_dataset,
+...     calibration_config=calibration_config,
+...     operators_to_quantize=qconfig.operators_to_quantize,
+... )
 
 # Apply static quantization on the model
 >>> model_quantized_path = quantizer.quantize(
-    save_dir="path/to/output/model",
-    calibration_tensors_range=ranges,
-    quantization_config=qconfig,
-)
+...     save_dir="path/to/output/model",
+...     calibration_tensors_range=ranges,
+...     quantization_config=qconfig,
+... )
 ```
 
 ## Quantize Seq2Seq models
@@ -225,5 +213,6 @@ Currently, only dynamic quantization is supported for Seq2Seq models.
 >>> dqconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=False)
 
 # Quantize the models individually
->>> [q.quantize(save_dir=".",quantization_config=dqconfig) for q in quantizer]
+>>> for q in quantizer:
+...     q.quantize(save_dir=".",quantization_config=dqconfig)  # doctest: +IGNORE_RESULT
 ```

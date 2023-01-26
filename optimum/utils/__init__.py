@@ -39,6 +39,7 @@ from .input_generators import (
     DummyTrainingLabelsInputGenerator,
     DummyVisionInputGenerator,
 )
+from .modeling_utils import recurse_setattr
 from .normalized_config import (
     NormalizedConfig,
     NormalizedConfigManager,

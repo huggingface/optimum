@@ -218,8 +218,14 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
 
         name = "past_key_values" if direction == "inputs" else "present"
         for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
-            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
+            inputs_or_outputs[f"{name}.{i}.key"] = {
+                0: "batch_size x num_heads",
+                2: "past_sequence_length + sequence_length",
+            }
+            inputs_or_outputs[f"{name}.{i}.value"] = {
+                0: "batch_size x num_heads",
+                1: "past_sequence_length + sequence_length",
+            }
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
@@ -361,8 +367,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     @property
     def inputs_for_causal_lm(self):
         common_inputs = {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
         if self.use_past_in_inputs:
             for i in range(self._normalized_config.decoder_num_layers):
@@ -380,8 +386,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     @property
     def inputs_for_other_tasks(self):
         return {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
 
     @property
@@ -400,6 +406,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super().outputs
         else:
             common_outputs = super(OnnxConfigWithPast, self).outputs
+            if self.task != "causal-lm":
+                common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "sequence_length"}
             if self.use_present_in_outputs:
                 for i in range(self._normalized_config.encoder_num_layers):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
@@ -561,6 +569,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
 class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -591,8 +600,10 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
         return dummy_inputs
 
 
-class UNetOnnxConfig(ViTOnnxConfig):
+class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -632,16 +643,41 @@ class UNetOnnxConfig(ViTOnnxConfig):
         return dummy_inputs
 
 
-class VaeOnnxConfig(ViTOnnxConfig):
+class VaeEncoderOnnxConfig(VisionOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-2
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_channels="in_channels",
+        image_size="sample_size",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+        }
+
+
+class VaeDecoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         num_channels="latent_channels",
         allow_new=True,
     )
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -841,6 +877,41 @@ class ASTOnnxConfig(OnnxConfig):
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     ATOL_FOR_VALIDATION = 1e-3
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
+        # The generated encoder_hidden_states for Whisper has dimensions
+        # (batch_size, encoder_sequence_length / 2, hidden_size). Therefore,
+        # the sequence length is updated to generate the proper cross attention
+        # KVS in monolith case.
+        if self._behavior is ConfigBehavior.MONOLITH:
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                encoder_sequence_length=dummy_inputs_generators[0].nb_max_frames // 2,
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
+        return common_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self._behavior is ConfigBehavior.ENCODER:
+            for name, dyanmic_axes in common_outputs.items():
+                if name == "last_hidden_state":
+                    common_outputs[name][1] = f"{common_outputs[name][1]} / 2"
+                else:
+                    common_outputs[name] = dynamic_axes
+        return common_outputs
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):

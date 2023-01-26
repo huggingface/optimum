@@ -15,7 +15,7 @@
 """Normalization configuration classes."""
 
 import functools
-from typing import TYPE_CHECKING, Callable, Dict, Type, Union
+from typing import Callable, Dict, Type, Union
 
 from transformers import PretrainedConfig
 
@@ -49,7 +49,14 @@ class NormalizedConfig:
         config = self.config
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
+
         attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
+
+        # If the attribute was not specified manually, try to fallback on the attribute_map.
+        if attr is None:
+            attribute_map = getattr(self.config, "attribute_map", {})
+            attr = getattr(self.config, attribute_map.get(leaf_attr_name, ""), None)
+
         if attr is None:
             raise AttributeError(f'Could not find the attribute named "{leaf_attr_name}" in the normalized config.')
         return attr
@@ -154,7 +161,7 @@ class NormalizedConfigManager:
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot_small": BartLikeNormalizedTextConfig,
-        "bloom": NormalizedTextConfig.with_args(hidden_size="n_embd", num_layers="n_layer"),
+        "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,

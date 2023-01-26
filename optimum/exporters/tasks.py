@@ -55,12 +55,13 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
-            >>> kwargs = {
-            >>>     "onnx": "BertOnnxConfig",
-            >>>     "tflite": "BertTFLiteConfig",
-            >>>     ...
-            >>> }
+            >>> kwargs = {  # doctest: +SKIP
+            ...     "onnx": "BertOnnxConfig",
+            ...     "tflite": "BertTFLiteConfig",
+            ...     ...
+            ... }
             ```
+
     Returns:
         `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExportConfig` constructor.
     """
@@ -623,9 +624,13 @@ class TasksManager:
             "audio-xvector",
             onnx="UniSpeechSATOnnxConfig",
         ),
-        "vae": supported_tasks_mapping(
+        "vae-encoder": supported_tasks_mapping(
             "semantic-segmentation",
-            onnx="VaeOnnxConfig",
+            onnx="VaeEncoderOnnxConfig",
+        ),
+        "vae-decoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "wavlm": supported_tasks_mapping(
@@ -687,7 +692,7 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip-text-model"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
@@ -1010,9 +1015,8 @@ class TasksManager:
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
-        if model is None:
-            if model_type is None or model_name is None:
-                raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
+        if model is None and model_type is None:
+            raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
 
         if model_type is None:
             model_type = getattr(model.config, "model_type", model_type)

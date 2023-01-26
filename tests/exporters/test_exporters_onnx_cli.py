@@ -133,3 +133,20 @@ class OnnxExportTestCase(unittest.TestCase):
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
         os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+    def test_trust_remote_code(self):
+        with TemporaryDirectory() as tmpdirname:
+            out = subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm --for-ort {tmpdirname}",
+                shell=True,
+                capture_output=True,
+            )
+            self.assertTrue(out.returncode, 1)
+            self.assertTrue(f"requires you to execute the modeling file in that repo" in out.stderr.decode("utf-8"))
+
+        with TemporaryDirectory() as tmpdirname:
+            out = subprocess.run(
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm --for-ort {tmpdirname}",
+                shell=True,
+                check=True,
+            )

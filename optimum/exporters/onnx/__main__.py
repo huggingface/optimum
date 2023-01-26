@@ -71,7 +71,9 @@ def main():
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
 
-    model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
+    model = TasksManager.get_model_from_task(
+        task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
+    )
 
     if task != "stable-diffusion":
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
@@ -116,7 +118,12 @@ def main():
         args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
     ):
         if task == "stable-diffusion":
-            output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+            output_names = [
+                "text_encoder/model.onnx",
+                "unet/model.onnx",
+                "vae_encoder/model.onnx",
+                "vae_decoder/model.onnx",
+            ]
             models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
             # Saving the additional components needed to perform inference.
             model.tokenizer.save_pretrained(args.output.parent.joinpath("tokenizer"))
