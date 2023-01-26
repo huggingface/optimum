@@ -217,6 +217,9 @@ class ORTModel(OptimizedModel):
         AutoConfig.register(self.model_type, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
 
+        # Define the pattern here to avoid recomputing it everytime.
+        self.output_shape_inference_pattern = re.compile(r"([a-zA-Z_]+)|([0-9]+)|([+-/*])|([\(\)])")
+
     def __init__(
         self,
         model: ort.InferenceSession,
@@ -632,21 +635,28 @@ class ORTModel(OptimizedModel):
         """
         if isinstance(axis_name, int):
             return axis_name
-        result = dimensions.get(axis_name, None)
-        if result is None:
-            subparts = axis_name.split("+")
-            result = 0
-            for subname in subparts:
-                subname = subname.strip()
-                subresult = dimensions.get(subname, None)
-                if subresult is None:
-                    try:
-                        subresult = int(subname)
-                    except ValueError:
-                        result = None
-                        break
-                result += subresult
-        return axis_name if result is None else result
+
+        tokens = []
+        for idx, match in enumerate(re.finditer(self.output_shape_inference_pattern, axis_name)):
+            groups = match.groups()
+            matched_group = None
+            for idx, group in enumerate(groups):
+                if group is not None:
+                    matched_group = idx
+                    break
+            if matched_group is None:
+                raise ValueError(f"Could not perform shape inference on {axis_name}")
+
+            if matched_group == 0:
+                dim = dimensions.get(groups[0], None)
+                if dim is None or not isinstance(dim, int):
+                    return axis_name
+                tokens.append(str(dim))
+            else:
+                tokens.append(groups[matched_group])
+
+        # Here it should be problematic to use eval since anything not matching the pattern would trigger an exception.
+        return int(eval(" ".join(tokens)))
 
     def _prepare_io_binding(
         self,
@@ -736,7 +746,6 @@ class ORTModel(OptimizedModel):
                 output_shape = []
                 for axis_name in output_node.shape:
                     output_shape.append(self._output_shape_inference(axis_name, dimensions))
-                # output_shape = tuple(map(self._output_shape_inference, output_node.shape))
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
             io_binding.bind_output(
                 output_name,
