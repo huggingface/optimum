@@ -202,8 +202,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         args = self.args
         # Load ORT model
         self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path).to(args.device)
-        print("use_io_binding", self.ort_model.use_io_binding)
-        raise
 
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
@@ -413,10 +411,11 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             self.onnx_model_path = onnx_model_path.as_posix()
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
-        # Load ORT model
-        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path)
-
         args = self.args
+        # Load ORT model
+        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(
+            model_id=self.onnx_model_path, provider="CUDAExecutionProvider"
+        )
 
         if not has_length(dataloader):
             raise ValueError("dataloader must implement a working __len__")
@@ -458,14 +457,11 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
             if loss is not None:
-                loss = loss.to(args.device)
                 losses = loss.repeat(batch_size)
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
-                logits = logits.to(args.device)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
-                labels = labels.to(args.device)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
             if inputs_decode is not None:
                 inputs_host = (
@@ -542,7 +538,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 The model to evaluate.
             inputs (`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.
-
                 The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
                 argument `labels`. Check your model's documentation for all accepted arguments.
             prediction_loss_only (`bool`):
@@ -589,10 +584,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
-        if torch.cuda.is_available():
-            self.model.to("cuda")
-
-        generated_tokens = self.model.generate(
+        generated_tokens = model.generate(
             generation_inputs,
             **gen_kwargs,
         )
@@ -773,6 +765,8 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
             with_loss (`bool`, defaults to `True`):
                 Whether to export ONNX model with the loss in outputs.
+            decoders_only (`bool`, defaults to `False`):
+                Whether to just export decoder models.
         """
         if model is None:
             if not (self.args.fp16 and self.args.deepspeed):
@@ -788,7 +782,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
 
         encoder = model.get_encoder()
-        decoder = model.get_decoder()
 
         onnx_config_encoder = onnx_config.with_behavior("encoder")
         onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)

@@ -46,6 +46,14 @@ if is_tf_available():
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
+class NumberOfInputsMatchError(ValueError):
+    pass
+
+
+class NumberOfOutputsMatchError(ValueError):
+    pass
+
+
 class ShapeError(ValueError):
     pass
 

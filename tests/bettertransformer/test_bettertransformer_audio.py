@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
+import tempfile
 import unittest
 
 import numpy as np
@@ -19,6 +21,8 @@ import torch
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 from optimum.bettertransformer import BetterTransformer
+from optimum.utils.testing_utils import grid_parameters
+from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
@@ -54,6 +58,55 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
             "decoder_input_ids": torch.LongTensor([0]),
         }
         return input_dict
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same logits.
+        Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
+        with `keep_original_model=True` for this model.
+        """
+        super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
+        super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
+        super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -141,3 +194,65 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
                 bt_model = BetterTransformer.transform(hf_random_model)
                 bt_model.train()
                 _ = bt_model(**inputs)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [False],
+            }
+        )
+    )
+    def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same modules
+        Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
+        with `keep_original_model=True` for this model.
+        """
+        super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [False],
+            }
+        )
+    )
+    def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
+        r"""
+        Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
+        with `keep_original_model=True` for this model.
+        """
+        super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [False],
+            }
+        )
+    )
+    def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same logits.
+        Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
+        with `keep_original_model=True` for this model.
+        """
+        super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [False],
+            }
+        )
+    )
+    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
+        r"""
+        Test if the converted model raises an error when calling `save_pretrained`
+        but not when the model is reverted
+        """
+        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
