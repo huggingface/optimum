@@ -51,7 +51,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
     from ...utils import DummyInputGenerator
-    from .base import PatchingSpec
 
 logger = logging.get_logger(__name__)
 
@@ -71,6 +70,14 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
             "attention_mask": dynamic_axis,
             "token_type_ids": dynamic_axis,
         }
+
+    # TODO: not sure we want to do that.
+    # @property
+    # def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    #     common_outputs = super().outputs
+    #     if self.task == "default":
+    #         common_outputs["pooler_output"] = {0: "batch_size"}
+    #     return common_outputs
 
 
 class AlbertOnnxConfig(BertOnnxConfig):
@@ -766,10 +773,8 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         PerceiverDummyInputGenerator,
     ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
-    def __init__(
-        self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List["PatchingSpec"]] = None
-    ):
-        super().__init__(config, task=task, patching_specs=patching_specs)
+    def __init__(self, config: "PretrainedConfig", task: str = "default"):
+        super().__init__(config, task=task)
         self.is_generating_dummy_inputs = False
 
     @property
@@ -906,11 +911,9 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super().outputs
         if self._behavior is ConfigBehavior.ENCODER:
-            for name, dyanmic_axes in common_outputs.items():
+            for name, dynamic_axes in common_outputs.items():
                 if name == "last_hidden_state":
-                    common_outputs[name][1] = f"{common_outputs[name][1]} / 2"
-                else:
-                    common_outputs[name] = dynamic_axes
+                    dynamic_axes[1] = f"{common_outputs[name][1]} / 2"
         return common_outputs
 
 

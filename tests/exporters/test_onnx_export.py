@@ -104,13 +104,13 @@ class OnnxConfigWithPastTestCase(TestCase):
         for name, config in OnnxConfigWithPastTestCase.SUPPORTED_WITH_PAST_CONFIGS:
             with self.subTest(name):
                 self.assertFalse(
-                    OnnxConfigWithPast.from_model_config(config()).use_past,
-                    "OnnxConfigWithPast.from_model_config() should not use_past",
+                    OnnxConfigWithPast(config()).use_past,
+                    "OnnxConfigWithPast should not use_past",
                 )
 
                 self.assertTrue(
                     OnnxConfigWithPast.with_past(config()).use_past,
-                    "OnnxConfigWithPast.from_model_config() should use_past",
+                    "OnnxConfigWithPast should use_past",
                 )
 
     @patch.multiple(OnnxConfigWithPast, __abstractmethods__=set())
@@ -122,7 +122,7 @@ class OnnxConfigWithPastTestCase(TestCase):
             with self.subTest(name):
 
                 # Without past
-                onnx_config_default = OnnxConfigWithPast.from_model_config(config())
+                onnx_config_default = OnnxConfigWithPast(config())
                 self.assertIsNotNone(onnx_config_default.values_override, "values_override should not be None")
                 self.assertIn("use_cache", onnx_config_default.values_override, "use_cache should be present")
                 self.assertFalse(
@@ -183,7 +183,7 @@ def _get_models_to_test(export_models_dict: Dict):
         # Returning some dummy test that should not be ever called because of the @require_torch / @require_tf
         # decorators.
         # The reason for not returning an empty list is because parameterized.expand complains when it's empty.
-        return [("dummy", "dummy", "dummy", "dummy", OnnxConfig.from_model_config)]
+        return [("dummy", "dummy", "dummy", "dummy", OnnxConfig)]
 
 
 class OnnxExportTestCase(TestCase):
@@ -249,7 +249,6 @@ class OnnxExportTestCase(TestCase):
                         output_dir=Path(tmpdirname),
                         device=device,
                     )
-
                     input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
                     for input_shapes in input_shapes_iterator:
                         validate_models_outputs(
