@@ -511,6 +511,15 @@ class TasksManager:
         #     "zero-shot-object-detection",
         #     onnx="OwlViTOnnxConfig",
         # ),
+        "nystromformer": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "multiple-choice",
+            "question-answering",
+            "sequence-classification",
+            "token-classification",
+            onnx="NystromformerOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "default",
             "default-with-past",

@@ -139,6 +139,10 @@ class BigBirdOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
+class NystromformerOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
 class DebertaOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
