@@ -71,6 +71,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mt5": "lewtun/tiny-random-mt5",
     # "owlvit": "google/owlvit-base-patch32",
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "sequence-classification"],
@@ -157,6 +158,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
     "owlvit": "google/owlvit-base-patch32",
+    "nystromformer": "uw-madison/nystromformer-1024",  # Not using the 2048 or 4096 models
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
