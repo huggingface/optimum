@@ -97,6 +97,10 @@ class MobileBertOnnxConfig(BertOnnxConfig):
     pass
 
 
+class NystromformerOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class XLMOnnxConfig(BertOnnxConfig):
     pass
 
@@ -136,10 +140,6 @@ class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
 
 
 class BigBirdOnnxConfig(DistilBertOnnxConfig):
-    pass
-
-
-class NystromformerOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
