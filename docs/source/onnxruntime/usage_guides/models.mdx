@@ -38,8 +38,8 @@ includes a method to convert vanilla Transformers models to ONNX ones. Simply pa
 
 >>> # Load the model from the hub and export it to the ONNX format
 >>> model = ORTModelForSequenceClassification.from_pretrained(
->>>   "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
->>> )
+...     "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
+... )
 ```
 
 ### Pushing ONNX models to the Hugging Face Hub
@@ -52,16 +52,16 @@ It is also possible, just as with regular [`~transformers.PreTrainedModel`]s, to
 
 >>> # Load the model from the hub and export it to the ONNX format
 >>> model = ORTModelForSequenceClassification.from_pretrained(
->>>   "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
->>> )
+...     "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
+... )
 
 >>> # Save the converted model
 >>> model.save_pretrained("a_local_path_for_convert_onnx_model")
 
 # Push the onnx model to HF Hub
->>> model.push_to_hub(
->>>   "a_local_path_for_convert_onnx_model", repository_id="my-onnx-repo", use_auth_token=True
->>> )
+>>> model.push_to_hub(  # doctest: +SKIP
+...   "a_local_path_for_convert_onnx_model", repository_id="my-onnx-repo", use_auth_token=True
+... )
 ```
 
 ## Export and inference of sequence-to-sequence models
@@ -77,15 +77,17 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 
 
 ```python
->>> from optimum.pipelines import pipeline
+>>> from transformers import AutoTokenizer, pipeline
 >>> from optimum.onnxruntime import ORTModelForSeq2SeqLM
 
 # Load the model from the hub and export it to the ONNX format
->>> model = ORTModelForSeq2SeqLM.from_pretrained("t5-small", from_transformers=True)
+>>> model_name = "t5-small"
+>>> model = ORTModelForSeq2SeqLM.from_pretrained(model_name, from_transformers=True)
+>>> tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Create a pipeline
->>> onnx_translation = pipeline("translation_en_to_fr", model=model)
-
->>> result = onnx_translation("My name is Eustache")
-[{'translation_text': 'Mon nom est Eustache'}]
+>>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
+>>> text = "He never went out without a book under his arm, and he often came back with two."
+>>> result = onnx_translation(text)
+>>> # [{'translation_text': "Il n'est jamais sorti sans un livre sous son bras, et il est souvent revenu avec deux."}]
 ```

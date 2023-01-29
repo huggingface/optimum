@@ -11,7 +11,7 @@ specific language governing permissions and limitations under the License.
 -->
 # Adding BetterTransformer support for new architectures
 
-You want to add a new model for `BetterTransformer` API? Check this guideline!
+You want to add a new model for `Better Transformer`, the fast path of PyTorch Transformer API? Check this guideline!
 
 ## Models that should be supported
 
@@ -35,7 +35,7 @@ Let us try to do it step by step for `Bert`, first we need to identify the layer
 >>> from transformers import AutoModel
 
 >>> model = AutoModel.from_pretrained("bert-base-uncased")
->>> print(model)
+>>> print(model)  # doctest: +IGNORE_RESULT
 ...
           (LayerNorm): LayerNorm((768,), eps=1e-12, elementwise_affine=True)
           (dropout): Dropout(p=0.1, inplace=False)

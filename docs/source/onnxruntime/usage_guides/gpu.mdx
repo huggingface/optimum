@@ -15,7 +15,7 @@ Due to a limitation of ONNX Runtime, it is not possible to run quantized models 
 
 ## CUDAExecutionProvider
 
-### Installation
+### CUDA installation
 
 Provided the CUDA and cuDNN [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) are satisfied, install the additional dependencies by running
 
@@ -25,25 +25,25 @@ pip install optimum[onnxruntime-gpu]
 
 To avoid conflicts between `onnxruntime` and `onnxruntime-gpu`, make sure the package `onnxruntime` is not installed by running `pip uninstall onnxruntime` prior to installing Optimum.
 
-### Checking the installation is successful
+### Checking the CUDA installation is successful
 
 Before going further, run the following sample code to check whether the install was successful:
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import AutoTokenizer
 
-ort_model = ORTModelForSequenceClassification.from_pretrained(
-    "philschmid/tiny-bert-sst2-distilled",
-    from_transformers=True,
-    provider="CUDAExecutionProvider",
-)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(
+...   "philschmid/tiny-bert-sst2-distilled",
+...   from_transformers=True,
+...   provider="CUDAExecutionProvider",
+... )
 
-tokenizer = AutoTokenizer.from_pretrained("philschmid/tiny-bert-sst2-distilled")
-inputs = tokenizer("expectations were low, actual enjoyment was high", return_tensors="pt", padding=True)
+>>> tokenizer = AutoTokenizer.from_pretrained("philschmid/tiny-bert-sst2-distilled")
+>>> inputs = tokenizer("expectations were low, actual enjoyment was high", return_tensors="pt", padding=True)
 
-outputs = ort_model(**inputs)
-assert ort_model.providers == ["CUDAExecutionProvider", "CPUExecutionProvider"]
+>>> outputs = ort_model(**inputs)
+>>> assert ort_model.providers == ["CUDAExecutionProvider", "CPUExecutionProvider"]
 ```
 
 In case this code runs gracefully, congratulations, the installation is successful! If you encounter the following error or similar,
@@ -59,43 +59,44 @@ then something is wrong with the CUDA or ONNX Runtime installation.
 For non-quantized models, the use is straightforward. Simply specify the `provider` argument in the `ORTModel.from_pretrained()` method. Here's an example:
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
 
-ort_model = ORTModelForSequenceClassification.from_pretrained(
-    "distilbert-base-uncased-finetuned-sst-2-english",
-    from_transformers=True,
-    provider="CUDAExecutionProvider",
-)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(
+...   "distilbert-base-uncased-finetuned-sst-2-english",
+...   from_transformers=True,
+...   provider="CUDAExecutionProvider",
+... )
 ```
 
-The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines):
+The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines).
+When using Transformers pipeline, note that the `device` argument should be set to perform pre- and post-processing on GPU, following the example below:
 
 ```python
-from optimum.pipelines import pipeline
-from transformers import AutoTokenizer
+>>> from optimum.pipelines import pipeline
+>>> from transformers import AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+>>> tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 
-pipe = pipeline(task="text-classification", model=ort_model, tokenizer=tokenizer)
-result = pipe("Both the music and visual were astounding, not to mention the actors performance.")
-print(result)
+>>> pipe = pipeline(task="text-classification", model=ort_model, tokenizer=tokenizer, device="cuda:0")
+>>> result = pipe("Both the music and visual were astounding, not to mention the actors performance.")
+>>> print(result)  # doctest: +IGNORE_RESULT
 # printing: [{'label': 'POSITIVE', 'score': 0.9997727274894714}]
 ```
 
 Additionally, you can pass the session option `log_severity_level = 0` (verbose), to check whether all nodes are indeed placed on the CUDA execution provider or not:
 
 ```python
-import onnxruntime
+>>> import onnxruntime
 
-session_options = onnxruntime.SessionOptions()
-session_options.log_severity_level = 0
+>>> session_options = onnxruntime.SessionOptions()
+>>> session_options.log_severity_level = 0
 
-ort_model = ORTModelForSequenceClassification.from_pretrained(
-    "distilbert-base-uncased-finetuned-sst-2-english",
-    from_transformers=True,
-    provider="CUDAExecutionProvider",
-    session_options=session_options
-)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(
+...     "distilbert-base-uncased-finetuned-sst-2-english",
+...     from_transformers=True,
+...     provider="CUDAExecutionProvider",
+...     session_options=session_options
+... )
 ```
 
 You should see the following logs:
@@ -137,7 +138,7 @@ And if you want to turn off IOBinding:
 >>> tokenizer = AutoTokenizer.from_pretrained("t5-small")
 
 # Create a pipeline
->>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
+>>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer, device="cuda:0")
 ```
 
 For the time being, IOBinding is supported for task-defined ORT models, if you want us to add support for custom models, file us an issue on the Optimum's repository.
@@ -216,7 +217,9 @@ Note that previous experiments are run with __vanilla ONNX__ models exported dir
 
 ## TensorrtExecutionProvider
 
-### Installation
+TensorRT uses its own set of optimizations, and **generally does not support the optimizations from [`~onnxruntime.ORTOptimizer`]**. We therefore recommend to use the original ONNX models when using TensorrtExecutionProvider ([reference](https://github.com/microsoft/onnxruntime/issues/10905#issuecomment-1072649358)).
+
+### TensorRT installation
 
 The easiest way to use TensorRT as the execution provider for models optimized through 🤗 Optimum is with the available ONNX Runtime `TensorrtExecutionProvider`.
 
@@ -234,25 +237,25 @@ export CUDA_PATH=/usr/local/cuda
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-x.x/lib64:/path/to/TensorRT-8.x.x/lib
 ```
 
-### Checking the installation is successful
+### Checking the TensorRT installation is successful
 
 Before going further, run the following sample code to check whether the install was successful:
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import AutoTokenizer
 
-ort_model = ORTModelForSequenceClassification.from_pretrained(
-    "philschmid/tiny-bert-sst2-distilled",
-    from_transformers=True,
-    provider="TensorrtExecutionProvider",
-)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(
+...     "philschmid/tiny-bert-sst2-distilled",
+...     from_transformers=True,
+...     provider="TensorrtExecutionProvider",
+... )
 
-tokenizer = AutoTokenizer.from_pretrained("philschmid/tiny-bert-sst2-distilled")
-inp = tokenizer("expectations were low, actual enjoyment was high", return_tensors="pt", padding=True)
+>>> tokenizer = AutoTokenizer.from_pretrained("philschmid/tiny-bert-sst2-distilled")
+>>> inp = tokenizer("expectations were low, actual enjoyment was high", return_tensors="pt", padding=True)
 
-result = ort_model(**inp)
-assert ort_model.providers == ["TensorrtExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]
+>>> result = ort_model(**inp)
+>>> assert ort_model.providers == ["TensorrtExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]
 ```
 
 In case this code runs gracefully, congratulations, the installation is successful!
@@ -265,18 +268,120 @@ Failed to create TensorrtExecutionProvider. Please reference https://onnxruntime
 
 something is wrong with the TensorRT or ONNX Runtime installation.
 
+### TensorRT engine build and warmup
+
+TensorRT requires to build its [inference engine](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#build-phase) ahead of inference, which takes some time due to the model optimization and nodes fusion. To avoid rebuilding the engine every time the model is loaded, ONNX Runtime provides a pair of options to save the engine: `trt_engine_cache_enable` and `trt_engine_cache_path`.
+
+We recommend setting these two provider options when using the TensorRT execution provider. The usage is as follows, where [`optimum/gpt2`](https://huggingface.co/optimum/gpt2) is an ONNX model converted from PyTorch using the [Optimum ONNX exporter](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model):
+
+```python
+>>> from optimum.onnxruntime import ORTModelForCausalLM
+
+>>> provider_options = {
+...     "trt_engine_cache_enable": True,
+...     "trt_engine_cache_path": "tmp/trt_cache_gpt2_example"
+... }
+
+# the TensorRT engine is not built here, it will be when doing inference
+>>> ort_model = ORTModelForCausalLM.from_pretrained(
+...     "optimum/gpt2",
+...     use_cache=False,
+...     provider="TensorrtExecutionProvider",
+...     provider_options=provider_options
+... )
+```
+
+TensorRT builds its engine depending on specified input shapes. Unfortunately, in the [current ONNX Runtime implementation](https://github.com/microsoft/onnxruntime/blob/613920d6c5f53a8e5e647c5f1dcdecb0a8beef31/onnxruntime/core/providers/tensorrt/tensorrt_execution_provider.cc#L1677-L1688) (references: [1](https://github.com/microsoft/onnxruntime/issues/13559), [2](https://github.com/microsoft/onnxruntime/issues/13851)), the engine is rebuilt every time an input has a shape smaller than the previously smallest encountered shape, and conversely if the input has a shape larger than the previously largest encountered shape. For example, if a model takes `(batch_size, input_ids)` as inputs, and the model takes successively the inputs:
+
+1. `input.shape: (4, 5)  --> the engine is built (first input)`
+2. `input.shape: (4, 10) --> engine rebuilt (10 larger than 5)`
+3. `input.shape: (4, 7)  --> no rebuild (5 <= 7 <= 10)`
+4. `input.shape: (4, 12) --> engine rebuilt (10 <= 12)`
+5. `input.shape: (4, 3)  --> engine rebuilt (3 <= 5)`
+
+One big issue is that building the engine can be time consuming, especially for large models. Therefore, as a workaround, one recommendation is to **first build the TensorRT engine with an input of small shape, and then with an input of large shape to have an engine valid for all shapes inbetween**. This allows to avoid rebuilding the engine for new small and large shapes, which is unwanted once the model is deployed for inference.
+
+Passing the engine cache path in the provider options, the engine can therefore be built once for all and used fully for inference thereafter.
+
+For example, for text generation, the engine can be built with:
+
+```python
+>>> import os
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForCausalLM
+
+>>> os.makedirs("tmp/trt_cache_gpt2_example", exist_ok=True)
+>>> provider_options = {
+...     "trt_engine_cache_enable": True,
+...     "trt_engine_cache_path": "tmp/trt_cache_gpt2_example"
+... }
+
+>>> ort_model = ORTModelForCausalLM.from_pretrained(
+...     "optimum/gpt2",
+...     use_cache=False,
+...     provider="TensorrtExecutionProvider",
+...     provider_options=provider_options,
+... )
+>>> tokenizer = AutoTokenizer.from_pretrained("optimum/gpt2")
+
+>>> print("Building engine for a short sequence...")  # doctest: +IGNORE_RESULT
+>>> text = ["short"]
+>>> encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
+>>> output = ort_model(**encoded_input)
+
+>>> print("Building engine for a long sequence...")  # doctest: +IGNORE_RESULT
+>>> text = [" a very long input just for demo purpose, this is very long" * 10]
+>>> encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
+>>> output = ort_model(**encoded_input)
+```
+
+The engine is stored as:
+
+![TensorRT engine cache folder](https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/tensorrt_cache.png)
+
+Once the engine is built, the cache can be reloaded and generation does not need to rebuild the engine:
+
+```python
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForCausalLM
+
+>>> provider_options = {
+...     "trt_engine_cache_enable": True,
+...     "trt_engine_cache_path": "tmp/trt_cache_gpt2_example"
+... }
+
+>>> ort_model = ORTModelForCausalLM.from_pretrained(
+...     "optimum/gpt2",
+...     use_cache=False,
+...     provider="TensorrtExecutionProvider",
+...     provider_options=provider_options,
+... )
+>>> tokenizer = AutoTokenizer.from_pretrained("optimum/gpt2")
+
+>>> text = ["Replace me by any text you'd like."]
+>>> encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
+
+>>> for i in range(3):
+...     output = ort_model.generate(**encoded_input)
+...     print(tokenizer.decode(output[0]))  # doctest: +IGNORE_RESULT
+```
+
+#### Warmup
+
+Once the engine is built, it is recommended to do before inference **one or a few warmup steps**, as the first inference runs have [some overhead](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#trtexec-flags).
+
 ### Use TensorRT execution provider with floating-point models
 
 For non-quantized models, the use is straightforward, by simply using the `provider` argument in `ORTModel.from_pretrained()`. For example:
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
 
-ort_model = ORTModelForSequenceClassification.from_pretrained(
-    "distilbert-base-uncased-finetuned-sst-2-english",
-    from_transformers=True,
-    provider="TensorrtExecutionProvider",
-)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(
+...     "distilbert-base-uncased-finetuned-sst-2-english",
+...     from_transformers=True,
+...     provider="TensorrtExecutionProvider",
+... )
 ```
 
 [As previously for `CUDAExecutionProvider`](#use-cuda-execution-provider-with-floatingpoint-models), by passing the session option `log_severity_level = 0` (verbose), we can check in the logs whether all nodes are indeed placed on the TensorRT execution provider or not:
@@ -289,17 +394,21 @@ The model can then be used with the common 🤗 Transformers API for inference a
 
 ### Use TensorRT execution provider with quantized models
 
+**Note: quantization in ONNX Runtime with TensorRT as a target is currently broken due to [a bug in ONNX Runtime](https://github.com/microsoft/onnxruntime/issues/14142).**
+
 When it comes to quantized models, TensorRT only supports models that use **static** quantization with **symmetric quantization** for weights and activations. Thus, to be able to consume with TensorRT models quantized through 🤗 Optimum, the following configuration needs to be passed when doing [static quantization](quantization#static-quantization-example):
 
 ```python
-qconfig = QuantizationConfig(
-    ...,
-    is_static=True,
-    activations_symmetric=True,
-    weights_symmetric=True,
-    qdq_dedicated_pair=True,
-    qdq_add_pair_to_weight=True
-)
+>>> from optimum.onnxruntime import QuantizationConfig
+
+>>> qconfig = QuantizationConfig(
+...     ...,
+...     is_static=True,
+...     activations_symmetric=True,
+...     weights_symmetric=True,
+...     qdq_dedicated_pair=True,
+...     qdq_add_pair_to_weight=True
+... )
 ```
 
 The `qdq_dedicated_pair=True` argument is required by TensorRT, since it expects a single node after each `QuantizeLinear` + `DequantizeLinear` (QDQ) pair.
@@ -309,17 +418,17 @@ The parameter `qdq_add_pair_to_weight=True` is also required by TensorRT, that s
 In the code sample below, after performing static quantization, the resulting model is loaded into the `ORTModel` class using TensorRT as the execution provider. ONNX Runtime graph optimization need to be disabled for the model to be consumed and optimized by TensorRT, and the fact that INT8 operations are used needs to be specified to TensorRT.
 
 ```python
-session_options = onnxruntime.SessionOptions()
-session_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+>>> session_options = onnxruntime.SessionOptions()
+>>> session_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
 
-model_name = "fxmarty/distilbert-base-uncased-finetuned-sst-2-english-int8-static-symmetric-dedicated-qdq-everywhere"
-ort_model = ORTModelForSequenceClassification.from_pretrained(
-    model_name,
-    from_transformers=False,
-    provider="TensorrtExecutionProvider",
-    session_options=session_options,
-    provider_options={"trt_int8_enable": True},
-)
+>>> model_name = "fxmarty/distilbert-base-uncased-finetuned-sst-2-english-int8-static-symmetric-dedicated-qdq-everywhere"
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(
+...     model_name,
+...     from_transformers=False,
+...     provider="TensorrtExecutionProvider",
+...     session_options=session_options,
+...     provider_options={"trt_int8_enable": True},
+... )
 ```
 
 The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines).

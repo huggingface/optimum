@@ -23,42 +23,45 @@ To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration obje
 Before applying quantization or optimization, first we need to load our model. To load a model and run inference with ONNX Runtime, you can just replace the canonical Transformers [`AutoModelForXxx`](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModel) class with the corresponding [`ORTModelForXxx`](https://huggingface.co/docs/optimum/onnxruntime/package_reference/modeling_ort#optimum.onnxruntime.ORTModel) class. If you want to load from a PyTorch checkpoint, set `from_transformers=True` to export your model to the ONNX format.
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import AutoTokenizer
 
-model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
-save_directory = "tmp/onnx/"
-# Load a model from transformers and export it to ONNX
-tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
-ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
-# Save the ONNX model and tokenizer
-ort_model.save_pretrained(save_directory)
-tokenizer.save_pretrained(save_directory)
+>>> model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> save_directory = "tmp/onnx/"
+
+>>> # Load a model from transformers and export it to ONNX
+>>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
+
+>>> # Save the ONNX model and tokenizer
+>>> ort_model.save_pretrained(save_directory)
+>>> tokenizer.save_pretrained(save_directory)  # doctest: +IGNORE_RESULT
 ```
 
 Let's see now how we can apply dynamic quantization with ONNX Runtime:
 
 ```python
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
-from optimum.onnxruntime import ORTQuantizer
+>>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
+>>> from optimum.onnxruntime import ORTQuantizer
 
-# Define the quantization methodology
-qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
-quantizer = ORTQuantizer.from_pretrained(ort_model)
-# Apply dynamic quantization on the model
-quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
+>>> # Define the quantization methodology
+>>> qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
+>>> quantizer = ORTQuantizer.from_pretrained(ort_model)
+
+>>> # Apply dynamic quantization on the model
+>>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)  # doctest: +IGNORE_RESULT
 ```
 
 In this example, we've quantized a model from the Hugging Face Hub, in the same manner we can quantize a model hosted locally by providing the path to the directory containing the model weights. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import pipeline, AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import pipeline, AutoTokenizer
 
-model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
-tokenizer = AutoTokenizer.from_pretrained(save_directory)
-classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-results = classifier("I love burritos!")
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
+>>> tokenizer = AutoTokenizer.from_pretrained(save_directory)
+>>> classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> results = classifier("I love burritos!")
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/quickstart) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime).
@@ -207,14 +210,34 @@ The Optimum library handles out of the box the ONNX export of Transformers and D
 
 Exporting a model to ONNX is as simple as
 
-```
+```bash
 optimum-cli export onnx --model gpt2 gpt2_onnx/
 ```
 
 Check out the help for more options:
 
-```
+```bash
 optimum-cli export onnx --help
 ```
 
 Check out the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) for more.
+
+## PyTorch's BetterTransformer support
+
+[BetterTransformer](https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/) is a free-lunch PyTorch-native optimization to gain x1.25 - x4 speedup on the inference of Transformer-based models. It has been marked as stable in [PyTorch 1.13](https://pytorch.org/blog/PyTorch-1.13-release/). We integrated BetterTransformer with the most-used models from the 🤗 Transformers libary, and using the integration is as simple as:
+
+```python
+>>> from optimum.bettertransformer import BetterTransformer
+>>> from transformers import AutoModelForSequenceClassification
+
+>>> model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+>>> model = BetterTransformer.transform(model)
+```
+
+Check out the [documentation](https://huggingface.co/docs/optimum/bettertransformer/overview) for more details, and the [blog post on PyTorch's Medium](https://medium.com/pytorch/bettertransformer-out-of-the-box-performance-for-huggingface-transformers-3fbe27d50ab2) to find out more about the integration!
+
+## `torch.fx` integration
+
+Optimum integrates with `torch.fx`, providing as a one-liner several graph transformations. We aim at supporting a better management of [quantization](https://huggingface.co/docs/optimum/concept_guides/quantization) through `torch.fx`, both for quantization-aware training (QAT) and post-training quantization (PTQ).
+
+Check out the [documentation](https://huggingface.co/docs/optimum/torch_fx/usage_guides/optimization) and [reference](https://huggingface.co/docs/optimum/torch_fx/package_reference/optimization) for more!

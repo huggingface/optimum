@@ -14,10 +14,12 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
+import re
 import shutil
+from inspect import signature
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -45,15 +47,18 @@ from transformers.modeling_outputs import (
 
 import onnxruntime as ort
 from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
+from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    check_io_binding,
     get_device_for_provider,
     get_provider_for_device,
     parse_device,
@@ -143,24 +148,33 @@ class ORTModel(OptimizedModel):
         - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
-    _AUTOMODELS_TO_TASKS = {cls_: task for task, cls_ in TasksManager._TASKS_TO_AUTOMODELS.items()}
+    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in TasksManager._TASKS_TO_AUTOMODELS.items()}
     model_type = "onnx_model"
     auto_model_class = AutoModel
 
     @classproperty
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class, None)
+        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class.__name__, None)
 
-    def __init__(
+    @classmethod
+    def _auto_model_to_task(cls, auto_model_class):
+        """
+        Get the task corresponding to a class (for example AutoModelForXXX in transformers).
+        """
+        return cls._AUTOMODELS_TO_TASKS[auto_model_class.__name__]
+
+    def shared_attributes_init(
         self,
         model: ort.InferenceSession,
-        config: "PretrainedConfig",
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
     ):
+        """
+        Initializes attributes that may be shared among several ONNX Runtime inference sesssions.
+        """
         # TODO: remove at version 2.0
         if kwargs.pop("latest_model_name", None) is not None:
             logger.warning(
@@ -172,8 +186,6 @@ class ORTModel(OptimizedModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        super().__init__(model, config)
-        self.use_io_binding = use_io_binding
         self.providers = model.get_providers()
         self._device = get_device_for_provider(self.providers[0])
 
@@ -189,8 +201,6 @@ class ORTModel(OptimizedModel):
             self.model_save_dir = Path(model_save_dir)
         else:
             self.model_save_dir = model_save_dir
-        self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
 
         self.preprocessors = preprocessors if preprocessors is not None else []
 
@@ -200,16 +210,37 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        if "TensorrtExecutionProvider" in self.providers and self.use_io_binding:
-            logger.warning(
-                "There is no need to do IO binding for TensorrtExecutionProvider, `use_io_binding` is set to False."
-            )
-            self.use_io_binding = False
+        self._use_io_binding = use_io_binding
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
         self.auto_model_class.register(AutoConfig, self.__class__)
+
+    def __init__(
+        self,
+        model: ort.InferenceSession,
+        config: "PretrainedConfig",
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        **kwargs,
+    ):
+        super().__init__(model, config)
+
+        self.model_path = Path(model._model_path)
+        self.model_name = self.model_path.name
+
+        self.shared_attributes_init(
+            model,
+            use_io_binding,
+            model_save_dir,
+            preprocessors,
+            **kwargs,
+        )
+
+        self.inputs_names = {output_key.name: idx for idx, output_key in enumerate(model.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
 
     # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
     @property
@@ -224,6 +255,14 @@ class ORTModel(OptimizedModel):
     def device(self, value: torch.device):
         self._device = value
 
+    @property
+    def use_io_binding(self):
+        return check_io_binding(self.providers, self._use_io_binding)
+
+    @use_io_binding.setter
+    def use_io_binding(self, value: bool):
+        self._use_io_binding = value
+
     def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
@@ -237,6 +276,13 @@ class ORTModel(OptimizedModel):
             `ORTModel`: the model placed on the requested device.
         """
         device, provider_options = parse_device(device)
+
+        if device.type == "cuda" and self._use_io_binding is False:
+            self.use_io_binding = True
+            logger.info(
+                "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
+                "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
+            )
 
         self.device = device
         provider = get_provider_for_device(self.device)
@@ -283,15 +329,20 @@ class ORTModel(OptimizedModel):
         if not isinstance(path, str):
             path = str(path)
 
-        # `providers` list must of be of the same length as `provider_options` list
+        # `providers` and `provider_options` need to be of the same length
+        if provider_options is not None:
+            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
+        else:
+            providers_options = None
+
         return ort.InferenceSession(
             path,
             providers=providers,
             sess_options=session_options,
-            provider_options=None if provider_options is None else [provider_options],
+            provider_options=providers_options,
         )
 
-    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME):
+    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME, **kwargs):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
@@ -303,9 +354,15 @@ class ORTModel(OptimizedModel):
             file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
                 The filename to use when saving the model.
         """
-        # TODO: support models with external data
-        dst_path = Path(save_directory).joinpath(file_name)
-        shutil.copyfile(self.model_path, dst_path)
+        src_paths = [self.model_path]
+        dst_file_names = [file_name]
+
+        # add external data paths in case of large models
+        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+
+        for src_path, dst_file_name in zip(src_paths, dst_file_names):
+            dst_path = Path(save_directory) / dst_file_name
+            shutil.copyfile(src_path, dst_path)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
@@ -337,7 +394,7 @@ class ORTModel(OptimizedModel):
 
         if len(onnx_files) == 0:
             if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {path}")
+                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {pattern} in {path}.")
             return None
         elif len(onnx_files) > 1:
             if argument_name is not None:
@@ -345,7 +402,7 @@ class ORTModel(OptimizedModel):
                     f"Too many ONNX model files were found in {path}, specify which one to load by using the "
                     f"{argument_name} argument."
                 )
-        return onnx_files[0].name
+        return onnx_files[0]
 
     @classmethod
     def _from_pretrained(
@@ -362,8 +419,9 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        **kwargs,
     ) -> "ORTModel":
         model_path = Path(model_id)
         regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
@@ -417,6 +475,23 @@ class ORTModel(OptimizedModel):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
+
+            # try download external data
+            try:
+                model_data_cache_path = hf_hub_download(
+                    repo_id=model_id,
+                    subfolder=subfolder,
+                    filename=file_name + "_data",
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                )
+            except EntryNotFoundError:
+                # model doesn't use external data
+                pass
+
             model = ORTModel.load_model(
                 model_cache_path, provider=provider, session_options=session_options, provider_options=provider_options
             )
@@ -447,24 +522,25 @@ class ORTModel(OptimizedModel):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
         if task is None:
-            task = cls._AUTOMODELS_TO_TASKS[cls.auto_model_class]
+            task = cls._auto_model_to_task(cls.auto_model_class)
 
         kwargs_to_get_model = {
             "subfolder": subfolder,
             "revision": revision,
+            "trust_remote_code": trust_remote_code,
         }
 
         model = TasksManager.get_model_from_task(task, model_id, **kwargs_to_get_model)
-        model_type = model.config.model_type.replace("_", "-")
         onnx_config_class = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_id
+            model=model, exporter="onnx", task=task, model_name=model_id
         )
 
         onnx_config = onnx_config_class(model.config)
@@ -537,6 +613,147 @@ class ORTModel(OptimizedModel):
             **kwargs,
         )
 
+    def _prepare_output_buffer(self, model: ort.InferenceSession, output_shape: Tuple[int], output_name: str):
+        """Prepares the buffer of output_name with a 1D tensor."""
+        ort_type = TypeHelper.get_output_type(model, output_name)
+        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
+        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
+        return output_buffer
+
+    def _output_shape_inference(self, axis_name: Union[str, int], dimensions: Dict[str, int]) -> Union[str, int]:
+        """
+        Infers the output shape of a given dynamic axis by using the `dimensions` mapping.
+
+        For instance, for the following inputs:
+            axis_name = "past_sequence_length + sequence_length"
+            dimensions = {"batch_size": 2, "sequence_length": 3, "past_sequence_length": 7}
+
+        The inferred shape is 3 + 7 = 10.
+        """
+        if isinstance(axis_name, int):
+            return axis_name
+        result = dimensions.get(axis_name, None)
+        if result is None:
+            subparts = axis_name.split("+")
+            result = 0
+            for subname in subparts:
+                subname = subname.strip()
+                subresult = dimensions.get(subname, None)
+                if subresult is None:
+                    try:
+                        subresult = int(subname)
+                    except ValueError:
+                        result = None
+                        break
+                result += subresult
+        return axis_name if result is None else result
+
+    def _prepare_io_binding(
+        self,
+        model: ort.InferenceSession,
+        *model_inputs: torch.Tensor,
+        known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
+        forward_function: Optional[Callable[..., Any]] = None,
+        outputs_to_not_bind: Optional[Union[Set[str], str]] = None
+    ) -> Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
+        """
+        Prepares IO binding for ONNX Runtime.
+
+        Args:
+            model (`ort.InferenceSession`):
+                The model for which we want to bind the inputs and outputs.
+            *model_inputs:
+                The inputs of the model.
+            known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
+                It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
+                values. It is possible to explicitely pass the shape via this argument.
+            forward_function (`Optional[Callable[..., Any]]`, defaults to `None`):
+                The forward function of the python wrapper for the model.
+            outputs_to_not_bind (`Optional[Union[Set[str], str]]`, defaults to `None`):
+                The names of the outputs that should not be bound.
+
+        Returns:
+            `Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]`: The IOBinding object, a dictionary
+            containing the shape of each output, and another one pointing to the buffers containing the outputs data.
+
+        """
+        io_binding = model.io_binding()
+
+        input_names = list(input_.name for input_ in model.get_inputs())
+        # Re-ordering method inspired from OnnxConfig.ordered_inputs
+        sig = signature(self.forward if forward_function is None else forward_function)
+        ordered_input_names = []
+        for param in sig.parameters:
+            param_regex = re.compile(rf"{param}(\.\d*)?")
+            for name in input_names:
+                if re.search(param_regex, name):
+                    ordered_input_names.append(name)
+        input_names = ordered_input_names
+
+        name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
+
+        input_name_to_tensor = {}
+        for idx, tensor in enumerate(model_inputs):
+            if tensor is None:
+                continue
+            name = input_names[idx]
+            input_name_to_tensor[name] = tensor
+            tensor = tensor.contiguous()
+            io_binding.bind_input(
+                name,
+                tensor.device.type,
+                self.device.index,
+                name_to_np_type[name],
+                tuple(tensor.shape),
+                tensor.data_ptr(),
+            )
+
+        dimensions = {}
+        for input_ in model.get_inputs():
+            shape = input_.shape
+            for idx, axis in enumerate(shape):
+                if isinstance(axis, str):
+                    dimensions[axis] = input_name_to_tensor[input_.name].shape[idx]
+
+        output_shapes = {}
+        output_buffers = {}
+
+        if known_output_shapes is None:
+            known_output_shapes = {}
+
+        if outputs_to_not_bind is None:
+            outputs_to_not_bind = set()
+        elif isinstance(outputs_to_not_bind, str):
+            outputs_to_not_bind = {outputs_to_not_bind}
+
+        for output_node in model.get_outputs():
+            output_name = output_node.name
+            if output_name in outputs_to_not_bind:
+                continue
+            if output_name in known_output_shapes:
+                output_shape = known_output_shapes[output_name]
+            else:
+                output_shape = []
+                for axis_name in output_node.shape:
+                    output_shape.append(self._output_shape_inference(axis_name, dimensions))
+                # output_shape = tuple(map(self._output_shape_inference, output_node.shape))
+            output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
+            io_binding.bind_output(
+                output_name,
+                output_buffer.device.type,
+                self.device.index,
+                name_to_np_type[output_name],
+                output_shape,
+                output_buffer.data_ptr(),
+            )
+            output_shapes[output_name] = output_shape
+            output_buffers[output_name] = output_buffer
+
+        return io_binding, output_shapes, output_buffers
+
+    def prepare_io_binding(self, *model_inputs):
+        return self._prepare_io_binding(self.model, *model_inputs)
+
 
 FEATURE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
@@ -552,8 +769,9 @@ FEATURE_EXTRACTION_EXAMPLE = r"""
     >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
 
     >>> outputs = model(**inputs)
-    >>> logits = outputs.logits
-    >>> list(logits.shape)
+    >>> last_hidden_state = outputs.last_hidden_state
+    >>> list(last_hidden_state.shape)
+    [1, 12, 384]
     ```
 
     Example using `transformers.pipeline`:
@@ -584,82 +802,6 @@ class ORTModelForFeatureExtraction(ORTModel):
     """
 
     auto_model_class = AutoModel
-
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-
-    def prepare_output_buffer(self, batch_size, sequence_length, hidden_size, output_name: str):
-        """Prepares the buffer of output_name with a 1D tensor on shape: (batch_size, sequence_length, hidden_size)."""
-        ort_type = TypeHelper.get_output_type(self.model, output_name)
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-
-        output_shape = (batch_size, sequence_length, hidden_size)
-        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
-
-        return output_shape, output_buffer
-
-    def prepare_io_binding(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-    ):
-        io_binding = self.model.io_binding()
-
-        # bind input ids
-        input_ids = input_ids.contiguous()
-        io_binding.bind_input(
-            "input_ids",
-            input_ids.device.type,
-            self.device.index,
-            self.name_to_np_type["input_ids"],
-            tuple(input_ids.shape),
-            input_ids.data_ptr(),
-        )
-        # bind attention mask
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            "attention_mask",
-            attention_mask.device.type,
-            self.device.index,
-            self.name_to_np_type["attention_mask"],
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
-
-        if token_type_ids is not None:
-            # bind token type ids
-            token_type_ids = token_type_ids.contiguous()
-            io_binding.bind_input(
-                "token_type_ids",
-                token_type_ids.device.type,
-                self.device.index,
-                self.name_to_np_type["token_type_ids"],
-                tuple(token_type_ids.shape),
-                token_type_ids.data_ptr(),
-            )
-
-        # bind last_hidden_state
-        output_shape, output_buffer = self.prepare_output_buffer(
-            batch_size=input_ids.size(0),
-            sequence_length=input_ids.size(1),
-            hidden_size=self.config.hidden_size,
-            output_name="last_hidden_state",
-        )
-        io_binding.bind_output(
-            "last_hidden_state",
-            output_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["last_hidden_state"],
-            output_shape,
-            output_buffer.data_ptr(),
-        )
-        output_shapes = {"last_hidden_state": output_shape}
-        output_buffers = {"last_hidden_state": output_buffer}
-
-        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -701,7 +843,7 @@ class ORTModelForFeatureExtraction(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.model_outputs["last_hidden_state"]]).to(self.device)
+            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return BaseModelOutput(last_hidden_state=last_hidden_state)
@@ -756,90 +898,6 @@ class ORTModelForQuestionAnswering(ORTModel):
 
     auto_model_class = AutoModelForQuestionAnswering
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-
-    def prepare_logits_buffer(self, batch_size, sequence_length, output_name: str):
-        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length)."""
-        ort_type = TypeHelper.get_output_type(self.model, output_name)
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-
-        logits_shape = (batch_size, sequence_length)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
-
-        return logits_shape, logits_buffer
-
-    def prepare_io_binding(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-    ):
-        io_binding = self.model.io_binding()
-
-        # bind input ids
-        input_ids = input_ids.contiguous()
-        io_binding.bind_input(
-            "input_ids",
-            input_ids.device.type,
-            self.device.index,
-            self.name_to_np_type["input_ids"],
-            tuple(input_ids.shape),
-            input_ids.data_ptr(),
-        )
-        # bind attention mask
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            "attention_mask",
-            attention_mask.device.type,
-            self.device.index,
-            self.name_to_np_type["attention_mask"],
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
-
-        if token_type_ids is not None:
-            # bind token type ids
-            token_type_ids = token_type_ids.contiguous()
-            io_binding.bind_input(
-                "token_type_ids",
-                token_type_ids.device.type,
-                self.device.index,
-                self.name_to_np_type["token_type_ids"],
-                tuple(token_type_ids.shape),
-                token_type_ids.data_ptr(),
-            )
-
-        # bind start_logits and end_logits
-        start_logits_shape, start_logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1), output_name="start_logits"
-        )
-        end_logits_shape, end_logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), sequence_length=input_ids.size(1), output_name="end_logits"
-        )
-        io_binding.bind_output(
-            "start_logits",
-            start_logits_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["start_logits"],
-            start_logits_shape,
-            start_logits_buffer.data_ptr(),
-        )
-        io_binding.bind_output(
-            "end_logits",
-            end_logits_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["end_logits"],
-            end_logits_shape,
-            end_logits_buffer.data_ptr(),
-        )
-        output_shapes = {"start_logits": start_logits_shape, "end_logits": end_logits_shape}
-        output_buffers = {"start_logits": start_logits_buffer, "end_logits": end_logits_buffer}
-
-        return io_binding, output_shapes, output_buffers
-
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + QUESTION_ANSWERING_EXAMPLE.format(
@@ -885,8 +943,8 @@ class ORTModelForQuestionAnswering(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            start_logits = torch.from_numpy(outputs[self.model_outputs["start_logits"]]).to(self.device)
-            end_logits = torch.from_numpy(outputs[self.model_outputs["end_logits"]]).to(self.device)
+            start_logits = torch.from_numpy(outputs[self.output_names["start_logits"]]).to(self.device)
+            end_logits = torch.from_numpy(outputs[self.output_names["end_logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
@@ -908,6 +966,7 @@ SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
+    [1, 2]
     ```
 
     Example using `transformers.pipelines`:
@@ -936,7 +995,7 @@ SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
 
     >>> sequence_to_classify = "Who are you voting for in 2020?"
     >>> candidate_labels = ["Europe", "public health", "politics", "elections"]
-    >>> pred = onnx_z0(sequence_to_classify, candidate_labels, multi_class=True)
+    >>> pred = onnx_z0(sequence_to_classify, candidate_labels, multi_label=True)
     ```
 """
 
@@ -954,81 +1013,6 @@ class ORTModelForSequenceClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForSequenceClassification
-
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_inputs = {input_key.name: idx for idx, input_key in enumerate(self.model.get_inputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-
-    def prepare_logits_buffer(self, batch_size, num_labels):
-        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-
-        logits_shape = (batch_size, num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
-
-        return logits_shape, logits_buffer
-
-    def prepare_io_binding(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-    ):
-        io_binding = self.model.io_binding()
-
-        # bind input ids
-        input_ids = input_ids.contiguous()
-        io_binding.bind_input(
-            "input_ids",
-            input_ids.device.type,
-            self.device.index,
-            self.name_to_np_type["input_ids"],
-            tuple(input_ids.shape),
-            input_ids.data_ptr(),
-        )
-        # bind attention mask
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            "attention_mask",
-            attention_mask.device.type,
-            self.device.index,
-            self.name_to_np_type["attention_mask"],
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
-
-        if token_type_ids is not None:
-            # bind token type ids
-            token_type_ids = token_type_ids.contiguous()
-            io_binding.bind_input(
-                "token_type_ids",
-                token_type_ids.device.type,
-                self.device.index,
-                self.name_to_np_type["token_type_ids"],
-                tuple(token_type_ids.shape),
-                token_type_ids.data_ptr(),
-            )
-
-        # bind logits
-        logits_shape, logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0),
-            num_labels=self.config.num_labels,
-        )
-        io_binding.bind_output(
-            "logits",
-            logits_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["logits"],
-            logits_shape,
-            logits_buffer.data_ptr(),
-        )
-        output_shapes = {"logits": logits_shape}
-        output_buffers = {"logits": logits_buffer}
-
-        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1071,7 +1055,7 @@ class ORTModelForSequenceClassification(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return SequenceClassifierOutput(logits=logits)
@@ -1093,6 +1077,7 @@ TOKEN_CLASSIFICATION_EXAMPLE = r"""
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
     >>> list(logits.shape)
+    [1, 12, 9]
     ```
 
     Example using `transformers.pipelines`:
@@ -1124,81 +1109,6 @@ class ORTModelForTokenClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForTokenClassification
-
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-
-    def prepare_logits_buffer(self, batch_size, sequence_length, num_labels):
-        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, sequence_length, config.num_labels)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-
-        logits_shape = (batch_size, sequence_length, num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
-
-        return logits_shape, logits_buffer
-
-    def prepare_io_binding(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-    ):
-        io_binding = self.model.io_binding()
-
-        # bind input ids
-        input_ids = input_ids.contiguous()
-        io_binding.bind_input(
-            "input_ids",
-            input_ids.device.type,
-            self.device.index,
-            self.name_to_np_type["input_ids"],
-            tuple(input_ids.shape),
-            input_ids.data_ptr(),
-        )
-        # bind attention mask
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            "attention_mask",
-            attention_mask.device.type,
-            self.device.index,
-            self.name_to_np_type["attention_mask"],
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
-
-        if token_type_ids is not None:
-            # bind token type ids
-            token_type_ids = token_type_ids.contiguous()
-            io_binding.bind_input(
-                "token_type_ids",
-                token_type_ids.device.type,
-                self.device.index,
-                self.name_to_np_type["token_type_ids"],
-                tuple(token_type_ids.shape),
-                token_type_ids.data_ptr(),
-            )
-
-        # bind logits
-        logits_shape, logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0),
-            sequence_length=input_ids.size(1),
-            num_labels=self.config.num_labels,
-        )
-        io_binding.bind_output(
-            "logits",
-            logits_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["logits"],
-            logits_shape,
-            logits_buffer.data_ptr(),
-        )
-        output_shapes = {"logits": logits_shape}
-        output_buffers = {"logits": logits_buffer}
-
-        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1241,7 +1151,7 @@ class ORTModelForTokenClassification(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return TokenClassifierOutput(logits=logits)
@@ -1260,15 +1170,16 @@ MULTIPLE_CHOICE_EXAMPLE = r"""
     >>> num_choices = 4
     >>> first_sentence = ["Members of the procession walk down the street holding small horn brass instruments."] * num_choices
     >>> second_sentence = [
-    "A drum line passes by walking down the street playing their instruments.",
-    "A drum line has heard approaching them.",
-    "A drum line arrives and they're outside dancing and asleep.",
-    "A drum line turns the lead singer watches the performance."
-]
+    ...     "A drum line passes by walking down the street playing their instruments.",
+    ...     "A drum line has heard approaching them.",
+    ...     "A drum line arrives and they're outside dancing and asleep.",
+    ...     "A drum line turns the lead singer watches the performance."
+    ... ]
     >>> inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
+    
     # Unflatten the inputs values expanding it to the shape [batch_size, num_choices, seq_length]
     >>> for k, v in inputs.items():
-    >>>     inputs[k] = [v[i: i + num_choices] for i in range(0, len(v), num_choices)]
+    ...     inputs[k] = [v[i: i + num_choices] for i in range(0, len(v), num_choices)]
     >>> inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -1289,79 +1200,6 @@ class ORTModelForMultipleChoice(ORTModel):
     """
 
     auto_model_class = AutoModelForMultipleChoice
-
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-
-    def prepare_logits_buffer(self, batch_size, num_choices):
-        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, num_choices)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-
-        logits_shape = (batch_size, num_choices)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
-
-        return logits_shape, logits_buffer
-
-    def prepare_io_binding(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
-    ):
-        io_binding = self.model.io_binding()
-
-        # bind input ids
-        input_ids = input_ids.contiguous()
-        io_binding.bind_input(
-            "input_ids",
-            input_ids.device.type,
-            self.device.index,
-            self.name_to_np_type["input_ids"],
-            tuple(input_ids.shape),
-            input_ids.data_ptr(),
-        )
-        # bind attention mask
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            "attention_mask",
-            attention_mask.device.type,
-            self.device.index,
-            self.name_to_np_type["attention_mask"],
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
-
-        if token_type_ids is not None:
-            # bind token type ids
-            token_type_ids = token_type_ids.contiguous()
-            io_binding.bind_input(
-                "token_type_ids",
-                token_type_ids.device.type,
-                self.device.index,
-                self.name_to_np_type["token_type_ids"],
-                tuple(token_type_ids.shape),
-                token_type_ids.data_ptr(),
-            )
-
-        # bind logits
-        logits_shape, logits_buffer = self.prepare_logits_buffer(
-            batch_size=input_ids.size(0), num_choices=input_ids.size(1)
-        )
-        io_binding.bind_output(
-            "logits",
-            logits_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["logits"],
-            logits_shape,
-            logits_buffer.data_ptr(),
-        )
-        output_shapes = {"logits": logits_shape}
-        output_buffers = {"logits": logits_buffer}
-
-        return io_binding, output_shapes, output_buffers
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1401,7 +1239,7 @@ class ORTModelForMultipleChoice(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]]).to(self.device)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return MultipleChoiceModelOutput(logits=logits)
@@ -1459,53 +1297,6 @@ class ORTModelForImageClassification(ORTModel):
 
     auto_model_class = AutoModelForImageClassification
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.model) if self.use_io_binding else None
-
-    def prepare_logits_buffer(self, batch_size):
-        """Prepares the buffer of logits with a 1D tensor on shape: (batch_size, config.num_labels)."""
-        ort_type = TypeHelper.get_output_type(self.model, "logits")
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-
-        logits_shape = (batch_size, self.config.num_labels)
-        logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch_type, device=self.device).contiguous()
-
-        return logits_shape, logits_buffer
-
-    def prepare_io_binding(
-        self,
-        pixel_values: torch.Tensor,
-    ):
-        io_binding = self.model.io_binding()
-
-        # bind pixel values
-        pixel_values = pixel_values.contiguous()
-        io_binding.bind_input(
-            "pixel_values",
-            pixel_values.device.type,
-            self.device.index,
-            self.name_to_np_type["pixel_values"],
-            tuple(pixel_values.shape),
-            pixel_values.data_ptr(),
-        )
-
-        # bind logits
-        logits_shape, logits_buffer = self.prepare_logits_buffer(batch_size=pixel_values.size(0))
-        io_binding.bind_output(
-            "logits",
-            logits_buffer.device.type,
-            self.device.index,
-            self.name_to_np_type["logits"],
-            logits_shape,
-            logits_buffer.data_ptr(),
-        )
-        output_shapes = {"logits": logits_shape}
-        output_buffers = {"logits": logits_buffer}
-
-        return io_binding, output_shapes, output_buffers
-
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
         + IMAGE_CLASSIFICATION_EXAMPLE.format(
@@ -1537,7 +1328,7 @@ class ORTModelForImageClassification(ORTModel):
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.model_outputs["logits"]])
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return ImageClassifierOutput(logits=logits)
@@ -1595,13 +1386,6 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
     auto_model_class = AutoModelForSemanticSegmentation
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding, **kwargs)
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_input_names = list(self.model_inputs.keys())
-        self.model_output_names = list(self.model_outputs.keys())
-
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
         + SEMANTIC_SEGMENTATION_EXAMPLE.format(
@@ -1620,7 +1404,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
             io_binding.synchronize_outputs()
 
             outputs = {}
-            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+            for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
 
             # converts output to namedtuple for pipelines post-processing
@@ -1699,13 +1483,6 @@ class ORTModelForCustomTasks(ORTModel):
     Model for any custom tasks if the ONNX model is stored in a single file.
     """
 
-    def __init__(self, model=None, config=None, use_io_binding=True, **kwargs):
-        super().__init__(model, config, use_io_binding=True, **kwargs)
-        self.model_inputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_inputs())}
-        self.model_outputs = {output_key.name: idx for idx, output_key in enumerate(self.model.get_outputs())}
-        self.model_input_names = list(self.model_inputs.keys())
-        self.model_output_names = list(self.model_outputs.keys())
-
     @add_start_docstrings_to_model_forward(
         CUSTOM_TASKS_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
@@ -1723,7 +1500,7 @@ class ORTModelForCustomTasks(ORTModel):
             io_binding.synchronize_outputs()
 
             outputs = {}
-            for name, output in zip(self.model_output_names, io_binding._iobinding.get_outputs()):
+            for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):
                 outputs[name] = IOBindingHelper.to_pytorch(output)
 
             # converts output to namedtuple for pipelines post-processing

@@ -20,11 +20,19 @@ from pathlib import Path
 from transformers import AutoTokenizer
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import is_diffusers_available, logging
+from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs
+from .convert import (
+    AtolError,
+    OutputMatchError,
+    ShapeError,
+    export,
+    export_models,
+    validate_model_outputs,
+    validate_models_outputs,
+)
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
@@ -58,16 +66,17 @@ def main():
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    # Allocate the model
-    model = TasksManager.get_model_from_task(task, args.model, framework=args.framework, cache_dir=args.cache_dir)
+    # get the shapes to be used to generate dummy inputs
+    input_shapes = {}
+    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+        input_shapes[input_name] = getattr(args, input_name)
+
+    model = TasksManager.get_model_from_task(
+        task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
+    )
 
     if task != "stable-diffusion":
-        model_type = model.config.model_type.replace("_", "-")
-        model_name = getattr(model, "name", None)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model_type, "onnx", task=task, model_name=model_name
-        )
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config)
 
         needs_pad_token_id = (
@@ -109,10 +118,18 @@ def main():
         args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
     ):
         if task == "stable-diffusion":
-            output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+            output_names = [
+                "text_encoder/model.onnx",
+                "unet/model.onnx",
+                "vae_encoder/model.onnx",
+                "vae_decoder/model.onnx",
+            ]
             models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
-            # Saving the model preprocessor as this is needed sometimes.
+            # Saving the additional components needed to perform inference.
             model.tokenizer.save_pretrained(args.output.parent.joinpath("tokenizer"))
+            model.scheduler.save_pretrained(args.output.parent.joinpath("scheduler"))
+            model.feature_extractor.save_pretrained(args.output.parent.joinpath("feature_extractor"))
+            model.save_config(args.output.parent)
         else:
             if model.config.is_encoder_decoder and task.startswith("causal-lm"):
                 raise ValueError(
@@ -131,9 +148,18 @@ def main():
             opset=args.opset,
             output_dir=args.output.parent,
             output_names=output_names,
+            input_shapes=input_shapes,
+            device=args.device,
         )
     else:
-        onnx_inputs, onnx_outputs = export(model=model, config=onnx_config, output=args.output, opset=args.opset)
+        onnx_inputs, onnx_outputs = export(
+            model=model,
+            config=onnx_config,
+            output=args.output,
+            opset=args.opset,
+            input_shapes=input_shapes,
+            device=args.device,
+        )
 
     try:
         if task == "stable-diffusion" or (
@@ -145,6 +171,7 @@ def main():
                 atol=args.atol,
                 output_dir=args.output.parent,
                 output_names=output_names,
+                device=args.device,
             )
         else:
             validate_model_outputs(
@@ -153,12 +180,24 @@ def main():
                 onnx_model=args.output,
                 onnx_named_outputs=onnx_outputs,
                 atol=args.atol,
+                device=args.device,
             )
 
-    except ValueError:
-        logger.error(f"An error occured, but the model was saved at: {args.output.parent.as_posix()}")
-        return
-    logger.info(f"All good, model saved at: {args.output.parent.as_posix()}")
+        logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")
+    except ShapeError as e:
+        raise e
+    except AtolError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except OutputMatchError as e:
+        logger.warning(
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
+    except Exception as e:
+        logger.error(
+            f"An error occured with the error message: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
+        )
 
 
 if __name__ == "__main__":
