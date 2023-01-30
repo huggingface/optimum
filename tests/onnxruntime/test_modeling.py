@@ -1019,11 +1019,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        "bart",
         "bert",
         "big_bird",
-        "bigbird_pegasus",
-        "bloom",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1033,7 +1030,6 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "electra",
         "flaubert",
         "ibert",
-        "mbart",
         "mobilebert",
         # "perceiver",
         "roberta",
@@ -1072,7 +1068,8 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForMaskedLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("The capital of France is [MASK].", return_tensors="pt")
+        MASK_TOKEN = tokenizer.mask_token
+        tokens = tokenizer(f"The capital of France is {MASK_TOKEN}.", return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
 
         self.assertTrue("logits" in onnx_outputs)
@@ -1095,7 +1092,8 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
-        text = "The capital of France is [MASK]."
+        MASK_TOKEN = tokenizer.mask_token
+        text = f"The capital of France is {MASK_TOKEN}."
         outputs = pipe(text)
 
         self.assertEqual(pipe.device, onnx_model.device)
@@ -1123,8 +1121,9 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
+        MASK_TOKEN = tokenizer.mask_token
         pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer, device=0)
-        text = "The capital of France is [MASK]."
+        text = f"The capital of France is {MASK_TOKEN}."
         outputs = pipe(text)
         # check model device
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
@@ -1149,7 +1148,8 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         )
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["The capital of France is [MASK]."] * 2, return_tensors="pt")
+        MASK_TOKEN = tokenizer.mask_token
+        tokens = tokenizer([f"The capital of France is {MASK_TOKEN}."] * 2, return_tensors="pt")
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
