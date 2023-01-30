@@ -30,6 +30,7 @@ from transformers import (
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
+    AutoModelForMaskedLM,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
     AutoModelForSemanticSegmentation,
@@ -60,6 +61,7 @@ from optimum.onnxruntime import (
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
+    ORTModelForMaskedLM,
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
     ORTModelForSemanticSegmentation,
@@ -1010,6 +1012,152 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs.start_logits, io_outputs.start_logits))
         self.assertTrue(torch.equal(onnx_outputs.end_logits, io_outputs.end_logits))
+
+        gc.collect()
+
+
+class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "albert",
+        "bert",
+        "big_bird",
+        "camembert",
+        "convbert",
+        "data2vec_text",
+        "deberta",
+        "deberta_v2",
+        "distilbert",
+        "electra",
+        "flaubert",
+        "ibert",
+        "mobilebert",
+        # "perceiver",
+        "roberta",
+        "roformer",
+        "squeezebert",
+        "xlm",
+        "xlm_roberta",
+    ]
+
+    ARCH_MODEL_MAP = {
+        # TODO: fix non passing test
+        # "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
+    }
+
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    ORTMODEL_CLASS = ORTModelForMaskedLM
+    TASK = "masked-lm"
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModelForMaskedLM.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        MASK_TOKEN = tokenizer.mask_token
+        tokens = tokenizer(f"The capital of France is {MASK_TOKEN}.", return_tensors="pt")
+        onnx_outputs = onnx_model(**tokens)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**tokens)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_pipeline_ort_model(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
+        MASK_TOKEN = tokenizer.mask_token
+        text = f"The capital of France is {MASK_TOKEN}."
+        outputs = pipe(text)
+
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertIsInstance(outputs[0]["token_str"], str)
+
+        gc.collect()
+
+    @pytest.mark.run_in_series
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("fill-mask")
+        text = "The capital of France is [MASK]."
+        outputs = pipe(text)
+
+        # compare model output class
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertIsInstance(outputs[0]["token_str"], str)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
+        tokenizer = get_preprocessor(model_id)
+        MASK_TOKEN = tokenizer.mask_token
+        pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer, device=0)
+        text = f"The capital of France is {MASK_TOKEN}."
+        outputs = pipe(text)
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        # compare model output class
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(isinstance(outputs[0]["token_str"], str))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=False).to(
+            "cuda"
+        )
+        io_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
+            "cuda"
+        )
+
+        tokenizer = get_preprocessor(model_id)
+        MASK_TOKEN = tokenizer.mask_token
+        tokens = tokenizer([f"The capital of France is {MASK_TOKEN}."] * 2, return_tensors="pt")
+        onnx_outputs = onnx_model(**tokens)
+        io_outputs = io_model(**tokens)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
 
         gc.collect()
 

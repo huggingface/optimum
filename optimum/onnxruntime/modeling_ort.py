@@ -27,6 +27,7 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForImageClassification,
+    AutoModelForMaskedLM,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
     AutoModelForSemanticSegmentation,
@@ -37,6 +38,7 @@ from transformers.file_utils import add_start_docstrings, add_start_docstrings_t
 from transformers.modeling_outputs import (
     BaseModelOutput,
     ImageClassifierOutput,
+    MaskedLMOutput,
     ModelOutput,
     MultipleChoiceModelOutput,
     QuestionAnsweringModelOutput,
@@ -792,7 +794,7 @@ FEATURE_EXTRACTION_EXAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model with a MaskedLMOutput for feature-extraction tasks.
+    Onnx Model with a BaseModelOutput for feature-extraction tasks.
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
@@ -847,6 +849,98 @@ class ORTModelForFeatureExtraction(ORTModel):
 
             # converts output to namedtuple for pipelines post-processing
             return BaseModelOutput(last_hidden_state=last_hidden_state)
+
+
+MASKED_LM_EXAMPLE = r"""
+    Example of feature extraction:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> import torch
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = tokenizer("The capital of France is [MASK].", return_tensors="pt")
+
+    >>> outputs = model(**inputs)
+    >>> logits = outputs.logits
+    >>> list(logits.shape)
+    [1, 8, 28996]
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> fill_masker = pipeline("fill-mask", model=model, tokenizer=tokenizer)
+
+    >>> text = "The capital of France is [MASK]."
+    >>> pred = fill_masker(text)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model with a MaskedLMOutput for masked language modeling tasks.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForMaskedLM(ORTModel):
+    """
+    Masked language model for ONNX.
+    """
+
+    auto_model_class = AutoModelForMaskedLM
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + MASKED_LM_EXAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForMaskedLM",
+            checkpoint="optimum/bert-base-uncased-for-masked-lm",
+        )
+    )
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        if self.device.type == "cuda" and self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_ids, attention_mask, token_type_ids
+            )
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # converts output to namedtuple for pipelines post-processing
+            return MaskedLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_ids": input_ids.cpu().detach().numpy(),
+                "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+            if token_type_ids is not None:
+                onnx_inputs["token_type_ids"] = token_type_ids.cpu().detach().numpy()
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return MaskedLMOutput(logits=logits)
 
 
 QUESTION_ANSWERING_EXAMPLE = r"""
@@ -922,10 +1016,6 @@ class ORTModelForQuestionAnswering(ORTModel):
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
-
-            # map outputs with names
-            start_logits = io_binding._iobinding.get_outputs()[0]
-            end_logits = io_binding._iobinding.get_outputs()[1]
 
             # converts output to namedtuple for pipelines post-processing
             return QuestionAnsweringModelOutput(
@@ -1039,9 +1129,6 @@ class ORTModelForSequenceClassification(ORTModel):
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
             return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
@@ -1135,9 +1222,6 @@ class ORTModelForTokenClassification(ORTModel):
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
             return TokenClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
@@ -1176,7 +1260,7 @@ MULTIPLE_CHOICE_EXAMPLE = r"""
     ...     "A drum line turns the lead singer watches the performance."
     ... ]
     >>> inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
-    
+
     # Unflatten the inputs values expanding it to the shape [batch_size, num_choices, seq_length]
     >>> for k, v in inputs.items():
     ...     inputs[k] = [v[i: i + num_choices] for i in range(0, len(v), num_choices)]
