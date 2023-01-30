@@ -93,7 +93,7 @@ class ORTConfigManager:
         "mbart": "bart",
         "mt5": "bart",
         "m2m_100": "bart",
-        "Nystromformer": "bert",
+        "nystromformer": "bert",
         "roberta": "bert",
         "t5": "t5",
         "whisper": "whisper",
