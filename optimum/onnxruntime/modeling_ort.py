@@ -862,7 +862,7 @@ MASKED_LM_EXAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("This is a great [MASK].", return_tensors="pt")
+    >>> inputs = tokenizer("The capital of France is [MASK].", return_tensors="pt")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -878,10 +878,10 @@ MASKED_LM_EXAMPLE = r"""
 
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_extractor = pipeline("fill-mask", model=model, tokenizer=tokenizer)
+    >>> fill_masker = pipeline("fill-mask", model=model, tokenizer=tokenizer)
 
-    >>> text = "This is a great [MASK]."
-    >>> pred = onnx_extractor(text)
+    >>> text = "The capital of France is [MASK]."
+    >>> pred = fill_masker(text)
     ```
 """
 
@@ -923,9 +923,6 @@ class ORTModelForMaskedLM(ORTModel):
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
-
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
             return MaskedLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
@@ -1019,10 +1016,6 @@ class ORTModelForQuestionAnswering(ORTModel):
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
-
-            # map outputs with names
-            start_logits = io_binding._iobinding.get_outputs()[0]
-            end_logits = io_binding._iobinding.get_outputs()[1]
 
             # converts output to namedtuple for pipelines post-processing
             return QuestionAnsweringModelOutput(
@@ -1136,9 +1129,6 @@ class ORTModelForSequenceClassification(ORTModel):
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
 
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
-
             # converts output to namedtuple for pipelines post-processing
             return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
@@ -1231,9 +1221,6 @@ class ORTModelForTokenClassification(ORTModel):
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
-
-            # map outputs with names
-            logits = io_binding._iobinding.get_outputs()[0]
 
             # converts output to namedtuple for pipelines post-processing
             return TokenClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
