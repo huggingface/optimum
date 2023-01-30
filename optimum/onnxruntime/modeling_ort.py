@@ -639,17 +639,21 @@ class ORTModel(OptimizedModel):
         elif axis_name in dimensions:
             return dimensions[axis_name]
 
+        # Tokens is going to be populated by iterating over every match for the self.output_shape_inference_pattern.
+        # This pattern matches 4 things: axis names, integer values, operators (+, -, *, /) and parenthesis.
         tokens = []
-        for idx, match in enumerate(re.finditer(self.output_shape_inference_pattern, axis_name)):
-            groups = match.groups()
+        for idx, match_ in enumerate(re.finditer(self.output_shape_inference_pattern, axis_name)):
+            groups = match_.groups()
             matched_group = None
             for idx, group in enumerate(groups):
                 if group is not None:
                     matched_group = idx
                     break
-            if matched_group is None:
-                raise ValueError(f"Could not perform shape inference on {axis_name}")
 
+            # For every match except an axis name, we simply append the content of the match to the tokens list.
+            # For an axis name, we check if it is specified in the `dimensions` dictionary. If for some reason it is
+            # not there, or its value not an integer, the shape inference process stops and we return the axis name as
+            # is.
             if matched_group == 0:
                 dim = dimensions.get(groups[0], None)
                 if dim is None or not isinstance(dim, int):
