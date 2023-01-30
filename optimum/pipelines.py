@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional, Union
 from transformers import (
     AutomaticSpeechRecognitionPipeline,
     FeatureExtractionPipeline,
+    FillMaskPipeline,
     ImageClassificationPipeline,
     ImageSegmentationPipeline,
     Pipeline,
@@ -50,6 +51,7 @@ if is_onnxruntime_available():
         ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForMaskedLM,
         ORTModelForQuestionAnswering,
         ORTModelForSemanticSegmentation,
         ORTModelForSeq2SeqLM,
@@ -65,6 +67,12 @@ if is_onnxruntime_available():
             "class": (ORTModelForFeatureExtraction,),
             "default": "distilbert-base-cased",
             "type": "text",  # feature extraction is only supported for text at the moment
+        },
+        "fill-mask": {
+            "impl": FillMaskPipeline,
+            "class": (ORTModelForMaskedLM,),
+            "default": "distilbert-base-cased",
+            "type": "text",
         },
         "image-classification": {
             "impl": ImageClassificationPipeline,
