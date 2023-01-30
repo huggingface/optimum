@@ -71,7 +71,7 @@ if is_onnxruntime_available():
         "fill-mask": {
             "impl": FillMaskPipeline,
             "class": (ORTModelForMaskedLM,),
-            "default": "distilbert-base-cased",
+            "default": "bert-base-cased",
             "type": "text",
         },
         "image-classification": {

@@ -904,7 +904,7 @@ class ORTModelForMaskedLM(ORTModel):
         + MASKED_LM_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForMaskedLM",
-            checkpoint="optimum/bert-base-uncased",
+            checkpoint="optimum/bert-base-uncased-for-masked-lm",
         )
     )
     def forward(
