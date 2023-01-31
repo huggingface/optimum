@@ -74,6 +74,6 @@ class ONNXRuntimmeOptimizeCommand:
         elif self.args.O4:
             optimization_config = AutoOptimizationConfig.O4()
         else:
-            optimization_config = ORTConfig.get_config_dict(self.args.config).optimization
+            optimization_config = ORTConfig.from_pretained(self.args.config).optimization
 
         optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
