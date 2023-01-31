@@ -123,7 +123,7 @@ MODEL_NAMES = {
     "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "mt5": "lewtun/tiny-random-mt5",
-    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",  
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",

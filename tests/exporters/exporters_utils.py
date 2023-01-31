@@ -157,7 +157,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
-    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",  
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
