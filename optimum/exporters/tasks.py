@@ -505,12 +505,6 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        # TODO: owlvit is actually not yet supported in exporters
-        # "owlvit": supported_tasks_mapping(
-        #     "default",
-        #     "zero-shot-object-detection",
-        #     onnx="OwlViTOnnxConfig",
-        # ),
         "nystromformer": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -520,6 +514,12 @@ class TasksManager:
             "token-classification",
             onnx="NystromformerOnnxConfig",
         ),
+        # TODO: owlvit is actually not yet supported in exporters
+        # "owlvit": supported_tasks_mapping(
+        #     "default",
+        #     "zero-shot-object-detection",
+        #     onnx="OwlViTOnnxConfig",
+        # ),
         "pegasus": supported_tasks_mapping(
             "default",
             "default-with-past",
