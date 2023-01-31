@@ -223,8 +223,8 @@ def validate_model_outputs(
 
     # Sometimes the exported model can have axes that are inferred as dynamic axes but were not specified as such in
     # the ONNX Config: it was either an error on the config side, or an error on the ONNX side inferring a dynamic axis
-    # that is actually static, we check for that.
-    # This should never happen since we handle such cases with the `fix_dynamic_axes` method, but its worth checking.
+    # that is actually static.
+    # The `OnnxConfig.fix_dynamic_axes` method should fix that at export time, but it is still worth checking here.
     all_config_dynamic_axes_names = set()
     for input_ in config.inputs.values():
         all_config_dynamic_axes_names |= set(input_.values())

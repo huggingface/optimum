@@ -21,7 +21,6 @@ import torch
 from transformers import AutoConfig
 from transformers.utils import is_tf_available
 
-from optimum.exporters.onnx.convert import ShapeError
 from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters
@@ -71,7 +70,7 @@ class GenerateDummy(TestCase):
         generated_shape = generator.generate(input_name).shape
         target_shape = self._FRAMEWORK_TO_SHAPE_CLS[framework](target_shape)
         if generated_shape != target_shape:
-            raise ShapeError(
+            raise ValueError(
                 f"{input_name} shape is wrong for framework = {framework}. Expected {target_shape} but got "
                 f"{generated_shape}"
             )
