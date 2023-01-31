@@ -29,6 +29,7 @@ from ...utils import (
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
+    NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
@@ -39,6 +40,7 @@ from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqCon
 from .config import (
     AudioOnnxConfig,
     AudioToTextOnnxConfig,
+    EncoderDecoderOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
     TextEncoderOnnxConfig,
@@ -94,6 +96,10 @@ class SqueezeBertOnnxConfig(BertOnnxConfig):
 
 
 class MobileBertOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class NystromformerOnnxConfig(BertOnnxConfig):
     pass
 
 
@@ -540,6 +546,10 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
+class DonutSwinOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
@@ -929,3 +939,61 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         Speech2TextDummyAudioInputGenerator,
     ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+
+
+# TODO: Replace the TextSeq2SeqOnnxConfig inheritance with VisionToTextOnnxConfig when added.
+# The change below however does not affect the export for the model
+class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
+        decoder_num_layers="decoder_layers",
+        num_layers="decoder_layers",
+        decoder_num_attention_heads="decoder_attention_heads",
+        hidden_size="cross_attention_hidden_size",
+    )
+
+
+class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+    ATOL_FOR_VALIDATION = 1e-3
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        patching_specs: Optional[List["PatchingSpec"]] = None,
+        use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+    ):
+        super().__init__(config, task, patching_specs, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+
+        # TODO: Check modeling code to fix the issue with use_cache for trocr
+        if config.decoder.model_type == "trocr":
+            if self.use_past_in_inputs:
+                raise ValueError("Exporting past key values is not supported with TrOCR model!")
+
+            self.use_present_in_outputs = False
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {}
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["pixel_values"] = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        return common_inputs

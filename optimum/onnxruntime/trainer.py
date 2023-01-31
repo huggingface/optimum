@@ -95,6 +95,7 @@ from .modeling_ort import (
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
+    ORTModelForMaskedLM,
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
     ORTModelForSemanticSegmentation,
@@ -138,7 +139,7 @@ SCALER_NAME = "scaler.pt"
 class ORTFeaturesManager:
     _TASKS_TO_ORTMODELS = {
         "default": ORTModelForFeatureExtraction,
-        "masked-lm": ORTModelForFeatureExtraction,
+        "masked-lm": ORTModelForMaskedLM,
         "causal-lm": ORTModelForCausalLM,
         "causal-lm-with-past": ORTModelForCausalLM,
         "seq2seq-lm": ORTModelForSeq2SeqLM,
