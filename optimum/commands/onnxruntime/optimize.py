@@ -46,11 +46,7 @@ def parse_args_onnxruntime_optimize(parser):
         "-c",
         "--config",
         type=Path,
-<<<<<<< HEAD
         help="`ORTConfig` file to use to optimize the model.",
-=======
-        help="Path to an `ORTConfig` file.",
->>>>>>> d10ce0c (style)
     )
 
 
