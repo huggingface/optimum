@@ -19,8 +19,8 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-#model_name = "CompVis/stable-diffusion-v1-4"
-model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
+model_name = "CompVis/stable-diffusion-v1-4"
+#model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
 pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False)
 
 num_inference_steps = 50
