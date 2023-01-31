@@ -2337,7 +2337,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
-        decoder_start_token_id = onnx_model.config.decoder_start_token_id
+        decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
         decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
 
         onnx_outputs = onnx_model(**tokens, **decoder_inputs)
