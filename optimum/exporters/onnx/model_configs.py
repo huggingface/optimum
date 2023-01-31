@@ -99,6 +99,10 @@ class MobileBertOnnxConfig(BertOnnxConfig):
     pass
 
 
+class NystromformerOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class XLMOnnxConfig(BertOnnxConfig):
     pass
 

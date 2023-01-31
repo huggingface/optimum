@@ -511,6 +511,15 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
+        "nystromformer": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "multiple-choice",
+            "question-answering",
+            "sequence-classification",
+            "token-classification",
+            onnx="NystromformerOnnxConfig",
+        ),
         # TODO: owlvit is actually not yet supported in exporters
         # "owlvit": supported_tasks_mapping(
         #     "default",
