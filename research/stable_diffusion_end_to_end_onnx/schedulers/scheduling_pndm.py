@@ -4,7 +4,9 @@ import torch.nn as nn
 from diffusers.schedulers import SchedulerMixin
 
 
-pipeline = DiffusionPipeline.from_pretrained("hf-internal-testing/tiny-stable-diffusion-torch", low_cpu_mem_usage=False)
+pipeline = DiffusionPipeline.from_pretrained(
+    "hf-internal-testing/tiny-stable-diffusion-torch", low_cpu_mem_usage=False
+)
 
 pipeline = pipeline.to("cpu")
 
@@ -14,6 +16,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+
 
 @torch.jit.export
 def betas_for_alpha_bar(num_diffusion_timesteps, max_beta=0.999):
@@ -53,7 +56,7 @@ class ScriptablePNDMScheduler(nn.Module):
     timesteps: torch.Tensor
     ets: List[torch.Tensor]
     cur_sample: torch.Tensor
-    #ets_buffer: torch.Tensor
+    # ets_buffer: torch.Tensor
 
     def __init__(
         self,
@@ -82,7 +85,7 @@ class ScriptablePNDMScheduler(nn.Module):
         elif beta_schedule == "squaredcos_cap_v2":
             # Glide cosine schedule
             self.betas = betas_for_alpha_bar(num_train_timesteps)
-        
+
         # else:
         #     raise NotImplementedError(f"{beta_schedule} does is not implemented for {self.__class__}")
 
@@ -115,11 +118,13 @@ class ScriptablePNDMScheduler(nn.Module):
         self.num_train_timesteps = num_train_timesteps
         self.steps_offset = steps_offset
         self.skip_prk_steps = skip_prk_steps
-        
+
         self.clip_sample = kwargs["clip_sample"]
 
-        #self.ets_buffer = torch.empty(4)  # this buffer should be initialized in the pipeline's forward call
-        self.set_ets = torch.tensor(0, dtype=torch.int64)  # this attribute should be reset to 0 in the pipeline's forward call
+        # self.ets_buffer = torch.empty(4)  # this buffer should be initialized in the pipeline's forward call
+        self.set_ets = torch.tensor(
+            0, dtype=torch.int64
+        )  # this attribute should be reset to 0 in the pipeline's forward call
 
     @torch.jit.export
     def step(
@@ -236,12 +241,12 @@ class ScriptablePNDMScheduler(nn.Module):
         """
         prev_timestep = timestep - self.num_train_timesteps // self.num_inference_steps
 
-        #print("sample dtype:", sample.dtype)
-        #print("self.cur_sample dtype:", self.cur_sample.dtype)
-        #print("model_output dtype:", model_output.dtype)
+        # print("sample dtype:", sample.dtype)
+        # print("self.cur_sample dtype:", self.cur_sample.dtype)
+        # print("model_output dtype:", model_output.dtype)
 
-        #print("prev_timestep dtype", prev_timestep.dtype)
-        #print("timestep dtype", timestep.dtype)
+        # print("prev_timestep dtype", prev_timestep.dtype)
+        # print("timestep dtype", timestep.dtype)
 
         if self.counter != 1:
             ets_buffer = torch.roll(ets_buffer, shifts=-1, dims=0)
@@ -251,11 +256,11 @@ class ScriptablePNDMScheduler(nn.Module):
             prev_timestep = timestep
             timestep = timestep + self.num_train_timesteps // self.num_inference_steps
 
-        #print("prev_timestep dtype", prev_timestep.dtype)
-        #print("timestep dtype", timestep.dtype)
+        # print("prev_timestep dtype", prev_timestep.dtype)
+        # print("timestep dtype", timestep.dtype)
 
-        #print("model_output.shape before", model_output.shape)
-        #print("ets_buffer[-1] shape", ets_buffer[-1].shape)
+        # print("model_output.shape before", model_output.shape)
+        # print("ets_buffer[-1] shape", ets_buffer[-1].shape)
         if self.set_ets == 1 and self.counter == 0:
             model_output = model_output
             self.cur_sample = sample
@@ -268,22 +273,26 @@ class ScriptablePNDMScheduler(nn.Module):
         elif self.set_ets == 3:
             model_output = (23 * ets_buffer[-1] - 16 * ets_buffer[-2] + 5 * ets_buffer[-3]) / 12
         else:
-            model_output = (1 / 24) * (55 * ets_buffer[-1] - 59 * ets_buffer[-2] + 37 * ets_buffer[-3] - 9 * ets_buffer[-4])
+            model_output = (1 / 24) * (
+                55 * ets_buffer[-1] - 59 * ets_buffer[-2] + 37 * ets_buffer[-3] - 9 * ets_buffer[-4]
+            )
 
-        #print("model_output.shape after", model_output.shape)
+        # print("model_output.shape after", model_output.shape)
 
         prev_sample = self._get_prev_sample(sample, timestep, prev_timestep, model_output)
-        self.counter  = self.counter + 1
+        self.counter = self.counter + 1
 
         return (prev_sample, ets_buffer)
 
     @torch.jit.export
-    def _get_prev_sample(self, sample: torch.Tensor, timestep: torch.Tensor, prev_timestep: torch.Tensor, model_output: torch.Tensor):
+    def _get_prev_sample(
+        self, sample: torch.Tensor, timestep: torch.Tensor, prev_timestep: torch.Tensor, model_output: torch.Tensor
+    ):
         alpha_prod_t = self.alphas_cumprod[timestep]
         alpha_prod_t_prev = self.alphas_cumprod[prev_timestep] if prev_timestep >= 0 else self.final_alpha_cumprod
-        #print("alpha_prod_t shape", alpha_prod_t.shape)
-        #print("alpha_prod_t_prev shape", alpha_prod_t_prev.shape)
-        #print("self.final_alpha_cumprod shape", self.final_alpha_cumprod.shape)
+        # print("alpha_prod_t shape", alpha_prod_t.shape)
+        # print("alpha_prod_t_prev shape", alpha_prod_t_prev.shape)
+        # print("self.final_alpha_cumprod shape", self.final_alpha_cumprod.shape)
         beta_prod_t = 1 - alpha_prod_t
         beta_prod_t_prev = 1 - alpha_prod_t_prev
 
@@ -357,7 +366,9 @@ class ScriptablePNDMScheduler(nn.Module):
         self.counter = torch.tensor(0)
 
     @torch.jit.export
-    def scale_model_input(self, sample: torch.FloatTensor, timestep: Optional[torch.Tensor] = None) -> torch.FloatTensor:
+    def scale_model_input(
+        self, sample: torch.FloatTensor, timestep: Optional[torch.Tensor] = None
+    ) -> torch.FloatTensor:
         """
         Ensures interchangeability with schedulers that need to scale the denoising model input depending on the
         current timestep.

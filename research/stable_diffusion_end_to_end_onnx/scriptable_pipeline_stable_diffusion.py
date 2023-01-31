@@ -8,6 +8,7 @@ from diffusers.configuration_utils import FrozenDict
 from diffusers.models import AutoencoderKL, UNet2DConditionModel
 from schedulers.scheduling_pndm import ScriptablePNDMScheduler
 
+
 class ScriptableStableDiffusionPipeline(nn.Module):
     r"""
     Pipeline for text-to-image generation using Stable Diffusion.
@@ -79,11 +80,10 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         self.guidance_scale = 7.5
         self.num_images_per_prompt = 1
 
-
     def _encode_prompt(
         self,
         text_input_ids: torch.Tensor,
-        uncond_text_input_ids: torch.Tensor ,
+        uncond_text_input_ids: torch.Tensor,
         num_images_per_prompt: int,
     ):
         r"""
@@ -103,7 +103,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         prompt_embeds = self.text_encoder(text_input_ids)
 
         # TODO: is it really ok to remove dtype cast?
-        prompt_embeds = prompt_embeds[0] # .to(dtype=self.text_encoder.dtype)
+        prompt_embeds = prompt_embeds[0]  # .to(dtype=self.text_encoder.dtype)
 
         bs_embed, seq_len, _ = prompt_embeds.shape
         # duplicate text embeddings for each generation per prompt, using mps friendly method
@@ -118,7 +118,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         seq_len = negative_prompt_embeds.shape[1]
 
         # TODO: is it really ok to remove dtype cast?
-        negative_prompt_embeds = negative_prompt_embeds  #.to(dtype=self.text_encoder.dtype)
+        negative_prompt_embeds = negative_prompt_embeds  # .to(dtype=self.text_encoder.dtype)
 
         negative_prompt_embeds = negative_prompt_embeds.repeat(1, num_images_per_prompt, 1)
         negative_prompt_embeds = negative_prompt_embeds.view(batch_size * num_images_per_prompt, seq_len, -1)
@@ -146,7 +146,15 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         image = image.permute(0, 2, 3, 1)
         return image
 
-    def prepare_latents(self, batch_size: int, num_channels_latents: int, height: int, width: int, dtype: torch.dtype, device: torch.device):
+    def prepare_latents(
+        self,
+        batch_size: int,
+        num_channels_latents: int,
+        height: int,
+        width: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ):
         shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
 
         latents = torch.randn(shape, device=device, dtype=dtype)
@@ -192,9 +200,9 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         # NOTE: we don't support passing generator :(
         # NOTE: we don't support DDIMScheduler because eta is ignored
         # TODO: avoid hardcoding height, width, guidance_scale, num_images_per_prompt
-        
+
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
-        #extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+        # extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
         if text_input_ids is None:
             raise ValueError("text_input_ids should be passed")
@@ -203,8 +211,8 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         height = self.sample_size * self.vae_scale_factor
         width = self.sample_size * self.vae_scale_factor
 
-        #height = height or self.unet.config.sample_size * self.vae_scale_factor
-        #width = width or self.unet.config.sample_size * self.vae_scale_factor
+        # height = height or self.unet.config.sample_size * self.vae_scale_factor
+        # width = width or self.unet.config.sample_size * self.vae_scale_factor
 
         batch_size = text_input_ids.shape[0]
 
@@ -220,7 +228,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             self.num_images_per_prompt,
         )
 
-        device = self.device
+        device = prompt_embeds.device
 
         # 5. Prepare latent variables
         num_channels_latents = self.unet_in_channels
@@ -239,11 +247,11 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             batch_size * self.num_images_per_prompt,
             num_channels_latents,
             height // self.vae_scale_factor,
-            width // self.vae_scale_factor
+            width // self.vae_scale_factor,
         ).to(device, dtype=prompt_embeds.dtype)
         self.scheduler.set_ets = torch.tensor(0, dtype=torch.int64).to(device)
         self.scheduler.counter = torch.tensor(0, dtype=torch.int64).to(device)
-        
+
         # 7. Denoising loop
         # TODO: what is self.scheduler.order?
         for _, t in enumerate(timesteps):
@@ -261,7 +269,10 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # compute the previous noisy sample x_t -> x_t-1
-            latents, ets_buffer = self.scheduler.step(noise_pred, t, latents, ets_buffer)  # a tuple is returned by step
+            # t is used as an index here, and should be on CPU
+            latents, ets_buffer = self.scheduler.step(
+                noise_pred, t.to("cpu"), latents, ets_buffer
+            )  # a tuple is returned by step
 
         # 8. Post-processing
         image = self.decode_latents(latents)

@@ -36,15 +36,17 @@ text_input_ids = preprocessed_input["text_input_ids"].to("cuda")
 uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to("cuda")
 timesteps = preprocessed_input["timesteps"].to("cuda")
 
-#breakpoint()
-#np_image = pipeline(text_input_ids=text_input_ids, attention_mask=attention_mask).images[0]
+# breakpoint()
+# np_image = pipeline(text_input_ids=text_input_ids, attention_mask=attention_mask).images[0]
 
 with torch.inference_mode():
     torch_image = pipeline(
         text_input_ids=text_input_ids,
         uncond_text_input_ids=uncond_text_input_ids,
         timesteps=timesteps,
-    )[0][0]  # first item in "image" output, indexed at 0
+    )[0][
+        0
+    ]  # first item in "image" output, indexed at 0
 
 np_image = torch_image.cpu().float().numpy()
 
