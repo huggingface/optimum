@@ -111,6 +111,15 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "vision-encoder-decoder": {
+        "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+        ],
+        "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
+    },
+    # Disabled for now because of high atol threshold requirement to pass
+    # "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel"
 }
 
 
