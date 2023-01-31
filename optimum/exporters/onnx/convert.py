@@ -224,18 +224,19 @@ def validate_model_outputs(
     # Sometimes the exported model can have axes that are inferred as dynamic axes but were not specified as such in
     # the ONNX Config: it was either an error on the config side, or an error on the ONNX side inferring a dynamic axis
     # that is actually static, we check for that.
+    # This should never happen since we handle such cases with the `fix_dynamic_axes` method, but its worth checking.
     all_config_dynamic_axes_names = set()
     for input_ in config.inputs.values():
         all_config_dynamic_axes_names |= set(input_.values())
     for output in config.outputs.values():
         all_config_dynamic_axes_names |= set(output.values())
 
-    # for node in session.get_outputs():
-    #     for idx, axis in enumerate(node.shape):
-    #         if isinstance(axis, str) and axis not in all_config_dynamic_axes_names:
-    #             raise DynamicAxisNameError(
-    #                 f"The axis {idx} of input / output node called {node.name} has an unknown name: {axis}"
-    #             )
+    for node in session.get_outputs():
+        for idx, axis in enumerate(node.shape):
+            if isinstance(axis, str) and axis not in all_config_dynamic_axes_names:
+                raise DynamicAxisNameError(
+                    f"The axis {idx} of input / output node called {node.name} has an unknown name: {axis}"
+                )
 
     # Compute outputs from the reference model
     if is_torch_available() and isinstance(reference_model, nn.Module):
@@ -500,7 +501,6 @@ def export_tensorflow(
     input_names = list(inputs.keys())
     output_names = list(config.outputs.keys())
 
-    config.patch_ops()
     input_signature = []
     for key, tensor in dummy_inputs.items():
         shape = [tensor.shape[i] for i in range(tensor.ndim)]
@@ -509,9 +509,9 @@ def export_tensorflow(
 
         input_signature.append(tf.TensorSpec(shape, dtype=tensor.dtype, name=key))
 
-    onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature, opset=opset)
+    with config.patch_model_for_export(model):
+        onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature, opset=opset)
     onnx.save(onnx_model, output.as_posix())
-    config.restore_ops()
 
     return input_names, output_names
 

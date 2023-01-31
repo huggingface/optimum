@@ -17,9 +17,9 @@ from contextlib import nullcontext
 from typing import TYPE_CHECKING, Tuple
 from unittest import TestCase
 
-import tensorflow as tf
 import torch
 from transformers import AutoConfig
+from transformers.utils import is_tf_available
 
 from optimum.exporters.onnx.convert import ShapeError
 from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
@@ -58,9 +58,12 @@ DUMMY_SHAPES = {
 class GenerateDummy(TestCase):
     _FRAMEWORK_TO_SHAPE_CLS = {
         "pt": torch.Size,
-        "tf": tf.TensorShape,
         "np": tuple,
     }
+    if is_tf_available():
+        import tensorflow as tf
+
+        _FRAMEWORK_TO_SHAPE_CLS["tf"] = tf.TensorShape
 
     def validate_shape_for_framework(
         self, generator: "DummyInputGenerator", input_name: str, framework: str, target_shape: Tuple[int, ...]

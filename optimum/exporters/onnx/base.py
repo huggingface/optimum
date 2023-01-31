@@ -86,9 +86,7 @@ class ModelPatcher:
             self._patching_specs.append(final_spec)
 
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
-
         self.orig_forward = getattr(self._model, self.orig_forward_name)
-
         onnx_to_torch = {v: k for k, v in config.torch_to_onnx_input_map.items()}
 
         @functools.wraps(self.orig_forward)

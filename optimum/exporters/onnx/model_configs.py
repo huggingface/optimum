@@ -71,14 +71,6 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
             "token_type_ids": dynamic_axis,
         }
 
-    # TODO: not sure we want to do that.
-    # @property
-    # def outputs(self) -> Mapping[str, Mapping[int, str]]:
-    #     common_outputs = super().outputs
-    #     if self.task == "default":
-    #         common_outputs["pooler_output"] = {0: "batch_size"}
-    #     return common_outputs
-
 
 class AlbertOnnxConfig(BertOnnxConfig):
     pass
