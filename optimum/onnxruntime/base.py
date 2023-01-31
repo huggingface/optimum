@@ -195,6 +195,7 @@ class ORTDecoder(ORTModelPart):
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
     ) -> CausalLMOutputWithCrossAttentions:
         # Flatten the past_key_values
         if past_key_values is not None:
@@ -206,8 +207,6 @@ class ORTDecoder(ORTModelPart):
                 past_key_values=past_key_values,
             )
 
-            past_key_values_inputs = past_key_values if past_key_values is not None else [None]
-
             model_inputs = [input_ids]
 
             if "attention_mask" in self.input_names:
@@ -216,11 +215,18 @@ class ORTDecoder(ORTModelPart):
             if past_key_values is not None:
                 model_inputs += past_key_values
 
+            if "labels" in self.input_names:
+                model_inputs.append(labels)
+
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
                 *model_inputs,
                 known_output_shapes=past_key_values_shapes,
             )
+            print("input_names", self.input_names)
+            print("output_names", self.output_names)
+            # print("output_buffers", output_buffers)
+            print(output_buffers.keys())
 
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
@@ -236,6 +242,10 @@ class ORTDecoder(ORTModelPart):
             past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
+
+            loss = None
+            if "loss" in self.output_names:
+                loss = output_buffers["loss"].view(output_shapes["loss"])
         else:
             onnx_inputs = {
                 "input_ids": input_ids.cpu().detach().numpy(),
@@ -246,6 +256,9 @@ class ORTDecoder(ORTModelPart):
                 # Add the past_key_values to the decoder inputs
                 for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                     onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
+
+            if "labels" in self.input_names:
+                onnx_inputs["labels"] = labels.cpu().detach().numpy()
 
             # Run inference
             outputs = self.session.run(None, onnx_inputs)
@@ -262,7 +275,11 @@ class ORTDecoder(ORTModelPart):
             past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
             logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
-        return CausalLMOutputWithCrossAttentions(logits=logits, past_key_values=past_key_values)
+            loss = None
+            if "loss" in self.output_names:
+                loss = torch.from_numpy(outputs[self.output_names["loss"]]).to(self.device)
+
+        return CausalLMOutputWithCrossAttentions(loss=loss, logits=logits, past_key_values=past_key_values)
 
 
 class ORTDecoderForSeq2Seq(ORTDecoder):

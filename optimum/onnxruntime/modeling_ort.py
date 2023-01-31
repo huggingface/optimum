@@ -680,6 +680,7 @@ class ORTModel(OptimizedModel):
         io_binding = model.io_binding()
 
         input_names = list(input_.name for input_ in model.get_inputs())
+        print("input_names before ordering", input_names)
         # Re-ordering method inspired from OnnxConfig.ordered_inputs
         sig = signature(self.forward if forward_function is None else forward_function)
         ordered_input_names = []
@@ -689,6 +690,7 @@ class ORTModel(OptimizedModel):
                 if re.search(param_regex, name):
                     ordered_input_names.append(name)
         input_names = ordered_input_names
+        print("input_names after ordering", input_names)
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
 
@@ -697,8 +699,10 @@ class ORTModel(OptimizedModel):
             if tensor is None:
                 continue
             name = input_names[idx]
+            print("Binding input", name)
             input_name_to_tensor[name] = tensor
             tensor = tensor.contiguous()
+            print("With shape", tensor.shape)
             io_binding.bind_input(
                 name,
                 tensor.device.type,
@@ -726,17 +730,25 @@ class ORTModel(OptimizedModel):
         elif isinstance(outputs_to_not_bind, str):
             outputs_to_not_bind = {outputs_to_not_bind}
 
+        print("model.get_outputs()", model.get_outputs())
         for output_node in model.get_outputs():
+            print("output_node", output_node)
             output_name = output_node.name
             if output_name in outputs_to_not_bind:
                 continue
             if output_name in known_output_shapes:
+                print("1")
                 output_shape = known_output_shapes[output_name]
             else:
+                print("2")
                 output_shape = []
+                print("output_node.shape", output_node.shape)
                 for axis_name in output_node.shape:
+                    print("output_node.shape", output_node.shape)
                     output_shape.append(self._output_shape_inference(axis_name, dimensions))
                 # output_shape = tuple(map(self._output_shape_inference, output_node.shape))
+            print("Binding output", output_name)
+            print("output_shape", output_shape)
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
             io_binding.bind_output(
                 output_name,
@@ -1176,7 +1188,7 @@ MULTIPLE_CHOICE_EXAMPLE = r"""
     ...     "A drum line turns the lead singer watches the performance."
     ... ]
     >>> inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
-    
+
     # Unflatten the inputs values expanding it to the shape [batch_size, num_choices, seq_length]
     >>> for k, v in inputs.items():
     ...     inputs[k] = [v[i: i + num_choices] for i in range(0, len(v), num_choices)]

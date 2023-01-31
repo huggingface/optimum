@@ -984,7 +984,7 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
+        if self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
             # Exported with standard outputs, use specific ORTModels
             ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
         else:
@@ -992,18 +992,15 @@ class ORTTrainer(Trainer):
 
         model_id = self.onnx_model_path
         args = self.args
-        # Temporary fix for decoder, now `use_cache` set to False which
-        # TODO: Use cache once `ORTModelForCausalLM` supports `loss` as output
-        print("model_id", model_id)
-        print("ort_model_cls", ort_model_cls)
-        raise
         if ort_model_cls is ORTModelForCausalLM:
-            ort_model = ort_model_cls.from_pretrained(
-                model_id=model_id, use_cache=False, provider="CUDAExecutionProvider"
-            )
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id, use_cache=use_cache).to(args.device)
         else:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id, provider="CUDAExecutionProvider")
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
 
+        # print("ort_model_cls", ort_model_cls)
+        # print("use_cache", use_cache)
+        # print("use_io_binding", ort_model.use_io_binding)
+        # raise
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
         batch_size = dataloader.batch_size
