@@ -197,12 +197,13 @@ class ORTDecoder(ORTModelPart):
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
     ) -> CausalLMOutputWithCrossAttentions:
+        known_output_shapes = {}
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
-            past_key_values_shapes = self.compute_past_key_values_output_shapes(
+            known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 past_key_values=past_key_values,
             )
@@ -217,16 +218,13 @@ class ORTDecoder(ORTModelPart):
 
             if "labels" in self.input_names:
                 model_inputs.append(labels)
+                known_output_shapes.update({"loss": []})
 
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
                 *model_inputs,
-                known_output_shapes=past_key_values_shapes,
+                known_output_shapes=known_output_shapes,
             )
-            print("input_names", self.input_names)
-            print("output_names", self.output_names)
-            # print("output_buffers", output_buffers)
-            print(output_buffers.keys())
 
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)

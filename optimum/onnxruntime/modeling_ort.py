@@ -622,7 +622,11 @@ class ORTModel(OptimizedModel):
         """Prepares the buffer of output_name with a 1D tensor."""
         ort_type = TypeHelper.get_output_type(model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
+        if len(output_shape) > 0:
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
+        else:
+            # Case when the output is a scalar
+            output_buffer = torch.tensor(0, dtype=torch_type, device=self.device).contiguous()
         return output_buffer
 
     def _output_shape_inference(self, axis_name: Union[str, int], dimensions: Dict[str, int]) -> Union[str, int]:
@@ -700,7 +704,6 @@ class ORTModel(OptimizedModel):
         io_binding = model.io_binding()
 
         input_names = list(input_.name for input_ in model.get_inputs())
-        print("input_names before ordering", input_names)
         # Re-ordering method inspired from OnnxConfig.ordered_inputs
         sig = signature(self.forward if forward_function is None else forward_function)
         ordered_input_names = []
@@ -710,7 +713,6 @@ class ORTModel(OptimizedModel):
                 if re.search(param_regex, name):
                     ordered_input_names.append(name)
         input_names = ordered_input_names
-        print("input_names after ordering", input_names)
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
 
@@ -719,10 +721,8 @@ class ORTModel(OptimizedModel):
             if tensor is None:
                 continue
             name = input_names[idx]
-            print("Binding input", name)
             input_name_to_tensor[name] = tensor
             tensor = tensor.contiguous()
-            print("With shape", tensor.shape)
             io_binding.bind_input(
                 name,
                 tensor.device.type,
@@ -750,21 +750,15 @@ class ORTModel(OptimizedModel):
         elif isinstance(outputs_to_not_bind, str):
             outputs_to_not_bind = {outputs_to_not_bind}
 
-        print("model.get_outputs()", model.get_outputs())
         for output_node in model.get_outputs():
-            print("output_node", output_node)
             output_name = output_node.name
             if output_name in outputs_to_not_bind:
                 continue
             if output_name in known_output_shapes:
-                print("1")
                 output_shape = known_output_shapes[output_name]
             else:
-                print("2")
                 output_shape = []
-                print("output_node.shape", output_node.shape)
                 for axis_name in output_node.shape:
-                    print("output_node.shape", output_node.shape)
                     output_shape.append(self._output_shape_inference(axis_name, dimensions))
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
             io_binding.bind_output(

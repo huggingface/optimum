@@ -998,10 +998,6 @@ class ORTTrainer(Trainer):
         else:
             ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
 
-        # print("ort_model_cls", ort_model_cls)
-        # print("use_cache", use_cache)
-        # print("use_io_binding", ort_model.use_io_binding)
-        # raise
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
         batch_size = dataloader.batch_size
