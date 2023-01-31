@@ -150,7 +150,7 @@ class GenerateDummy(TestCase):
             height=height,
             width=width,
         )
-        with self.assertRaises(ShapeError) if num_channels != normalized_config.num_channels else nullcontext():
+        with self.assertRaises(ValueError) if num_channels != normalized_config.num_channels else nullcontext():
             self.validate_shape_for_all_frameworks(
                 input_generator, "pixel_values", (batch_size, num_channels, height, width)
             )
