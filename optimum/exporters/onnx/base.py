@@ -170,6 +170,9 @@ class OnnxConfig(ExportConfig, ABC):
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
     - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.TORCH_MINIMUM_VERSION`]) -- The
     minimum torch version supporting the export of the model to ONNX.
+    - PATCHING_SPECS (`Optional[List[PatchingSpec]]`, defaults to `None`) -- Specify which operators / modules should be
+    patched before performing the export, and how. This is useful when some operator is not supported in ONNX for
+    instance.
 
     Args:
         config (`transformers.PretrainedConfig`):
@@ -315,7 +318,7 @@ class OnnxConfig(ExportConfig, ABC):
             outputs = session.run(None, onnx_inputs)
             del session
 
-            onnx_model = onnx.load(model_path.as_posix())
+            onnx_model = onnx.load(model_path.as_posix(), load_external_data=False)
 
             for output_idx, dim_idx in to_fix:
                 dims = onnx_model.graph.output[output_idx].type.tensor_type.shape.dim

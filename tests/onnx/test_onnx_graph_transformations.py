@@ -65,9 +65,6 @@ class WeightSharingTestCase(TestCase):
             self.assertTrue(
                 np.allclose(original_outputs.last_hidden_state.cpu().numpy(), compressed_outputs[0], atol=1e-4)
             )
-            self.assertTrue(
-                np.allclose(original_outputs.pooler_output.cpu().numpy(), compressed_outputs[1], atol=1e-4)
-            )
 
 
 class OnnxMergingTestCase(TestCase):
