@@ -1,4 +1,3 @@
-from argparse import ArgumentParser
 from pathlib import Path
 
 from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig
@@ -47,7 +46,11 @@ def parse_args_onnxruntime_optimize(parser):
         "-c",
         "--config",
         type=Path,
+<<<<<<< HEAD
         help="`ORTConfig` file to use to optimize the model.",
+=======
+        help="Path to an `ORTConfig` file.",
+>>>>>>> d10ce0c (style)
     )
 
 
@@ -65,7 +68,9 @@ class ONNXRuntimmeOptimizeCommand:
 
         optimizer = ORTOptimizer.from_pretrained(self.args.onnx_model, file_names)
 
-        if self.args.O1:
+        if self.args.config:
+            optimization_config = ORTConfig
+        elif self.args.O1:
             optimization_config = AutoOptimizationConfig.O1()
         elif self.args.O2:
             optimization_config = AutoOptimizationConfig.O2()
