@@ -224,7 +224,6 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: Optional[List["PatchingSpec"]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -233,7 +232,6 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         super().__init__(
             config,
             task=task,
-            patching_specs=patching_specs,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,
@@ -241,6 +239,8 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         )
 
         from ..tasks import TasksManager
+
+        self.is_decoder_with_past = False
 
         if self._behavior is not ConfigBehavior.DECODER:
             encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -253,8 +253,20 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 exporter="onnx", task="default", model_type=config.decoder.model_type
             )
-            self._decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, use_past=use_past)
+            kwargs = {}
+            if issubclass(decoder_onnx_config_constructor.func, OnnxConfigWithPast):
+                self.is_decoder_with_past = True
+                kwargs["use_past"] = use_past
+            else:
+                self.use_present_in_outputs = False
 
+            if use_past and not self.is_decoder_with_past:
+                raise ValueError(
+                    f"The decoder part of the encoder-decoder model is {config.decoder.model_type} which does not need "
+                    "past key values."
+                )
+
+            self._decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, **kwargs)
             self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
 
             if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
@@ -281,10 +293,12 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return {}
 
     def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
-        return self._decoder_onnx_config.add_past_key_values(inputs_or_outputs, direction)
+        if self.is_decoder_with_past:
+            return self._decoder_onnx_config.add_past_key_values(inputs_or_outputs, direction)
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
-        return self._decoder_onnx_config.flatten_past_key_values(flattened_output, name, idx, t)
+        if self.is_decoder_with_past:
+            return self._decoder_onnx_config.flatten_past_key_values(flattened_output, name, idx, t)
 
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
@@ -295,3 +309,12 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
         return reference_model_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        # This is handled by OnnxSeq2SeqConfigWithPast, but not by OnnxConfigWithPast, so we take care of this here to
+        # make sure this output is moved at the end.
+        if "encoder_last_hidden_state" in common_outputs:
+            common_outputs.move_to_end("encoder_last_hidden_state")
+        return common_outputs

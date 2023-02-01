@@ -957,13 +957,12 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: Optional[List["PatchingSpec"]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
     ):
-        super().__init__(config, task, patching_specs, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+        super().__init__(config, task, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
 
         # TODO: Check modeling code to fix the issue with use_cache for trocr
         if config.decoder.model_type == "trocr":

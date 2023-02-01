@@ -312,12 +312,17 @@ def validate_model_outputs(
             logger.info(f"\t\t-[✓] {ort_value.shape} matches {ref_value.shape}")
 
         # Values
-        if not np.allclose(ref_value, ort_value, atol=atol):
-            max_diff = np.amax(np.abs(ref_value - ort_value))
-            logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
-            value_failures.append((name, max_diff))
-        else:
-            logger.info(f"\t\t-[✓] all values close (atol: {atol})")
+        try:
+            if not np.allclose(ref_value, ort_value, atol=atol):
+                max_diff = np.amax(np.abs(ref_value - ort_value))
+                logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
+                value_failures.append((name, max_diff))
+            else:
+                logger.info(f"\t\t-[✓] all values close (atol: {atol})")
+        except Exception:
+            # If shapes do not match, it is possible that the np.allclose call fails, since we raise the proper issue
+            # right after, we do not do anything here.
+            pass
 
     if shape_failures:
         msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)

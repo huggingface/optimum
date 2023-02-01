@@ -89,13 +89,16 @@ class ModelPatcher:
         self.orig_forward = getattr(self._model, self.orig_forward_name)
         onnx_to_torch = {v: k for k, v in config.torch_to_onnx_input_map.items()}
 
+        allow_past_in_outputs = isinstance(config, OnnxConfigWithPast) and config.use_present_in_outputs
+
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             outputs = self.orig_forward(*args, **kwargs)
             return {
                 k: v
                 for k, v in outputs.items()
-                if onnx_to_torch.get(k, k) in config.outputs or k.startswith("past_key_values")
+                if onnx_to_torch.get(k, k) in config.outputs
+                or (allow_past_in_outputs and k.startswith("past_key_values"))
             }
 
         self.patched_forward = patched_forward
