@@ -105,6 +105,7 @@ class TasksManager:
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-ctc": "AutoModelForCTC",
             "audio-xvector": "AutoModelForAudioXVector",
+            "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
         }
     if is_tf_available():
@@ -139,6 +140,7 @@ class TasksManager:
         "audio-classification": "transformers",
         "audio-frame-classification": "transformers",
         "audio-xvector": "transformers",
+        "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
     }
 
@@ -329,6 +331,10 @@ class TasksManager:
             "question-answering",
             onnx="DistilBertOnnxConfig",
         ),
+        # "donut-swin": supported_tasks_mapping(
+        #     "default",
+        #     onnx="DonutSwinOnnxConfig",
+        # ),
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -505,6 +511,15 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
+        "nystromformer": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "multiple-choice",
+            "question-answering",
+            "sequence-classification",
+            "token-classification",
+            onnx="NystromformerOnnxConfig",
+        ),
         # TODO: owlvit is actually not yet supported in exporters
         # "owlvit": supported_tasks_mapping(
         #     "default",
@@ -606,6 +621,13 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
+        "trocr": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+            onnx="TrOCROnnxConfig",
+        ),
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
@@ -631,6 +653,11 @@ class TasksManager:
         "vae-decoder": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="VaeDecoderOnnxConfig",
+        ),
+        "vision-encoder-decoder": supported_tasks_mapping(
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+            onnx="VisionEncoderDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "wavlm": supported_tasks_mapping(
@@ -692,7 +719,7 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "trocr"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod

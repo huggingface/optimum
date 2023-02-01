@@ -70,6 +70,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mt5": "lewtun/tiny-random-mt5",
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
@@ -110,6 +111,15 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "vision-encoder-decoder": {
+        "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+        ],
+        "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
+    },
+    # Disabled for now because of high atol threshold requirement to pass
+    # "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel"
 }
 
 
@@ -156,6 +166,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
