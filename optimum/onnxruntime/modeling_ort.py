@@ -731,7 +731,6 @@ class ORTModel(OptimizedModel):
                 tuple(tensor.shape),
                 tensor.data_ptr(),
             )
-
         dimensions = {}
         for input_ in model.get_inputs():
             shape = input_.shape

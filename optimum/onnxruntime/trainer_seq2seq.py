@@ -190,7 +190,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             else:
                 export_device = "cpu"
 
-            with_loss = has_labels and not self.label_smoother
+            with_loss = has_labels and not self.label_smoother  # and not self.args.predict_with_generate
             # Only need to export decoders if the models have been exported before.
             decoders_only = True if self.onnx_model_path else False
             self._export(onnx_model_path, with_loss=with_loss, device=export_device, decoders_only=decoders_only)
@@ -584,7 +584,10 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
-        generated_tokens = model.generate(
+        if torch.cuda.is_available():
+            self.model.to("cuda")
+
+        generated_tokens = self.model.generate(
             generation_inputs,
             **gen_kwargs,
         )
