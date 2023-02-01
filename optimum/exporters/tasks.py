@@ -599,6 +599,11 @@ class TasksManager:
             "speech2seq-lm-with-past",
             onnx="Speech2TextOnnxConfig",
         ),
+        "splinter": supported_tasks_mapping(
+            "default",
+            "question-answering",
+            onnx="SplinterOnnxConfig",
+        ),
         "squeezebert": supported_tasks_mapping(
             "default",
             "masked-lm",

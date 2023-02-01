@@ -176,6 +176,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "roformer": "junnyu/roformer_chinese_base",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
     "squeezebert": "squeezebert/squeezebert-uncased",
+    "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "swin": "microsoft/swin-tiny-patch4-window7-224",
     "t5": "t5-small",
     "vit": "google/vit-base-patch16-224",
