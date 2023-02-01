@@ -71,7 +71,7 @@ def _get_models_to_test(export_models_dict: Dict):
         return [("dummy", "dummy", "dummy")]
 
 
-class OnnxExportTestCase(unittest.TestCase):
+class OnnxCLIExportTestCase(unittest.TestCase):
     """
     Integration tests ensuring supported models are correctly exported.
     """

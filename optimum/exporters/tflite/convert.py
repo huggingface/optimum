@@ -65,7 +65,7 @@ def validate_model_outputs(
         )
     import tensorflow as tf
 
-    logger.info("Validating TensorFlow Lite model...")
+    logger.info("Validating TFLite model...")
 
     if atol is None:
         if isinstance(config.ATOL_FOR_VALIDATION, dict):
@@ -123,13 +123,13 @@ def validate_model_outputs(
     if shape_failures:
         msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (TFLite)" for t in shape_failures)
         raise ShapeError(
-            f"Output shapes do not match between reference model and TensorFlow Lite exported model:\n" "{msg}"
+            f"Output shapes do not match between reference model and the TFLite exported model:\n" "{msg}"
         )
 
     if value_failures:
         msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
         raise AtolError(
-            "The maximum absolute difference between the output of the reference model and the TensorFlow Lite "
+            "The maximum absolute difference between the output of the reference model and the TFLite "
             f"exported model is not within the set tolerance {atol}:\n{msg}"
         )
 

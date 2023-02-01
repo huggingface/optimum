@@ -1013,7 +1013,7 @@ class TasksManager:
                 The model type to retrieve the config for.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
-            exporter_config_kwargs( `Optional[Dict[str, Any]]`, defaults to `None`):
+            exporter_config_kwargs(`Optional[Dict[str, Any]]`, defaults to `None`):
                 Arguments that will be passed to the exporter config class when building the config constructor.
 
         Returns:

@@ -25,7 +25,7 @@ def parse_args_tflite(parser):
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
     )
     required_group.add_argument(
-        "output", type=Path, help="Path indicating the directory where to store generated ONNX model."
+        "output", type=Path, help="Path indicating the directory where to store generated TFLite model."
     )
 
     optional_group = parser.add_argument_group("Optional arguments")
@@ -60,48 +60,48 @@ def parse_args_tflite(parser):
     )
 
     input_group = parser.add_argument_group("Input shapes")
-    doc_input = "that the TensorFlow Lite will be able to take as input."
+    doc_input = "that the TFLite exported model will be able to take as input."
     input_group.add_argument(
         "--batch_size",
         type=int,
         default=1,
-        help=f"Text tasks only. Batch size {doc_input}",
+        help=f"Batch size {doc_input}",
     )
     input_group.add_argument(
         "--sequence_length",
         type=int,
         default=None,
-        help=f"Text tasks only. Sequence length {doc_input}",
+        help=f"Sequence length {doc_input}",
     )
     input_group.add_argument(
         "--num_choices",
         type=int,
         default=None,
-        help=f"Text tasks only. Num choices {doc_input}",
+        help=f"Only for the multiple-choice task. Num choices {doc_input}",
     )
     input_group.add_argument(
         "--width",
         type=int,
         default=None,
-        help=f"Image tasks only. Width {doc_input}",
+        help=f"Vision tasks only. Image width {doc_input}",
     )
     input_group.add_argument(
         "--height",
         type=int,
         default=None,
-        help=f"Image tasks only. Height {doc_input}",
+        help=f"Vision tasks only. Image height {doc_input}",
     )
     input_group.add_argument(
         "--num_channels",
         type=int,
         default=None,
-        help=f"Image tasks only. Number of channels {doc_input}",
+        help=f"Vision tasks only. Number of channels used to represent the image {doc_input} (GREY = 1, RGB = 3, ARGB = 4)",
     )
     input_group.add_argument(
         "--feature_size",
         type=int,
         default=None,
-        help=f"Audio tasks only. Feature size {doc_input}",
+        help=f"Audio tasks only. Feature dimension of the extracted features by the feature extractor {doc_input}",
     )
     input_group.add_argument(
         "--nb_max_frames",

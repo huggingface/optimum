@@ -60,7 +60,6 @@ def main():
     shapes = {name: getattr(args, name) for name in tflite_config_constructor.func.get_mandatory_axes_for_task(task)}
     tflite_config = tflite_config_constructor(model.config, **shapes)
 
-    # Ensure the requested opset is sufficient
     if args.atol is None:
         args.atol = tflite_config.ATOL_FOR_VALIDATION
         if isinstance(args.atol, dict):
