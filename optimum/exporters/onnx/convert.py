@@ -206,7 +206,7 @@ def validate_model_outputs(
 
     session = InferenceSession(onnx_model.as_posix(), options, providers=[provider])
 
-    # Sometimes the exported model can have more outputs that what is specified in the ONNX config because the original
+    # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
     # PyTorch model has more outputs that were forgotten in the config, so we check for that.
     all_onnx_outputs = {output.name for output in session.get_outputs()}
     config_outputs = set(config.outputs)

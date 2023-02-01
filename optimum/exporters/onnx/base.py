@@ -118,7 +118,7 @@ class ModelPatcher:
         setattr(self._model, self.orig_forward_name, self.patched_forward)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.patch_ops()
+        self.restore_ops()
         setattr(self._model, self.orig_forward_name, self.orig_forward)
 
     def __call__(self, *args, **kwargs):
