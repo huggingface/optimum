@@ -173,7 +173,7 @@ def export(
     signatures = config.model_to_signatures(model)
 
     with TemporaryDirectory() as tmp_dir_name:
-        tf.saved_model.save(model, tmp_dir_name, signatures)
+        model.save(tmp_dir_name, signatures=signatures)
         converter = tf.lite.TFLiteConverter.from_saved_model(tmp_dir_name)
         tflite_model = converter.convert()
 
