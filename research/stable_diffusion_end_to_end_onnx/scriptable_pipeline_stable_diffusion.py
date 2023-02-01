@@ -80,6 +80,17 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         self.guidance_scale = 7.5
         self.num_images_per_prompt = 1
 
+        # TODO: remove
+        torch.manual_seed(42)
+        num_channels_latents = self.unet_in_channels
+        height = self.sample_size * self.vae_scale_factor
+        width = self.sample_size * self.vae_scale_factor
+        # batch size = 1 fixed!
+        shape = (1, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
+        #self.deterministic_latents = torch.randn(shape, device="cuda", dtype=torch.float16)
+        self.deterministic_latents = torch.randn(shape, device="cpu", dtype=torch.float32)
+        
+
     def _encode_prompt(
         self,
         text_input_ids: torch.Tensor,
@@ -230,6 +241,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
 
         device = prompt_embeds.device
 
+        """
         # 5. Prepare latent variables
         num_channels_latents = self.unet_in_channels
         latents = self.prepare_latents(
@@ -240,7 +252,12 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             prompt_embeds.dtype,
             device,
         )
+        """
+        # TODO: remove this horror
+        num_channels_latents = self.unet_in_channels
+        latents = self.deterministic_latents
 
+        # TODO: put this out of the forward, as this is scheduler specific
         # 4D buffer rolled at each step
         ets_buffer = torch.zeros(
             4,

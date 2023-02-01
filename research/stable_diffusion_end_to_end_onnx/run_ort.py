@@ -4,6 +4,22 @@ import torch
 
 from utils import numpy_to_pil
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--gpu",
+    action="store_true",
+    help="use to do inference on GPU.",
+)
+args = parser.parse_args()
+
+if args.gpu:
+    providers = ["CUDAExecutionProvider"]
+else:
+    providers = ["CPUExecutionProvider"]
+
+
 session = ort.InferenceSession("stable_diffusion_pipeline.onnx", providers=["CUDAExecutionProvider"])
 
 text_input_ids = torch.tensor(
