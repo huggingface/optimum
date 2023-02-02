@@ -18,7 +18,7 @@ import importlib
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
@@ -184,6 +184,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BertOnnxConfig",
+            tflite="BertTFLiteConfig",
         ),
         "big-bird": supported_tasks_mapping(
             "default",
@@ -1019,10 +1020,11 @@ class TasksManager:
     @staticmethod
     def get_exporter_config_constructor(
         exporter: str,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"] = None,
+        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
         task: str = "default",
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
+        exporter_config_kwargs: Optional[Dict[str, Any]] = None,
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
@@ -1038,6 +1040,8 @@ class TasksManager:
                 The model type to retrieve the config for.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
+            exporter_config_kwargs(`Optional[Dict[str, Any]]`, defaults to `None`):
+                Arguments that will be passed to the exporter config class when building the config constructor.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
@@ -1060,4 +1064,9 @@ class TasksManager:
                 f"{model_type} doesn't support task {task} for the {exporter} backend."
                 f" Supported values are: {model_tasks}"
             )
-        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
+
+        exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
+        if exporter_config_kwargs is not None:
+            exporter_config_constructor = partial(exporter_config_constructor, **exporter_config_kwargs)
+
+        return exporter_config_constructor

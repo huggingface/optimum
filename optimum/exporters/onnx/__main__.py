@@ -22,17 +22,10 @@ from transformers import AutoTokenizer
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
+from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import (
-    AtolError,
-    OutputMatchError,
-    ShapeError,
-    export,
-    export_models,
-    validate_model_outputs,
-    validate_models_outputs,
-)
+from .convert import export, export_models, validate_model_outputs, validate_models_outputs
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
