@@ -201,9 +201,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
         args = self.args
         # Load ORT model
-        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(
-            model_id=self.onnx_model_path, provider="CUDAExecutionProvider"
-        )
+        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path).to(args.device)
 
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
@@ -586,7 +584,10 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         else:
             generation_inputs = inputs[self.model.main_input_name]
 
-        generated_tokens = model.generate(
+        if torch.cuda.is_available():
+            self.model.to("cuda")
+
+        generated_tokens = self.model.generate(
             generation_inputs,
             **gen_kwargs,
         )
@@ -776,8 +777,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        use_cache = kwargs.get("use_cache", True)
-
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             model=model, exporter="onnx", task=self.feature
         )
@@ -814,7 +813,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             output=Path(save_dir).joinpath(ONNX_DECODER_NAME),
             device=device,
         )
+
         # Export the decoder with the past key values
+        use_cache = kwargs.get("use_cache", True)
         if use_cache:
             export(
                 model=model,

@@ -88,7 +88,7 @@ from transformers.trainer_utils import (
 from transformers.utils import logging
 
 from ..exporters import TasksManager
-from ..exporters.onnx import OnnxConfigWithPast, export
+from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
@@ -162,6 +162,16 @@ class ORTFeaturesManager:
         """
 
         return ORTFeaturesManager._TASKS_TO_ORTMODELS[feature]
+
+    @staticmethod
+    def do_use_cache(feature: str) -> bool:
+        """
+        Gets the value of `use_cache` for the feature.
+        """
+        if "-with-past" in feature:
+            return True
+        else:
+            return False
 
 
 class ORTTrainer(Trainer):
@@ -967,14 +977,15 @@ class ORTTrainer(Trainer):
 
             # With `label_smoother` the loss will be computed outside modeling
             with_loss = has_labels and not self.label_smoother
-            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+            use_cache = ORTFeaturesManager.do_use_cache(self.feature)
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device, use_cache=use_cache)
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
+        if self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
             # Exported with standard outputs, use specific ORTModels
             ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
         else:
@@ -982,14 +993,10 @@ class ORTTrainer(Trainer):
 
         model_id = self.onnx_model_path
         args = self.args
-        # Temporary fix for decoder, now `use_cache` set to False which
-        # TODO: Use cache once `ORTModelForCausalLM` supports `loss` as output
         if ort_model_cls is ORTModelForCausalLM:
-            ort_model = ort_model_cls.from_pretrained(
-                model_id=model_id, use_cache=False, provider="CUDAExecutionProvider"
-            )
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id, use_cache=use_cache).to(args.device)
         else:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id, provider="CUDAExecutionProvider")
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
 
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
@@ -1450,6 +1457,7 @@ class ORTTrainer(Trainer):
         opset: Optional[int] = None,
         device: str = "cpu",
         with_loss: bool = True,
+        use_cache: bool = False,
     ) -> None:
         """
         Load and export a model to an ONNX format.
@@ -1472,14 +1480,6 @@ class ORTTrainer(Trainer):
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        # TODO: Remove once `ORTModelForCausalLM` supports `loss` as an output
-        if "-with-past" in self.feature:
-            correct_feature = self.feature.replace("-with-past", "")
-            raise NotImplementedError(
-                "`use_cache` is not yet supported for ONNX Runtime inference in `ORTTrainer`, please replace "
-                f"{self.feature} task by {correct_feature}."
-            )
-
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             model=model, exporter="onnx", task=self.feature
         )
@@ -1488,18 +1488,40 @@ class ORTTrainer(Trainer):
 
         is_decoder = isinstance(onnx_config, OnnxConfigWithPast)
 
-        if with_loss:
-            onnx_config = wrap_onnx_config_for_loss(onnx_config)
-            opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
+        if is_decoder:
+            output_names = [ONNX_DECODER_NAME]
+            if use_cache is True:
+                output_names.append(ONNX_DECODER_WITH_PAST_NAME)
 
-        output_path = model_path / ONNX_DECODER_NAME if is_decoder else model_path / ONNX_WEIGHTS_NAME
-        _ = export(
-            model=model,
-            config=onnx_config,
-            opset=opset,
-            output=output_path,
-            device=device,
-        )
+            models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
+            if with_loss is True:
+                opset = max(opset, 12)
+                models_and_onnx_configs_with_loss = {}
+                for decoder_name, (decoder, decoder_config) in models_and_onnx_configs.items():
+                    models_and_onnx_configs_with_loss[decoder_name] = (
+                        decoder,
+                        wrap_onnx_config_for_loss(decoder_config),
+                    )
+
+            export_models(
+                models_and_onnx_configs=models_and_onnx_configs_with_loss if with_loss else models_and_onnx_configs,
+                opset=opset,
+                output_dir=model_path,
+                output_names=output_names,
+            )
+        else:
+            if with_loss is True:
+                onnx_config = wrap_onnx_config_for_loss(onnx_config)
+                opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
+
+            output_path = model_path / ONNX_WEIGHTS_NAME
+            _ = export(
+                model=model,
+                config=onnx_config,
+                opset=opset,
+                output=output_path,
+                device=device,
+            )
 
         model.config.save_pretrained(model_path)
 
