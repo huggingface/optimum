@@ -8,8 +8,18 @@ from transformers import AutoTokenizer, CLIPTextConfig
 
 from diffusers.schedulers import PNDMScheduler
 
+import argparse
 
-scripted_pipeline = torch.load("scripted_sd_cpu.pt")
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--path",
+    type=str,
+    help="Path to a .pt ScriptModule",
+    default="scripted_sd_cpu.pt",
+)
+args = parser.parse_args()
+
+scripted_pipeline = torch.load(args.path)
 
 # NOTE: Beware that model_path should match with the .pt model!
 #model_path = "hf-internal-testing/tiny-stable-diffusion-torch"

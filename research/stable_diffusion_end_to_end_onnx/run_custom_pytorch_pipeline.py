@@ -5,15 +5,18 @@ import torch
 from utils import StableDiffusionPreprocessor, numpy_to_pil
 from schedulers.scheduling_pndm import ScriptablePNDMScheduler
 
+device = "cpu"
+dtype = torch.float32
+
 model_name = "CompVis/stable-diffusion-v1-4"
-# model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
-pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False, torch_dtype=torch.float16)
+#model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
+pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False, torch_dtype=dtype)
 
 num_inference_steps = 50
 scriptable_scheduler = ScriptablePNDMScheduler(**pipeline.scheduler.config)
-scriptable_scheduler.set_timesteps(num_inference_steps, device="cuda")
+scriptable_scheduler.set_timesteps(num_inference_steps, device=device)
 
-pipeline = pipeline.to("cuda")
+pipeline = pipeline.to(device)
 pipeline = ScriptableStableDiffusionPipeline(
     vae=pipeline.vae,
     text_encoder=pipeline.text_encoder,
@@ -32,9 +35,9 @@ preprocessor = StableDiffusionPreprocessor(
 # uncond_text_input_ids, uncond_attention_mask
 preprocessed_input = preprocessor.preprocess("A cat sleeping on the beach")
 
-text_input_ids = preprocessed_input["text_input_ids"].to("cuda")
-uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to("cuda")
-timesteps = preprocessed_input["timesteps"].to("cuda")
+text_input_ids = preprocessed_input["text_input_ids"].to(device)
+uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to(device)
+timesteps = preprocessed_input["timesteps"].to(device)
 
 # breakpoint()
 # np_image = pipeline(text_input_ids=text_input_ids, attention_mask=attention_mask).images[0]
