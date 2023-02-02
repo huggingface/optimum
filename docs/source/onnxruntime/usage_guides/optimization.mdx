@@ -15,7 +15,41 @@ specific language governing permissions and limitations under the License.
 🤗 Optimum provides an `optimum.onnxruntime` package that enables you to apply graph optimization on many model hosted on the 🤗 hub using the [ONNX Runtime](https://github.com/microsoft/onnxruntime/tree/master/onnxruntime/python/tools/transformers) model optimization tool.
 
 
-## Creating an `ORTOptimizer`
+## Optimizing a model to be used with Optimum's CLI
+
+The Optimum ONNX Runtime optimization tool can be used through Optimum command-line interface:
+
+```bash
+optimum-cli onnxruntime optimize --help
+usage: optimum-cli <command> [<args>] onnxruntime optimize [-h] --onnx_model ONNX_MODEL [-o OUTPUT] (-O1 | -O2 | -O3 | -O4)
+
+options:
+  -h, --help            show this help message and exit
+  -O1                   Basic general optimizations (see: https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization for more details).
+  -O2                   Basic and extended general optimizations, transformers-specific fusions (see: https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization for more details).
+  -O3                   Same as O2 with Gelu approximation (see: https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization for more details).
+  -O4                   Same as O3 with mixed precision (see: https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization for more details).
+  -c, --config          `ORTConfig` file to use to optimize the model.
+
+Required arguments:
+  --onnx_model ONNX_MODEL
+                        Path indicating where the ONNX models to optimize are located.
+
+Optional arguments:
+  -o OUTPUT, --output OUTPUT
+                        Path indicating the directory where to store generated ONNX model. (defaults to --onnx_model value).
+```
+
+Optimizing an ONNX model can be done as follows:
+
+```bash
+ optimum-cli onnxruntime optimize --onnx_model onnx_model_location/ -O1
+```
+
+This optimize all the ONNX files in `onnx_model_location` with the basic general optimizations. The optimized models will be created in the same directory by default unless the `--output` argument is specified.
+
+
+## Optimizing a model to be used with Optimum's `ORTOptimizer`
 
 The [`~onnxruntime.ORTOptimizer`] class is used to optimize your ONNX model. The class can be initialized using the `from_pretrained()` method, which supports different checkpoint formats.
 
