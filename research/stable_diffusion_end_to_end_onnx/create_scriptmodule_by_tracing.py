@@ -5,6 +5,7 @@ from diffusers.schedulers import PNDMScheduler
 
 from diffusers import DiffusionPipeline
 import torch
+import time
 
 from scriptable_pipeline_stable_diffusion import ScriptableStableDiffusionPipeline
 
@@ -21,11 +22,11 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-model_name = "CompVis/stable-diffusion-v1-4"
-#model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
+#model_name = "CompVis/stable-diffusion-v1-4"
+model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
 pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False)
 
-num_inference_steps = 50
+num_inference_steps = 120
 
 if args.gpu:
     device= "cuda"
@@ -42,6 +43,8 @@ pipeline = ScriptableStableDiffusionPipeline(
     unet=pipeline.unet,
     scheduler=scriptable_scheduler,
 )
+
+pipeline = pipeline.eval()
 
 if args.gpu:
     pipeline = pipeline.to(device)
@@ -81,24 +84,24 @@ preprocessor = StableDiffusionPreprocessor(
     scheduler=scheduler,
 )
 
-num_inference_steps = 50
 preprocessed_input = preprocessor.preprocess("A cat sleeping on the beach", num_inference_steps=num_inference_steps, device=device)
 
 text_input_ids = preprocessed_input["text_input_ids"].to(device)
 uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to(device)
 timesteps = preprocessed_input["timesteps"].to(device)
 
-
+start = time.time()
 with torch.inference_mode():
     traced_pipeline = torch.jit.trace(pipeline, (text_input_ids, uncond_text_input_ids, timesteps))
+print(f"\ntorch.jit.trace took: {time.time() - start}\n\n")
 
-print(traced_pipeline.code)
+#print(traced_pipeline.code)
 
 #print("decode_latent:")
 #print(traced_pipeline.decode_latents.code)
 
-print("unet:")
-print(traced_pipeline.unet.code)
+#print("unet:")
+#print(traced_pipeline.unet.code)
 
 #print("scheduler:")
 #print(traced_pipeline.scheduler.step.code)

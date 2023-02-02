@@ -158,8 +158,8 @@ class ScriptableStableDiffusionPipeline(nn.Module):
     def decode_latents(self, latents: torch.Tensor):
         latents = 1 / 0.18215 * latents
 
-        #image = self.vae_decoder(latents)
-        image = self.vae.decode(latents, return_dict=False)
+        image = self.vae_decoder(latents)
+        #image = self.vae.decode(latents, return_dict=False)
         """
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             image = self.vae_decoder(latents)
