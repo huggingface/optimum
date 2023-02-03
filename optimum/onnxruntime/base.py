@@ -114,7 +114,6 @@ class ORTDecoder(ORTModelPart):
             self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
         if len(self.key_value_output_names) == 0:
             self.key_value_output_names = [key for key in self.output_names if "key_values" in key]
-        # from pdb import set_trace; set_trace()
 
         if self.parent_model.use_cache is True or len(self.key_value_output_names) != 0:
             if len(self.key_value_output_names) == 0:

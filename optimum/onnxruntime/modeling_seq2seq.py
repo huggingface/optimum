@@ -271,13 +271,6 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
             The ONNX Runtime inference session associated to the encoder.
     """
 
-    # def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
-    #     super().__init__(session, parent_model)
-
-    #     self.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-    #         self.parent_model.config.encoder.model_type
-    #     )(self.parent_model.config.encoder)
-
     @add_start_docstrings_to_model_forward(VISION_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
