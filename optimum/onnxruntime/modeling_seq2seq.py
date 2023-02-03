@@ -774,6 +774,9 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
 
         # Decode
+        if decoder_input_ids is None:
+            raise ValueError("You have to specify either decoder_input_ids.")
+
         if past_key_values is None or self.decoder_with_past is None:
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,

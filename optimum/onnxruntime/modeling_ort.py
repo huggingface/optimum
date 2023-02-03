@@ -622,7 +622,11 @@ class ORTModel(OptimizedModel):
         """Prepares the buffer of output_name with a 1D tensor."""
         ort_type = TypeHelper.get_output_type(model, output_name)
         torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-        output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
+        if len(output_shape) > 0:
+            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
+        else:
+            # Case when the output is a scalar
+            output_buffer = torch.tensor(0, dtype=torch_type, device=self.device).contiguous()
         return output_buffer
 
     def _output_shape_inference(self, axis_name: Union[str, int], dimensions: Dict[str, int]) -> Union[str, int]:
@@ -727,7 +731,6 @@ class ORTModel(OptimizedModel):
                 tuple(tensor.shape),
                 tensor.data_ptr(),
             )
-
         dimensions = {}
         for input_ in model.get_inputs():
             shape = input_.shape
