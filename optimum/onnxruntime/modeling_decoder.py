@@ -543,19 +543,27 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
 
         if past_key_values is None or self.decoder_with_past is None:
-            outputs = self.decoder(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = self.decoder(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
         else:
             outputs = self.decoder_with_past(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
+                labels=labels,
             )
 
-        return CausalLMOutputWithCrossAttentions(logits=outputs.logits, past_key_values=outputs.past_key_values)
+        return CausalLMOutputWithCrossAttentions(
+            loss=outputs.get("loss", None), logits=outputs.logits, past_key_values=outputs.past_key_values
+        )
 
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past=None, **kwargs):

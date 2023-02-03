@@ -106,6 +106,10 @@ class XLMOnnxConfig(BertOnnxConfig):
     pass
 
 
+class SplinterOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class DistilBertOnnxConfig(BertOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -913,9 +917,9 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super().outputs
         if self._behavior is ConfigBehavior.ENCODER:
-            for name, dynamic_axes in common_outputs.items():
-                if name == "last_hidden_state":
-                    dynamic_axes[1] = f"{common_outputs[name][1]} / 2"
+            # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for 
+            # dummy input generation
+            common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
         return common_outputs
 
 

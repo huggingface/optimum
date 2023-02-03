@@ -198,6 +198,7 @@ class NormalizedConfigManager:
         "poolformer": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
+        "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
