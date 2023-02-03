@@ -133,6 +133,13 @@ WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
 
+TrOCRLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
+    decoder_num_layers="decoder_layers",
+    num_layers="decoder_layers",
+    decoder_num_attention_heads="decoder_attention_heads",
+    hidden_size="cross_attention_hidden_size",
+)
+
 
 class NormalizedConfigManager:
     """
@@ -166,7 +173,6 @@ class NormalizedConfigManager:
         'roformer',
         'segformer',
         'squeezebert',
-        'vit',
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -200,7 +206,10 @@ class NormalizedConfigManager:
         "roberta": NormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
+        "trocr": TrOCRLikeNormalizedTextConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
+        "vision-encoder-decoder": NormalizedEncoderDecoderConfig,
+        "vit": NormalizedVisionConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
     }

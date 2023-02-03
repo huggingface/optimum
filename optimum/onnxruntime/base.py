@@ -114,40 +114,42 @@ class ORTDecoder(ORTModelPart):
             self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
         if len(self.key_value_output_names) == 0:
             self.key_value_output_names = [key for key in self.output_names if "key_values" in key]
+        # from pdb import set_trace; set_trace()
 
-        if len(self.key_value_output_names) == 0:
-            raise RuntimeError("Could not find the past key values in the provided model.")
+        if self.parent_model.use_cache is True or len(self.key_value_output_names) != 0:
+            if len(self.key_value_output_names) == 0:
+                raise RuntimeError("Could not find the past key values in the provided model.")
 
-        # Attributes useful when computing the past key/values output shapes.
-        self.expected_key_symbolic_shape = None
-        self.expected_value_symbolic_shape = None
-        for output in self.session.get_outputs():
-            if ".key" in output.name:
-                self.expected_key_symbolic_shape = output.shape
-            elif ".value" in output.name:
-                self.expected_value_symbolic_shape = output.shape
-            # To handle the old case when past_key_values were following the format: past_key_values_{idx}
-            elif "key_values" in output.name:
-                if self.expected_key_symbolic_shape is None:
+            # Attributes useful when computing the past key/values output shapes.
+            self.expected_key_symbolic_shape = None
+            self.expected_value_symbolic_shape = None
+            for output in self.session.get_outputs():
+                if ".key" in output.name:
                     self.expected_key_symbolic_shape = output.shape
-                else:
+                elif ".value" in output.name:
                     self.expected_value_symbolic_shape = output.shape
-            if self.expected_key_symbolic_shape is not None and self.expected_value_symbolic_shape is not None:
-                break
+                # To handle the old case when past_key_values were following the format: past_key_values_{idx}
+                elif "key_values" in output.name:
+                    if self.expected_key_symbolic_shape is None:
+                        self.expected_key_symbolic_shape = output.shape
+                    else:
+                        self.expected_value_symbolic_shape = output.shape
+                if self.expected_key_symbolic_shape is not None and self.expected_value_symbolic_shape is not None:
+                    break
 
-        self.key_sequence_length_idx = -2
-        if (
-            isinstance(self.expected_key_symbolic_shape[-1], str)
-            and "sequence_length" in self.expected_key_symbolic_shape[-1]
-        ):
-            self.key_sequence_length_idx = -1
+            self.key_sequence_length_idx = -2
+            if (
+                isinstance(self.expected_key_symbolic_shape[-1], str)
+                and "sequence_length" in self.expected_key_symbolic_shape[-1]
+            ):
+                self.key_sequence_length_idx = -1
 
-        self.value_sequence_length_idx = -2
-        if (
-            isinstance(self.expected_value_symbolic_shape[-1], str)
-            and "sequence_length" in self.expected_value_symbolic_shape[-1]
-        ):
-            self.value_sequence_length_idx = -1
+            self.value_sequence_length_idx = -2
+            if (
+                isinstance(self.expected_value_symbolic_shape[-1], str)
+                and "sequence_length" in self.expected_value_symbolic_shape[-1]
+            ):
+                self.value_sequence_length_idx = -1
 
     def compute_past_key_values_output_shapes(
         self, input_ids: torch.Tensor, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
