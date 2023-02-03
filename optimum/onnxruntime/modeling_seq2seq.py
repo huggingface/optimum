@@ -1006,7 +1006,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
     """
 
     auto_model_class = AutoModelForVision2Seq
