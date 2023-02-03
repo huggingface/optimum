@@ -27,6 +27,7 @@ import torch
 from PIL import Image
 from transformers import (
     AutoConfig,
+    AutoImageProcessor,
     AutoModel,
     AutoModelForCausalLM,
     AutoModelForImageClassification,
@@ -38,6 +39,7 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
+    AutoModelForVision2Seq,
     AutoTokenizer,
     MBartForConditionalGeneration,
     PretrainedConfig,
@@ -69,6 +71,7 @@ from optimum.onnxruntime import (
     ORTModelForSequenceClassification,
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
+    ORTModelForVision2Seq,
 )
 from optimum.onnxruntime.base import ORTDecoder, ORTEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
@@ -148,6 +151,8 @@ MODEL_NAMES = {
     "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
+    "trocr": "microsoft/trocr-small-handwritten",
 }
 
 SEED = 42
@@ -2740,6 +2745,229 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
 
         gc.collect()
+
+
+class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
+    # TODO: speech_to_text should be tested
+    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder"]
+
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [False, True],
+    }
+
+    ORTMODEL_CLASS = ORTModelForVision2Seq
+    TASK = "vision2seq-lm"
+
+    def _get_sample_image(self):
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        return image
+
+    def _get_preprocessors(self, model_id):
+        image_processor = AutoImageProcessor.from_pretrained(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+
+        return image_processor, tokenizer
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name])
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = feature_extractor(data, return_tensors="pt")
+
+        outputs = model.generate(inputs=features["pixel_values"])
+        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertIsInstance(res[0], str)
+
+        gc.collect()
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
+        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+
+        self.assertIsInstance(onnx_model.encoder, ORTEncoder)
+        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        if onnx_model.use_cache is True:
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModelForVision2Seq.from_pretrained(model_id)
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = feature_extractor(data, return_tensors="pt")
+
+        start_token = "<s>"
+        decoder_start_token_id = tokenizer.encode(start_token)[0]
+        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        onnx_outputs = onnx_model(**features, **decoder_inputs)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**features, **decoder_inputs)
+        # Compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_pipeline_image_to_text(self, test_name: str, model_arch: str, use_cache: bool):
+        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+
+        # Speech recogition generation
+        pipe = pipeline(
+            "image-to-text",
+            model=onnx_model,
+            tokenizer=tokenizer,
+            feature_extractor=feature_extractor,
+        )
+        data = self._get_sample_image()
+        outputs = pipe(data)
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertIsInstance(outputs[0]["generated_text"], str)
+
+        gc.collect()
+
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    @require_torch_gpu
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_io_binding": False,
+        }
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
+        )
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        pipe = pipeline(
+            "image-to-text",
+            model=onnx_model,
+            tokenizer=tokenizer,
+            feature_extractor=feature_extractor,
+            device=0,
+        )
+
+        data = self._get_sample_image()
+        outputs = pipe(data)
+
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        # compare model output class
+        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_with_and_without_past_key_values_model_outputs(self, model_arch: str):
+        model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
+        self._setup(model_args)
+        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = feature_extractor(data, return_tensors="pt")
+
+        model_with_pkv = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[model_arch + "_True"], use_cache=True
+        )
+        outputs_model_with_pkv = model_with_pkv.generate(**features)
+        model_without_pkv = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
+        )
+        outputs_model_without_pkv = model_without_pkv.generate(**features)
+
+        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+
+    # @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    # @require_torch_gpu
+    # def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
+    #     model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    #     self._setup(model_args)
+
+    #     model_id = MODEL_NAMES[model_arch]
+    #     onnx_model = ORTModelForVision2Seq.from_pretrained(
+    #         self.onnx_model_dirs[test_name], use_io_binding=False
+    #     ).to("cuda")
+    #     io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+    #         "cuda"
+    #     )
+
+    #     processor = get_preprocessor(model_id)
+
+    #     data = self._generate_random_audio_data()
+    #     features = processor.feature_extractor([data] * 2, return_tensors="pt").to("cuda")
+
+    #     decoder_start_token_id = onnx_model.config.decoder_start_token_id
+    #     decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
+
+    #     onnx_outputs = onnx_model(**features, **decoder_inputs)
+    #     io_outputs = io_model(**features, **decoder_inputs)
+
+    #     self.assertTrue("logits" in io_outputs)
+    #     self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+    #     # compare tensor outputs
+    #     self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+    #     gc.collect()
+
+    # @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    # @require_torch_gpu
+    # def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
+    #     model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    #     self._setup(model_args)
+
+    #     model_id = MODEL_NAMES[model_arch]
+    #     onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+    #         self.onnx_model_dirs[test_name], use_io_binding=False
+    #     ).to("cuda")
+    #     io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+    #         "cuda"
+    #     )
+
+    #     processor = get_preprocessor(model_id)
+
+    #     data = self._generate_random_audio_data()
+    #     features = processor.feature_extractor(data, return_tensors="pt").to("cuda")
+
+    #     onnx_outputs = onnx_model.generate(**features, num_beams=5)
+    #     io_outputs = io_model.generate(**features, num_beams=5)
+
+    #     # compare tensor outputs
+    #     self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+
+    # gc.collect()
 
 
 class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):

@@ -189,6 +189,7 @@ class NormalizedConfigManager:
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,
         "deberta-v2": NormalizedTextConfig,
+        "deit": NormalizedVisionConfig,
         "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
