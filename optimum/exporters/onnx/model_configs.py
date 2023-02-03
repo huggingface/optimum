@@ -107,6 +107,10 @@ class XLMOnnxConfig(BertOnnxConfig):
     pass
 
 
+class SplinterOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class DistilBertOnnxConfig(BertOnnxConfig):
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
