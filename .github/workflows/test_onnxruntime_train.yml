@@ -3,7 +3,7 @@ name: ONNX Runtime / Test ORTTrainer
 on:
   workflow_dispatch:
   schedule:
-    - cron: 0 7 * * * #every day at 7 am
+    - cron: 0 1 */3 * * # at 1am every 3 days
 
 jobs:
   start-runner:
