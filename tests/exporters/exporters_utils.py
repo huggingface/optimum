@@ -47,7 +47,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
-    "detr": "hf-internal-testing/tiny-random-detr",
+    "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",

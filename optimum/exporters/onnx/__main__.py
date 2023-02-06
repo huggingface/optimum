@@ -114,7 +114,7 @@ def main():
         maybe_save_preprocessors(args.model, args.output.parent)
 
     if task == "stable-diffusion" or (
-        not args.monolith and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+        task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm")) and not args.monolith
     ):
         if task == "stable-diffusion":
             output_names = [
@@ -162,7 +162,7 @@ def main():
 
     try:
         if task == "stable-diffusion" or (
-            not args.monolith and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+            task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm")) and not args.monolith
         ):
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,
