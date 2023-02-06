@@ -52,7 +52,7 @@ def main():
     if args.for_ort:
         logger.warning(
             "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
-            "and passing it is not required anymore."
+            " and passing it is not required anymore."
         )
 
     # Infer the task
