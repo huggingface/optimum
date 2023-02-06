@@ -53,6 +53,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
+    "gpt-neo-x": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
@@ -151,6 +152,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",
+    "gpt-neo-x": "EleutherAI/gpt-neox-20b",
     "gptj": "anton-l/gpt-j-tiny-random",  # TODO
     "groupvit": "nvidia/groupvit-gcc-yfcc",
     "ibert": "kssteven/ibert-roberta-base",
