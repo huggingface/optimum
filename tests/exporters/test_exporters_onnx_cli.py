@@ -18,7 +18,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
 from transformers import is_torch_available
-from transformers.testing_utils import require_torch, require_vision
+from transformers.testing_utils import require_torch, require_torch_gpu, require_vision
 
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 from parameterized import parameterized
@@ -151,6 +151,15 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
                 f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm --for-ort {tmpdirname}",
+                shell=True,
+                check=True,
+            )
+
+    @require_torch_gpu
+    def test_export_on_float16(self):
+        with TemporaryDirectory() as tmpdirname:
+            _ = subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --device cuda --dtype float16 --task seq2seq-lm-with-past {tmpdirname}",
                 shell=True,
                 check=True,
             )
