@@ -194,7 +194,7 @@ class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
 
 class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_attention_heads")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):

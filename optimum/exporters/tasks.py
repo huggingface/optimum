@@ -387,7 +387,6 @@ class TasksManager:
             "default-with-past",
             "causal-lm",
             "causal-lm-with-past",
-            "sequence-classification",
             onnx="GPTNeoXOnnxConfig",
         ),
         "groupvit": supported_tasks_mapping(

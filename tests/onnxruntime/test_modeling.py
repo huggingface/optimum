@@ -1727,6 +1727,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "codegen",
         "gpt2",
         "gpt_neo",
+        "gpt_neo_x",
         "gptj",
     ]
 
