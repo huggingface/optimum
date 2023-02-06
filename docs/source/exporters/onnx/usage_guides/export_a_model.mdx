@@ -198,7 +198,7 @@ In the ONNX export, the past keys/values are reused by default. This behavior co
 A model exported using past key/values can be reused directly into Optimum's [`~onnxruntime.ORTModel`]:
 
 ```bash
-optimum-cli export onnx --model gpt2 gpt2_onnx/
+optimum-cli export onnx --model gpt2 --for-ort gpt2_onnx/
 ```
 
 and
