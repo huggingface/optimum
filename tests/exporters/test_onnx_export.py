@@ -174,7 +174,7 @@ def _get_models_to_test(export_models_dict: Dict):
                     ):
                         models_to_test.append(
                             (
-                                f"{model_type}_{task}_for_ort",
+                                f"{model_type}_{task}_monolith",
                                 model_type,
                                 model_name,
                                 task,
@@ -203,7 +203,7 @@ class OnnxExportTestCase(TestCase):
         task: str,
         onnx_config_class_constructor,
         shapes_to_validate: Dict,
-        for_ort: bool,
+        monolith: bool,
         device="cpu",
     ):
         model_class = TasksManager.get_model_class_for_task(task)
@@ -238,8 +238,7 @@ class OnnxExportTestCase(TestCase):
         if isinstance(atol, dict):
             atol = atol[task.replace("-with-past", "")]
 
-        if for_ort is True and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
-
+        if monolith is False and (model.config.is_encoder_decoder or task.startswith("causal-lm")):
             if model.config.is_encoder_decoder:
                 models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
             else:
@@ -298,6 +297,7 @@ class OnnxExportTestCase(TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
+    @slow
     def test_pytorch_export(
         self,
         test_name,
@@ -305,27 +305,23 @@ class OnnxExportTestCase(TestCase):
         model_name,
         task,
         onnx_config_class_constructor,
-        for_ort: bool,
+        monolith: bool,
     ):
-        if os.environ.get("RUN_SLOW", False):
-            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_SLOW
-        else:
-            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_FAST
-
         self._onnx_export(
             test_name,
             name,
             model_name,
             task,
             onnx_config_class_constructor,
-            shapes_to_validate=shapes_to_validate,
-            for_ort=for_ort,
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
+            monolith=monolith,
         )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
     @require_torch_gpu
+    @slow
     def test_pytorch_export_on_cuda(
         self,
         test_name,
@@ -333,7 +329,7 @@ class OnnxExportTestCase(TestCase):
         model_name,
         task,
         onnx_config_class_constructor,
-        for_ort: bool,
+        monolith: bool,
     ):
         if os.environ.get("RUN_SLOW", False):
             shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_SLOW
@@ -348,18 +344,18 @@ class OnnxExportTestCase(TestCase):
             onnx_config_class_constructor,
             device="cuda",
             shapes_to_validate=shapes_to_validate,
-            for_ort=for_ort,
+            monolith=monolith,
         )
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow
     @require_tf
     @require_vision
-    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor, for_ort: bool):
-        if for_ort == True:
+    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor, monolith: bool):
+        if monolith == False:
             return 0
 
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, for_ort=for_ort)
+        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
     @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL)
     @slow

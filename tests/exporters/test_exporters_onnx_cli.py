@@ -80,19 +80,19 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
-    def _onnx_export(self, test_name: str, model_name: str, task: Optional[str], for_ort: bool = False):
+    def _onnx_export(self, test_name: str, model_name: str, task: Optional[str], monolith: bool = False):
 
         with TemporaryDirectory() as tmpdir:
-            for_ort = " --for-ort " if for_ort is True else " "
+            monolith = " --monolith " if monolith is True else " "
             if task is not None:
                 subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}--task {task} {tmpdir}",
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}--task {task} {tmpdir}",
                     shell=True,
                     check=True,
                 )
             else:
                 subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{for_ort}{tmpdir}",
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{tmpdir}",
                     shell=True,
                     check=True,
                 )
@@ -106,8 +106,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
-    def test_exporters_cli_pytorch(self, test_name: str, model_name: str, task: str, for_ort: bool):
-        self._onnx_export(test_name, model_name, task, for_ort)
+    def test_exporters_cli_pytorch(self, test_name: str, model_name: str, task: str, monolith: bool):
+        self._onnx_export(test_name, model_name, task, monolith)
 
     @parameterized.expand([(False,), (True,)])
     def test_external_data(self, use_cache: bool):
@@ -120,7 +120,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 task += "-with-past"
 
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --task {task} --for-ort {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --task {task} {tmpdirname}",
                 shell=True,
                 check=True,
             )
@@ -141,7 +141,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_trust_remote_code(self):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm --for-ort {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm {tmpdirname}",
                 shell=True,
                 capture_output=True,
             )
@@ -150,7 +150,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm --for-ort {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm {tmpdirname}",
                 shell=True,
                 check=True,
             )

@@ -108,7 +108,7 @@ def main():
         maybe_save_preprocessors(args.model, args.output.parent)
 
     if task == "stable-diffusion" or (
-        args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+        not args.monolith and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
     ):
         if task == "stable-diffusion":
             output_names = [
@@ -156,7 +156,7 @@ def main():
 
     try:
         if task == "stable-diffusion" or (
-            args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+            not args.monolith and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
         ):
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,
