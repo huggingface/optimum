@@ -936,11 +936,53 @@ class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
 
 class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
-        input_features_per_channel="input_feat_per_channel", allow_new=True
+        decoder_num_layers="decoder_layers",
+        num_layers="decoder_layers",
+        input_features_per_channel="input_feat_per_channel",
+        allow_new=True,
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
         Speech2TextDummyAudioInputGenerator,
     ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+    ATOL_FOR_VALIDATION = 1e-4
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
+        # The generated encoder_hidden_states for Whisper has dimensions
+        # (batch_size, encoder_sequence_length / 2, hidden_size). Therefore,
+        # the sequence length is updated to generate the proper cross attention
+        # KVS in monolith case.
+        if self._behavior is ConfigBehavior.MONOLITH:
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                encoder_sequence_length=dummy_inputs_generators[0].sequence_length
+                // (2 * self._config.num_conv_layers),
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"][
+                1
+            ] = f"{common_inputs['encoder_outputs'][1]} / {( 2 * self._config.num_conv_layers)}"
+        return common_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self._behavior is ConfigBehavior.ENCODER:
+            # for whisper, we need to name the second axis as
+            # encoder_sequence_length / 2 as the axis name is used for dummy input generation
+            common_outputs["last_hidden_state"][
+                1
+            ] = f"{common_outputs['last_hidden_state'][1]} / {( 2 * self._config.num_conv_layers)}"
+        return common_outputs
 
 
 # TODO: Replace the TextSeq2SeqOnnxConfig inheritance with VisionToTextOnnxConfig when added.
