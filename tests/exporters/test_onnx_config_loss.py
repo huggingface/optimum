@@ -16,13 +16,14 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from optimum.utils import normalized_config
+from optimum.utils.normalized_config import NormalizedConfigManager
 
 import tensorflow as tf
 import torch
 from transformers import (
-    AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
-    AutoTokenizer,
+    AutoModelForSeq2SeqLM,
     TFAutoModelForSequenceClassification,
 )
 from transformers.modeling_tf_utils import TFPreTrainedModel
@@ -31,6 +32,7 @@ from transformers.modeling_utils import PreTrainedModel
 import onnxruntime
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import OnnxConfigWithLoss, export
+from optimum.utils import DummyTextInputGenerator
 
 # OnnxConfig wrapper
 from optimum.onnxruntime.utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
@@ -75,37 +77,20 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                             else "CPUExecutionProvider"
                         ],
                     )
-                    if issubclass(type(model), PreTrainedModel):
-                        inputs = {
-                            "input_ids": torch.tensor(
-                                [
-                                    [101, 100, 100, 100, 100, 100, 100, 102],
-                                    [101, 100, 100, 100, 100, 100, 100, 102],
-                                    [101, 100, 100, 100, 100, 100, 100, 102],
-                                ]
-                            ),
-                            "token_type_ids": torch.tensor(
-                                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
-                            ),
-                            "attention_mask": torch.tensor(
-                                [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
-                            ),
-                            "labels": torch.LongTensor([0, 0, 0]),
-                        }
-                    elif issubclass(type(model), TFPreTrainedModel):
-                        inputs = {
-                            "input_ids": tf.constant(
-                                [[101, 100, 100, 100, 100, 100, 100, 102], [101, 100, 100, 100, 100, 100, 100, 102]]
-                            ),
-                            "token_type_ids": tf.constant([[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]),
-                            "attention_mask": tf.constant([[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]),
-                            "labels": tf.constant([0, 0], dtype=tf.int32),
-                        }
+                    framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
+                    normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
+                    input_generator = DummyTextInputGenerator("sequence-classification", normalized_config, batch_size=2, sequence_length=16)
+
+                    inputs = {name: input_generator.generate(name, framework=framework) for name in ["input_ids", "attention_mask", "token_type_ids"]}
+                    inputs["labels"] = input_generator.constant_tensor([2], value=0, dtype=inputs["input_ids"].dtype, framework=framework)
+
                     input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
                     output_names = [output.name for output in ort_sess._outputs_meta]
+
                     input_feed = dict(
                         map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
                     )
+
                     ort_outputs = ort_sess.run(output_names, input_feed)
                     pt_outputs = model(**inputs)
 
@@ -199,6 +184,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
 
             onnx_model_path = Path(tmp_dir).joinpath(ONNX_DECODER_NAME)
+
             export(
                 model=model,
                 config=wrapped_onnx_config_decoder,
@@ -227,6 +213,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
             input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+
             ort_outputs = ort_sess.run(output_names, input_feed)
 
             gc.collect()
