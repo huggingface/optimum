@@ -382,7 +382,7 @@ class TasksManager:
             "sequence-classification",
             onnx="GPTNeoOnnxConfig",
         ),
-        "gpt-neo-x": supported_tasks_mapping(
+        "gpt-neox": supported_tasks_mapping(
             "default",
             "default-with-past",
             "causal-lm",

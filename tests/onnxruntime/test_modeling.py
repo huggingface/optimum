@@ -108,7 +108,7 @@ MODEL_NAMES = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
-    "gpt_neo_x": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
+    "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
@@ -1727,7 +1727,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "codegen",
         "gpt2",
         "gpt_neo",
-        "gpt_neo_x",
+        "gpt_neox",
         "gptj",
     ]
 
