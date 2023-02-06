@@ -89,7 +89,12 @@ class ModelPatcher:
         self.orig_forward = getattr(self._model, self.orig_forward_name)
         onnx_to_torch = {v: k for k, v in config.torch_to_onnx_input_map.items()}
 
-        allow_past_in_outputs = isinstance(config, OnnxConfigWithPast) and config.use_present_in_outputs
+        # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
+        if isinstance(config, OnnxConfigWithLoss):
+            real_config = config._onnx_config
+        else:
+            real_config = config
+        allow_past_in_outputs = isinstance(real_config, OnnxConfigWithPast) and real_config.use_present_in_outputs
 
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
@@ -768,17 +773,15 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTrainingLabelsInputGenerator,)
 
-    # def __init__(self, config: OnnxConfig):
-    #     self._onnx_config = config
-    #     self.task = self._onnx_config.task
-    #     self._normalized_config = self._onnx_config._normalized_config
-    #     self.PATCHING_SPECS = self._onnx_config.PATCHING_SPECS
+    def __init__(self, config: OnnxConfig):
+        self._onnx_config = config
+        self.task = self._onnx_config.task
+        self._normalized_config = self._onnx_config._normalized_config
+        self.PATCHING_SPECS = self._onnx_config.PATCHING_SPECS
 
-    # @classmethod
-    # def from_model_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
-    #     return cls(config)
-
+    @classmethod
     def from_onnx_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
+        return cls(config)
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -828,9 +831,6 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     @property
     def torch_to_onnx_input_map(self) -> Mapping[str, str]:
         return self._onnx_config.torch_to_onnx_input_map
-
-    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> ModelPatcher:
-        return ModelPatcher(self._onnx_config, model)
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:

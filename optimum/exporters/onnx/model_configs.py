@@ -917,7 +917,7 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super().outputs
         if self._behavior is ConfigBehavior.ENCODER:
-            # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for 
+            # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for
             # dummy input generation
             common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
         return common_outputs

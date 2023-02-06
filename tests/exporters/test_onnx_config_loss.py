@@ -16,14 +16,12 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from optimum.utils import normalized_config
-from optimum.utils.normalized_config import NormalizedConfigManager
 
 import tensorflow as tf
 import torch
 from transformers import (
-    AutoModelForSequenceClassification,
     AutoModelForSeq2SeqLM,
+    AutoModelForSequenceClassification,
     TFAutoModelForSequenceClassification,
 )
 from transformers.modeling_tf_utils import TFPreTrainedModel
@@ -32,10 +30,11 @@ from transformers.modeling_utils import PreTrainedModel
 import onnxruntime
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import OnnxConfigWithLoss, export
-from optimum.utils import DummyTextInputGenerator
 
 # OnnxConfig wrapper
 from optimum.onnxruntime.utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.utils import DummyTextInputGenerator, normalized_config
+from optimum.utils.normalized_config import NormalizedConfigManager
 
 
 class TestOnnxConfigWithLoss(unittest.TestCase):
@@ -79,10 +78,17 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     )
                     framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
                     normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
-                    input_generator = DummyTextInputGenerator("sequence-classification", normalized_config, batch_size=2, sequence_length=16)
+                    input_generator = DummyTextInputGenerator(
+                        "sequence-classification", normalized_config, batch_size=2, sequence_length=16
+                    )
 
-                    inputs = {name: input_generator.generate(name, framework=framework) for name in ["input_ids", "attention_mask", "token_type_ids"]}
-                    inputs["labels"] = input_generator.constant_tensor([2], value=0, dtype=inputs["input_ids"].dtype, framework=framework)
+                    inputs = {
+                        name: input_generator.generate(name, framework=framework)
+                        for name in ["input_ids", "attention_mask", "token_type_ids"]
+                    }
+                    inputs["labels"] = input_generator.constant_tensor(
+                        [2], value=0, dtype=inputs["input_ids"].dtype, framework=framework
+                    )
 
                     input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
                     output_names = [output.name for output in ort_sess._outputs_meta]
