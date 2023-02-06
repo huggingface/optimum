@@ -53,7 +53,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
     from ...utils import DummyInputGenerator
-    from .base import PatchingSpec
 
 logger = logging.get_logger(__name__)
 
@@ -780,10 +779,8 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         PerceiverDummyInputGenerator,
     ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
-    def __init__(
-        self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List["PatchingSpec"]] = None
-    ):
-        super().__init__(config, task=task, patching_specs=patching_specs)
+    def __init__(self, config: "PretrainedConfig", task: str = "default"):
+        super().__init__(config, task=task)
         self.is_generating_dummy_inputs = False
 
     @property
@@ -920,8 +917,8 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super().outputs
         if self._behavior is ConfigBehavior.ENCODER:
-            # for whisper, we need to name the second axis as
-            # encoder_sequence_length / 2 as the axis name is used for dummy input generation
+            # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for
+            # dummy input generation
             common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
         return common_outputs
 
@@ -1003,13 +1000,12 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: Optional[List["PatchingSpec"]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
     ):
-        super().__init__(config, task, patching_specs, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+        super().__init__(config, task, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
 
         # TODO: Check modeling code to fix the issue with use_cache for trocr
         if config.decoder.model_type == "trocr":
