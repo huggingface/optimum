@@ -96,7 +96,7 @@ DECODER_INPUTS_DOCSTRING = r"""
             The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
         encoder_attention_mask (`torch.LongTensor`, *optional*):
             Mask to avoid performing cross-attention on padding tokens indices of encoder `input_ids`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
@@ -114,7 +114,7 @@ SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
         encoder_outputs (`torch.FloatTensor`):
             The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
@@ -131,7 +131,7 @@ SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
         encoder_outputs (`torch.FloatTensor`):
             The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
@@ -147,7 +147,7 @@ VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
         encoder_outputs (`torch.FloatTensor`):
             The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
