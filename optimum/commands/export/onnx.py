@@ -13,6 +13,7 @@
 # limitations under the License.
 """Defines the command line for the export with ONNX."""
 
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -150,6 +151,9 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
+
+    # deprecated argument
+    parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
 
 
 class ONNXExportCommand:

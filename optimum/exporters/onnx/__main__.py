@@ -49,6 +49,12 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
+    if args.for_ort:
+        logger.warning(
+            "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
+            "and passing it is not required anymore."
+        )
+
     # Infer the task
     task = args.task
     if task == "auto":
