@@ -53,6 +53,13 @@ def parse_args_onnx(parser):
         help='The device to use to do the export. Defaults to "cpu".',
     )
     optional_group.add_argument(
+        "--dtype",
+        type=str,
+        default=None,
+        choices=["float32", "float16", None],
+        help="Experimental option: the dtype of the weights to use during the export. If None, the default dtype will be used. PyTorch-only.",
+    )
+    optional_group.add_argument(
         "--opset",
         type=int,
         default=None,

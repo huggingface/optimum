@@ -15,13 +15,13 @@
 """Utility functions."""
 
 import copy
-from typing import TYPE_CHECKING, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import packaging
 import torch
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, TORCH_MINIMUM_VERSION, is_diffusers_available
+from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, is_diffusers_available
 from ..tasks import TasksManager
 
 
@@ -199,3 +199,28 @@ def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
         value = value.to(device)
 
     return value
+
+
+def recursive_to_dtype(value: Union[Tuple, List, "torch.Tensor"], dtype: Optional[torch.dtype]):
+    if dtype is None:
+        return value
+
+    if isinstance(value, tuple):
+        value = list(value)
+        for i, val in enumerate(value):
+            value[i] = recursive_to_dtype(val, dtype)
+        value = tuple(value)
+    elif isinstance(value, list):
+        for i, val in enumerate(value):
+            value[i] = recursive_to_dtype(val, dtype)
+    elif isinstance(value, torch.Tensor):
+        value = value.to(dtype=dtype)
+
+    return value
+
+
+str_dtype_to_torch_dtype = {
+    None: None,
+    "float16": torch.float16,
+    "float32": torch.float32,
+}

@@ -27,6 +27,7 @@ import huggingface_hub
 
 
 if TYPE_CHECKING:
+    import torch
     from transformers import PreTrainedModel, TFPreTrainedModel
 
     from .base import ExportConfig
@@ -976,6 +977,7 @@ class TasksManager:
         revision: Optional[str] = None,
         framework: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        torch_dtype: Optional["torch.dtype"] = None,
         **model_kwargs
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
@@ -997,6 +999,8 @@ class TasksManager:
                 none be provided.
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            torch_dtype (`Optional[torch.dtype]`, defaults to `None`):
+                Data type to load the model on. PyTorch-only argument.
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
 
@@ -1010,6 +1014,8 @@ class TasksManager:
         model_class = TasksManager.get_model_class_for_task(task, framework)
         kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
+            if framework == "pt":
+                kwargs["torch_dtype"] = torch_dtype
             model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
             if framework == "pt":

@@ -30,6 +30,7 @@ from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
+    str_dtype_to_torch_dtype,
 )
 
 
@@ -59,13 +60,27 @@ def main():
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
+    if args.framework == "tf" and args.dtype is not None:
+        raise ValueError("The --dtype option is supported only for PyTorch.")
+
+    if args.dtype is not None and args.device == "cpu":
+        raise ValueError(
+            "The --dtype option is supported on when exporting on GPU. Please pass the option --device cuda."
+        )
+
     # get the shapes to be used to generate dummy inputs
     input_shapes = {}
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
 
+    torch_dtype = str_dtype_to_torch_dtype[args.dtype]
     model = TasksManager.get_model_from_task(
-        task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
+        task,
+        args.model,
+        framework=args.framework,
+        cache_dir=args.cache_dir,
+        trust_remote_code=args.trust_remote_code,
+        torch_dtype=torch_dtype,
     )
 
     if task != "stable-diffusion":
@@ -143,6 +158,7 @@ def main():
             output_names=output_names,
             input_shapes=input_shapes,
             device=args.device,
+            dtype=torch_dtype,
         )
     else:
         onnx_inputs, onnx_outputs = export(
@@ -152,6 +168,7 @@ def main():
             opset=args.opset,
             input_shapes=input_shapes,
             device=args.device,
+            dtype=torch_dtype,
         )
 
     try:
