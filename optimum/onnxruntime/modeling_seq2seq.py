@@ -84,7 +84,7 @@ WHISPER_ENCODER_INPUTS_DOCSTRING = r"""
 VISION_ENCODER_INPUTS_DOCSTRING = r"""
     Args:
         pixel_values (`torch.FloatTensor`):
-            Featuers extracted from an Image. `(batch_size, num_channels, height, width)`.
+            Features extracted from an Image. This tensor should be of shape `(batch_size, num_channels, height, width)`.
 """
 
 
@@ -141,7 +141,7 @@ SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
 VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
     Args:
         pixel_values (`torch.FloatTensor`):
-            Featuers extracted from an Image.
+            Features extracted from an Image. This tensor should be of shape 
             `(batch_size, num_channels, height, width)`.
         decoder_input_ids (`torch.LongTensor`):
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
@@ -156,6 +156,7 @@ VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
+_IMAGE_PROCESSOER_FOR_DOC = "AutoImageProcessor"
 
 TRANSLATION_EXAMPLE = r"""
     Example of text generation:
@@ -220,6 +221,51 @@ AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE = r"""
 
     >>> ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
     >>> pred = speech_recognition(ds[0]["audio"]["array"])
+    ```
+"""
+
+
+IMAGE_TO_TEXT_EXAMPLE = r"""
+    Example of text generation:
+
+    ```python
+    >>> from transformers import {processor_class}, {tokenizer_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from PIL import Image
+    >>> import requests
+
+
+    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> tokenizer = {tokenizer_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+    >>> inputs = processor(image, return_tensors="pt")
+
+    >>> gen_tokens = model.generate(**inputs)
+    >>> outputs = tokenizer.batch_decode(gen_tokens, skip_special_tokens=True)
+
+    ```
+
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> from transformers import {processor_class}, {tokenizer_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from PIL import Image
+    >>> import requests
+
+
+    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> tokenizer = {tokenizer_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
+
+    >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+
+    >>> image_to_text = pipeline("image-to-text", model=model, tokenizer=tokenizer, feature_extractor=processor, image_processor=processor)
+    >>> pred = image_to_text(image)
     ```
 """
 
@@ -1049,8 +1095,9 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
 
     @add_start_docstrings_to_model_forward(
         VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, num_channels, height, width")
-        + AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE.format(
-            processor_class=_PROCESSOR_FOR_DOC,
+        + IMAGE_TO_TEXT_EXAMPLE.format(
+            processor_class=_IMAGE_PROCESSOER_FOR_DOC,
+            tokenizer_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForVision2Seq",
             checkpoint="nlpconnect/vit-gpt2-image-captioning",
         )
