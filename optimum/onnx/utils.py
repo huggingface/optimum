@@ -21,7 +21,7 @@ from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
 def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
     """
-    Get the paths of the external data tensors in the model.
+    Gets the paths of the external data tensors in the model.
     Note: make sure you load the model with load_external_data=False.
     """
     model_tensors = _get_initializer_tensors(model)
@@ -35,7 +35,7 @@ def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
 
 def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -> Tuple[List[Path], List[str]]:
     """
-    Get external data paths from the model and add them to the list of files to copy.
+    Gets external data paths from the model and add them to the list of files to copy.
     """
     model_paths = src_paths.copy()
     for model_path in model_paths:
@@ -60,7 +60,7 @@ def _get_external_data_paths(src_paths: List[Path], dst_file_names: List[str]) -
 
 def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
     """
-    Check if the model uses external data.
+    Checks if the model uses external data.
     """
     model_tensors = _get_initializer_tensors(model)
     return any(
@@ -71,7 +71,7 @@ def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
 
 def has_onnx_input(model: Union[onnx.ModelProto, Path, str], input_name: str) -> bool:
     """
-    Check if the model has a specific input.
+    Checks if the model has a specific input.
     """
     if isinstance(model, (str, Path)):
         model = Path(model).as_posix()

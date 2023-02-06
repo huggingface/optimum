@@ -127,7 +127,7 @@ def merge_decoders(
 
     decoder_opset = _get_onnx_opset(decoder)
     decoder_with_past_opset = _get_onnx_opset(decoder_with_past)
-    if not decoder_opset == decoder_with_past_opset:
+    if decoder_opset != decoder_with_past_opset:
         raise ValueError(
             f"Decoder's opset is {decoder_opset}, but decoder with past's opset is {decoder_with_past_opset}. Make sure having the same opset before merging."
         )

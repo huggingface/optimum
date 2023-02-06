@@ -37,7 +37,13 @@ from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoder
 from .modeling_ort import ORTModel
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
+from .utils import (
+    ONNX_DECODER_MERGED_NAME,
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    get_provider_for_device,
+    parse_device,
+)
 
 
 if TYPE_CHECKING:
@@ -114,6 +120,7 @@ TEXT_GENERATION_EXAMPLE = r"""
 
 DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
+DECODER_MERGED_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?merged(.*)?\.onnx"
 
 
 class ORTModelDecoder(ORTModel):
@@ -147,9 +154,8 @@ class ORTModelDecoder(ORTModel):
                 Whether or not past key/values cache should be used. It is determined by whether an InferenceSession for
                 that was provided or not.
             use_merged (`bool`, defaults to `False`):
-                Whether use merged decoder for inference to reduce memory usage, defaults to `False`. When set as
-                `True`, ORTModel will merge decoder and decoder with past, if
-                check if the model has been merged
+                Whether to use a merged decoder for inference to reduce memory usage. When set as
+                `True`, the decoder and decoder with past will be merged. Defaults to `False`.
             use_io_binding (`bool`, defaults to `True`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
@@ -293,7 +299,7 @@ class ORTModelDecoder(ORTModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
@@ -321,7 +327,7 @@ class ORTModelDecoder(ORTModel):
             )
 
         decoder_with_past_path = None
-        cache_error_log = None
+        cache_error = None
         if use_cache is True or use_merged is True:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
                 try:
@@ -335,7 +341,7 @@ class ORTModelDecoder(ORTModel):
                     )
                 except FileNotFoundError as e:
                     # Raise if the `decoder` doesn't contain both w/o and w/. past IR
-                    cache_error_log = e
+                    cache_error = e
             else:
                 decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
@@ -438,7 +444,7 @@ class ORTModelDecoder(ORTModel):
             raise FileNotFoundError(
                 f"The parameter `use_cache=True` and `use_merged={use_merged}` were passed to ORTModelDecoder.from_pretrained()"
                 " but no ONNX file using only past key values could be found in"
-                f" {str(Path(model_id, subfolder))}, with the error:\n    {cache_error_log}"
+                f" {str(Path(model_id, subfolder))}, with the error:\n    {cache_error}"
             )
         model = cls.load_model(
             decoder_path=decoder_path,
@@ -474,6 +480,7 @@ class ORTModelDecoder(ORTModel):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
+            generation_config=generation_config,
         )
 
     @classmethod
@@ -487,12 +494,13 @@ class ORTModelDecoder(ORTModel):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         use_cache: bool = True,
         use_merged: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelDecoder":
         if task is None:

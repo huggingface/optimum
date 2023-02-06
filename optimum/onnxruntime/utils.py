@@ -219,7 +219,7 @@ def validate_provider_availability(provider: str):
         )
 
 
-def check_io_binding(providers: List[str], use_io_binding: bool) -> bool:
+def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
     """
     Whether to use IOBinding or not.
     """
