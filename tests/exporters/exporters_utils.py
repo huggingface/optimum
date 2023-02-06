@@ -68,7 +68,9 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilenet-v1": "google/mobilenet_v1_0.75_192",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mt5": "lewtun/tiny-random-mt5",
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
@@ -81,6 +83,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
+    "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
@@ -109,6 +112,15 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "vision-encoder-decoder": {
+        "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+        ],
+        "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
+    },
+    # Disabled for now because of high atol threshold requirement to pass
+    # "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel"
 }
 
 
@@ -155,6 +167,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
@@ -163,6 +176,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
+    "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "squeezebert/squeezebert-uncased",
     "swin": "microsoft/swin-tiny-patch4-window7-224",
     "t5": "t5-small",

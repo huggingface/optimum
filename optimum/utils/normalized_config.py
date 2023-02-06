@@ -15,7 +15,7 @@
 """Normalization configuration classes."""
 
 import functools
-from typing import TYPE_CHECKING, Callable, Dict, Type, Union
+from typing import Callable, Dict, Type, Union
 
 from transformers import PretrainedConfig
 
@@ -49,7 +49,14 @@ class NormalizedConfig:
         config = self.config
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
+
         attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
+
+        # If the attribute was not specified manually, try to fallback on the attribute_map.
+        if attr is None:
+            attribute_map = getattr(self.config, "attribute_map", {})
+            attr = getattr(self.config, attribute_map.get(leaf_attr_name, ""), None)
+
         if attr is None:
             raise AttributeError(f'Could not find the attribute named "{leaf_attr_name}" in the normalized config.')
         return attr
@@ -94,10 +101,29 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+class NormalizedEncoderDecoderConfig(NormalizedConfig):
+    ENCODER_NORMALIZED_CONFIG_CLASS = None
+    DECODER_NORMALIZED_CONFIG_CLASS = None
+
+    def __getattr__(self, attr_name):
+        if self.ENCODER_NORMALIZED_CONFIG_CLASS is not None and attr_name.upper() in dir(
+            self.ENCODER_NORMALIZED_CONFIG_CLASS
+        ):
+            return self.ENCODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+        if self.DECODER_NORMALIZED_CONFIG_CLASS is not None and attr_name.upper() in dir(
+            self.DECODER_NORMALIZED_CONFIG_CLASS
+        ):
+            return self.DECODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+
+        return super().__getattr__(attr_name)
+
+
+# TODO: this config is bug prone, as `encoder_attention_heads` and `decoder_attention_heads` may be different
 BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="encoder_attention_heads",
     hidden_size="d_model",
 )
+
 GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="n_head", hidden_size="n_embd")
 T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
@@ -118,58 +144,29 @@ class NormalizedConfigManager:
     """
 
     """
-    We should make sure to have all model types, i.e. at least
-        ['albert',
-        'bart',
-        'beit',
-        'bert',
-        'big-bird',
-        'bigbird-pegasus',
-        'blenderbot',
-        'blenderbot-small',
-        'bloom',
-        'camembert',
+    TODO: missing normalized configs (currently not useful)
+        ['beit',
         'clip',
-        'codegen',
         'convbert',
         'convnext',
         'data2vec-text',
         'data2vec-vision',
-        'deberta',
-        'deberta-v2',
         'deit',
         'detr',
-        'distilbert',
-        'electra',
         'flaubert',
-        'gpt2',
-        'gptj',
-        'gpt-neo',
         'groupvit',
         'ibert',
         'layoutlm',
         'layoutlmv3',
         'levit',
-        'longt5',
-        'marian',
-        'mbart',
         'mobilebert',
         'mobilevit',
-        'mt5',
-        'm2m-100',
         'owlvit',
         'perceiver',
-        'resnet',
-        'roberta',
         'roformer',
         'segformer',
         'squeezebert',
-        't5',
         'vit',
-        'whisper',
-        'xlm',
-        'xlm-roberta',
-        'yolos']
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -179,6 +176,9 @@ class NormalizedConfigManager:
         "bert": NormalizedTextConfig,
         "big_bird": NormalizedTextConfig,
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
+        "blenderbot": BartLikeNormalizedTextConfig,
+        "blenderbot_small": BartLikeNormalizedTextConfig,
+        "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,
@@ -188,14 +188,17 @@ class NormalizedConfigManager:
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gptj": GPT2LikeNormalizedTextConfig,
+        "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m_100": BartLikeNormalizedTextConfig,
+        "nystromformer": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
+        "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,

@@ -99,6 +99,8 @@ Optional arguments:
                         This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
   --cache_dir CACHE_DIR
                         Path indicating where to store cache.
+  --trust-remote-code   Allow to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust
+                        and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
 ```
 
 Exporting a checkpoint can be done as follows:
@@ -145,11 +147,11 @@ Runtime](https://onnxruntime.ai/) using the `optimum.onnxruntime` package as fol
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForQuestionAnswering
 
->>> tokenizer = AutoTokenizer.from_pretrained("distilbert_base_uncased_squad_onnx")
->>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert_base_uncased_squad_onnx")
+>>> tokenizer = AutoTokenizer.from_pretrained("distilbert_base_uncased_squad_onnx")  # doctest: +SKIP
+>>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert_base_uncased_squad_onnx")  # doctest: +SKIP
 
->>> inputs = tokenizer("What am I using?", "Using DistilBERT with ONNX Runtime!", return_tensors="pt")
->>> outputs = model(**inputs)
+>>> inputs = tokenizer("What am I using?", "Using DistilBERT with ONNX Runtime!", return_tensors="pt")  # doctest: +SKIP
+>>> outputs = model(**inputs)  # doctest: +SKIP
 ```
 
 Printing the outputs would give that:
@@ -202,16 +204,16 @@ optimum-cli export onnx --model gpt2 --for-ort --task causal-lm-with-past gpt2_o
 and
 
 ```python
-from transformers import AutoTokenizer
-from optimum.onnxruntime import ORTModelForCausalLM
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForCausalLM
 
-tokenizer = AutoTokenizer.from_pretrained("/path/to/gpt2_onnx/")
-model = ORTModelForCausalLM.from_pretrained("/path/to/gpt2_onnx/")
+>>> tokenizer = AutoTokenizer.from_pretrained("./gpt2_onnx/")  # doctest: +SKIP
+>>> model = ORTModelForCausalLM.from_pretrained("./gpt2_onnx/")  # doctest: +SKIP
 
-inputs = tokenizer("My name is Arthur and I live in", return_tensors="pt")
+>>> inputs = tokenizer("My name is Arthur and I live in", return_tensors="pt")  # doctest: +SKIP
 
-gen_tokens = model.generate(**inputs)
-print(tokenizer.batch_decode(gen_tokens))
+>>> gen_tokens = model.generate(**inputs)  # doctest: +SKIP
+>>> print(tokenizer.batch_decode(gen_tokens))  # doctest: +SKIP
 # prints ['My name is Arthur and I live in the United States of America. I am a member of the']
 ```
 
@@ -228,7 +230,7 @@ For each model architecture, you can find the list of supported tasks via the [`
 
 >>> distilbert_tasks = list(TasksManager.get_supported_tasks_for_model_type("distilbert", "onnx").keys())
 >>> print(distilbert_tasks)
-["default", "masked-lm", "causal-lm", "sequence-classification", "token-classification", "question-answering"]
+['default', 'masked-lm', 'sequence-classification', 'multiple-choice', 'token-classification', 'question-answering']
 ```
 
 You can then pass one of these tasks to the `--task` argument in the `optimum-cli export onnx` command, as mentioned above.

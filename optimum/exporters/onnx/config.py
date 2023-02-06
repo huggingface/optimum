@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 The HuggingFace Team. All rights reserved.
+# Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-from typing import TYPE_CHECKING, Any, List, Mapping
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional
 
 from ...utils import (
     DummyAudioInputGenerator,
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
     from ...utils import DummyInputGenerator
+    from .base import PatchingSpec
 
 logger = logging.get_logger(__name__)
 
@@ -94,8 +95,10 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
+            common_inputs.pop("attention_mask")
             if self.use_past_in_inputs:
-                common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
+                # TODO: validate the axis name for attention_mask
+                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
                 common_inputs["decoder_input_ids"] = {0: "batch_size"}
             else:
                 common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
@@ -135,7 +138,8 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-            reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
+            # TODO: validate that it should be removed.
+            # reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
         return reference_model_inputs
 
 
@@ -204,6 +208,86 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 "attention_mask": "encoder_attention_mask",
             }
         return {}
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs
+
+
+class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        patching_specs: Optional[List["PatchingSpec"]] = None,
+        use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+    ):
+        super().__init__(
+            config,
+            task=task,
+            patching_specs=patching_specs,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+            behavior=behavior,
+        )
+
+        from ..tasks import TasksManager
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                exporter="onnx", task="default", model_type=config.encoder.model_type
+            )
+            self._encoder_onnx_config = encoder_onnx_config_constructor(config.encoder)
+            self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                exporter="onnx", task="default", model_type=config.decoder.model_type
+            )
+            self._decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, use_past=use_past)
+
+            self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
+
+            if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
+                self._past_key_values_generator = (
+                    DummySeq2SeqDecoderTextInputGenerator,
+                    DummySeq2SeqPastKeyValuesGenerator,
+                )
+            else:
+                self._past_key_values_generator = (
+                    DummySeq2SeqDecoderTextInputGenerator,
+                    DummyPastKeyValuesGenerator,
+                )
+
+            self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
+
+    @property
+    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
+
+    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+        return self._decoder_onnx_config.add_past_key_values(inputs_or_outputs, direction)
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        return self._decoder_onnx_config.flatten_past_key_values(flattened_output, name, idx, t)
+
+    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+        return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:

@@ -191,7 +191,7 @@ def prepare_fx(
         >>> from optimum.fx.quantization import prepare_fx
 
         >>> model = BertForSequenceClassification.from_pretrained("textattack/bert-base-uncased-SST-2")
-        >>> model.eval()
+        >>> model.eval()  # doctest: +IGNORE_RESULT
 
         >>> # Prepare the model
         >>> qconfig = get_default_qconfig('fbgemm')
@@ -265,7 +265,7 @@ def prepare_qat_fx(
         >>> from optimum.fx.quantization import prepare_qat_fx
 
         >>> model = BertForSequenceClassification.from_pretrained("textattack/bert-base-uncased-SST-2")
-        >>> model.train()
+        >>> model.train()  # doctest: +IGNORE_RESULT
 
         >>> # Prepare the model
         >>> qconfig = get_default_qat_qconfig('fbgemm')

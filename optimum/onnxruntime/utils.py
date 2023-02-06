@@ -89,10 +89,12 @@ class ORTConfigManager:
         "electra": "bert",
         "gpt2": "gpt2",
         "gpt_neo": "gpt2",
+        "longt5": "bert",
         "marian": "bart",
         "mbart": "bart",
         "mt5": "bart",
         "m2m_100": "bart",
+        "nystromformer": "bert",
         "roberta": "bert",
         "t5": "t5",
         "whisper": "whisper",
@@ -159,7 +161,7 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
     provider_options = {}
 
     if device.type == "cuda":
-        if device.index == None:
+        if device.index is None:
             device = torch.device("cuda:0")
 
         provider_options["device_id"] = device.index
@@ -187,6 +189,11 @@ def validate_provider_availability(provider: str):
                     raise ImportError(
                         f"`onnxruntime-gpu` is installed, but GPU dependencies are not loaded. It is likely there is a conflicting install between `onnxruntime` and `onnxruntime-gpu`. Please install only `onnxruntime-gpu` in order to use {provider}."
                     )
+                elif os.path.isfile(path_cuda_lib) and is_onnxruntime_training_available():
+                    if provider == "TensorrtExecutionProvider":
+                        raise ImportError(
+                            f"Asked to use {provider}, but `onnxruntime-training` package doesn't support {provider}. Please use `CUDAExecutionProvider` instead."
+                        )
                 else:
                     raise ImportError(
                         f"Asked to use {provider}, but `onnxruntime-gpu` package was not found. Make sure to install `onnxruntime-gpu` package instead of `onnxruntime`."
@@ -221,7 +228,6 @@ def check_io_binding(providers: List[str], use_io_binding: bool) -> bool:
             "No need to enable IO Binding if the provider used is TensorrtExecutionProvider. IO Binding will be turned off."
         )
         use_io_binding = False
-
     return use_io_binding
 
 

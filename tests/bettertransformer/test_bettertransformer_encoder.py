@@ -21,12 +21,7 @@ import transformers
 from transformers import AutoModel, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
-from optimum.utils.testing_utils import (
-    grid_parameters,
-    is_torch_greater_than_113,
-    require_accelerate,
-    require_torch_gpu,
-)
+from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
@@ -43,6 +38,7 @@ ALL_ENCODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-MarkupLMModel",
     "hf-internal-testing/tiny-random-rembert",
     "hf-internal-testing/tiny-random-RobertaModel",
+    "hf-internal-testing/tiny-random-RoFormerModel",
     "hf-internal-testing/tiny-random-SplinterModel",
     "hf-internal-testing/tiny-random-TapasModel",
     "hf-internal-testing/tiny-xlm-roberta",
@@ -124,7 +120,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         with self.assertRaises(ValueError):
             _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
-    @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
     @torch.no_grad()
     def test_inference_speed(self):
         r"""
@@ -181,7 +176,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.assertEqual(out[0]["token_str"], "role")
         gc.collect()
 
-    @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
     @require_torch_gpu
     @require_accelerate
     def check_accelerate_compatibility_cpu_gpu(self, keep_original_model=True, max_memory=None):
@@ -254,6 +248,58 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
+        super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
+        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
+
+
+class BetterTransformersRoCBertTest(BetterTransformersEncoderTest):
+    all_models_to_test = ["hf-internal-testing/tiny-random-RoCBertModel"]
+
+    # unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)
+    def test_raise_autocast(self):
+        pass
+
 
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
@@ -288,6 +334,50 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     )
     def test_logits(self, test_name: str, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
+        super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
+        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

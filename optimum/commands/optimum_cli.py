@@ -18,6 +18,7 @@ from argparse import ArgumentParser
 
 from .env import EnvironmentCommand
 from .export import ExportCommand
+from .onnxruntime import ONNXRuntimeCommand
 
 
 def main():
@@ -27,6 +28,7 @@ def main():
     # Register commands
     ExportCommand.register_subcommand(commands_parser)
     EnvironmentCommand.register_subcommand(commands_parser)
+    ONNXRuntimeCommand.register_subcommand(commands_parser)
 
     args = parser.parse_args()
 

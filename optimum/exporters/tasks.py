@@ -18,7 +18,7 @@ import importlib
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
@@ -55,12 +55,13 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
-            >>> kwargs = {
-            >>>     "onnx": "BertOnnxConfig",
-            >>>     "tflite": "BertTFLiteConfig",
-            >>>     ...
-            >>> }
+            >>> kwargs = {  # doctest: +SKIP
+            ...     "onnx": "BertOnnxConfig",
+            ...     "tflite": "BertTFLiteConfig",
+            ...     ...
+            ... }
             ```
+
     Returns:
         `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExportConfig` constructor.
     """
@@ -104,6 +105,7 @@ class TasksManager:
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-ctc": "AutoModelForCTC",
             "audio-xvector": "AutoModelForAudioXVector",
+            "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
         }
     if is_tf_available():
@@ -138,9 +140,11 @@ class TasksManager:
         "audio-classification": "transformers",
         "audio-frame-classification": "transformers",
         "audio-xvector": "transformers",
+        "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
     }
 
+    # TODO: some models here support causal-lm export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
         "audio-spectrogram-transformer": supported_tasks_mapping(
@@ -180,6 +184,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BertOnnxConfig",
+            tflite="BertTFLiteConfig",
         ),
         "big-bird": supported_tasks_mapping(
             "default",
@@ -327,6 +332,10 @@ class TasksManager:
             "question-answering",
             onnx="DistilBertOnnxConfig",
         ),
+        # "donut-swin": supported_tasks_mapping(
+        #     "default",
+        #     onnx="DonutSwinOnnxConfig",
+        # ),
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -480,6 +489,15 @@ class TasksManager:
             "image-classification",
             onnx="MobileNetV2OnnxConfig",
         ),
+        "mpnet": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="MPNetOnnxConfig",
+        ),
         "mt5": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -493,6 +511,15 @@ class TasksManager:
             "seq2seq-lm",
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
+        ),
+        "nystromformer": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "multiple-choice",
+            "question-answering",
+            "sequence-classification",
+            "token-classification",
+            onnx="NystromformerOnnxConfig",
         ),
         # TODO: owlvit is actually not yet supported in exporters
         # "owlvit": supported_tasks_mapping(
@@ -573,6 +600,11 @@ class TasksManager:
             "speech2seq-lm-with-past",
             onnx="Speech2TextOnnxConfig",
         ),
+        "splinter": supported_tasks_mapping(
+            "default",
+            "question-answering",
+            onnx="SplinterOnnxConfig",
+        ),
         "squeezebert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -595,6 +627,13 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
+        "trocr": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+            onnx="TrOCROnnxConfig",
+        ),
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
@@ -613,9 +652,18 @@ class TasksManager:
             "audio-xvector",
             onnx="UniSpeechSATOnnxConfig",
         ),
-        "vae": supported_tasks_mapping(
+        "vae-encoder": supported_tasks_mapping(
             "semantic-segmentation",
-            onnx="VaeOnnxConfig",
+            onnx="VaeEncoderOnnxConfig",
+        ),
+        "vae-decoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeDecoderOnnxConfig",
+        ),
+        "vision-encoder-decoder": supported_tasks_mapping(
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+            onnx="VisionEncoderDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "wavlm": supported_tasks_mapping(
@@ -677,7 +725,7 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip-text-model"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "trocr"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
@@ -715,6 +763,17 @@ class TasksManager:
             )
         else:
             return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+
+    @staticmethod
+    def get_supported_model_type_for_task(task: str, exporter: str) -> List[str]:
+        """
+        Returns the list of supported architectures by the exporter for a given task.
+        """
+        return [
+            model_type.replace("-", "_")
+            for model_type in TasksManager._SUPPORTED_MODEL_TYPE
+            if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+        ]
 
     @staticmethod
     def format_task(task: str) -> str:
@@ -966,10 +1025,11 @@ class TasksManager:
     @staticmethod
     def get_exporter_config_constructor(
         exporter: str,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"] = None,
+        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
         task: str = "default",
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
+        exporter_config_kwargs: Optional[Dict[str, Any]] = None,
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
@@ -985,13 +1045,14 @@ class TasksManager:
                 The model type to retrieve the config for.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
+            exporter_config_kwargs(`Optional[Dict[str, Any]]`, defaults to `None`):
+                Arguments that will be passed to the exporter config class when building the config constructor.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
-        if model is None:
-            if model_type is None or model_name is None:
-                raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
+        if model is None and model_type is None:
+            raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
 
         if model_type is None:
             model_type = getattr(model.config, "model_type", model_type)
@@ -1008,4 +1069,9 @@ class TasksManager:
                 f"{model_type} doesn't support task {task} for the {exporter} backend."
                 f" Supported values are: {model_tasks}"
             )
-        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
+
+        exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
+        if exporter_config_kwargs is not None:
+            exporter_config_constructor = partial(exporter_config_constructor, **exporter_config_kwargs)
+
+        return exporter_config_constructor

@@ -25,12 +25,14 @@ _import_structure = {
         "OptimizationConfig",
         "AutoOptimizationConfig",
         "ORTConfig",
+        "QuantizationConfig",
     ],
     "modeling_ort": [
         "ORTModel",
         "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
+        "ORTModelForMaskedLM",
         "ORTModelForMultipleChoice",
         "ORTModelForQuestionAnswering",
         "ORTModelForSemanticSegmentation",
@@ -58,13 +60,14 @@ _import_structure = {
 
 # Direct imports for type-checking
 if TYPE_CHECKING:
-    from .configuration import ORTConfig
+    from .configuration import ORTConfig, QuantizationConfig
     from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
         ORTModel,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForMaskedLM,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
         ORTModelForSemanticSegmentation,

@@ -29,6 +29,7 @@ from ...utils import (
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
+    NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
@@ -39,6 +40,7 @@ from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqCon
 from .config import (
     AudioOnnxConfig,
     AudioToTextOnnxConfig,
+    EncoderDecoderOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
     TextEncoderOnnxConfig,
@@ -97,7 +99,15 @@ class MobileBertOnnxConfig(BertOnnxConfig):
     pass
 
 
+class NystromformerOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class XLMOnnxConfig(BertOnnxConfig):
+    pass
+
+
+class SplinterOnnxConfig(BertOnnxConfig):
     pass
 
 
@@ -111,6 +121,10 @@ class DistilBertOnnxConfig(BertOnnxConfig):
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
 
 
+class MPNetOnnxConfig(DistilBertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+
+
 class RobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
@@ -119,7 +133,7 @@ class CamembertOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
-class FlaubertOnnxConfig(DistilBertOnnxConfig):
+class FlaubertOnnxConfig(BertOnnxConfig):
     pass
 
 
@@ -214,8 +228,14 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
 
         name = "past_key_values" if direction == "inputs" else "present"
         for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
-            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
+            inputs_or_outputs[f"{name}.{i}.key"] = {
+                0: "batch_size x num_heads",
+                2: "past_sequence_length + sequence_length",
+            }
+            inputs_or_outputs[f"{name}.{i}.value"] = {
+                0: "batch_size x num_heads",
+                1: "past_sequence_length + sequence_length",
+            }
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
@@ -263,7 +283,7 @@ class MT5OnnxConfig(T5OnnxConfig):
 
 
 class LongT5OnnxConfig(T5OnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14
 
 
 class BartDummyTextInputGenerator(DummyTextInputGenerator):
@@ -357,8 +377,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     @property
     def inputs_for_causal_lm(self):
         common_inputs = {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
         if self.use_past_in_inputs:
             for i in range(self._normalized_config.decoder_num_layers):
@@ -376,8 +396,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     @property
     def inputs_for_other_tasks(self):
         return {
-            "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
 
     @property
@@ -396,6 +416,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super().outputs
         else:
             common_outputs = super(OnnxConfigWithPast, self).outputs
+            if self.task != "causal-lm":
+                common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "sequence_length"}
             if self.use_present_in_outputs:
                 for i in range(self._normalized_config.encoder_num_layers):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
@@ -528,6 +550,10 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
+class DonutSwinOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
@@ -557,6 +583,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
 class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -587,8 +614,10 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
         return dummy_inputs
 
 
-class UNetOnnxConfig(ViTOnnxConfig):
+class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -628,16 +657,41 @@ class UNetOnnxConfig(ViTOnnxConfig):
         return dummy_inputs
 
 
-class VaeOnnxConfig(ViTOnnxConfig):
+class VaeEncoderOnnxConfig(VisionOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-2
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        num_channels="in_channels",
+        image_size="sample_size",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+        }
+
+
+class VaeDecoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         num_channels="latent_channels",
         allow_new=True,
     )
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
@@ -838,6 +892,39 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     ATOL_FOR_VALIDATION = 1e-3
 
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
+        # The generated encoder_hidden_states for Whisper has dimensions
+        # (batch_size, encoder_sequence_length / 2, hidden_size). Therefore,
+        # the sequence length is updated to generate the proper cross attention
+        # KVS in monolith case.
+        if self._behavior is ConfigBehavior.MONOLITH:
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                encoder_sequence_length=dummy_inputs_generators[0].nb_max_frames // 2,
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
+        return common_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self._behavior is ConfigBehavior.ENCODER:
+            # for whisper, we need to name the second axis as
+            # encoder_sequence_length / 2 as the axis name is used for dummy input generation
+            common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
+        return common_outputs
+
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
@@ -849,8 +936,105 @@ class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
 
 class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
-        input_features_per_channel="input_feat_per_channel", allow_new=True
+        decoder_num_layers="decoder_layers",
+        num_layers="decoder_layers",
+        input_features_per_channel="input_feat_per_channel",
+        allow_new=True,
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
         Speech2TextDummyAudioInputGenerator,
     ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+    ATOL_FOR_VALIDATION = 1e-4
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
+        if self._behavior is ConfigBehavior.MONOLITH:
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                encoder_sequence_length=dummy_inputs_generators[0].sequence_length
+                // (2 * self._config.num_conv_layers),
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"][
+                1
+            ] = f"{common_inputs['encoder_outputs'][1]} / {( 2 * self._config.num_conv_layers)}"
+        return common_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self._behavior is ConfigBehavior.ENCODER:
+            # for Speech2text, we need to name the second axis as
+            # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
+            # used for dummy input generation
+            common_outputs["last_hidden_state"][
+                1
+            ] = f"{common_outputs['last_hidden_state'][1]} / {( 2 * self._config.num_conv_layers)}"
+        return common_outputs
+
+
+# TODO: Replace the TextSeq2SeqOnnxConfig inheritance with VisionToTextOnnxConfig when added.
+# The change below however does not affect the export for the model
+class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
+        decoder_num_layers="decoder_layers",
+        num_layers="decoder_layers",
+        decoder_num_attention_heads="decoder_attention_heads",
+        hidden_size="cross_attention_hidden_size",
+    )
+
+
+class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+    ATOL_FOR_VALIDATION = 1e-3
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        patching_specs: Optional[List["PatchingSpec"]] = None,
+        use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+    ):
+        super().__init__(config, task, patching_specs, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+
+        # TODO: Check modeling code to fix the issue with use_cache for trocr
+        if config.decoder.model_type == "trocr":
+            if self.use_past_in_inputs:
+                raise ValueError("Exporting past key values is not supported with TrOCR model!")
+
+            self.use_present_in_outputs = False
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = {}
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["pixel_values"] = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        return common_inputs

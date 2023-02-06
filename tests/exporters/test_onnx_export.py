@@ -20,7 +20,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import pytest
-from transformers import AutoConfig, is_tf_available, is_torch_available
+from transformers import AutoConfig, is_tf_available, is_torch_available, set_seed
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
 
 from exporters_utils import (
@@ -51,6 +51,9 @@ if is_torch_available() or is_tf_available():
 
 if is_diffusers_available():
     from diffusers import StableDiffusionPipeline
+
+
+SEED = 42
 
 
 @require_onnx
@@ -146,7 +149,11 @@ def _get_models_to_test(export_models_dict: Dict):
                 tasks = list(task_config_mapping.keys())
                 model_tasks = {model_names_tasks: tasks}
             else:
-                n_tested_tasks = sum(len(tasks) for tasks in model_names_tasks.values())
+                unique_tasks = set()
+                for tasks in model_names_tasks.values():
+                    for task in tasks:
+                        unique_tasks.add(task)
+                n_tested_tasks = len(unique_tasks)
                 if n_tested_tasks != len(task_config_mapping):
                     raise ValueError(f"Not all tasks are tested for {model_type}.")
                 model_tasks = model_names_tasks  # possibly, test different tasks on different models
@@ -163,7 +170,7 @@ def _get_models_to_test(export_models_dict: Dict):
 
                     if any(
                         task.startswith(ort_special_task)
-                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm"]
+                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
                     ):
                         models_to_test.append(
                             (
@@ -360,12 +367,21 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @require_diffusers
     def test_pytorch_export_for_stable_diffusion_models(self, model_name):
+        set_seed(SEED)
+
         pipeline = StableDiffusionPipeline.from_pretrained(model_name)
-        output_names = ["text_encoder/model.onnx", "unet/model.onnx", "vae_decoder/model.onnx"]
+        output_names = [
+            "text_encoder/model.onnx",
+            "unet/model.onnx",
+            "vae_encoder/model.onnx",
+            "vae_decoder/model.onnx",
+        ]
         models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
+        model, _ = models_and_onnx_configs["vae_encoder"]
+        model.forward = lambda sample: {"latent_sample": model.encode(x=sample)["latent_dist"].parameters}
 
         with TemporaryDirectory() as tmpdirname:
-            onnx_inputs, onnx_outputs = export_models(
+            _, onnx_outputs = export_models(
                 models_and_onnx_configs=models_and_onnx_configs,
                 opset=14,
                 output_dir=Path(tmpdirname),
@@ -375,7 +391,7 @@ class OnnxExportTestCase(TestCase):
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
-                atol=1e-3,
                 output_dir=Path(tmpdirname),
+                atol=1e-3,
                 output_names=output_names,
             )
