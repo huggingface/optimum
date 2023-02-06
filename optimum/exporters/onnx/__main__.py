@@ -49,6 +49,12 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
+    if args.for_ort:
+        logger.warning(
+            "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
+            " and passing it is not required anymore."
+        )
+
     # Infer the task
     task = args.task
     if task == "auto":
@@ -108,7 +114,7 @@ def main():
         maybe_save_preprocessors(args.model, args.output.parent)
 
     if task == "stable-diffusion" or (
-        args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+        task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm")) and not args.monolith
     ):
         if task == "stable-diffusion":
             output_names = [
@@ -156,7 +162,7 @@ def main():
 
     try:
         if task == "stable-diffusion" or (
-            args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+            task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm")) and not args.monolith
         ):
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,

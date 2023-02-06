@@ -46,7 +46,7 @@ class WeightSharingTestCase(TestCase):
                 task = "default"
                 with TemporaryDirectory() as tmpdir:
                     subprocess.run(
-                        f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                        f"python3 -m optimum.exporters.onnx --model {model_id} --task {task} {tmpdir}",
                         shell=True,
                         check=True,
                     )
@@ -82,7 +82,7 @@ class OnnxMergingTestCase(TestCase):
 
         with TemporaryDirectory() as tmpdir:
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                f"python3 -m optimum.exporters.onnx --model {model_id} --task {task} {tmpdir}",
                 shell=True,
                 check=True,
             )
