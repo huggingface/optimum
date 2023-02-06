@@ -158,7 +158,6 @@ class NormalizedConfigManager:
         'convnext',
         'data2vec-text',
         'data2vec-vision',
-        'deit',
         'detr',
         'flaubert',
         'groupvit',
