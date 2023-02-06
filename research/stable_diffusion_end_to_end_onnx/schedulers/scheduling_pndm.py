@@ -104,8 +104,8 @@ class ScriptablePNDMScheduler(nn.Module):
 
         # running values
         self.cur_model_output = torch.tensor(0)
-        #  self.counter = torch.tensor(0, dtype=torch.int64)  # shouldn't it be reset?
-        #self.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
+        self.counter = torch.tensor(0, dtype=torch.int64)  # shouldn't it be reset?
+        self.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
 
         # setable values
         self.num_inference_steps = None
@@ -121,13 +121,10 @@ class ScriptablePNDMScheduler(nn.Module):
 
         self.clip_sample = kwargs["clip_sample"]
 
-        #self.cur_sample = None
-        #self.register_buffer('cur_sample', torch.rand(1, 4, 64, 64, dtype=torch.float32))
-
         # self.ets_buffer = torch.empty(4)  # this buffer should be initialized in the pipeline's forward call
-        #self.set_ets = torch.tensor(
-        #    0, dtype=torch.int64
-        #)  # this attribute should be reset to 0 in the pipeline's forward call
+        self.set_ets = torch.tensor(
+            0, dtype=torch.int64
+        )  # this attribute should be reset to 0 in the pipeline's forward call
 
     @torch.jit.export
     def step(
@@ -136,10 +133,7 @@ class ScriptablePNDMScheduler(nn.Module):
         timestep: torch.Tensor,
         sample: torch.FloatTensor,
         ets_buffer: torch.Tensor,
-        set_ets: torch.Tensor,
-        counter: torch.Tensor,
-        cur_sample_buffer: torch.Tensor,
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Predict the sample at the previous timestep by reversing the SDE. Core function to propagate the diffusion
         process from the learned model outputs (most often the predicted noise).
@@ -164,8 +158,7 @@ class ScriptablePNDMScheduler(nn.Module):
         else:
             return self.step_plms(model_output=model_output, timestep=timestep, sample=sample)
         """
-        
-        return self.step_plms(model_output=model_output, timestep=timestep, sample=sample, ets_buffer=ets_buffer, set_ets=set_ets, counter=counter, cur_sample_buffer=cur_sample_buffer)
+        return self.step_plms(model_output=model_output, timestep=timestep, sample=sample, ets_buffer=ets_buffer)
 
     """
     @torch.jit.ignore
@@ -215,10 +208,7 @@ class ScriptablePNDMScheduler(nn.Module):
         timestep: torch.Tensor,
         sample: torch.FloatTensor,
         ets_buffer: torch.Tensor,
-        set_ets: torch.Tensor,
-        counter: torch.Tensor,
-        cur_sample_buffer: torch.Tensor,
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Step function propagating the sample with the linear multi-step method. This has one forward pass with multiple
         times to approximate the solution.
@@ -258,10 +248,10 @@ class ScriptablePNDMScheduler(nn.Module):
         # print("prev_timestep dtype", prev_timestep.dtype)
         # print("timestep dtype", timestep.dtype)
 
-        if counter != 1:
+        if self.counter != 1:
             ets_buffer = torch.roll(ets_buffer, shifts=-1, dims=0)
             ets_buffer[3] = model_output
-            set_ets = set_ets + 1
+            self.set_ets = self.set_ets + 1
         else:
             prev_timestep = timestep
             timestep = timestep + self.num_train_timesteps // self.num_inference_steps
@@ -271,16 +261,16 @@ class ScriptablePNDMScheduler(nn.Module):
 
         # print("model_output.shape before", model_output.shape)
         # print("ets_buffer[-1] shape", ets_buffer[-1].shape)
-        if set_ets == 1 and counter == 0:
+        if self.set_ets == 1 and self.counter == 0:
             model_output = model_output
-            cur_sample_buffer = sample
-        elif set_ets == 1 and counter == 1:
+            self.cur_sample = sample
+        elif self.set_ets == 1 and self.counter == 1:
             model_output = (model_output + ets_buffer[-1]) / 2
-            sample = cur_sample_buffer
+            sample = self.cur_sample
             # self.cur_sample = torch.tensor(-5., dtype=torch.float32)
-        elif set_ets == 2:
+        elif self.set_ets == 2:
             model_output = (3 * ets_buffer[-1] - ets_buffer[-2]) / 2
-        elif set_ets == 3:
+        elif self.set_ets == 3:
             model_output = (23 * ets_buffer[-1] - 16 * ets_buffer[-2] + 5 * ets_buffer[-3]) / 12
         else:
             model_output = (1 / 24) * (
@@ -291,9 +281,10 @@ class ScriptablePNDMScheduler(nn.Module):
 
         #TODO: put back?
         prev_sample = self._get_prev_sample(sample, timestep, prev_timestep, model_output)
-        counter = counter + 1
+        #prev_sample = sample
+        self.counter = self.counter + 1
 
-        return (prev_sample, (ets_buffer, set_ets, counter, cur_sample_buffer))
+        return (prev_sample, ets_buffer)
 
     @torch.jit.export
     def _get_prev_sample(
@@ -374,7 +365,7 @@ class ScriptablePNDMScheduler(nn.Module):
         self.plms_timesteps = torch.from_numpy(self.plms_timesteps)
         self.prk_timesteps = torch.from_numpy(self.prk_timesteps)
 
-        # self.counter = torch.tensor(0)
+        self.counter = torch.tensor(0)
 
     @torch.jit.export
     def scale_model_input(

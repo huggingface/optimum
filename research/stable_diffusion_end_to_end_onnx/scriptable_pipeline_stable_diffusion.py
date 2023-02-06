@@ -9,20 +9,6 @@ from diffusers.models import AutoencoderKL, UNet2DConditionModel
 from schedulers.scheduling_pndm import ScriptablePNDMScheduler
 
 
-def get_scheduler_args(batch_size, num_channels_latents, width, height, num_images_per_prompt, vae_scale_factor):
-    ets_buffer = torch.zeros(
-        4,
-        batch_size * num_images_per_prompt,
-        num_channels_latents,
-        height // vae_scale_factor,
-        width // vae_scale_factor,
-    )
-    set_ets = torch.tensor(0, dtype=torch.int64)
-    counter = torch.tensor(0, dtype=torch.int64)
-    cur_sample_buffer = torch.zeros(1, 4, 64, 64, dtype=torch.float32)
-
-    return (ets_buffer, set_ets, counter, cur_sample_buffer)
-
 class ScriptableStableDiffusionPipeline(nn.Module):
     r"""
     Pipeline for text-to-image generation using Stable Diffusion.
@@ -158,14 +144,12 @@ class ScriptableStableDiffusionPipeline(nn.Module):
     def decode_latents(self, latents: torch.Tensor):
         latents = 1 / 0.18215 * latents
 
-        image = self.vae_decoder(latents)
-        #image = self.vae.decode(latents, return_dict=False)
-        """
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        #image = self.vae_decoder(latents)
+        
+        if torch.jit.is_scripting():
             image = self.vae_decoder(latents)
         else:
             image = self.vae.decode(latents, return_dict=False)
-        """
 
         image = image[0]
 
@@ -275,11 +259,8 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         num_channels_latents = self.unet_in_channels
         latents = self.deterministic_latents
 
-        scheduler_args = get_scheduler_args(batch_size, num_channels_latents, width, height, self.num_images_per_prompt, self.vae_scale_factor)
-
         # TODO: put this out of the forward, as this is scheduler specific
         # 4D buffer rolled at each step
-        """
         ets_buffer = torch.zeros(
             4,
             batch_size * self.num_images_per_prompt,
@@ -287,11 +268,8 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             height // self.vae_scale_factor,
             width // self.vae_scale_factor,
         ).to(device, dtype=prompt_embeds.dtype)
-        set_ets = torch.tensor(0, dtype=torch.int64).to(device)
-        counter = torch.tensor(0, dtype=torch.int64).to(device)
-        cur_sample_buffer = torch.zeros(1, 4, 64, 64, dtype=torch.float32)
-        # self.scheduler.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
-        """
+        self.scheduler.set_ets = torch.tensor(0, dtype=torch.int64).to(device)
+        self.scheduler.counter = torch.tensor(0, dtype=torch.int64).to(device)
 
         # 7. Denoising loop
         # TODO: what is self.scheduler.order?
@@ -308,16 +286,18 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             # perform guidance
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
             noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
-
-            #latents = noise_pred
             
+            latents = noise_pred
             # compute the previous noisy sample x_t -> x_t-1
             # t is used as an index here, and should be on CPU
-            latents, scheduler_args = self.scheduler.step(
-                noise_pred, t.to("cpu"), latents, *scheduler_args
+            
+            """
+            latents, ets_buffer = self.scheduler.step(
+                noise_pred, t.to("cpu"), latents, ets_buffer
             )  # a tuple is returned by step
+            """
 
         # 8. Post-processing
         image = self.decode_latents(latents)
 
-        return (image,) 
+        return (image,)

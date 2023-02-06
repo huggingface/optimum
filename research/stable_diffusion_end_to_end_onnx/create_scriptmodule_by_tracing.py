@@ -26,7 +26,7 @@ args = parser.parse_args()
 model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
 pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False)
 
-num_inference_steps = 120
+num_inference_steps = 60
 
 if args.gpu:
     device= "cuda"
@@ -95,13 +95,18 @@ with torch.inference_mode():
     traced_pipeline = torch.jit.trace(pipeline, (text_input_ids, uncond_text_input_ids, timesteps))
 print(f"\ntorch.jit.trace took: {time.time() - start}\n\n")
 
-#print(traced_pipeline.code)
+print(traced_pipeline.code)
+
+print("----")
+print(traced_pipeline.graph)
 
 #print("decode_latent:")
 #print(traced_pipeline.decode_latents.code)
 
-#print("unet:")
-#print(traced_pipeline.unet.code)
+print("unet:")
+print(traced_pipeline.unet.code)
+print("----")
+print(traced_pipeline.unet.graph)
 
 #print("scheduler:")
 #print(traced_pipeline.scheduler.step.code)

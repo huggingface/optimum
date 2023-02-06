@@ -201,12 +201,23 @@ def get_traced_submodules(in_dummy_out_per_model, models_and_onnx_configs):
     for param in submodel.parameters():
         param.requires_grad = False
 
-    # submodel_modif = lambda x, y, z: submodel(x, y, z, return_dict=False)
+    #submodel_modif = lambda x, y, z: submodel(x, y, z, return_dict=False)
+    class UnetForward(nn.Module):
+        def __init__(self, unet):
+            super().__init__()
+
+            self.unet = unet
+        
+        def forward(self, sample, timestep, encoder_hidden_states):
+            return self.unet(sample, timestep, encoder_hidden_states, return_dict=False)
+    unet_module = UnetForward(submodel)
+    """
     if submodel.forward.__defaults__[3] is True:
         defaults = list(submodel.forward.__defaults__)
         defaults[3] = False  # return_dict = False
         submodel.forward.__func__.__defaults__ = tuple(defaults)
-    unet_traced = torch.jit.trace(submodel, dummy_inputs)
+    """
+    unet_traced = torch.jit.trace(unet_module, dummy_inputs)
 
     print("Tracing vae decoder")
     dummy_inputs = tuple(in_dummy_out_per_model["vae_decoder"][1].values())
