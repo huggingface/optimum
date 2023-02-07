@@ -20,7 +20,7 @@ from unittest import TestCase
 from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf, require_vision, slow
 
-from exporters_utils import PYTORCH_EXPORT_MODELS_TINY, VALIDATE_EXPORT_ON_SHAPES_FAST, VALIDATE_EXPORT_ON_SHAPES_SLOW
+from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 from optimum.exporters.tflite import export, validate_model_outputs
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 from parameterized import parameterized
@@ -53,7 +53,8 @@ def _get_models_to_test(export_models_dict: Dict):
             except KeyError:
                 # In this case the model is either not supported, or the contributor forgot to register the
                 # TFLiteConfig in the TasksManager.
-                # TODO: what to do here?
+                # We check that supported model was left unregistered for a backend in the TasksManager unit tests, so
+                # we can simply skip in this case here.
                 continue
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
