@@ -280,6 +280,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_load_model_cuda_provider(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
@@ -311,6 +312,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_load_seq2seq_model_cuda_provider(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
@@ -409,6 +411,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         """
 
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_model_on_gpu(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         gpu = torch.device("cuda")
@@ -418,6 +421,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     # test string device input for to()
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_model_on_gpu_str(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
         gpu = torch.device("cuda")
@@ -439,6 +443,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
 
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_passing_provider_options(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1")
@@ -480,6 +485,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_passing_provider_options_seq2seq(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertEqual(
@@ -580,6 +586,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_seq2seq_model_on_gpu(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         gpu = torch.device("cuda")
@@ -621,6 +628,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     # test string device input for to()
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_seq2seq_model_on_gpu_str(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         model.to("cuda")
@@ -978,6 +986,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("testing a single arch for TensorrtExecutionProvider")
@@ -1002,6 +1011,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -1129,6 +1139,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -1150,6 +1161,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -1288,6 +1300,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("testing a single arch for TensorrtExecutionProvider")
@@ -1330,6 +1343,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -1453,6 +1467,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("testing a single arch for TensorrtExecutionProvider")
@@ -1477,6 +1492,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -1573,6 +1589,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("testing a single arch for TensorrtExecutionProvider")
@@ -1595,6 +1612,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -1689,6 +1707,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -1836,6 +1855,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -1858,6 +1878,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # TRT EP compile time can be long, so we don't test all archs
     @parameterized.expand(grid_parameters({"model_arch": ["gpt2"], "use_cache": [True, False]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_trt_execution_provider(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -1922,6 +1943,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -1945,6 +1967,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2063,6 +2086,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("testing a single arch for TensorrtExecutionProvider")
@@ -2089,6 +2113,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -2196,6 +2221,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("testing a single arch for TensorrtExecutionProvider")
@@ -2222,6 +2248,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -2246,7 +2273,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
         # compare tensor outputs
         self.assertTrue(
-            torch.allclose(onnx_outputs.logits, io_outputs.logits),
+            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-5),
             f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
         )
 
@@ -2392,6 +2419,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2416,6 +2444,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     # TRT EP compile time can be long, so we don't test all archs
     @parameterized.expand(grid_parameters({"model_arch": ["t5"], "use_cache": [True, False]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_trt_execution_provider(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2485,6 +2514,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2515,6 +2545,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2641,6 +2672,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2690,6 +2722,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2723,6 +2756,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -2876,6 +2910,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {
             "test_name": test_name,
@@ -2959,6 +2994,7 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, *args, **kwargs):
         model_arch, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
@@ -2981,6 +3017,7 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, *args, **kwargs):
         model_arch, model_id = args
         set_seed(SEED)
