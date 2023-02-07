@@ -33,12 +33,6 @@ def require_accelerate(test_case):
     return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
 
 
-def is_torch_greater_than_113():
-    import torch
-
-    return version.parse(torch.__version__) >= version.parse("1.13.0")
-
-
 def require_torch_gpu(test_case):
     """Decorator marking a test that requires CUDA and PyTorch."""
     import torch

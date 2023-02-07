@@ -53,7 +53,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
     from ...utils import DummyInputGenerator
-    from .base import PatchingSpec
 
 logger = logging.get_logger(__name__)
 
@@ -780,10 +779,8 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         PerceiverDummyInputGenerator,
     ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
-    def __init__(
-        self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List["PatchingSpec"]] = None
-    ):
-        super().__init__(config, task=task, patching_specs=patching_specs)
+    def __init__(self, config: "PretrainedConfig", task: str = "default"):
+        super().__init__(config, task=task)
         self.is_generating_dummy_inputs = False
 
     @property
@@ -920,8 +917,8 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
         common_outputs = super().outputs
         if self._behavior is ConfigBehavior.ENCODER:
-            # for whisper, we need to name the second axis as
-            # encoder_sequence_length / 2 as the axis name is used for dummy input generation
+            # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for
+            # dummy input generation
             common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
         return common_outputs
 
@@ -936,11 +933,50 @@ class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
 
 class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
-        input_features_per_channel="input_feat_per_channel", allow_new=True
+        decoder_num_layers="decoder_layers",
+        num_layers="decoder_layers",
+        input_features_per_channel="input_feat_per_channel",
+        allow_new=True,
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
         Speech2TextDummyAudioInputGenerator,
     ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+    ATOL_FOR_VALIDATION = 1e-4
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
+        if self._behavior is ConfigBehavior.MONOLITH:
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                encoder_sequence_length=dummy_inputs_generators[0].sequence_length
+                // (2 * self._config.num_conv_layers),
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"][
+                1
+            ] = f"{common_inputs['encoder_outputs'][1]} / {( 2 * self._config.num_conv_layers)}"
+        return common_inputs
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super().outputs
+        if self._behavior is ConfigBehavior.ENCODER:
+            # for Speech2text, we need to name the second axis as
+            # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
+            # used for dummy input generation
+            common_outputs["last_hidden_state"][
+                1
+            ] = f"{common_outputs['last_hidden_state'][1]} / {( 2 * self._config.num_conv_layers)}"
+        return common_outputs
 
 
 # TODO: Replace the TextSeq2SeqOnnxConfig inheritance with VisionToTextOnnxConfig when added.
@@ -964,13 +1000,12 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: Optional[List["PatchingSpec"]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
     ):
-        super().__init__(config, task, patching_specs, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+        super().__init__(config, task, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
 
         # TODO: Check modeling code to fix the issue with use_cache for trocr
         if config.decoder.model_type == "trocr":

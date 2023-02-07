@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
+from transformers.models import vision_encoder_decoder
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 import huggingface_hub
@@ -940,15 +941,19 @@ class TasksManager:
                     inferred_task_name = "stable-diffusion"
             else:
                 transformers_info = model_info.transformersInfo
-                if transformers_info is None or transformers_info.get("auto_model") is None:
-                    raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
-                auto_model_class_name = transformers_info["auto_model"]
-                if not auto_model_class_name.startswith("TF"):
-                    auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-                for task_name, class_name_for_task in tasks_to_automodels.items():
-                    if class_name_for_task == auto_model_class_name:
-                        inferred_task_name = task_name
-                        break
+                if model_info.config["model_type"] == "vision-encoder-decoder":
+                    inferred_task_name = "vision2seq-lm"
+                # TODO: handle other possible special cases here.
+                else:
+                    if transformers_info is None or transformers_info.get("auto_model") is None:
+                        raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
+                    auto_model_class_name = transformers_info["auto_model"]
+                    if not auto_model_class_name.startswith("TF"):
+                        auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
+                    for task_name, class_name_for_task in tasks_to_automodels.items():
+                        if class_name_for_task == auto_model_class_name:
+                            inferred_task_name = task_name
+                            break
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         logger.info(f"Automatic task detection to {inferred_task_name}.")

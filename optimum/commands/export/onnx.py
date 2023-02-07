@@ -13,6 +13,7 @@
 # limitations under the License.
 """Defines the command line for the export with ONNX."""
 
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -39,11 +40,12 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument(
-        "--for-ort",
+        "--monolith",
         action="store_true",
         help=(
-            "This exports models ready to be run with Optimum's ORTModel. Useful for encoder-decoder models for"
-            "conditional generation. If enabled the encoder and decoder of the model are exported separately."
+            "Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several"
+            " ONNX files, for example for encoder-decoder models where the encoder should be run only once while the"
+            " decoder is looped over."
         ),
     )
     optional_group.add_argument(
@@ -156,6 +158,9 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
+
+    # deprecated argument
+    parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
 
 
 class ONNXExportCommand:
