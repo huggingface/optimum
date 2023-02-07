@@ -1,4 +1,4 @@
-name: Optimum common / Test python code in documentation and docstrings
+name: Optimum common / Doctest
 # Note: this test uses transformers stable and optimum dev
 
 on:
@@ -57,7 +57,7 @@ jobs:
           docker build -f tests/onnxruntime/Dockerfile_onnxruntime_gpu -t onnxruntime-gpu .
       - name: Test with unittest within docker container
         run: |
-          docker run --rm --gpus all --workdir=/workspace/optimum/ -it onnxruntime-gpu:latest /bin/bash tests/run_doctest.sh
+          docker run --rm --gpus all --workdir=/workspace/optimum/ onnxruntime-gpu:latest /bin/bash tests/run_doctest.sh
 
   stop-runner:
     name: Stop self-hosted EC2 runner
