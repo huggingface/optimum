@@ -22,4 +22,5 @@ COPY . /workspace/optimum
 RUN pip install /workspace/optimum[tests]
 
 ENV RUN_SLOW=1
-CMD pytest bettertransformer/test_*.py -s --durations=0
+WORKDIR /workspace/optimum/tests/
+CMD pytest bettertransformer/test_*.py -s --durations=0 -m gpu_test
