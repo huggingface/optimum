@@ -2736,7 +2736,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         _ = model_with_pkv.generate(**features)  # warpup
         with Timer() as with_pkv_timer:
             outputs_model_with_pkv = model_with_pkv.generate(
-                **features, min_length=self.GENERATION_LENGTH, max_length=self.GENERATION_LENGTH
+                **features, min_length=self.GENERATION_LENGTH, max_length=self.GENERATION_LENGTH, num_beams=1
             )
 
         model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
@@ -2745,7 +2745,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         _ = model_without_pkv.generate(**features)  # warpup
         with Timer() as without_pkv_timer:
             outputs_model_without_pkv = model_without_pkv.generate(
-                **features, min_length=self.GENERATION_LENGTH, max_length=self.GENERATION_LENGTH
+                **features, min_length=self.GENERATION_LENGTH, max_length=self.GENERATION_LENGTH, num_beams=1
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
