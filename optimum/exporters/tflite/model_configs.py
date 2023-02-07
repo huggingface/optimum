@@ -45,23 +45,11 @@ class RoFormerTFLiteConfig(BertTFLiteConfig):
     pass
 
 
-class SqueezeBertTFLiteConfig(BertTFLiteConfig):
-    pass
-
-
 class MobileBertTFLiteConfig(BertTFLiteConfig):
     pass
 
 
-class NystromformerTFLiteConfig(BertTFLiteConfig):
-    pass
-
-
 class XLMTFLiteConfig(BertTFLiteConfig):
-    pass
-
-
-class SplinterTFLiteConfig(BertTFLiteConfig):
     pass
 
 
@@ -87,16 +75,14 @@ class FlaubertTFLiteConfig(BertTFLiteConfig):
     pass
 
 
-class IBertTFLiteConfig(DistilBertTFLiteConfig):
-    pass
-
-
 class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
     pass
 
 
-class BigBirdTFLiteConfig(DistilBertTFLiteConfig):
-    pass
+# TODO: no TensorFlow implementation, but a Jax implementation is available.
+# Support the export oncw the Jax export to TFLite is more mature.
+# class BigBirdTFLiteConfig(DistilBertTFLiteConfig):
+#     pass
 
 
 class DebertaTFLiteConfig(BertTFLiteConfig):

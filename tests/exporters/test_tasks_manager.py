@@ -14,26 +14,40 @@
 # limitations under the License.
 import importlib
 import inspect
+from typing import Optional, Set
 from unittest import TestCase
 
 from optimum.exporters import TasksManager
 
 
 class TasksManagerTestCase(TestCase):
-    def _check_all_models_are_registered(self, backend: str, class_prefix: str):
+    def _check_all_models_are_registered(
+        self, backend: str, class_prefix: str, classes_to_ignore: Optional[Set[str]] = None
+    ):
         registered_classes = set()
         for mappings in TasksManager._SUPPORTED_MODEL_TYPE.values():
             for class_ in mappings.get(backend, {}).values():
                 registered_classes.add(class_.func.__name__)
 
-        # def predicate(member):
-        #     is_class = inspect.isclass(member)
-        #     is_onnx_config = getattr(member, "__name__", "").endswith(class_prefix)
+        if classes_to_ignore is None:
+            classes_to_ignore = set()
 
-        defined_classes = inspect.getmembers(
-            importlib.import_module(f"optimum.exporters.{backend}.model_configs"),
-            lambda member: inspect.isclass(member) and member.__name__.endswith(class_prefix),
-        )
+        module_name = f"optimum.exporters.{backend}.model_configs"
+
+        def predicate(member):
+            name = getattr(member, "__name__", "")
+            module = getattr(member, "__module__", "")
+            return all(
+                (
+                    inspect.isclass(member),
+                    module == module_name,
+                    name.endswith(class_prefix),
+                    name not in classes_to_ignore,
+                )
+            )
+
+        defined_classes = inspect.getmembers(importlib.import_module(module_name), predicate)
+
         # inspect.getmembers returns a list of (name, value) tuples, so we retrieve the names here.
         defined_classes = set(map(lambda x: x[0], defined_classes))
 

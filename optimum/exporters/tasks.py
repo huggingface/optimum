@@ -108,6 +108,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -143,6 +144,7 @@ class TasksManager:
         "audio-xvector": "transformers",
         "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
+        "zero-shot-object-detection": "transformers",
     }
 
     # TODO: some models here support causal-lm export but are not supported in ORTModelForCausalLM
@@ -198,7 +200,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BigBirdOnnxConfig",
-            tflite="BigBirdTFLiteConfig",
+            # tflite="BigBirdTFLiteConfig",
         ),
         "bigbird-pegasus": supported_tasks_mapping(
             "default",
@@ -340,10 +342,10 @@ class TasksManager:
             onnx="DistilBertOnnxConfig",
             tflite="DistilBertTFLiteConfig",
         ),
-        # "donut-swin": supported_tasks_mapping(
-        #     "default",
-        #     onnx="DonutSwinOnnxConfig",
-        # ),
+        "donut-swin": supported_tasks_mapping(
+            "default",
+            onnx="DonutSwinOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -410,7 +412,6 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="IBertOnnxConfig",
-            tflite="IBertTFLiteConfig",
         ),
         "layoutlm": supported_tasks_mapping(
             "default",
@@ -533,9 +534,8 @@ class TasksManager:
             "sequence-classification",
             "token-classification",
             onnx="NystromformerOnnxConfig",
-            tflite="NystromformerTFLiteConfig",
         ),
-        # TODO: owlvit is actually not yet supported in exporters
+        # TODO: owlvit cannot be exported yet, check model_config.py to know why.
         # "owlvit": supported_tasks_mapping(
         #     "default",
         #     "zero-shot-object-detection",
@@ -620,7 +620,6 @@ class TasksManager:
             "default",
             "question-answering",
             onnx="SplinterOnnxConfig",
-            tflite="SplinterTFLiteConfig",
         ),
         "squeezebert": supported_tasks_mapping(
             "default",
@@ -630,7 +629,6 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="SqueezeBertOnnxConfig",
-            tflite="SqueezeBertTFLiteConfig",
         ),
         "swin": supported_tasks_mapping(
             "default",
