@@ -20,6 +20,7 @@ from unittest import TestCase
 from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf, require_vision, slow
 
+from exporters_utils import PYTORCH_EXPORT_MODELS_TINY, VALIDATE_EXPORT_ON_SHAPES_FAST, VALIDATE_EXPORT_ON_SHAPES_SLOW
 from optimum.exporters.tflite import export, validate_model_outputs
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 from parameterized import parameterized
@@ -30,12 +31,6 @@ if is_tf_available():
 
 
 SEED = 42
-
-
-# TODO: integrate models list to make them work with multiple exporters, currently the list are designed for ONNX.
-MODELS_TO_TEST_FOR_TFLITE = {
-    "bert": "hf-internal-testing/tiny-random-BertModel",
-}
 
 
 class TFLiteConfigTestCase(TestCase):
@@ -53,7 +48,13 @@ def _get_models_to_test(export_models_dict: Dict):
     if is_tf_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
-            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "tflite")
+            try:
+                task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "tflite")
+            except KeyError:
+                # In this case the model is either not supported, or the contributor forgot to register the
+                # TFLiteConfig in the TasksManager.
+                # TODO: what to do here?
+                continue
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
@@ -129,7 +130,7 @@ class TFLiteExportTestCase(TestCase):
     #     if len(missing_models_set) > 0:
     #         self.fail(f"Not testing all models. Missing models: {missing_models_set}")
 
-    @parameterized.expand(_get_models_to_test(MODELS_TO_TEST_FOR_TFLITE))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @slow
     @require_tf
     @require_vision

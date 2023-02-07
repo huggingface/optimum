@@ -161,6 +161,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="AlbertOnnxConfig",
+            tflite="AlbertTFLiteConfig",
         ),
         "bart": supported_tasks_mapping(
             "default",
@@ -197,6 +198,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BigBirdOnnxConfig",
+            tflite="BigBirdTFLiteConfig",
         ),
         "bigbird-pegasus": supported_tasks_mapping(
             "default",
@@ -246,6 +248,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="CamembertOnnxConfig",
+            tflite="CamembertTFLiteConfig",
         ),
         "clip": supported_tasks_mapping(
             "default",
@@ -270,6 +273,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="ConvBertOnnxConfig",
+            tflite="ConvBertTFLiteConfig",
         ),
         "convnext": supported_tasks_mapping(
             "default",
@@ -307,6 +311,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="DebertaOnnxConfig",
+            tflite="DebertaTFLiteConfig",
         ),
         "deberta-v2": supported_tasks_mapping(
             "default",
@@ -316,6 +321,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="DebertaV2OnnxConfig",
+            tflite="DebertaV2TFLiteConfig",
         ),
         "deit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
         "detr": supported_tasks_mapping(
@@ -332,6 +338,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="DistilBertOnnxConfig",
+            tflite="DistilBertTFLiteConfig",
         ),
         # "donut-swin": supported_tasks_mapping(
         #     "default",
@@ -347,6 +354,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="ElectraOnnxConfig",
+            tflite="ElectraTFLiteConfig",
         ),
         "flaubert": supported_tasks_mapping(
             "default",
@@ -356,6 +364,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="FlaubertOnnxConfig",
+            tflite="FlaubertTFLiteConfig",
         ),
         "gpt2": supported_tasks_mapping(
             "default",
@@ -401,6 +410,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="IBertOnnxConfig",
+            tflite="IBertTFLiteConfig",
         ),
         "layoutlm": supported_tasks_mapping(
             "default",
@@ -474,6 +484,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MobileBertOnnxConfig",
+            tflite="MobileBertTFLiteConfig",
         ),
         "mobilevit": supported_tasks_mapping(
             "default",
@@ -498,6 +509,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MPNetOnnxConfig",
+            tflite="MPNetTFLiteConfig",
         ),
         "mt5": supported_tasks_mapping(
             "default",
@@ -521,6 +533,7 @@ class TasksManager:
             "sequence-classification",
             "token-classification",
             onnx="NystromformerOnnxConfig",
+            tflite="NystromformerTFLiteConfig",
         ),
         # TODO: owlvit is actually not yet supported in exporters
         # "owlvit": supported_tasks_mapping(
@@ -563,6 +576,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="RobertaOnnxConfig",
+            tflite="RobertaTFLiteConfig",
         ),
         "roformer": supported_tasks_mapping(
             "default",
@@ -575,6 +589,7 @@ class TasksManager:
             "question-answering",
             "token-classification",
             onnx="RoFormerOnnxConfig",
+            tflite="RoFormerTFLiteConfig",
         ),
         "segformer": supported_tasks_mapping(
             "default",
@@ -605,6 +620,7 @@ class TasksManager:
             "default",
             "question-answering",
             onnx="SplinterOnnxConfig",
+            tflite="SplinterTFLiteConfig",
         ),
         "squeezebert": supported_tasks_mapping(
             "default",
@@ -614,6 +630,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="SqueezeBertOnnxConfig",
+            tflite="SqueezeBertTFLiteConfig",
         ),
         "swin": supported_tasks_mapping(
             "default",
@@ -708,6 +725,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="XLMOnnxConfig",
+            tflite="XLMTFLiteConfig",
         ),
         "xlm-roberta": supported_tasks_mapping(
             "default",
@@ -719,6 +737,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="XLMRobertaOnnxConfig",
+            tflite="XLMRobertaTFLiteConfig",
         ),
         "yolos": supported_tasks_mapping(
             "default",

@@ -27,3 +27,87 @@ class BertTFLiteConfig(TextEncoderTFliteConfig):
     @property
     def inputs(self) -> List[str]:
         return ["input_ids", "attention_mask", "token_type_ids"]
+
+
+class AlbertTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class ConvBertTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class ElectraTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class RoFormerTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class SqueezeBertTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class MobileBertTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class NystromformerTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class XLMTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class SplinterTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class DistilBertTFLiteConfig(BertTFLiteConfig):
+    @property
+    def inputs(self) -> List[str]:
+        return ["input_ids", "attention_mask"]
+
+
+class MPNetTFLiteConfig(DistilBertTFLiteConfig):
+    pass
+
+
+class RobertaTFLiteConfig(DistilBertTFLiteConfig):
+    pass
+
+
+class CamembertTFLiteConfig(DistilBertTFLiteConfig):
+    pass
+
+
+class FlaubertTFLiteConfig(BertTFLiteConfig):
+    pass
+
+
+class IBertTFLiteConfig(DistilBertTFLiteConfig):
+    pass
+
+
+class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
+    pass
+
+
+class BigBirdTFLiteConfig(DistilBertTFLiteConfig):
+    pass
+
+
+class DebertaTFLiteConfig(BertTFLiteConfig):
+    @property
+    def inputs(self) -> List[str]:
+        common_inputs = super().inputs
+        if self._config.type_vocab_size == 0:
+            # We remove token type ids.
+            common_inputs.pop(-1)
+        return common_inputs
+
+
+class DebertaV2TFLiteConfig(DebertaTFLiteConfig):
+    pass
