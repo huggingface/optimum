@@ -75,9 +75,8 @@ def main():
     )
 
     # Make -with-past the default if --task was not explicitely specified
-    if (
-        args.task == "auto"
-        and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(model.config.model_type, "onnx")
+    if args.task == "auto" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
+        model.config.model_type.replace("_", "-"), "onnx"
     ):
         task = task + "-with-past"
 
