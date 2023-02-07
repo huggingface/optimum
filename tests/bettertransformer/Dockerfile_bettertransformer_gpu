@@ -7,19 +7,19 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install and update tools to minimize security vulnerabilities
 RUN apt-get update
 RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
-    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev && \
+    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev python3-pip && \
     apt-get clean
 RUN unattended-upgrade
 RUN apt-get autoremove -y
 
-RUN python -m pip install -U pip
+RUN python3 -m pip install -U pip
 
 RUN pip install torch torchvision torchaudio
-RUN pip install transformers accelerate
+RUN pip install transformers accelerate datasets
 
 # Install Optimum
 COPY . /workspace/optimum
 RUN pip install /workspace/optimum[tests]
 
 ENV RUN_SLOW=1
-CMD python3 -m unittest discover -s bettertransformer -p 'test_*.py'
+CMD pytest bettertransformer/test_*.py -s --durations=0
