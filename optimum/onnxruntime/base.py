@@ -115,10 +115,10 @@ class ORTDecoder(ORTModelPart):
         if len(self.key_value_output_names) == 0:
             self.key_value_output_names = [key for key in self.output_names if "key_values" in key]
 
-        if self.parent_model.use_cache is True or len(self.key_value_output_names) != 0:
-            if len(self.key_value_output_names) == 0:
-                raise RuntimeError("Could not find the past key values in the provided model.")
+        if self.parent_model.use_cache is True and len(self.key_value_output_names) == 0:
+            raise RuntimeError("Could not find the past key values in the provided model.")
 
+        if len(self.key_value_output_names) != 0:
             # Attributes useful when computing the past key/values output shapes.
             self.expected_key_symbolic_shape = None
             self.expected_value_symbolic_shape = None
