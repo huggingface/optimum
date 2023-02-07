@@ -135,7 +135,7 @@ class ORTModelDecoder(ORTModel):
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
         use_cache: bool = True,
         use_merged: bool = False,
-        use_io_binding: bool = True,
+        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
