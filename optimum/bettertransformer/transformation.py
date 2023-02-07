@@ -215,6 +215,11 @@ class BetterTransformer(object):
         else:
             load_accelerate = False
 
+        if hasattr(model, "use_bettertransformer") and model.use_bettertransformer is True:
+            raise Exception(
+                "`BetterTransform.transform()` was called on a model already using Better Transformer modeling."
+            )
+
         if BetterTransformerManager.cannot_support(model.config.model_type):
             raise ValueError(
                 f"The model type {model.config.model_type} can not be supported to be used with BetterTransformer. The identified reason is:"
