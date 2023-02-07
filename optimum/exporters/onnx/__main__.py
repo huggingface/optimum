@@ -74,11 +74,16 @@ def main():
         task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
     )
 
-    # Make -with-past the default if --task was not explicitely specified
-    if args.task == "auto" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
+    if task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
-        task = task + "-with-past"
+        if args.task == "auto":  # Make -with-past the default if --task was not explicitely specified
+            task = task + "-with-past"
+        elif args.task in ["seq2seq-lm", "causal-lm", "speech2seq-lm", "vision2seq-lm"]:
+            logger.info(
+                f"The task `{args.task}` was manually specified, and past key values will not be reused in the decoding."
+                f"Please pass `--task {args.task}-with-past` to export using the past key values."
+            )
 
     if args.task == "auto":
         logger.info(f"Automatic task detection to {task}.")
