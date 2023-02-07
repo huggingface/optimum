@@ -58,7 +58,7 @@ DECODER_INPUTS_DOCSTRING = r"""
         attention_mask (`torch.LongTensor`, *optional*):
             Mask to avoid performing attention on padding token indices, of shape
             `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, sequence_length, embed_size_per_head)`.
@@ -71,7 +71,7 @@ CAUSALLM_ONNX_MODEL_DOCSTRING = r"""
         attention_mask (`torch.LongTensor`):
             Mask to avoid performing attention on padding token indices, of shape
             `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, sequence_length, embed_size_per_head)`.
