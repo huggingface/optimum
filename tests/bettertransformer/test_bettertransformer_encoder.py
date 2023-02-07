@@ -21,12 +21,7 @@ import transformers
 from transformers import AutoModel, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
-from optimum.utils.testing_utils import (
-    grid_parameters,
-    is_torch_greater_than_113,
-    require_accelerate,
-    require_torch_gpu,
-)
+from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 from parameterized import parameterized
 from testing_bettertransformer_utils import BetterTransformersTestMixin
 
@@ -125,7 +120,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         with self.assertRaises(ValueError):
             _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
-    @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
     @torch.no_grad()
     def test_inference_speed(self):
         r"""
@@ -182,7 +176,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.assertEqual(out[0]["token_str"], "role")
         gc.collect()
 
-    @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
     @require_torch_gpu
     @require_accelerate
     def check_accelerate_compatibility_cpu_gpu(self, keep_original_model=True, max_memory=None):

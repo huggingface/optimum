@@ -17,14 +17,20 @@
 import copy
 import dataclasses
 import enum
+import functools
+import gc
 import inspect
 import itertools
+import os
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
 
 from transformers.utils import is_torch_available
+
+import onnx
+from onnxruntime import InferenceSession
 
 from ...utils import DEFAULT_DUMMY_SHAPES
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
@@ -34,7 +40,10 @@ from ..base import ExportConfig
 
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
+
 
 logger = logging.get_logger(__name__)
 
@@ -62,6 +71,65 @@ class PatchingSpec:
     custom_op: Callable
     orig_op: Optional[Callable] = None
     op_wrapper: Optional[Callable] = None
+
+
+class ModelPatcher:
+    def __init__(self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"]):
+        self._model = model
+
+        patching_specs = config.PATCHING_SPECS
+        self._patching_specs = []
+        for spec in patching_specs if patching_specs is not None else []:
+            final_spec = spec
+            if spec.orig_op is None:
+                final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
+            self._patching_specs.append(final_spec)
+
+        self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
+        self.orig_forward = getattr(self._model, self.orig_forward_name)
+        onnx_to_torch = {v: k for k, v in config.torch_to_onnx_input_map.items()}
+
+        # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
+        if isinstance(config, OnnxConfigWithLoss):
+            real_config = config._onnx_config
+        else:
+            real_config = config
+        allow_past_in_outputs = isinstance(real_config, OnnxConfigWithPast) and real_config.use_present_in_outputs
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            outputs = self.orig_forward(*args, **kwargs)
+            return {
+                k: v
+                for k, v in outputs.items()
+                if onnx_to_torch.get(k, k) in config.outputs
+                or (allow_past_in_outputs and k.startswith("past_key_values"))
+            }
+
+        self.patched_forward = patched_forward
+
+    def patch_ops(self):
+        for spec in self._patching_specs:
+            custom_op = spec.custom_op if spec.op_wrapper is None else spec.op_wrapper(spec.custom_op)
+            setattr(spec.o, spec.name, custom_op)
+
+    def restore_ops(self):
+        for spec in self._patching_specs:
+            orig_op = spec.orig_op if spec.op_wrapper is None else spec.op_wrapper(spec.orig_op)
+            setattr(spec.o, spec.name, orig_op)
+
+    def __enter__(self):
+        self.patch_ops()
+        setattr(self._model, self.orig_forward_name, self.patched_forward)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.restore_ops()
+        setattr(self._model, self.orig_forward_name, self.orig_forward)
+
+    def __call__(self, *args, **kwargs):
+        if getattr(self._model, self.orig_forward_name) is self.orig_forward:
+            logger.warning("Running the non-patched model")
+        return self._model(*args, **kwargs)
 
 
 GENERATE_DUMMY_DOCSTRING = r"""
@@ -110,6 +178,9 @@ class OnnxConfig(ExportConfig, ABC):
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
     - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.TORCH_MINIMUM_VERSION`]) -- The
     minimum torch version supporting the export of the model to ONNX.
+    - PATCHING_SPECS (`Optional[List[PatchingSpec]]`, defaults to `None`) -- Specify which operators / modules should be
+    patched before performing the export, and how. This is useful when some operator is not supported in ONNX for
+    instance.
 
     Args:
         config (`transformers.PretrainedConfig`):
@@ -123,6 +194,7 @@ class OnnxConfig(ExportConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
+    PATCHING_SPECS: Optional[List[PatchingSpec]] = None
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -155,21 +227,14 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
-        "seq2seq-lm": OrderedDict(
-            {
-                "logits": {0: "batch_size", 1: "decoder_sequence_length"},
-                "encoder_last_hidden_state": {0: "batch_size", 1: "encoder_sequence_length"},
-            }
-        ),
+        "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
     }
 
-    def __init__(
-        self, config: "PretrainedConfig", task: str = "default", patching_specs: Optional[List[PatchingSpec]] = None
-    ):
+    def __init__(self, config: "PretrainedConfig", task: str = "default"):
         if task not in self._TASK_TO_COMMON_OUTPUTS:
             raise ValueError(
                 f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
@@ -178,13 +243,6 @@ class OnnxConfig(ExportConfig, ABC):
 
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
-
-        self._patching_specs = []
-        for spec in patching_specs if patching_specs is not None else []:
-            final_spec = spec
-            if spec.orig_op is None:
-                final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
-            self._patching_specs.append(final_spec)
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
         """
@@ -222,6 +280,65 @@ class OnnxConfig(ExportConfig, ABC):
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
+
+    def fix_dynamic_axes(self, model_path: "Path"):
+        """
+        Fixes potential issues with dynamic axes.
+
+        During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
+        right after the export to fix such issues.
+
+        Args:
+            model_path (`Path`):
+                The path of the freshly exported ONNX model.
+        """
+        allowed_dynamic_axes = set()
+        for input_ in self.inputs.values():
+            allowed_dynamic_axes |= set(input_.values())
+        for output in self.outputs.values():
+            allowed_dynamic_axes |= set(output.values())
+
+        from onnxruntime.capi import _ld_preload
+
+        if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
+            providers = ["CPUExecutionProvider"]
+        else:
+            providers = ["CUDAExecutionProvider"]
+
+        session = InferenceSession(model_path.as_posix(), providers=providers)
+
+        to_fix = []
+        for output_idx, node in enumerate(session.get_outputs()):
+            for idx, axis in enumerate(node.shape):
+                if isinstance(axis, str) and axis not in allowed_dynamic_axes:
+                    to_fix.append((output_idx, idx))
+
+        # We branch here to avoid doing an unnecessary forward pass.
+        if to_fix:
+            dummy_inputs = self.generate_dummy_inputs(framework="np")
+            dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs)
+            onnx_inputs = {}
+            for name, value in dummy_inputs.items():
+                if isinstance(value, (list, tuple)):
+                    value = self.flatten_output_collection_property(name, value)
+                    onnx_inputs.update({tensor_name: tensor for tensor_name, tensor in value.items()})
+                else:
+                    onnx_inputs[name] = value
+            outputs = session.run(None, onnx_inputs)
+            del session
+
+            onnx_model = onnx.load(model_path.as_posix(), load_external_data=False)
+
+            for output_idx, dim_idx in to_fix:
+                dims = onnx_model.graph.output[output_idx].type.tensor_type.shape.dim
+                dims[dim_idx].dim_value = outputs[output_idx].shape[dim_idx]
+
+            onnx.save(onnx_model, model_path.as_posix())
+            del onnx_model
+            gc.collect()
+
+    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> ModelPatcher:
+        return ModelPatcher(self, model)
 
     @property
     def values_override(self) -> Optional[Mapping[str, Any]]:
@@ -312,16 +429,6 @@ class OnnxConfig(ExportConfig, ABC):
                 )
         return dummy_inputs
 
-    def patch_ops(self):
-        for spec in self._patching_specs:
-            custom_op = spec.custom_op if spec.op_wrapper is None else spec.op_wrapper(spec.custom_op)
-            setattr(spec.o, spec.name, custom_op)
-
-    def restore_ops(self):
-        for spec in self._patching_specs:
-            orig_op = spec.orig_op if spec.op_wrapper is None else spec.op_wrapper(spec.orig_op)
-            setattr(spec.o, spec.name, orig_op)
-
     @classmethod
     def flatten_output_collection_property(cls, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         """
@@ -400,7 +507,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
                 "of use_present_in_outputs value will be used for the outputs."
             )
-        super().__init__(config, task=task, patching_specs=patching_specs)
+        super().__init__(config, task=task)
 
     @classmethod
     def with_past(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfigWithPast":
@@ -446,7 +553,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
-                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 will be used with use_past ==True for `decoder_input_ids`."
+                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 "
+                                "will be used with use_past == True for `decoder_input_ids`."
                             )
                         dummy_input_gen.sequence_length = 1
                         dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
@@ -533,7 +641,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: Optional[List[PatchingSpec]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -542,7 +649,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         super().__init__(
             config,
             task=task,
-            patching_specs=patching_specs,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,
@@ -580,7 +686,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return self.__class__(
             self._config,
             task=self.task,
-            patching_specs=self._patching_specs,
             use_past=use_past,
             behavior=behavior,
         )
@@ -606,6 +711,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 else:
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
@@ -669,10 +777,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         self._onnx_config = config
         self.task = self._onnx_config.task
         self._normalized_config = self._onnx_config._normalized_config
-        self._patching_specs = self._onnx_config._patching_specs
+        self.PATCHING_SPECS = self._onnx_config.PATCHING_SPECS
 
     @classmethod
-    def from_model_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
+    def from_onnx_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
         return cls(config)
 
     @property
