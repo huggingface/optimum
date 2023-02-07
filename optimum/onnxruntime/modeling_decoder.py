@@ -566,7 +566,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         )
 
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(self, input_ids, past=None, **kwargs):
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
 
         attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
@@ -574,7 +574,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
 
         return {
             "input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "use_cache": use_cache,
             "position_ids": None,
             "attention_mask": attention_mask,
