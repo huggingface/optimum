@@ -33,6 +33,7 @@ from .utils import recursive_to_device
 
 
 if is_torch_available():
+    import torch
     import torch.nn as nn
     from transformers.modeling_utils import PreTrainedModel
     from transformers.pytorch_utils import is_torch_less_than_1_11
@@ -171,7 +172,7 @@ def validate_model_outputs(
     """
     from onnxruntime import InferenceSession, SessionOptions
 
-    logger.info("Validating ONNX model...")
+    logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
 
     if atol is None:
         atol = config.ATOL_FOR_VALIDATION
@@ -260,6 +261,8 @@ def validate_model_outputs(
             onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
         else:
             onnx_inputs[name] = value.cpu().numpy()
+        
+    print("onnx_inputs keys:", onnx_inputs.keys())
 
     # Compute outputs from the ONNX model
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
@@ -343,7 +346,7 @@ def export_pytorch(
         opset (`int`):
             The version of the ONNX operator set to use.
         output (`Path`):
-            Directory to store the exported ONNX model.
+            Path to save the exported ONNX file to.
         device (`str`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
@@ -351,7 +354,7 @@ def export_pytorch(
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
 
     Returns:
-        `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
+        `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
     import torch
@@ -461,7 +464,7 @@ def export_tensorflow(
             export on CUDA devices.
 
     Returns:
-        `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
+        `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
     # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
@@ -542,7 +545,7 @@ def export_models(
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
-        inputs from the ONNX configuration.
+        outputs from the ONNX configuration.
     """
     outputs = []
 
@@ -600,7 +603,7 @@ def export(
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
 
     Returns:
-        `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
+        `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
     if not (is_torch_available() or is_tf_available()):

@@ -260,6 +260,14 @@ class ORTModel(OptimizedModel):
     def device(self, value: torch.device):
         self._device = value
 
+    @property
+    def use_io_binding(self):
+        return check_io_binding(self.providers, self._use_io_binding)
+
+    @use_io_binding.setter
+    def use_io_binding(self, value: bool):
+        self._use_io_binding = value
+
     def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.

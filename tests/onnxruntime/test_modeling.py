@@ -190,11 +190,12 @@ class ORTModelTestMixin(unittest.TestCase):
             onnx_model.save_pretrained(model_dir)
             self.onnx_model_dirs[model_arch_and_params] = model_dir
 
+    """
     @classmethod
     def tearDownClass(cls):
         for _, dir_path in cls.onnx_model_dirs.items():
             shutil.rmtree(dir_path)
-
+    """
 
 class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -1983,26 +1984,29 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_merged_and_double_models_outputs(self, model_arch):
+    def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
+        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
+        self._setup(model_args)
+
         model_id = MODEL_NAMES[model_arch]
         tokenizer = get_preprocessor(model_id)
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt")
-        set_seed(SEED)
+        
         model_merged = ORTModelForCausalLM.from_pretrained(
-            model_id,
-            from_transformers=True,
+            self.onnx_model_dirs[model_arch + "_True"],
             use_merged=True,
         )
         outputs_model_merged = model_merged.generate(**tokens)
-        set_seed(SEED)
+
         model_not_merged = ORTModelForCausalLM.from_pretrained(
-            model_id,
-            from_transformers=True,
+            self.onnx_model_dirs[model_arch + "_True"],
             use_merged=False,
         )
         outputs_model_not_merged = model_not_merged.generate(**tokens)
+
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+        self.assertEqual(model_merged.decoder_with_past, None)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu

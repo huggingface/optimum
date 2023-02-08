@@ -223,11 +223,15 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
     """
     Whether to use IOBinding or not.
     """
-    if use_io_binding is True and providers[0] == "TensorrtExecutionProvider":
-        logger.warning(
-            "No need to enable IO Binding if the provider used is TensorrtExecutionProvider. IO Binding will be turned off."
-        )
+    if providers[0] == "CUDAExecutionProvider" and use_io_binding is None:
+        use_io_binding = True
+    elif providers[0] != "CUDAExecutionProvider":
+        if use_io_binding is True:
+            logger.warning(
+                "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
+            )
         use_io_binding = False
+    
     return use_io_binding
 
 

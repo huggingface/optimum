@@ -134,7 +134,6 @@ class ORTModelDecoder(ORTModel):
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
         use_cache: bool = True,
-        use_merged: bool = False,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
@@ -153,10 +152,6 @@ class ORTModelDecoder(ORTModel):
                 be set if use_merged=True is used.
             use_cache (`bool`, defaults to `True`):
                 Whether or not past key/values cache should be used. Defaults to `True`.
-            use_merged (`bool`, defaults to `False`):
-                Whether to use a merged decoder for inference to reduce memory usage. When set as
-                `True`, the decoder and decoder with past will be merged. If set to `True` and `use_cache` is `False`,
-                an error will be raised. Defaults to `False`.
             use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
@@ -190,23 +185,28 @@ class ORTModelDecoder(ORTModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        if decoder_with_past_session is not None and use_merged is True:
-            raise ValueError(
-                "When setting use_merged=True, only a decoder_session is expected while decoder_with_past_session"
-                " should not be set."
-            )
-        if use_cache is True and use_merged is False and decoder_with_past_session is None:
-            raise ValueError(
-                "The parameter use_cache was passed as True, although no decoder_with_past_session was passed."
-                "Please pass a decoder_with_past_session or pass use_cache=False."
-            )
-        if use_cache is False and decoder_with_past_session is not None:
-            raise ValueError(
-                "The parameter decoder_with_past_session was passed, although use_cache is False."
-                "Please pass use_cache=True for decoder_with_past_session to be used."
-            )
-        if use_cache is False and use_merged is True:
-            raise ValueError("The parameter combination use_cache=False and use_merged=True is not supported.")
+        if use_cache is True:
+            use_merged = "use_cache_branch" in [inp.name for inp in decoder_session.get_inputs()]
+
+            if use_merged is True and decoder_with_past_session is not None:
+                raise ValueError(
+                    "Detected a merged decoder, but decoder_with_past_session was provided."
+                    "Please only set decoder_session, or provide a non-merged decoder_session."
+                )
+            if use_cache is True and use_merged is False and decoder_with_past_session is None:
+                raise ValueError(
+                    "The parameter use_cache was passed as True, although no decoder_with_past_session was passed"
+                    " and the decoder_session does not include the use_cache case."
+                    " Please pass a decoder_with_past_session or pass use_cache=False."
+                )
+        else:
+            use_merged = False
+
+            if decoder_with_past_session is not None:
+                raise ValueError(
+                    "The parameter decoder_with_past_session was passed, although use_cache is False."
+                    "Please pass use_cache=True for decoder_with_past_session to be used."
+                )
 
         self.use_cache = use_cache
         self.use_merged = use_merged
@@ -314,7 +314,6 @@ class ORTModelDecoder(ORTModel):
         subfolder: str = "",
         local_files_only: bool = False,
         use_cache: bool = True,
-        use_merged: Optional[bool] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
@@ -323,9 +322,6 @@ class ORTModelDecoder(ORTModel):
         **kwargs,
     ):
         model_path = Path(model_id)
-
-        if use_merged is None:
-            use_merged = use_cache
 
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
             decoder_path = ORTModelDecoder.infer_onnx_filename(
@@ -344,10 +340,12 @@ class ORTModelDecoder(ORTModel):
                 f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
                 f"{cls.__name__} might not behave as expected."
             )
+        
+        decoder_with_past_path = None
+        use_merged = has_onnx_input(decoder_path, "use_cache_branch")            
 
         decoder_with_past_path = None
-        cache_error = None
-        if use_cache is True or use_merged is True:
+        if use_cache is True or not use_merged:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
                 try:
                     decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
@@ -359,8 +357,11 @@ class ORTModelDecoder(ORTModel):
                         revision=revision,
                     )
                 except FileNotFoundError as e:
-                    # Raise if the `decoder` doesn't contain both w/o and w/. past IR
-                    cache_error = e
+                    raise FileNotFoundError(
+                        "The parameter `use_cache=True` was passed to ORTModelDecoder.from_pretrained()"
+                        " but no ONNX file using past key values could be found in"
+                        f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
+                    )
             else:
                 decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
@@ -368,10 +369,8 @@ class ORTModelDecoder(ORTModel):
                 ONNX_DECODER_WITH_PAST_NAME
             )
 
-            if (
-                decoder_with_past_path is not None
-                and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames
-            ):
+            assert decoder_with_past_path is not None
+            if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
                 logger.warning(
                     f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
                     f"the {cls.__name__} might not behave as expected."
@@ -428,43 +427,7 @@ class ORTModelDecoder(ORTModel):
                 decoder_with_past_path = new_model_save_dir / last_decoder_with_past_name
 
             decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
-
-        is_merged = has_onnx_input(decoder_path, "use_cache")
-        if is_merged is True:
-            decoder_with_past_path = None
-            if use_merged is False:
-                logger.info(
-                    "`use_merged` is automatically set to `True` as the decoder takes `use_cache` as an input."
-                )
-                use_merged = True
-        elif use_merged is True and decoder_with_past_path is not None:
-            try:
-                logger.info("Merging decoders...")
-                decoder_merged_path = decoder_path.parent / ONNX_DECODER_MERGED_NAME
-                merge_decoders(
-                    decoder=decoder_path,
-                    decoder_with_past=decoder_with_past_path,
-                    save_path=decoder_merged_path,
-                )
-                decoder_path = decoder_merged_path
-                decoder_with_past_path = None
-            except Exception as e:
-                logger.error(
-                    f"{e}.\nUnable to merge decoders. Will load two decoders for inference which will double the memory usage."
-                )
-                use_merged = False
-        elif use_merged is True and decoder_with_past_path is None:
-            raise FileNotFoundError(
-                f"The parameter `use_cache={use_cache}` and `use_merged=True` were passed to `ORTModelForConditionalGeneration.from_pretrained()`"
-                f" but the given decoder doesn't contain computation graphs for both w/o and w/. past scenarios."
-                f" And no ONNX file using past key values could be found in {str(Path(model_id, subfolder))} for merging."
-            )
-        elif use_cache is True and decoder_with_past_path is None:
-            raise FileNotFoundError(
-                f"The parameter `use_cache=True` and `use_merged={use_merged}` were passed to ORTModelDecoder.from_pretrained()"
-                " but no ONNX file using only past key values could be found in"
-                f" {str(Path(model_id, subfolder))}, with the error:\n    {cache_error}"
-            )
+                
         model = cls.load_model(
             decoder_path=decoder_path,
             decoder_with_past_path=decoder_with_past_path,
@@ -495,7 +458,6 @@ class ORTModelDecoder(ORTModel):
             config,
             decoder_with_past_session=model[1],
             use_cache=use_cache,
-            use_merged=use_merged,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
@@ -515,7 +477,7 @@ class ORTModelDecoder(ORTModel):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         use_cache: bool = True,
-        use_merged: bool = False,
+        use_merged: bool = True,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
@@ -556,19 +518,6 @@ class ORTModelDecoder(ORTModel):
             output_names=output_names,
         )
 
-        if use_merged:
-            try:
-                merge_decoders(
-                    decoder=save_dir_path / output_names[0],
-                    decoder_with_past=save_dir_path / output_names[1],
-                    save_path=save_dir_path / ONNX_DECODER_NAME,
-                )
-            except Exception as e:
-                logger.error(
-                    f"{e}.\nUnable to merge decoders. Will load two decoders for inference which will double the memory usage."
-                )
-                use_merged = False
-
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
@@ -576,7 +525,6 @@ class ORTModelDecoder(ORTModel):
             save_dir_path,
             config,
             use_cache=use_cache,
-            use_merged=use_merged,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -615,6 +563,34 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
 
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
+
+    def prepare_inputs_for_merged(
+        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
+    ):
+
+        # Prepare use cache
+        if past_key_values is not None and self.use_merged:  # Uses "with past" branch of a merged decoder
+            use_cache = torch.full((1,), True).to(self._device)
+        elif self.use_merged:  # Uses "no past" branch of a merged decoder
+            use_cache = torch.full((1,), False).to(self._device)
+        else:  # Uses separate decoders
+            use_cache = None
+
+        # Prepare past key values
+        is_dummy = False
+        if (
+            self.use_merged and past_key_values is None
+        ):  # Generate dummy past for the first forward if uses a merged decoder
+            batch_size = input_ids.size(0)
+            num_attention_heads = self.normalized_config.num_attention_heads
+            hidden_size = self.normalized_config.hidden_size
+            embed_size_per_head = hidden_size // num_attention_heads
+            shape = (batch_size, num_attention_heads, 1, embed_size_per_head)  # "1" is the dummy sequence length
+            key_or_value = torch.zeros(shape, dtype=torch.float32).to(self._device)
+            past_key_values = [key_or_value for _ in range(len(self.key_value_input_names))]
+            is_dummy = True
+
+        return use_cache, past_key_values, is_dummy
 
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")

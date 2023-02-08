@@ -16,6 +16,7 @@
 
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional
 
+from transformers import is_torch_available
 from ...utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -27,6 +28,14 @@ from ...utils import (
     logging,
 )
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from ...onnx import merge_decoders
+from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+
+import os
+from pathlib import Path
+
+if is_torch_available():
+    import torch
 
 
 if TYPE_CHECKING:
@@ -63,6 +72,41 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             common_inputs["attention_mask"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
+    
+    def post_process_exported_models(self, path: Path, models_and_onnx_configs, output_names):
+        if self.use_past:
+            decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            try:
+                merge_decoders(
+                    decoder=Path(path, ONNX_DECODER_NAME + ".onnx"),
+                    decoder_with_past=decoder_with_past_path,
+                    save_path=Path(path, ONNX_DECODER_NAME + ".onnx"),
+                )
+            except Exception as e:
+                logger.error(
+                    f"Unable to merge decoders, separate decoder and decoder-with-past will be used. Detailed error: {e}"
+                )
+                return models_and_onnx_configs, output_names
+            os.remove(decoder_with_past_path)
+
+            # we validate on a single decoder model then
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past = True
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past_in_inputs = True
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_cache_branch = False
+            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].use_cache_branch = True
+            
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
+            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
+
+        return models_and_onnx_configs, output_names
+    
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+        if hasattr(self, "is_merged") and self.is_merged is True and self.use_cache_branch:
+            reference_model_inputs["use_cache_branch"] = torch.tensor([True])
+        elif hasattr(self, "is_merged") and self.is_merged is True and not self.use_cache_branch:
+            reference_model_inputs["use_cache_branch"] = torch.tensor([False])
+
+        return reference_model_inputs
 
 
 class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):

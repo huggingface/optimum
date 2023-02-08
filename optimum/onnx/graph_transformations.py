@@ -153,14 +153,14 @@ def merge_decoders(
     )
 
     # Merge subgraphs with a `If` node
-    use_cache = onnx.helper.make_tensor_value_info(
-        name="use_cache",
+    use_cache_branch = onnx.helper.make_tensor_value_info(
+        name="use_cache_branch",
         elem_type=onnx.TensorProto.BOOL,
         shape=[1],
     )
     if_node = onnx.helper.make_node(
         "If",
-        inputs=["use_cache"],
+        inputs=["use_cache_branch"],
         outputs=[output.name for output in no_past_branch.output],
         name="optimum::if",
         then_branch=with_past_branch,
@@ -169,7 +169,7 @@ def merge_decoders(
     merged_graph = onnx.helper.make_graph(
         nodes=[if_node],
         name=graph_name,
-        inputs=all_inputs + [use_cache],
+        inputs=all_inputs + [use_cache_branch],
         outputs=no_past_branch.output,
         initializer=deduplicated_initializers,
     )
