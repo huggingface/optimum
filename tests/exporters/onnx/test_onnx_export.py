@@ -357,7 +357,6 @@ class OnnxExportTestCase(TestCase):
         self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
     @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL)
-    @slow
     @require_torch
     @require_vision
     @require_diffusers

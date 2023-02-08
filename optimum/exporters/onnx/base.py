@@ -85,7 +85,6 @@ class ModelPatcher:
 
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
         self.orig_forward = getattr(self._model, self.orig_forward_name)
-        onnx_to_torch = {v: k for k, v in config.torch_to_onnx_input_map.items()}
 
         # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
         if isinstance(config, OnnxConfigWithLoss):
@@ -100,7 +99,7 @@ class ModelPatcher:
             return {
                 k: v
                 for k, v in outputs.items()
-                if onnx_to_torch.get(k, k) in config.outputs
+                if config.torch_to_onnx_output_map.get(k, k) in config.outputs
                 or (allow_past_in_outputs and k.startswith("past_key_values"))
             }
 
@@ -371,11 +370,22 @@ class OnnxConfig(ExportConfig, ABC):
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
         """
-        Dictionary of keys to update the ONNX input name for export. Override the function when
-        the dummy input names and the exported ONNX input names need to be different.
+        Dictionary mapping input names from the PyTorch model to input names from the exported ONNX model.
+        Override the function when the input names and the exported ONNX input names are different.
 
         Returns:
-            `Dict[str, str]`: A dictionary specifying the dummy input name to exported ONNX input name map.
+            `Dict[str, str]`: A dictionary mapping the PyTorch model input names to the exported ONNX model input names.
+        """
+        return {}
+
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        """
+        Dictionary mapping output names from the PyTorch model to output names from the exported ONNX model.
+        Override the function when the output names and the exported ONNX output names are different.
+
+        Returns:
+            `Dict[str, str]`: A dictionary mapping the PyTorch model output names to the exported ONNX model output names.
         """
         return {}
 
@@ -388,7 +398,7 @@ class OnnxConfig(ExportConfig, ABC):
                 The model for which we will use the OnnxConfig.
 
         Returns:
-            `Dict[str, Dictp[int, str]]`: The properly ordered inputs.
+            `Dict[str, Dict[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
 
@@ -470,7 +480,8 @@ class OnnxConfig(ExportConfig, ABC):
         Returns:
             `List[str]`: The corresponding reference model output names.
         """
-        return reference_output_names
+        onnx_to_torch = {v: k for k, v in self.torch_to_onnx_output_map.items()}
+        return [onnx_to_torch.get(k, k) for k in reference_output_names]
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
@@ -830,6 +841,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
         return self._onnx_config.torch_to_onnx_input_map
+
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        return self._onnx_config.torch_to_onnx_output_map
 
     @property
     def values_override(self) -> Optional[Dict[str, Any]]:
