@@ -565,37 +565,9 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
 
 
 class DonutSwinOnnxConfig(ViTOnnxConfig):
-    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
-        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
-        if self._behavior is ConfigBehavior.MONOLITH:
-            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
-                self.task,
-                self._normalized_config,
-                encoder_sequence_length=dummy_inputs_generators[0].sequence_length // self._config.patch_size,
-                **kwargs,
-            )
-            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
-
-        return dummy_inputs_generators
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = super().inputs
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / {self._config.patch_size}"
-        return common_inputs
-
-    @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = super().outputs
-        if self._behavior is ConfigBehavior.ENCODER:
-            # for Speech2text, we need to name the second axis as
-            # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
-            # used for dummy input generation
-            common_outputs["last_hidden_state"][
-                1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {self._config.patch_size}"
-        return common_outputs
+    def __init__(self, config: "PretrainedConfig", task: str = "default"):
+        super().__init__(config, task)
+        self.seq_len_scale = (self._config.patch_size**2) * (4 ** (len(self._config.depths) - 1))
 
 
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
@@ -1101,3 +1073,21 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super(OnnxSeq2SeqConfigWithPast, self)._create_dummy_input_generator_classes(
+            **kwargs
+        )
+
+        if self._behavior is ConfigBehavior.MONOLITH:
+            image_size = dummy_inputs_generators[0].image_size
+
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                encoder_sequence_length=(image_size[0] * image_size[1]) // self.seq_len_scale,
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators

@@ -336,6 +336,10 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             self._encoder_onnx_config = encoder_onnx_config_constructor(config.encoder)
             self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
 
+            self.seq_len_scale = 1
+            if hasattr(self._encoder_onnx_config, "seq_len_scale"):
+                self.seq_len_scale = self._encoder_onnx_config.seq_len_scale
+
         if self._behavior is not ConfigBehavior.ENCODER:
             decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 exporter="onnx", task="default", model_type=config.decoder.model_type
@@ -404,4 +408,27 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         # make sure this output is moved at the end.
         if "encoder_last_hidden_state" in common_outputs:
             common_outputs.move_to_end("encoder_last_hidden_state")
+
+        if self._behavior is ConfigBehavior.ENCODER:
+            common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / {self.seq_len_scale}"
         return common_outputs
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
+        if self._behavior is ConfigBehavior.MONOLITH:
+            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
+                self.task,
+                self._normalized_config,
+                encoder_sequence_length=dummy_inputs_generators[0].sequence_length // self.seq_len_scale,
+                **kwargs,
+            )
+            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
+
+        return dummy_inputs_generators
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_inputs = super().inputs
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / {self.seq_len_scale}"
+        return common_inputs
