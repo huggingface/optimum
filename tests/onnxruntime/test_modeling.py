@@ -73,7 +73,7 @@ from optimum.onnxruntime import (
     ORTModelForTokenClassification,
     ORTModelForVision2Seq,
 )
-from optimum.onnxruntime.base import ORTDecoder, ORTEncoder, ORTDecoderForSeq2Seq
+from optimum.onnxruntime.base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging

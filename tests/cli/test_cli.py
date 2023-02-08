@@ -42,13 +42,13 @@ class TestCLI(unittest.TestCase):
             )
             subprocess.run(command, shell=True, check=True)
 
-    def test_optimize_commands_O1(self):
+    def test_optimize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             # First export a tiny encoder, decoder only and encoder-decoder
             export_commands = [
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-BertModel {tempdir}/encoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bart {tempdir}/encoder-decoder",
             ]
             optimize_commands = [
                 f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder -O1",
@@ -60,7 +60,7 @@ class TestCLI(unittest.TestCase):
                 subprocess.run(export, shell=True, check=True)
                 subprocess.run(optimize, shell=True, check=True)
 
-    def test_optimize_commands_avx2(self):
+    def test_quantize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             # First export a tiny encoder, decoder only and encoder-decoder
             export_commands = [
@@ -68,12 +68,12 @@ class TestCLI(unittest.TestCase):
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder",
             ]
-            optimize_commands = [
+            quantize_commands = [
                 f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --avx2",
                 f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/decoder --avx2",
                 f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2",
             ]
 
-            for export, optimize in zip(export_commands, optimize_commands):
+            for export, quantize in zip(export_commands, quantize_commands):
                 subprocess.run(export, shell=True, check=True)
-                subprocess.run(optimize, shell=True, check=True)
+                subprocess.run(quantize, shell=True, check=True)
