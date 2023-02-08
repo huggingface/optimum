@@ -152,3 +152,11 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 shell=True,
                 check=True,
             )
+
+    def test_stable_diffusion(self):
+        with TemporaryDirectory() as tmpdirname:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-stable-diffusion-torch {tmpdirname}",
+                shell=True,
+                check=True,
+            )
