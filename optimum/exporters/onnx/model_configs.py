@@ -714,8 +714,9 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass
 
 
-class OwlViTOnnxConfig(CLIPOnnxConfig):
-    pass
+# TODO: not supported now because of aten:broadcast_to, can be most likely patched.
+# class OwlViTOnnxConfig(CLIPOnnxConfig):
+#     pass
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):

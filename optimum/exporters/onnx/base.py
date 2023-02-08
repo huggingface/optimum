@@ -230,6 +230,11 @@ class OnnxConfig(ExportConfig, ABC):
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        # TODO: enable that and verify that once OwlViTOnnxConfig can work.
+        # "zero-shot-object-detection": OrderedDict({
+        #     "logits": {0: "batch_size"},
+        #     "pred_boxes": {0: "batch_size"},
+        # }),
     }
 
     def __init__(self, config: "PretrainedConfig", task: str = "default"):

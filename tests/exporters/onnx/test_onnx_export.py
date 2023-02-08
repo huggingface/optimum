@@ -20,13 +20,6 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import pytest
-from exporters_utils import (
-    PYTORCH_EXPORT_MODELS_TINY,
-    PYTORCH_STABLE_DIFFUSION_MODEL,
-    TENSORFLOW_EXPORT_MODELS,
-    VALIDATE_EXPORT_ON_SHAPES_FAST,
-    VALIDATE_EXPORT_ON_SHAPES_SLOW,
-)
 from parameterized import parameterized
 from transformers import AutoConfig, is_tf_available, is_torch_available, set_seed
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
@@ -44,6 +37,14 @@ from optimum.exporters.onnx import (
 )
 from optimum.utils import is_diffusers_available
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
+
+from ..exporters_utils import (
+    PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_STABLE_DIFFUSION_MODEL,
+    TENSORFLOW_EXPORT_MODELS,
+    VALIDATE_EXPORT_ON_SHAPES_FAST,
+    VALIDATE_EXPORT_ON_SHAPES_SLOW,
+)
 
 
 if is_torch_available() or is_tf_available():
