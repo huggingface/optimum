@@ -80,7 +80,7 @@ class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
 
 
 # TODO: no TensorFlow implementation, but a Jax implementation is available.
-# Support the export oncw the Jax export to TFLite is more mature.
+# Support the export once the Jax export to TFLite is more mature.
 # class BigBirdTFLiteConfig(DistilBertTFLiteConfig):
 #     pass
 

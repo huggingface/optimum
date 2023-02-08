@@ -709,7 +709,7 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass
 
 
-# TODO: not supported now because of aten:broadcast_to, can be most likel patched.
+# TODO: not supported now because of aten:broadcast_to, can be most likely patched.
 # class OwlViTOnnxConfig(CLIPOnnxConfig):
 #     pass
 
