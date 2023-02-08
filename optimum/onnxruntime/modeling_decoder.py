@@ -148,18 +148,19 @@ class ORTModelDecoder(ORTModel):
             config ([~`transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model. Initializing with a config file does
                 not load the weights associated with the model, only the configuration.
-            decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
-                The ONNX Runtime inference session associated to the decoder with past key values.
+            decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, defaults to `None`):
+                The ONNX Runtime inference session associated to the decoder with past key values. This argument should not
+                be set if use_merged=True is used.
             use_cache (`bool`, defaults to `True`):
-                Whether or not past key/values cache should be used. It is determined by whether an InferenceSession for
-                that was provided or not.
+                Whether or not past key/values cache should be used. Defaults to `True`.
             use_merged (`bool`, defaults to `False`):
                 Whether to use a merged decoder for inference to reduce memory usage. When set as
-                `True`, the decoder and decoder with past will be merged. Defaults to `False`.
-            use_io_binding (`bool`, defaults to `True`):
+                `True`, the decoder and decoder with past will be merged. If set to `True` and `use_cache` is `False`,
+                an error will be raised. Defaults to `False`.
+            use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
-            model_save_dir (`str`, *optional*, defaults to `""`):
+            model_save_dir (`Optional[Union[str, Path, TemporaryDirectory]]`, defaults to `""`):
                 The directory under which the model exported to ONNX was saved.
             preprocessors (`Optional[List]`, defaults to `None`):
                 The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
@@ -189,7 +190,25 @@ class ORTModelDecoder(ORTModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        self.use_cache = decoder_with_past_session is not None
+        if decoder_with_past_session is not None and use_merged is True:
+            raise ValueError(
+                "When setting use_merged=True, only a decoder_session is expected while decoder_with_past_session"
+                " should not be set."
+            )
+        if use_cache is True and use_merged is False and decoder_with_past_session is None:
+            raise ValueError(
+                "The parameter use_cache was passed as True, although no decoder_with_past_session was passed."
+                "Please pass a decoder_with_past_session or pass use_cache=False."
+            )
+        if use_cache is False and decoder_with_past_session is not None:
+            raise ValueError(
+                "The parameter decoder_with_past_session was passed, although use_cache is False."
+                "Please pass use_cache=True for decoder_with_past_session to be used."
+            )
+        if use_cache is False and use_merged is True:
+            raise ValueError("The parameter combination use_cache=False and use_merged=True is not supported.")
+
+        self.use_cache = use_cache
         self.use_merged = use_merged
         self.decoder = ORTDecoder(decoder_session, self)
         self.decoder_model_path = Path(decoder_session._model_path)

@@ -21,11 +21,6 @@ import onnx
 from onnx import ModelProto
 
 from ..utils import logging
-
-
-logger = logging.get_logger()
-
-
 from .transformations_utils import (
     _create_name_sharing_dict,
     _deduplicated_cross_model_initializers,
@@ -37,6 +32,11 @@ from .transformations_utils import (
     _unify_onnx_outputs,
     cast_int64_tensorproto_to_int32,
 )
+
+
+logger = logging.get_logger()
+
+ONNX_BYTE_SIZE_LIMIT = 2147483648
 
 
 def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
@@ -184,7 +184,7 @@ def merge_decoders(
         ],
     )
 
-    if merged_model.ByteSize() < 2147483648:
+    if merged_model.ByteSize() < ONNX_BYTE_SIZE_LIMIT:
         onnx.checker.check_model(merged_model)
         if save_path:
             save_path = Path(save_path).as_posix()
