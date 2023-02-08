@@ -22,6 +22,7 @@ from transformers import (
     FillMaskPipeline,
     ImageClassificationPipeline,
     ImageSegmentationPipeline,
+    ImageToTextPipeline,
     Pipeline,
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
@@ -58,6 +59,7 @@ if is_onnxruntime_available():
         ORTModelForSequenceClassification,
         ORTModelForSpeechSeq2Seq,
         ORTModelForTokenClassification,
+        ORTModelForVision2Seq,
     )
     from .onnxruntime.modeling_ort import ORTModel
 
@@ -138,6 +140,12 @@ if is_onnxruntime_available():
             "impl": AutomaticSpeechRecognitionPipeline,
             "class": (ORTModelForSpeechSeq2Seq,),
             "default": "openai/whisper-tiny.en",
+            "type": "multimodal",
+        },
+        "image-to-text": {
+            "impl": ImageToTextPipeline,
+            "class": (ORTModelForVision2Seq,),
+            "default": "nlpconnect/vit-gpt2-image-captioning",
             "type": "multimodal",
         },
     }

@@ -70,12 +70,15 @@ The Optimum ONNX export can be used through Optimum command-line:
 ```bash
 optimum-cli export onnx --help
 
-usage: optimum-cli <command> [<args>] export onnx [-h] -m MODEL [--task TASK] [--for-ort] [--device DEVICE] [--opset OPSET] [--atol ATOL]
-                                                  [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--batch_size BATCH_SIZE]
-                                                  [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT]
-                                                  [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE] [--nb_max_frames NB_MAX_FRAMES]
-                                                  [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
+usage: optimum-cli <command> [<args>] export onnx [-h] -m MODEL [--task TASK] [--monolith] [--device DEVICE] [--opset OPSET] [--atol ATOL]
+                                                  [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--trust-remote-code]
+                                                  [--batch_size BATCH_SIZE] [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH]
+                                                  [--height HEIGHT] [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE]
+                                                  [--nb_max_frames NB_MAX_FRAMES] [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
                                                   output
+
+optional arguments:
+  -h, --help            show this help message and exit
 
 Required arguments:
   -m MODEL, --model MODEL
@@ -86,10 +89,10 @@ Optional arguments:
   --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on
                         the model, but are among: ['default', 'masked-lm', 'causal-lm', 'seq2seq-lm', 'sequence-classification', 'token-classification',
                         'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-
-                        segmentation', 'speech2seq-lm', 'stable-diffusion']. For decoder models, use `xxx-with-past` to export the model using past key
-                        values in the decoder.
-  --for-ort             This exports models ready to be run with Optimum's ORTModel. Useful for encoder-decoder models forconditional generation. If
-                        enabled the encoder and decoder of the model are exported separately.
+                        segmentation', 'speech2seq-lm', 'audio-classification', 'audio-frame-classification', 'audio-ctc', 'audio-xvector', 'vision2seq-
+                        lm', 'stable-diffusion']. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder.
+  --monolith            Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several ONNX files, for
+                        example for encoder-decoder models where the encoder should be run only once while thedecoder is looped over.
   --device DEVICE       The device to use to do the export. Defaults to "cpu".
   --opset OPSET         If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.
   --atol ATOL           If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
@@ -187,7 +190,7 @@ optimum-cli export onnx --model keras-io/transformers-qa distilbert_base_cased_s
 
 ### Exporting a model to be used with Optimum's ORTModel
 
-Models exported through `optimum-cli export onnx` can be used directly in [`~onnxruntime.ORTModel`] by passing the parameter `--for-ort`. This is especially useful for encoder-decoder models, where in this case the export will split the encoder and decoder into two `.onnx` files, as the encoder is usually only run once while the decoder may be run several times in autogenerative tasks.
+Models exported through `optimum-cli export onnx` can be used directly in [`~onnxruntime.ORTModel`]. This is especially useful for encoder-decoder models, where in this case the export will split the encoder and decoder into two `.onnx` files, as the encoder is usually only run once while the decoder may be run several times in autogenerative tasks.
 
 ### Exporting a model using past keys/values in the decoder
 
@@ -198,7 +201,7 @@ In the ONNX export, the past keys/values are reused by default. This behavior co
 A model exported using past key/values can be reused directly into Optimum's [`~onnxruntime.ORTModel`]:
 
 ```bash
-optimum-cli export onnx --model gpt2 --for-ort --task causal-lm-with-past gpt2_onnx/
+optimum-cli export onnx --model gpt2 gpt2_onnx/
 ```
 
 and

@@ -19,6 +19,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Union
 
+import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
 from .normalized_config import NormalizedConfig, NormalizedSeq2SeqConfig, NormalizedTextConfig, NormalizedVisionConfig
@@ -37,7 +38,7 @@ def check_framework_is_available(func):
         framework = kwargs.get("framework", "pt")
         pt_asked_but_not_available = framework == "pt" and not is_torch_available()
         tf_asked_but_not_available = framework == "tf" and not is_tf_available()
-        if pt_asked_but_not_available or tf_asked_but_not_available:
+        if (pt_asked_but_not_available or tf_asked_but_not_available) and framework != "np":
             framework_name = "PyTorch" if framework == "pt" else "TensorFlow"
             raise RuntimeError(f"Requested the {framework_name} framework, but it does not seem installed.")
         return func(*args, **kwargs)
@@ -101,7 +102,7 @@ class DummyInputGenerator(ABC):
     @check_framework_is_available
     def random_int_tensor(shape: List[int], max_value: int, min_value: int = 0, framework: str = "pt"):
         """
-        Generates a tensor of random integers in the [min_value, max_value] range.
+        Generates a tensor of random integers in the [min_value, max_value) range.
 
         Args:
             shape (`List[int]`):
@@ -118,13 +119,16 @@ class DummyInputGenerator(ABC):
         """
         if framework == "pt":
             return torch.randint(low=min_value, high=max_value, size=shape)
-        return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.int32)
+        elif framework == "tf":
+            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.int64)
+        else:
+            return np.random.randint(min_value, high=max_value, size=shape, dtype=np.int64)
 
     @staticmethod
     @check_framework_is_available
     def random_float_tensor(shape: List[int], min_value: float = 0, max_value: float = 1, framework: str = "pt"):
         """
-        Generates a tensor of random floats in the [min_value, max_value] range.
+        Generates a tensor of random floats in the [min_value, max_value) range.
 
         Args:
             shape (`List[int]`):
@@ -142,7 +146,10 @@ class DummyInputGenerator(ABC):
         if framework == "pt":
             tensor = torch.empty(shape, dtype=torch.float32).uniform_(min_value, max_value)
             return tensor
-        return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.float32)
+        elif framework == "tf":
+            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.float32)
+        else:
+            return np.random.uniform(low=min_value, high=max_value, size=shape).astype(np.float32)
 
     @staticmethod
     @check_framework_is_available
@@ -167,7 +174,10 @@ class DummyInputGenerator(ABC):
         """
         if framework == "pt":
             return torch.full(shape, value, dtype=dtype)
-        return tf.constant(value, dtype=dtype, shape=shape)
+        elif framework == "tf":
+            return tf.constant(value, dtype=dtype, shape=shape)
+        else:
+            return np.full(shape, value, dtype=dtype)
 
     @staticmethod
     def _infer_framework_from_input(input_) -> str:
@@ -176,6 +186,8 @@ class DummyInputGenerator(ABC):
             framework = "pt"
         elif is_tf_available() and isinstance(input_, tf.Tensor):
             framework = "tf"
+        elif isinstance(input_, np.ndarray):
+            framework = "np"
         else:
             raise RuntimeError(f"Could not infer the framework from {input_}")
         return framework
@@ -198,7 +210,10 @@ class DummyInputGenerator(ABC):
         framework = cls._infer_framework_from_input(inputs[0])
         if framework == "pt":
             return torch.cat(inputs, dim=dim)
-        return tf.concat(inputs, axis=dim)
+        elif framework == "tf":
+            return tf.concat(inputs, axis=dim)
+        else:
+            return np.concatenate(inputs, axis=dim)
 
     @classmethod
     def pad_input_on_dim(

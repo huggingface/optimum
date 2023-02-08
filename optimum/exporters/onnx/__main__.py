@@ -49,6 +49,12 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
+    if args.for_ort:
+        logger.warning(
+            "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
+            " and passing it is not required anymore."
+        )
+
     # Infer the task
     task = args.task
     if task == "auto":
@@ -67,6 +73,20 @@ def main():
     model = TasksManager.get_model_from_task(
         task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
     )
+
+    if task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
+        model.config.model_type.replace("_", "-"), "onnx"
+    ):
+        if args.task == "auto":  # Make -with-past the default if --task was not explicitely specified
+            task = task + "-with-past"
+        else:
+            logger.info(
+                f"The task `{args.task}` was manually specified, and past key values will not be reused in the decoding."
+                f"Please pass `--task {args.task}-with-past` to export using the past key values."
+            )
+
+    if args.task == "auto":
+        logger.info(f"Automatic task detection to {task}.")
 
     if task != "stable-diffusion":
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
@@ -108,7 +128,7 @@ def main():
         maybe_save_preprocessors(args.model, args.output.parent)
 
     if task == "stable-diffusion" or (
-        args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+        task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm")) and not args.monolith
     ):
         if task == "stable-diffusion":
             output_names = [
@@ -156,7 +176,7 @@ def main():
 
     try:
         if task == "stable-diffusion" or (
-            args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+            task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm")) and not args.monolith
         ):
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,
