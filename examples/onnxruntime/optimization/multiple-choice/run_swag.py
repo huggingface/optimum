@@ -236,7 +236,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    os.path.join(training_args.output_dir, "model.onnx")
     optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)

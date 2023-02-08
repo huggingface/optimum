@@ -66,7 +66,7 @@ def is_onnxruntime_available():
         # will be set to `True` even if not installed.
         mod = importlib.import_module("onnxruntime")
         inspect.getsourcefile(mod)
-    except ModuleNotFoundError:
+    except Exception:
         return False
     return _onnxruntime_available
 

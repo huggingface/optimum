@@ -24,7 +24,16 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
+
 # Integrations must be imported before ML frameworks:
+# isort: off
+from transformers.integrations import (
+    hp_params,
+    is_fairscale_available,
+)
+
+# isort: on
+
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -41,12 +50,6 @@ from transformers.file_utils import (
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
     is_torch_tpu_available,
-)
-
-
-from transformers.integrations import (  # isort: split
-    hp_params,
-    is_fairscale_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.pytorch_utils import is_torch_less_than_1_11

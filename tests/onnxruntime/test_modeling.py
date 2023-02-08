@@ -419,7 +419,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_torch_gpu
     def test_model_on_gpu_str(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
-        torch.device("cuda")
         model.to("cuda")
         self.assertEqual(model.device, torch.device("cuda:0"))
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
