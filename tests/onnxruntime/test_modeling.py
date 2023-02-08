@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import gc
-import json
 import os
 import shutil
 import subprocess
@@ -54,7 +53,6 @@ import onnxruntime
 import requests
 from huggingface_hub.constants import default_cache_path
 from optimum.exporters import TasksManager
-from optimum.onnx.graph_transformations import merge_decoders
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
@@ -84,6 +82,8 @@ from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.testing_utils import grid_parameters, require_hf_token
 from parameterized import parameterized
 
+
+logger = logging.get_logger()
 
 MODEL_NAMES = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
@@ -1857,7 +1857,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool):
+    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
 
