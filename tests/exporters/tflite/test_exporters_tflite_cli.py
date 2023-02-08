@@ -12,13 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 import unittest
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
 
 import pytest
 from transformers import is_tf_available
 from transformers.testing_utils import require_tf
+
+
+sys.path.insert(0, Path(__file__).parent.parent.as_posix())
 
 from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 from optimum.utils import DEFAULT_DUMMY_SHAPES

@@ -1,4 +1,4 @@
-name: Exporters ONNX CLI / Python - Test
+name: Exporters Common / Python - Test
 
 on:
   push:
@@ -31,4 +31,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        pytest exporters/onnx/test_exporters_onnx_cli.py -s --durations=0
+        pytest exporters/common/ -s --durations=0

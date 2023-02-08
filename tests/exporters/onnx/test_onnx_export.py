@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Dict
@@ -22,6 +23,9 @@ from unittest.mock import patch
 import pytest
 from transformers import AutoConfig, is_tf_available, is_torch_available, set_seed
 from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
+
+
+sys.path.insert(0, Path(__file__).parent.parent.as_posix())
 
 from exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,

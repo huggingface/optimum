@@ -1,4 +1,4 @@
-name: Exporters / Python - Test
+name: Exporters TFLite CLI / Python - Test
 
 on:
   push:
@@ -31,4 +31,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        pytest exporters -s --durations=0
+        pytest exporters/tflite/test_exporters_tflite_cli.py -s --durations=0
