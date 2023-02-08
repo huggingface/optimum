@@ -18,10 +18,9 @@ import importlib
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
-from transformers.models import vision_encoder_decoder
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 import huggingface_hub
@@ -45,14 +44,23 @@ ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 
-def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str, TaskNameToExportConfigDict]:
+def supported_tasks_mapping(
+    *supported_tasks: Union[str, Tuple[str, Tuple[str, ...]]], **exporters: str
+) -> Dict[str, TaskNameToExportConfigDict]:
     """
     Generates the mapping between supported tasks and their corresponding `ExportConfig` for a given model, for
     every backend.
 
     Args:
-        supported_tasks (`Tuple[str]`):
+        supported_tasks (`Tuple[Union[str, Tuple[str, Tuple[str, ...]]]`):
             The names of the supported tasks.
+            If some task is supported by only a subset of all the backends, it can be specified as follows:
+                ```python
+                >>> ("multiple-choice", ("onnx",))
+                ```
+
+            The line above means that the multiple-choice task will be supported only by the ONNX backend.
+
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
@@ -71,6 +79,10 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
         config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
         mapping[backend] = {}
         for task in supported_tasks:
+            if isinstance(task, tuple):
+                task, supported_backends_for_task = task
+                if backend not in supported_backends_for_task:
+                    continue
             if "-with-past" in task:
                 mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
             else:
@@ -108,6 +120,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -143,6 +156,7 @@ class TasksManager:
         "audio-xvector": "transformers",
         "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
+        "zero-shot-object-detection": "transformers",
     }
 
     # TODO: some models here support causal-lm export but are not supported in ORTModelForCausalLM
@@ -161,6 +175,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="AlbertOnnxConfig",
+            tflite="AlbertTFLiteConfig",
         ),
         "bart": supported_tasks_mapping(
             "default",
@@ -197,6 +212,8 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BigBirdOnnxConfig",
+            # TODO: check model_config.py to know why it cannot be enabled yet.
+            # tflite="BigBirdTFLiteConfig",
         ),
         "bigbird-pegasus": supported_tasks_mapping(
             "default",
@@ -246,6 +263,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="CamembertOnnxConfig",
+            tflite="CamembertTFLiteConfig",
         ),
         "clip": supported_tasks_mapping(
             "default",
@@ -270,6 +288,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="ConvBertOnnxConfig",
+            tflite="ConvBertTFLiteConfig",
         ),
         "convnext": supported_tasks_mapping(
             "default",
@@ -307,15 +326,17 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="DebertaOnnxConfig",
+            tflite="DebertaTFLiteConfig",
         ),
         "deberta-v2": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
-            "multiple-choice",
+            ("multiple-choice", ("onnx",)),
             "token-classification",
             "question-answering",
             onnx="DebertaV2OnnxConfig",
+            tflite="DebertaV2TFLiteConfig",
         ),
         "deit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
         "detr": supported_tasks_mapping(
@@ -332,11 +353,12 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="DistilBertOnnxConfig",
+            tflite="DistilBertTFLiteConfig",
         ),
-        # "donut-swin": supported_tasks_mapping(
-        #     "default",
-        #     onnx="DonutSwinOnnxConfig",
-        # ),
+        "donut-swin": supported_tasks_mapping(
+            "default",
+            onnx="DonutSwinOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -347,6 +369,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="ElectraOnnxConfig",
+            tflite="ElectraTFLiteConfig",
         ),
         "flaubert": supported_tasks_mapping(
             "default",
@@ -356,6 +379,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="FlaubertOnnxConfig",
+            tflite="FlaubertTFLiteConfig",
         ),
         "gpt2": supported_tasks_mapping(
             "default",
@@ -481,6 +505,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MobileBertOnnxConfig",
+            tflite="MobileBertTFLiteConfig",
         ),
         "mobilevit": supported_tasks_mapping(
             "default",
@@ -505,6 +530,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MPNetOnnxConfig",
+            tflite="MPNetTFLiteConfig",
         ),
         "mt5": supported_tasks_mapping(
             "default",
@@ -529,7 +555,7 @@ class TasksManager:
             "token-classification",
             onnx="NystromformerOnnxConfig",
         ),
-        # TODO: owlvit is actually not yet supported in exporters
+        # TODO: owlvit cannot be exported yet, check model_config.py to know why.
         # "owlvit": supported_tasks_mapping(
         #     "default",
         #     "zero-shot-object-detection",
@@ -570,6 +596,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="RobertaOnnxConfig",
+            tflite="RobertaTFLiteConfig",
         ),
         "roformer": supported_tasks_mapping(
             "default",
@@ -582,6 +609,7 @@ class TasksManager:
             "question-answering",
             "token-classification",
             onnx="RoFormerOnnxConfig",
+            tflite="RoFormerTFLiteConfig",
         ),
         "segformer": supported_tasks_mapping(
             "default",
@@ -715,6 +743,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="XLMOnnxConfig",
+            tflite="XLMTFLiteConfig",
         ),
         "xlm-roberta": supported_tasks_mapping(
             "default",
@@ -726,6 +755,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="XLMRobertaOnnxConfig",
+            tflite="XLMRobertaTFLiteConfig",
         ),
         "yolos": supported_tasks_mapping(
             "default",

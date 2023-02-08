@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import subprocess
 import unittest
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
@@ -27,9 +28,7 @@ from parameterized import parameterized
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-import subprocess
-
-from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
 
 def _get_models_to_test(export_models_dict: Dict):

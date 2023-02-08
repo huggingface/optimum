@@ -14,14 +14,16 @@
 # limitations under the License.
 import unittest
 from tempfile import TemporaryDirectory
-from typing import Dict, Optional
+from typing import Dict
 
 import pytest
-from transformers import BertConfig, is_tf_available
+from transformers import is_tf_available
 from transformers.testing_utils import require_tf
 
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 from parameterized import parameterized
+
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
 
 if is_tf_available():
@@ -30,17 +32,19 @@ if is_tf_available():
 import subprocess
 
 
-MODELS_TO_TEST_FOR_TFLITE = {
-    "bert": "hf-internal-testing/tiny-random-BertModel",
-}
-
-
 def _get_models_to_test(export_models_dict: Dict):
     models_to_test = []
     if is_tf_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
-            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "tflite")
+            try:
+                task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "tflite")
+            except KeyError:
+                # In this case the model is either not supported, or the contributor forgot to register the
+                # TFLiteConfig in the TasksManager.
+                # We check that supported model was left unregistered for a backend in the TasksManager unit tests, so
+                # we can simply skip in this case here.
+                continue
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
@@ -103,9 +107,9 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
         # if len(missing_models_set) > 0:
         #     self.fail(f"Not testing all models. Missing models: {missing_models_set}")
 
-    @parameterized.expand(_get_models_to_test(MODELS_TO_TEST_FOR_TFLITE))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
-    def test_exporters_cli_pytorch(self, test_name: str, model_name: str, task: str, shapes: str):
+    def test_exporters_cli_tflite(self, test_name: str, model_name: str, task: str, shapes: str):
         self._tflite_export(test_name, model_name, task, shapes)
 
     @pytest.mark.skip("Not supported yet since we only support the export for BERT")
