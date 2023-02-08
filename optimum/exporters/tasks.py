@@ -212,6 +212,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BigBirdOnnxConfig",
+            # TODO: check model_config.py to know why it cannot be enabled yet.
             # tflite="BigBirdTFLiteConfig",
         ),
         "bigbird-pegasus": supported_tasks_mapping(

@@ -27,14 +27,7 @@ from parameterized import parameterized
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-import subprocess
-import sys
-from pathlib import Path
-
-
-sys.path.insert(0, Path(__file__).parent.parent.as_posix())
-
-from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
 
 def _get_models_to_test(export_models_dict: Dict):

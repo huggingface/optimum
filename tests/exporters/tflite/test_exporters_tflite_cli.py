@@ -12,9 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import unittest
-from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
 
@@ -22,12 +20,10 @@ import pytest
 from transformers import is_tf_available
 from transformers.testing_utils import require_tf
 
-
-sys.path.insert(0, Path(__file__).parent.parent.as_posix())
-
-from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 from parameterized import parameterized
+
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
 
 if is_tf_available():
@@ -113,7 +109,7 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
-    def test_exporters_cli_pytorch(self, test_name: str, model_name: str, task: str, shapes: str):
+    def test_exporters_cli_tflite(self, test_name: str, model_name: str, task: str, shapes: str):
         self._tflite_export(test_name, model_name, task, shapes)
 
     @pytest.mark.skip("Not supported yet since we only support the export for BERT")
