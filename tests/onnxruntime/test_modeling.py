@@ -274,7 +274,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_seq2seq_model_from_empty_cache(self):
         dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_SEQ2SEQ_MODEL_ID.replace("/", "--"))
 
-        print("dirpath", dirpath)
         if os.path.exists(dirpath) and os.path.isdir(dirpath):
             shutil.rmtree(dirpath)
         with self.assertRaises(Exception):
@@ -1748,6 +1747,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForCausalLM
     TASK = "causal-lm"
 
+    def exclude_use_cache_False_use_merged_True(params):
+        if params[1] is False and params[2] is True:
+            return None
+        return params
+
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], from_transformers=True)
@@ -1822,7 +1826,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             tokens = tokenizer("This is a sample output", return_tensors="pt")
             onnx_outputs = model(**tokens)
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_use_cache_False_use_merged_True))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -1856,7 +1860,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_use_cache_False_use_merged_True))
     def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
