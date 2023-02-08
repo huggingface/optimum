@@ -37,4 +37,5 @@ jobs:
       run: |
         # Setting HUGGINGFACE_CO_STAGING to true for only one job of the matrix as the staging tests cannot run in parallel.
         export HUGGINGFACE_CO_STAGING=${{ matrix.python-version == '3.8' && matrix.os == 'ubuntu-20.04' }}
-        python -m unittest discover -s tests -p 'test_*.py'
+        pytest tests/test_*.py
+        

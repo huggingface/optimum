@@ -32,4 +32,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        pytest tests/test_*.py
+        python -m pytest fx/optimization/test_transformations.py --exitfirst
