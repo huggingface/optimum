@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
     from ...utils import DummyInputGenerator
-    from .base import PatchingSpec
 
 logger = logging.get_logger(__name__)
 

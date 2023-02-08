@@ -51,7 +51,7 @@ from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_
 
 
 if version.parse(torch.__version__) >= version.parse("1.8"):
-    from torch.cuda.amp import autocast
+    pass
 
 
 logger = logging.get_logger(__name__)
@@ -64,7 +64,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
         inference_with_ort: bool = False,
-        **gen_kwargs
+        **gen_kwargs,
     ) -> Dict[str, float]:
         """
         Run evaluation with ONNX Runtime or PyTorch backend and returns metrics.
@@ -107,7 +107,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
         inference_with_ort: bool = False,
-        **gen_kwargs
+        **gen_kwargs,
     ) -> PredictionOutput:
         """
         Run prediction and returns predictions and potential metrics.
@@ -165,7 +165,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
     ) -> EvalLoopOutput:
-
         """
         Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
 

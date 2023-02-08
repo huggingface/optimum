@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import gc
-import json
 import os
 import shutil
 import subprocess
@@ -22,8 +21,13 @@ import unittest
 from typing import Dict
 
 import numpy as np
+import onnx
+import onnxruntime
 import pytest
+import requests
 import torch
+from huggingface_hub.constants import default_cache_path
+from parameterized import parameterized
 from PIL import Image
 from transformers import (
     AutoConfig,
@@ -49,10 +53,6 @@ from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
-import onnx
-import onnxruntime
-import requests
-from huggingface_hub.constants import default_cache_path
 from optimum.exporters import TasksManager
 from optimum.onnxruntime import (
     ONNX_DECODER_NAME,
@@ -79,7 +79,6 @@ from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.testing_utils import grid_parameters, require_hf_token
-from parameterized import parameterized
 
 
 logger = logging.get_logger()
@@ -350,7 +349,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_missing_execution_provider(self):
         with self.assertRaises(ValueError) as cm:
-            model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="ThisProviderDoesNotExist")
+            ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="ThisProviderDoesNotExist")
 
         self.assertTrue("but the available execution providers" in str(cm.exception))
 
@@ -420,7 +419,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_torch_gpu
     def test_model_on_gpu_str(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
-        gpu = torch.device("cuda")
+        torch.device("cuda")
         model.to("cuda")
         self.assertEqual(model.device, torch.device("cuda:0"))
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
@@ -2763,12 +2762,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     TASK = "vision2seq-lm"
 
     def exclude_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] == True:
+        if params[0] == "trocr" and params[1] is True:
             return None
         return params
 
     def update_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] == True:
+        if params[0] == "trocr" and params[1] is True:
             params[1] = False
         return params
 

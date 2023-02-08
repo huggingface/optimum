@@ -42,7 +42,7 @@ class TestCLI(unittest.TestCase):
             )
             subprocess.run(command, shell=True, check=True)
 
-    def test_optimize_commands(self):
+    def test_optimize_commands_O1(self):
         with tempfile.TemporaryDirectory() as tempdir:
             # First export a tiny encoder, decoder only and encoder-decoder
             export_commands = [
@@ -60,7 +60,7 @@ class TestCLI(unittest.TestCase):
                 subprocess.run(export, shell=True, check=True)
                 subprocess.run(optimize, shell=True, check=True)
 
-    def test_optimize_commands(self):
+    def test_optimize_commands_avx2(self):
         with tempfile.TemporaryDirectory() as tempdir:
             # First export a tiny encoder, decoder only and encoder-decoder
             export_commands = [

@@ -30,13 +30,12 @@ import numpy as np
 import torch
 import transformers
 from datasets import load_dataset
-from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
-from transformers import AutoFeatureExtractor, EvalPrediction, HfArgumentParser, TrainingArguments
-from transformers.onnx import FeaturesManager
-from transformers.utils.versions import require_version
-
 from evaluate import load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
+from transformers import AutoFeatureExtractor, EvalPrediction, HfArgumentParser, TrainingArguments
+from transformers.utils.versions import require_version
+
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
@@ -399,7 +398,7 @@ def main():
             eval_dataset = eval_dataset.align_labels_with_mapping(
                 label2id=model.config.label2id, label_column=labels_column
             )
-        except Exception as e:
+        except Exception:
             logger.warning(
                 f"\nModel label mapping: {model.config.label2id}"
                 f"\nDataset label features: {eval_dataset.features[labels_column]}"
@@ -418,7 +417,7 @@ def main():
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
 

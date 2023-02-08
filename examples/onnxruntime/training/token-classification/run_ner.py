@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import datasets
+import evaluate
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset
@@ -43,7 +44,6 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
-import evaluate
 from optimum.onnxruntime import ORTTrainer
 from optimum.onnxruntime.training_args import ORTTrainingArguments
 

@@ -18,18 +18,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import onnx
 import torch
+from parameterized import parameterized
 from transformers import AutoTokenizer
 
-import onnx
 from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
-from parameterized import parameterized
 
 
 class ORTOptimizerTest(unittest.TestCase):
-
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),

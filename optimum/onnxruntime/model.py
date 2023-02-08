@@ -14,18 +14,15 @@
 
 import logging
 import os
-from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 from datasets import Dataset
 from transformers import EvalPrediction
-from transformers.onnx import OnnxConfig
 from transformers.trainer_pt_utils import nested_concat
 from transformers.trainer_utils import EvalLoopOutput
 
-import onnx
-from onnxruntime import InferenceSession, SessionOptions
+from onnxruntime import InferenceSession
 
 
 logger = logging.getLogger(__name__)
@@ -65,7 +62,7 @@ class ORTModel:
             dataset (`datasets.Dataset`):
                 Dataset to use for the evaluation step.
         """
-        logger.info(f"***** Running evaluation *****")
+        logger.info("***** Running evaluation *****")
         all_preds = None
         all_labels = None
         for step, inputs in enumerate(dataset):

@@ -17,11 +17,11 @@ import unittest
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
+from parameterized import parameterized
 from transformers import is_torch_available
 from transformers.testing_utils import require_torch, require_vision
 
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
-from parameterized import parameterized
 
 
 if is_torch_available():
@@ -81,7 +81,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     """
 
     def _onnx_export(self, test_name: str, model_name: str, task: Optional[str], monolith: bool = False):
-
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
             if task is not None:
@@ -114,7 +113,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
 
         with TemporaryDirectory() as tmpdirname:
-
             task = "seq2seq-lm"
             if use_cache:
                 task += "-with-past"
@@ -146,7 +144,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 capture_output=True,
             )
             self.assertTrue(out.returncode, 1)
-            self.assertTrue(f"requires you to execute the modeling file in that repo" in out.stderr.decode("utf-8"))
+            self.assertTrue("requires you to execute the modeling file in that repo" in out.stderr.decode("utf-8"))
 
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(

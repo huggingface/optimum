@@ -14,14 +14,14 @@
 # limitations under the License.
 import unittest
 from tempfile import TemporaryDirectory
-from typing import Dict, Optional
+from typing import Dict
 
 import pytest
-from transformers import BertConfig, is_tf_available
+from parameterized import parameterized
+from transformers import is_tf_available
 from transformers.testing_utils import require_tf
 
 from optimum.utils import DEFAULT_DUMMY_SHAPES
-from parameterized import parameterized
 
 
 if is_tf_available():
@@ -117,7 +117,7 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
                 capture_output=True,
             )
             self.assertTrue(out.returncode, 1)
-            self.assertTrue(f"requires you to execute the modeling file in that repo" in out.stderr.decode("utf-8"))
+            self.assertTrue("requires you to execute the modeling file in that repo" in out.stderr.decode("utf-8"))
 
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(

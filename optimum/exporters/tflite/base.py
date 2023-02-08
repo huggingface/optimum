@@ -113,7 +113,6 @@ class TFLiteConfig(ExportConfig, ABC):
         nb_max_frames: Optional[int] = None,
         audio_sequence_length: Optional[int] = None,
     ):
-
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
         self.mandatory_axes = ()

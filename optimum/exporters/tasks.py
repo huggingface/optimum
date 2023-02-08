@@ -20,11 +20,9 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
-from transformers import PretrainedConfig, is_tf_available, is_torch_available
-from transformers.models import vision_encoder_decoder
-from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
-
 import huggingface_hub
+from transformers import PretrainedConfig, is_tf_available, is_torch_available
+from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 
 if TYPE_CHECKING:
@@ -987,7 +985,7 @@ class TasksManager:
         revision: Optional[str] = None,
         framework: Optional[str] = None,
         cache_dir: Optional[str] = None,
-        **model_kwargs
+        **model_kwargs,
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
         Retrieves a model from its name and the task to be enabled.

@@ -17,7 +17,7 @@ from typing import Dict, Optional
 import torch
 
 from ..utils import check_if_pytorch_greater, is_accelerate_available
-from .models import BetterTransformerManager, warn_uncompatible_save
+from .models import BetterTransformerManager
 
 
 if is_accelerate_available():

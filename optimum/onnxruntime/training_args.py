@@ -16,7 +16,7 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Optional
 
 from transformers import TrainingArguments
 from transformers.debug_utils import DebugOption
@@ -28,13 +28,13 @@ from transformers.trainer_utils import (
     SchedulerType,
     ShardedDDPOption,
 )
-from transformers.training_args import OptimizerNames, default_logdir, logger, trainer_log_levels
+from transformers.training_args import OptimizerNames, default_logdir, logger
 from transformers.utils import (
     ExplicitEnum,
-    add_start_docstrings,
     get_full_repo_name,
     is_torch_available,
-    is_torch_bf16_available,
+    is_torch_bf16_cpu_available,
+    is_torch_bf16_gpu_available,
     is_torch_tf32_available,
     logging,
 )
@@ -148,7 +148,6 @@ class ORTTrainingArguments(TrainingArguments):
                 self.half_precision_backend = self.fp16_backend
 
             if self.bf16 or self.bf16_full_eval:
-
                 if self.no_cuda and not is_torch_bf16_cpu_available():
                     # cpu
                     raise ValueError("Your setup doesn't support bf16/cpu. You need torch>=1.10")

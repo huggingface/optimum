@@ -20,13 +20,13 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import torch
+from huggingface_hub import hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
-from huggingface_hub import hf_hub_download
-from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export_models, get_decoder_models_for_export
@@ -129,7 +129,7 @@ class ORTModelDecoder(ORTModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Args:
@@ -374,7 +374,7 @@ class ORTModelDecoder(ORTModel):
 
                 # try download external data
                 try:
-                    model_data_cache_path = hf_hub_download(
+                    hf_hub_download(
                         repo_id=model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
@@ -546,7 +546,6 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
-
         if past_key_values is None or self.decoder_with_past is None:
             outputs = self.decoder(
                 input_ids=input_ids,

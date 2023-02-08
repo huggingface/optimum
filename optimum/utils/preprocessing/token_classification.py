@@ -1,10 +1,9 @@
 from functools import partial
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-from datasets import ClassLabel, Dataset, load_dataset
-from transformers import PreTrainedTokenizerBase, TokenClassificationPipeline
-
+from datasets import Dataset, load_dataset
 from evaluate import combine, evaluator
+from transformers import PreTrainedTokenizerBase, TokenClassificationPipeline
 
 from .base import DatasetProcessing
 
@@ -46,7 +45,7 @@ class TokenClassificationProcessing(DatasetProcessing):
             eval_dataset = eval_dataset.align_labels_with_mapping(
                 label2id=self.config.label2id, label_column=self.ref_keys[0]
             )
-        except Exception as e:
+        except Exception:
             print(
                 f"\nModel label mapping: {self.config.label2id}"
                 f"\nDataset label features: {eval_dataset.features[self.ref_keys[0]]}"

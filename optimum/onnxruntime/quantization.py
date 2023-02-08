@@ -19,11 +19,11 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
+import onnx
 from datasets import Dataset, load_dataset
 from packaging.version import Version, parse
 from transformers import AutoConfig
 
-import onnx
 from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer

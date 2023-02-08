@@ -20,9 +20,6 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import pytest
-from transformers import AutoConfig, is_tf_available, is_torch_available, set_seed
-from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
-
 from exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_STABLE_DIFFUSION_MODEL,
@@ -30,6 +27,10 @@ from exporters_utils import (
     VALIDATE_EXPORT_ON_SHAPES_FAST,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
 )
+from parameterized import parameterized
+from transformers import AutoConfig, is_tf_available, is_torch_available, set_seed
+from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
+
 from optimum.exporters.onnx import (
     OnnxConfig,
     OnnxConfigWithPast,
@@ -43,7 +44,6 @@ from optimum.exporters.onnx import (
 )
 from optimum.utils import is_diffusers_available
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
-from parameterized import parameterized
 
 
 if is_torch_available() or is_tf_available():
@@ -120,7 +120,6 @@ class OnnxConfigWithPastTestCase(TestCase):
         """
         for name, config in OnnxConfigWithPastTestCase.SUPPORTED_WITH_PAST_CONFIGS:
             with self.subTest(name):
-
                 # Without past
                 onnx_config_default = OnnxConfigWithPast(config())
                 self.assertIsNotNone(onnx_config_default.values_override, "values_override should not be None")
@@ -351,7 +350,7 @@ class OnnxExportTestCase(TestCase):
     @require_tf
     @require_vision
     def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor, monolith: bool):
-        if monolith == False:
+        if monolith is False:
             return 0
 
         self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, monolith=monolith)

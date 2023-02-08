@@ -30,13 +30,13 @@ from typing import Optional
 import datasets
 import transformers
 from datasets import load_dataset
-from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
-from transformers.onnx import FeaturesManager
-from transformers.utils import check_min_version
-from transformers.utils.versions import require_version
-
 from evaluate import load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
+from transformers.utils import check_min_version
+from transformers.utils.versions import require_version
+from utils_qa import postprocess_qa_predictions
+
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
@@ -48,8 +48,6 @@ from optimum.onnxruntime.preprocessors.passes import (
     ExcludeNodeAfter,
     ExcludeNodeFollowedBy,
 )
-from trainer_qa import QuestionAnsweringTrainer
-from utils_qa import postprocess_qa_predictions
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -676,7 +674,7 @@ def main():
         metrics = compute_metrics(predictions)
 
         # Save metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(metrics, f, indent=4, sort_keys=True)
 
     # Prediction
@@ -693,7 +691,7 @@ def main():
         metrics = compute_metrics(predictions)
 
         # Save metrics
-        with open(os.path.join(training_args.output_dir, f"predict_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "predict_results.json"), "w") as f:
             json.dump(metrics, f, indent=4, sort_keys=True)
 
 

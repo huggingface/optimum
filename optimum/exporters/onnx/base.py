@@ -27,14 +27,12 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
 
-from transformers.utils import is_torch_available
-
 import onnx
 from onnxruntime import InferenceSession
+from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES
+from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummyTrainingLabelsInputGenerator, logging
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
-from ...utils import DummyInputGenerator, DummyTrainingLabelsInputGenerator, logging
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
 
@@ -297,8 +295,6 @@ class OnnxConfig(ExportConfig, ABC):
             allowed_dynamic_axes |= set(input_.values())
         for output in self.outputs.values():
             allowed_dynamic_axes |= set(output.values())
-
-        from onnxruntime.capi import _ld_preload
 
         if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
             providers = ["CPUExecutionProvider"]
@@ -765,7 +761,6 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             "end_positions": {0: "batch_size"},
         },
         "image-classification": {"labels": {0: "batch_size"}},
-        "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
     }
     _tasks_to_extra_outputs = {
         "default": OrderedDict({"loss": {}}),

@@ -244,8 +244,8 @@ class Run(_RunDefaults, _RunBase):
         # validate `task_args`
         if self.task == "text-classification":
             message = "For text classification, whether the task is regression should be explicity specified in the task_args.is_regression key."
-            assert self.task_args != None, message
-            assert self.task_args["is_regression"] != None, message
+            assert self.task_args is not None, message
+            assert self.task_args["is_regression"] is not None, message
 
         # validate `dataset`
         if self.quantization_approach == "static":
@@ -260,7 +260,7 @@ class Run(_RunDefaults, _RunBase):
             ), "Calibration parameters should be passed for static quantization in the calibration key."
 
         # validate `aware_training`
-        assert self.aware_training == False, "Quantization-Aware Training not supported."
+        assert self.aware_training is False, "Quantization-Aware Training not supported."
 
 
 @generate_doc_dataclass

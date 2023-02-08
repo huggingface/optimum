@@ -17,12 +17,12 @@ from tempfile import NamedTemporaryFile
 from typing import Dict
 from unittest import TestCase
 
+from parameterized import parameterized
 from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf, require_vision, slow
 
 from optimum.exporters.tflite import export, validate_model_outputs
 from optimum.utils import DEFAULT_DUMMY_SHAPES
-from parameterized import parameterized
 
 
 if is_tf_available():

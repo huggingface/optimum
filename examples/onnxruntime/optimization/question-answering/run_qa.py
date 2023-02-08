@@ -24,22 +24,20 @@ import os
 import sys
 from dataclasses import dataclass, field
 from functools import partial
-from pathlib import Path
 from typing import Optional
 
 import datasets
 import transformers
 from datasets import load_dataset
+from evaluate import load
 from transformers import AutoTokenizer, EvalPrediction, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-
-from evaluate import load
-from optimum.onnxruntime import ORTModelForQuestionAnswering, ORTOptimizer
-from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
-from optimum.onnxruntime.model import ORTModel
-from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
+
+from optimum.onnxruntime import ORTModelForQuestionAnswering, ORTOptimizer
+from optimum.onnxruntime.configuration import OptimizationConfig
+from optimum.onnxruntime.model import ORTModel
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -307,7 +305,7 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
+    os.path.join(training_args.output_dir, "model.onnx")
     optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)
@@ -492,7 +490,7 @@ def main():
         metrics = compute_metrics(predictions)
 
         # Save metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(metrics, f, indent=4, sort_keys=True)
 
     # Prediction
@@ -527,7 +525,7 @@ def main():
         metrics = compute_metrics(predictions)
 
         # Save metrics
-        with open(os.path.join(training_args.output_dir, f"predict_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "predict_results.json"), "w") as f:
             json.dump(metrics, f, indent=4, sort_keys=True)
 
 

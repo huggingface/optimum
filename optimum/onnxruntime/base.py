@@ -14,7 +14,7 @@
 """Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
 
 from abc import abstractmethod
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import torch
 from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput
@@ -22,6 +22,10 @@ from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCro
 from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
+
+
+if TYPE_CHECKING:
+    from .modeling_ort import ORTModel
 
 
 class ORTModelPart:
