@@ -5,9 +5,7 @@ import os
 import subprocess
 import sys
 import unittest
-from typing import Any, Dict, Iterable
-
-from packaging import version
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 from . import is_accelerate_available, is_diffusers_available
 
@@ -96,7 +94,10 @@ def require_diffusers(test_case):
 
 
 def grid_parameters(
-    parameters: Dict[str, Iterable[Any]], yield_dict: bool = False, add_test_name: bool = True
+    parameters: Dict[str, Iterable[Any]],
+    yield_dict: bool = False,
+    add_test_name: bool = True,
+    filter_params_func: Optional[Callable[[Tuple], Tuple]] = None,
 ) -> Iterable:
     """
     Generates an iterable over the grid of all combinations of parameters.
@@ -108,8 +109,16 @@ def grid_parameters(
             If True, a dictionary with all keys, and sampled values will be returned. Otherwise, return sampled values as a list.
         `add_test_name` (`bool`, defaults to `True`):
             Whether to add the test name in the yielded list or dictionary.
+        filter_params_func (`Optional[Callable[[Tuple], Tuple]]`, defaults to `None`):
+            A function that can modify or exclude the current set of parameters. The function should take a tuple of the
+            parameters and return the same. If a parameter set is to be excluded, the function should return an empty tuple.
     """
     for params in itertools.product(*parameters.values()):
+        if filter_params_func is not None:
+            params = filter_params_func(list(params))
+            if params is None:
+                continue
+
         test_name = "_".join([str(param) for param in params])
         if yield_dict is True:
             res_dict = {}

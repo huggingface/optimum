@@ -1,12 +1,11 @@
 from functools import partial
-from typing import Dict, List
+from typing import List
 
 import torch
 from datasets import Dataset, load_dataset
+from evaluate import Metric, combine, evaluator
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers import FeatureExtractionMixin, ImageClassificationPipeline
-
-from evaluate import Metric, combine, evaluator
 
 from .base import DatasetProcessing
 
@@ -53,7 +52,7 @@ class ImageClassificationProcessing(DatasetProcessing):
 
         try:
             eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
-        except Exception as e:
+        except Exception:
             print(
                 f"\nModel label mapping: {self.config.label2id}"
                 f"\nDataset label features: {eval_dataset.features[self.ref_keys[0]]}"

@@ -15,10 +15,9 @@
 import platform
 from argparse import ArgumentParser
 
+import huggingface_hub
 from transformers import __version__ as transformers_version
 from transformers.utils import is_tf_available, is_torch_available
-
-import huggingface_hub
 
 from ..version import __version__ as version
 from . import BaseOptimumCLICommand

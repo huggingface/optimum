@@ -133,6 +133,13 @@ WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
 
+TrOCRLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
+    decoder_num_layers="decoder_layers",
+    num_layers="decoder_layers",
+    decoder_num_attention_heads="decoder_attention_heads",
+    hidden_size="cross_attention_hidden_size",
+)
+
 
 class NormalizedConfigManager:
     """
@@ -151,7 +158,6 @@ class NormalizedConfigManager:
         'convnext',
         'data2vec-text',
         'data2vec-vision',
-        'deit',
         'detr',
         'flaubert',
         'groupvit',
@@ -166,7 +172,6 @@ class NormalizedConfigManager:
         'roformer',
         'segformer',
         'squeezebert',
-        'vit',
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -183,10 +188,12 @@ class NormalizedConfigManager:
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,
         "deberta-v2": NormalizedTextConfig,
+        "deit": NormalizedVisionConfig,
         "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
+        "gpt_neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
@@ -200,7 +207,10 @@ class NormalizedConfigManager:
         "roberta": NormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
+        "trocr": TrOCRLikeNormalizedTextConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
+        "vision-encoder-decoder": NormalizedEncoderDecoderConfig,
+        "vit": NormalizedVisionConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
     }

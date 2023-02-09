@@ -16,6 +16,7 @@ import operator
 import unittest
 
 import torch
+from parameterized import parameterized
 from transformers import AutoModel, AutoModelForImageClassification, AutoTokenizer, BertModel
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.utils.fx import symbolic_trace
@@ -31,7 +32,6 @@ from optimum.fx.optimization import (
     compose,
 )
 from optimum.fx.utils import are_fx_features_available
-from parameterized import parameterized
 
 
 _MODEL_NAME = "hf-internal-testing/tiny-random-bert"

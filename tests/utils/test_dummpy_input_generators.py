@@ -18,13 +18,13 @@ from typing import TYPE_CHECKING, Tuple
 from unittest import TestCase
 
 import torch
+from parameterized import parameterized
 from transformers import AutoConfig
 from transformers.utils import is_tf_available
 
 from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters
-from parameterized import parameterized
 
 
 if TYPE_CHECKING:

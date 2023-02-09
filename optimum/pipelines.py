@@ -22,6 +22,7 @@ from transformers import (
     FillMaskPipeline,
     ImageClassificationPipeline,
     ImageSegmentationPipeline,
+    ImageToTextPipeline,
     Pipeline,
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
@@ -58,6 +59,7 @@ if is_onnxruntime_available():
         ORTModelForSequenceClassification,
         ORTModelForSpeechSeq2Seq,
         ORTModelForTokenClassification,
+        ORTModelForVision2Seq,
     )
     from .onnxruntime.modeling_ort import ORTModel
 
@@ -140,6 +142,12 @@ if is_onnxruntime_available():
             "default": "openai/whisper-tiny.en",
             "type": "multimodal",
         },
+        "image-to-text": {
+            "impl": ImageToTextPipeline,
+            "class": (ORTModelForVision2Seq,),
+            "default": "nlpconnect/vit-gpt2-image-captioning",
+            "type": "multimodal",
+        },
     }
 
 NO_FEATURE_EXTRACTOR_TASKS = set()
@@ -165,7 +173,7 @@ def load_bettertransformer(
     use_auth_token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
-    **kwargs
+    **kwargs,
 ):
     if model_kwargs is None:
         model_kwargs = {}
@@ -199,7 +207,7 @@ def load_ort_pipeline(
     use_auth_token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
-    **kwargs
+    **kwargs,
 ):
     if model_kwargs is None:
         model_kwargs = {}

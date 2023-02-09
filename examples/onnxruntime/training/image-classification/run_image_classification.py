@@ -19,6 +19,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
+import evaluate
 import numpy as np
 import torch
 import transformers
@@ -45,7 +46,6 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
-import evaluate
 from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
 

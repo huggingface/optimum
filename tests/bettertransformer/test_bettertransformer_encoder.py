@@ -16,14 +16,15 @@ import gc
 import timeit
 import unittest
 
+import pytest
 import torch
 import transformers
+from parameterized import parameterized
+from testing_bettertransformer_utils import BetterTransformersTestMixin
 from transformers import AutoModel, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
-from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_ENCODER_MODELS_TO_TEST = [
@@ -218,6 +219,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.assertTrue(torch.allclose(output_bt[0][1, 3:], torch.zeros_like(output_bt[0][1, 3:])))
         gc.collect()
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_cpu_gpu(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
@@ -225,6 +227,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "1GB", "cpu": "3GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_cpu_gpu_without_keeping(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
@@ -232,6 +235,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "1GB", "cpu": "3GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_single_gpu(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
@@ -240,6 +244,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_single_gpu_without_keeping(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
