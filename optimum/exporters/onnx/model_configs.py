@@ -455,23 +455,6 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
                 flattened_output, name, idx, t
             )
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-
-        return reference_model_inputs
-
-    @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
-
 
 class MBartOnnxConfig(BartOnnxConfig):
     pass
