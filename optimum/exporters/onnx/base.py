@@ -473,19 +473,6 @@ class OnnxConfig(ExportConfig, ABC):
         return reference_output_names
 
 
-class ConfigBehavior(str, enum.Enum):
-    """
-    Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`]:
-        - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
-        - ENCODER: the config can be used to export the encoder part of the seq2seq model.
-        - DECODER: the config can be used to export the decoder part of the seq2seq model.
-    """
-
-    MONOLITH = "monolith"
-    ENCODER = "encoder"
-    DECODER = "decoder"
-
-
 class OnnxConfigWithPast(OnnxConfig, ABC):
     """
     Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
@@ -632,6 +619,19 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
 
+class ConfigBehavior(str, enum.Enum):
+    """
+    Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`]:
+        - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
+        - ENCODER: the config can be used to export the encoder part of the seq2seq model.
+        - DECODER: the config can be used to export the decoder part of the seq2seq model.
+    """
+
+    MONOLITH = "monolith"
+    ENCODER = "encoder"
+    DECODER = "decoder"
+
+
 class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
     Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
@@ -686,30 +686,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         return common_outputs
 
-    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        name = "past_key_values" if direction == "inputs" else "present"
-        encoder_sequence = "encoder_sequence_length"
-        decoder_sequence = (
-            "past_decoder_sequence_length" if direction == "inputs" else "past_decoder_sequence_length + 1"
-        )
-        for i in range(self._normalized_config.decoder_num_layers):
-            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence}
-            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence}
-            inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
-            inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
-
-        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
-            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
-
-    def flatten_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
-        flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
-        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
-        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
-
     def override_attributes_for_behavior(self):
         """Override this to specify custom attribute change for a given behavior."""
         if self._behavior is ConfigBehavior.ENCODER:
@@ -743,6 +719,30 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             behavior=behavior,
         )
+
+    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        name = "past_key_values" if direction == "inputs" else "present"
+        encoder_sequence = "encoder_sequence_length"
+        decoder_sequence = (
+            "past_decoder_sequence_length" if direction == "inputs" else "past_decoder_sequence_length + 1"
+        )
+        for i in range(self._normalized_config.decoder_num_layers):
+            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
+
+        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
+            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
+        flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
+        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
