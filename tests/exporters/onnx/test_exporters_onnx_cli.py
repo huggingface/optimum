@@ -54,13 +54,10 @@ def _get_models_to_test(export_models_dict: Dict):
                 for task in tasks:
                     models_to_test.append((f"{model_type}_{task}", model_name, task, False))
 
-                    # task = causal-lm-with-past and monolith case is absurd
-                    if (
-                        any(
-                            task.startswith(ort_special_task)
-                            for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
-                        )
-                        and task != "causal-lm-with-past"
+                    # -with-past and monolith case are absurd, so we don't test them as not supported
+                    if any(
+                        task == ort_special_task
+                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
                     ):
                         models_to_test.append((f"{model_type}_{task}_monolith", model_name, task, True))
 
