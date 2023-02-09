@@ -56,13 +56,15 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
     @property
     def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_inputs = {"input_ids": {0: "batch_size", 1: "sequence_length"}}
         if self.use_past_in_inputs:
+            common_inputs = {"input_ids": {0: "batch_size"}}
             self.add_past_key_values(common_inputs, direction="inputs")
-            common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
         else:
-            common_inputs["attention_mask"] = {0: "batch_size", 1: "sequence_length"}
-
+            common_inputs = {
+                "input_ids": {0: "batch_size", 1: "sequence_length"},
+                "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            }
         return common_inputs
 
 
@@ -96,7 +98,10 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
+            # TODO: it is likely this pop() is unwanted as we then always hit
+            # https://github.com/huggingface/transformers/blob/v4.26.0/src/transformers/models/t5/modeling_t5.py#L965-L969
             common_inputs.pop("attention_mask")
+
             if self.use_past_in_inputs:
                 # TODO: validate the axis name for attention_mask
                 # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"

@@ -550,6 +550,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
         if self.use_past:
             input_names.append("past_key_values")
+
         for input_name in input_names:
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
