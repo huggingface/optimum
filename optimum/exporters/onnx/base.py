@@ -531,6 +531,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         self._behavior = behavior
         super().__init__(config, task=task)
+        self.override_attributes_for_behavior()
 
     @classmethod
     def with_past(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfigWithPast":

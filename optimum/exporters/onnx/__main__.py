@@ -128,7 +128,8 @@ def main():
         maybe_save_preprocessors(args.model, args.output.parent)
 
     if task == "stable-diffusion" or (
-        task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past")) and not args.monolith
+        task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
+        and not args.monolith
     ):
         if task == "stable-diffusion":
             output_names = [
