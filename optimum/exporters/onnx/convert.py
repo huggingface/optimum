@@ -18,7 +18,7 @@ import os
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
@@ -30,9 +30,6 @@ from ..error_utils import AtolError, OutputMatchError, ShapeError
 from .base import OnnxConfig
 from .utils import recursive_to_device, recursive_to_dtype
 
-
-if TYPE_CHECKING:
-    import torch
 
 if is_torch_available():
     import torch
@@ -48,6 +45,10 @@ if is_tf_available():
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
+
+
+class DynamicAxisNameError(ValueError):
+    pass
 
 
 def check_dummy_inputs_are_allowed(
@@ -632,6 +633,7 @@ def export(
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
+    export_output = None
     if opset is None:
         opset = config.DEFAULT_ONNX_OPSET
 
@@ -651,7 +653,9 @@ def export(
                 f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
                 f" got: {torch.__version__}"
             )
-        return export_pytorch(model, config, opset, output, device=device, input_shapes=input_shapes, dtype=dtype)
+        export_output = export_pytorch(
+            model, config, opset, output, device=device, input_shapes=input_shapes, dtype=dtype
+        )
 
     elif is_tf_available() and issubclass(type(model), TFPreTrainedModel):
         if device == "cuda":
@@ -664,3 +668,7 @@ def export(
         raise RuntimeError(
             "You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed."
         )
+
+    config.fix_dynamic_axes(output)
+
+    return export_output
