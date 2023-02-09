@@ -482,6 +482,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
     """
 
+    PAD_ATTENTION_MASK_TO_PAST: bool = False
     USE_PAST_IN_INPUTS: Optional[bool] = None
     USE_PRESENT_IN_OUTPUTS: Optional[bool] = None
 
@@ -574,7 +575,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                     f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to the model ONNX config.'
                 )
 
-        if self.use_past_in_inputs and "attention_mask" in dummy_inputs:
+        if self.use_past_in_inputs and "attention_mask" in dummy_inputs and self.PAD_ATTENTION_MASK_TO_PAST:
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],

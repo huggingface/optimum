@@ -51,6 +51,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     Handles decoder-based text architectures.
     """
 
+    PAD_ATTENTION_MASK_TO_PAST = True
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
 
     @property

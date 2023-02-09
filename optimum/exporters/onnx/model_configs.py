@@ -439,6 +439,17 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
                 flattened_output, name, idx, t
             )
 
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        # This will handle the attention mask padding when Bart is used for causal-lm.
+        if self.task == "causal-lm":
+            self.PAD_ATTENTION_MASK_TO_PAST = True
+
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        # Setting it back to the default version.
+        self.PAD_ATTENTION_MASK_TO_PAST = False
+        return dummy_inputs
+
 
 class MBartOnnxConfig(BartOnnxConfig):
     pass
