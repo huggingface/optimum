@@ -27,6 +27,8 @@ from huggingface_hub.utils import EntryNotFoundError
 from transformers import (
     AutoConfig,
     AutoModel,
+    AutoModelForAudioClassification,
+    AutoModelForCTC,
     AutoModelForImageClassification,
     AutoModelForMaskedLM,
     AutoModelForMultipleChoice,
@@ -38,6 +40,7 @@ from transformers import (
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
     BaseModelOutput,
+    CausalLMOutput,
     ImageClassifierOutput,
     MaskedLMOutput,
     ModelOutput,
@@ -1649,6 +1652,183 @@ class ORTModelForSemanticSegmentation(ORTModel):
                 onnx_inputs[input] = onnx_inputs[input].cpu().detach().numpy()
 
         return onnx_inputs
+
+
+AUDIO_CLASSIFICATION_EXAMPLE = r"""
+    Example of audio classification:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> import torch
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
+    >>> inputs = tokenizer(question, text, return_tensors="pt")
+    >>> start_positions = torch.tensor([1])
+    >>> end_positions = torch.tensor([3])
+A
+    >>> outputs = model(**inputs, start_positions=start_positions, end_positions=end_positions)
+    >>> start_scores = outputs.start_logits
+    >>> end_scores = outputs.end_logits
+    ```
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
+
+    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
+    >>> pred = onnx_qa(question, text)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model for sequence classification head on top (a linear layer over the pooled output) for tasks like
+    SUPERB Keyword Spotting.
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForAudioClassification(ORTModel):
+    """
+    Question Answering model for ONNX.
+    """
+
+    auto_model_class = AutoModelForAudioClassification
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + AUDIO_CLASSIFICATION_EXAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForAudioClassification",
+            checkpoint="optimum/roberta-base-squad2",
+        )
+    )
+    def forward(
+        self,
+        input_values: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        if self.device.type == "cuda" and self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_values)
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # converts output to namedtuple for pipelines post-processing
+            return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_values": input_values.cpu().detach().numpy(),
+                # "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return SequenceClassifierOutput(logits=logits)
+
+
+CTC_EXAMPLE = r"""
+    Example of audio classification:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> import torch
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
+    >>> inputs = tokenizer(question, text, return_tensors="pt")
+    >>> start_positions = torch.tensor([1])
+    >>> end_positions = torch.tensor([3])
+A
+    >>> outputs = model(**inputs, start_positions=start_positions, end_positions=end_positions)
+    >>> start_scores = outputs.start_logits
+    >>> end_scores = outputs.end_logits
+    ```
+    Example using `transformers.pipeline`:
+
+    ```python
+    >>> from transformers import {processor_class}, pipeline
+    >>> from optimum.onnxruntime import {model_class}
+
+    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
+
+    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
+    >>> pred = onnx_qa(question, text)
+    ```
+"""
+
+
+@add_start_docstrings(
+    """
+    Onnx Model for with a `language modeling` head on top for Connectionist Temporal Classification (CTC)..
+    """,
+    ONNX_MODEL_START_DOCSTRING,
+)
+class ORTModelForCTC(ORTModel):
+    """
+    Question Answering model for ONNX.
+    """
+
+    auto_model_class = AutoModelForCTC
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + CTC_EXAMPLE.format(
+            processor_class=_TOKENIZER_FOR_DOC,
+            model_class="ORTModelForCTC",
+            checkpoint="optimum/roberta-base-squad2",
+        )
+    )
+    def forward(
+        self,
+        input_values: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        if self.device.type == "cuda" and self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_values)
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            # converts output to namedtuple for pipelines post-processing
+            return CausalLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+        else:
+            # converts pytorch inputs into numpy inputs for onnx
+            onnx_inputs = {
+                "input_values": input_values.cpu().detach().numpy(),
+                # "attention_mask": attention_mask.cpu().detach().numpy(),
+            }
+
+            # run inference
+            outputs = self.model.run(None, onnx_inputs)
+            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
+
+            # converts output to namedtuple for pipelines post-processing
+            return CausalLMOutput(logits=logits)
 
 
 CUSTOM_TASKS_EXAMPLE = r"""

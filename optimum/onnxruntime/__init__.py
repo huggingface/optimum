@@ -29,7 +29,9 @@ _import_structure = {
     ],
     "modeling_ort": [
         "ORTModel",
+        "ORTModelForAudioClassification",
         "ORTModelForCustomTasks",
+        "ORTModelForCTC",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
         "ORTModelForMaskedLM",
@@ -64,6 +66,8 @@ if TYPE_CHECKING:
     from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
         ORTModel,
+        ORTModelForAudioClassification,
+        ORTModelForCTC,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
