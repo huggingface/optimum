@@ -30,6 +30,7 @@ _import_structure = {
     "modeling_ort": [
         "ORTModel",
         "ORTModelForAudioClassification",
+        "ORTModelForAudioXVector",
         "ORTModelForCustomTasks",
         "ORTModelForCTC",
         "ORTModelForFeatureExtraction",
@@ -67,6 +68,7 @@ if TYPE_CHECKING:
     from .modeling_ort import (
         ORTModel,
         ORTModelForAudioClassification,
+        ORTModelForAudioXVector,
         ORTModelForCTC,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
