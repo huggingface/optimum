@@ -54,11 +54,15 @@ def _get_models_to_test(export_models_dict: Dict):
                 for task in tasks:
                     models_to_test.append((f"{model_type}_{task}", model_name, task, False))
 
-                    if any(
-                        task.startswith(ort_special_task)
-                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
+                    # task = causal-lm-with-past and monolith case is absurd
+                    if (
+                        any(
+                            task.startswith(ort_special_task)
+                            for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
+                        )
+                        and task != "causal-lm-with-past"
                     ):
-                        models_to_test.append((f"{model_type}_{task}_forort", model_name, task, True))
+                        models_to_test.append((f"{model_type}_{task}_monolith", model_name, task, True))
 
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
@@ -80,7 +84,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     """
 
     def _onnx_export(self, test_name: str, model_name: str, task: Optional[str], monolith: bool = False):
-
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
             if task is not None:
@@ -113,7 +116,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
 
         with TemporaryDirectory() as tmpdirname:
-
             task = "seq2seq-lm"
             if use_cache:
                 task += "-with-past"

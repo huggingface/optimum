@@ -74,6 +74,12 @@ def main():
         task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
     )
 
+    if task == "causal-lm-with-past" and args.monolith is True:
+        raise ValueError(
+            "The task causal-lm-with-past is not compatible with --monolith. Please either use"
+            " `--task causal-lm --monolith`, or `--task causal-lm-with-past` without the monolith argument."
+        )
+
     if task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
