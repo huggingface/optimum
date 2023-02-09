@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from packaging import version
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from transformers.deepspeed import is_deepspeed_zero3_enabled
@@ -48,10 +47,6 @@ from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .trainer import ORTTrainer
 from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, wrap_onnx_config_for_loss
-
-
-if version.parse(torch.__version__) >= version.parse("1.8"):
-    pass
 
 
 logger = logging.get_logger(__name__)

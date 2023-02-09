@@ -25,7 +25,7 @@ REQUIRED_PKGS = [
 
 TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses", "diffusers"]
 
-QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241", "isort>=5.5.4"]
+QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241"]
 
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
