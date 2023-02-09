@@ -57,7 +57,6 @@ def main():
     # Infer the task
     task = args.task
     if task == "auto":
-        logger.info(f"Automatic task detection to {task}.")
         try:
             task = TasksManager.infer_task_from_model(args.model)
         except KeyError as e:
@@ -91,6 +90,9 @@ def main():
                 f"The task `{task}` was manually specified, and past key values will not be reused in the decoding."
                 f"Please pass `--task {task}-with-past` to export using the past key values."
             )
+
+    if task == "auto":
+        logger.info(f"Automatic task detection to {task}.")
 
     if task != "stable-diffusion":
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)

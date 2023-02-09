@@ -470,19 +470,6 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return reference_model_inputs
 
-    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
-        """
-        Returns the output names of the reference model corresponding to the output names of the ONNX model.
-        Useful to compare the outputs from the ONNX and the reference model when their output names differ.
-        Args:
-            reference_output_names ([`List[str]`):
-                The original ONNX model output names.
-        Returns:
-            `List[str]`: The corresponding reference model output names.
-        """
-        onnx_to_torch = {v: k for k, v in self.torch_to_onnx_output_map.items()}
-        return [onnx_to_torch.get(k, k) for k in reference_output_names]
-
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
     """
