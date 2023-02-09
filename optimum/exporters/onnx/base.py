@@ -577,7 +577,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                     # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
                     # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
                     if (
-                        self._behavior != ConfigBehavior.MONOLITH
+                        self._behavior is not ConfigBehavior.MONOLITH
                         and self.use_past is True
                         and input_name in ["decoder_input_ids", "input_ids"]
                     ):
