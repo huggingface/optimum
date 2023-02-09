@@ -431,14 +431,6 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
                     }
         return common_outputs
 
-    def flatten_past_key_values(self, flattened_output, name, idx, t):
-        if self.task in ["default", "seq2seq-lm"]:
-            flattened_output = super().flatten_past_key_values(flattened_output, name, idx, t)
-        else:
-            flattened_output = super(OnnxSeq2SeqConfigWithPast, self).flatten_past_key_values(
-                flattened_output, name, idx, t
-            )
-
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         # This will handle the attention mask padding when Bart is used for causal-lm.
         if self.task == "causal-lm":
@@ -449,6 +441,14 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         # Setting it back to the default version.
         self.PAD_ATTENTION_MASK_TO_PAST = False
         return dummy_inputs
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        if self.task in ["default", "seq2seq-lm"]:
+            flattened_output = super().flatten_past_key_values(flattened_output, name, idx, t)
+        else:
+            flattened_output = super(OnnxSeq2SeqConfigWithPast, self).flatten_past_key_values(
+                flattened_output, name, idx, t
+            )
 
 
 class MBartOnnxConfig(BartOnnxConfig):
