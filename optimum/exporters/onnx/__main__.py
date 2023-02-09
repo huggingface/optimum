@@ -84,7 +84,7 @@ def main():
     if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
-        if task == "auto":  # Make -with-past the default if --task was not explicitely specified
+        if args.task == "auto":  # Make -with-past the default if --task was not explicitely specified
             task = task + "-with-past"
         else:
             logger.info(
