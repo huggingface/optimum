@@ -18,11 +18,6 @@ import onnx
 from onnx import ModelProto
 
 from ..utils import logging
-
-
-logger = logging.get_logger()
-
-
 from .transformations_utils import (
     _create_name_sharing_dict,
     _deduplicated_cross_model_initializers,
@@ -34,6 +29,9 @@ from .transformations_utils import (
     _unify_onnx_outputs,
     cast_int64_tensorproto_to_int32,
 )
+
+
+logger = logging.get_logger()
 
 
 def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:

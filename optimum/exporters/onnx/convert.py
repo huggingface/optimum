@@ -21,9 +21,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-from transformers.utils import is_tf_available, is_torch_available
-
 import onnx
+from transformers.utils import is_tf_available, is_torch_available
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
@@ -33,6 +32,7 @@ from .utils import recursive_to_device
 
 
 if is_torch_available():
+    import torch
     import torch.nn as nn
     from transformers.modeling_utils import PreTrainedModel
     from transformers.pytorch_utils import is_torch_less_than_1_11
@@ -354,7 +354,6 @@ def export_pytorch(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
         the ONNX configuration.
     """
-    import torch
     from torch.onnx import export as onnx_export
     from torch.utils._pytree import tree_map
 

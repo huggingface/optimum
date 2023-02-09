@@ -12,18 +12,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
-import tempfile
 import unittest
 
 import numpy as np
 import torch
+from parameterized import parameterized
+from testing_bettertransformer_utils import BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import grid_parameters
-from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_AUDIO_MODELS_TO_TEST = [

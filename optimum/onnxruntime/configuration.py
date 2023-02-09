@@ -90,7 +90,6 @@ class CalibrationConfig:
         force_symmetric_range: bool = False,
         augmented_model_name: str = "augmented_model.onnx",
     ) -> CalibraterBase:
-
         kwargs = {
             "model": onnx_model_path,
             "op_types_to_calibrate": operators_to_quantize or [],

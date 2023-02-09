@@ -30,6 +30,7 @@ from itertools import chain
 from typing import Optional
 
 import datasets
+import evaluate
 import transformers
 from datasets import load_dataset
 from transformers import (
@@ -47,7 +48,6 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
-import evaluate
 from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
 

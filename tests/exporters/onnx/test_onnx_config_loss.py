@@ -17,7 +17,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import tensorflow as tf
+import onnxruntime
 import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -27,13 +27,12 @@ from transformers import (
 from transformers.modeling_tf_utils import TFPreTrainedModel
 from transformers.modeling_utils import PreTrainedModel
 
-import onnxruntime
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import OnnxConfigWithLoss, export
 
 # OnnxConfig wrapper
-from optimum.onnxruntime.utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from optimum.utils import DummyTextInputGenerator, normalized_config
+from optimum.onnxruntime.utils import ONNX_DECODER_NAME
+from optimum.utils import DummyTextInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
 
 
@@ -220,7 +219,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             output_names = [output.name for output in ort_sess._outputs_meta]
             input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
 
-            ort_outputs = ort_sess.run(output_names, input_feed)
+            ort_sess.run(output_names, input_feed)
 
             gc.collect()
 

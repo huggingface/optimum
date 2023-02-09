@@ -31,13 +31,13 @@ import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset
+from evaluate import load
 from transformers import AutoTokenizer, HfArgumentParser, PreTrainedTokenizer, TrainingArguments
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from evaluate import load
 from optimum.onnxruntime import ORTModelForTokenClassification, ORTOptimizer
-from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
+from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.model import ORTModel
 
 
@@ -276,7 +276,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
     optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)
@@ -357,7 +356,7 @@ def main():
                 eval_dataset = eval_dataset.align_labels_with_mapping(
                     label2id=model.config.label2id, label_column=label_column_name
                 )
-            except Exception as e:
+            except Exception:
                 logger.warning(
                     f"\nModel label mapping: {model.config.label2id}"
                     f"\nDataset label features: {eval_dataset.features[label_column_name]}"
@@ -489,7 +488,7 @@ def main():
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
     # Prediction
@@ -525,7 +524,7 @@ def main():
         ]
 
         # Save test metrics
-        with open(os.path.join(training_args.output_dir, f"predict_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "predict_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
         # Save predictions

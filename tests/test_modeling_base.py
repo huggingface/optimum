@@ -3,10 +3,10 @@ import random
 import tempfile
 import unittest
 
+import requests as r
 import torch
 from transformers.configuration_utils import PretrainedConfig
 
-import requests as r
 from optimum.modeling_base import OptimizedModel
 from optimum.utils.testing_utils import require_hf_token
 
@@ -41,7 +41,6 @@ class TestOptimizedModel(unittest.TestCase):
     @require_hf_token
     def test_push_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-
             model = DummyModel.from_pretrained(TEST_LOCAL_PATH)
             # create remote hash to check if file was updated.
             remote_hash = random.getrandbits(128)
@@ -54,6 +53,6 @@ class TestOptimizedModel(unittest.TestCase):
                 repository_id="unit_test_save_model",
             )
             # folder contains all config files and pytorch_model.bin
-            url = f"https://huggingface.co/philschmid/unit_test_save_model/raw/main/config.json"
+            url = "https://huggingface.co/philschmid/unit_test_save_model/raw/main/config.json"
             response = r.get(url)
             self.assertEqual(remote_hash, response.json()["from_local"])

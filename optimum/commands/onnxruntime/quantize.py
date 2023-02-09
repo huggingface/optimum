@@ -1,4 +1,3 @@
-from argparse import ArgumentParser
 from pathlib import Path
 
 from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig

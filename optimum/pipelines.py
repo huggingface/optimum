@@ -173,7 +173,7 @@ def load_bettertransformer(
     use_auth_token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
-    **kwargs
+    **kwargs,
 ):
     if model_kwargs is None:
         model_kwargs = {}
@@ -207,7 +207,7 @@ def load_ort_pipeline(
     use_auth_token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
-    **kwargs
+    **kwargs,
 ):
     if model_kwargs is None:
         model_kwargs = {}

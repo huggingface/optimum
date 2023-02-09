@@ -198,8 +198,6 @@ def validate_provider_availability(provider: str):
                         f"Asked to use {provider}, but `onnxruntime-gpu` package was not found. Make sure to install `onnxruntime-gpu` package instead of `onnxruntime`."
                     )
 
-            from onnxruntime.capi import _ld_preload
-
             if provider == "CUDAExecutionProvider":
                 if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
                     raise ImportError(

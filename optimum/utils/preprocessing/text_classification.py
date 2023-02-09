@@ -2,10 +2,8 @@ from functools import partial
 from typing import Dict, List
 
 from datasets import Dataset, load_dataset
-from transformers import PretrainedConfig, PreTrainedTokenizerBase, TextClassificationPipeline
-from transformers.pipelines.text_classification import ClassificationFunction
-
 from evaluate import combine, evaluator
+from transformers import PreTrainedTokenizerBase, TextClassificationPipeline
 
 from .base import DatasetProcessing
 

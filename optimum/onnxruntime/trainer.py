@@ -24,14 +24,15 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
-from tqdm.auto import tqdm
-
 
 # Integrations must be imported before ML frameworks:
-from transformers.integrations import (  # isort: split
+# isort: off
+from transformers.integrations import (
     hp_params,
     is_fairscale_available,
 )
+
+# isort: on
 
 import numpy as np
 import torch
@@ -39,14 +40,12 @@ import torch.distributed as dist
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
-from transformers import PreTrainedModel, __version__
+from tqdm.auto import tqdm
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
-    CONFIG_NAME,
-    WEIGHTS_NAME,
     is_apex_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
@@ -118,7 +117,6 @@ if is_apex_available():
 
 if is_fairscale_available():
     dep_version_check("fairscale")
-    import fairscale
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.optim import OSS
 
@@ -267,7 +265,6 @@ class ORTTrainer(Trainer):
         preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
         onnx_model_path: Union[str, os.PathLike] = None,
     ):
-
         super().__init__(
             model=model,
             args=args,
@@ -415,7 +412,6 @@ class ORTTrainer(Trainer):
                 num_train_epochs = math.ceil(args.num_train_epochs)
                 num_train_samples = self.num_examples(train_dataloader) * args.num_train_epochs
         elif args.max_steps > 0:  # Rely on max_steps when dataloader does not have a working size
-
             max_steps = args.max_steps
             # Setting a very large number of epochs so we go as many times as necessary over the iterator.
             num_train_epochs = sys.maxsize
@@ -619,7 +615,6 @@ class ORTTrainer(Trainer):
 
             step = -1
             for step, inputs in enumerate(train_dataloader):
-
                 # Skip past any already trained steps if resuming training
                 if steps_trained_in_current_epoch > 0:
                     steps_trained_in_current_epoch -= 1
@@ -951,7 +946,6 @@ class ORTTrainer(Trainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
     ) -> EvalLoopOutput:
-
         """
         Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
 
@@ -1559,7 +1553,7 @@ class ORTTrainer(Trainer):
         if self.use_apex and training:
             model, self.optimizer = amp.initialize(model, self.optimizer, opt_level=self.args.fp16_opt_level)
 
-            if args.fp16:
+            if self.args.fp16:
                 from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
 
                 self.optimizer = FP16_Optimizer(self.optimizer)
@@ -1592,9 +1586,8 @@ class ORTTrainer(Trainer):
         # Distributed training using PyTorch FSDP
         elif self.fsdp is not None:
             # PyTorch FSDP!
-            from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
+            from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload, MixedPrecision
             from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
-            from torch.distributed.fsdp.fully_sharded_data_parallel import MixedPrecision
             from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy, transformer_auto_wrap_policy
 
             if FSDPOption.OFFLOAD in self.args.fsdp:

@@ -13,7 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import argparse
 import json
 import logging
 import os
@@ -23,7 +22,7 @@ from unittest.mock import patch
 
 import torch
 from transformers.file_utils import is_apex_available
-from transformers.testing_utils import CaptureLogger, TestCasePlus, get_gpu_count, slow, torch_device
+from transformers.testing_utils import TestCasePlus, get_gpu_count, slow, torch_device
 
 
 SRC_DIRS = [
@@ -64,7 +63,6 @@ def is_cuda_and_apex_available():
 
 
 class ExamplesTests(TestCasePlus):
-
     # Text Classification Tests
     def test_run_glue(self):
         stream_handler = logging.StreamHandler(sys.stdout)
