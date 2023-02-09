@@ -503,7 +503,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: Optional[List[PatchingSpec]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
