@@ -380,7 +380,6 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def inputs_for_causal_lm(self):
-
         if self.use_past_in_inputs:
             common_inputs = {
                 "input_ids": {0: "batch_size"},
