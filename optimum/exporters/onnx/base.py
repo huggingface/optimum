@@ -477,6 +477,19 @@ class OnnxConfig(ExportConfig, ABC):
         return reference_output_names
 
 
+class ConfigBehavior(str, enum.Enum):
+    """
+    Specifies the behavior of the [`~exporters.onnx.base.OnnxConfigWithPast`]:
+        - MONOLITH: the config can be used to export the whole encoder-decoder or decoder model as a single file.
+        - ENCODER: the config can be used to export the encoder part of the model, if any.
+        - DECODER: the config can be used to export the decoder part of the model.
+    """
+
+    MONOLITH = "monolith"
+    ENCODER = "encoder"
+    DECODER = "decoder"
+
+
 class OnnxConfigWithPast(OnnxConfig, ABC):
     """
     Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
@@ -494,6 +507,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
     ):
         self.use_past = use_past
         if use_past_in_inputs is None:
@@ -502,16 +516,20 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             use_present_in_outputs = self.USE_PRESENT_IN_OUTPUTS
         self.use_past_in_inputs = use_past if use_past_in_inputs is None else use_past_in_inputs
         self.use_present_in_outputs = use_past if use_present_in_outputs is None else use_present_in_outputs
+
         if use_past != self.use_past_in_inputs:
             logger.warning(
                 f"use_past = {use_past} is different than use_past_in_inputs = {use_past_in_inputs}, the value of "
                 "use_past_in_inputs will used for the inputs."
             )
+
         if use_past != self.use_present_in_outputs:
             logger.warning(
                 f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
                 "of use_present_in_outputs value will be used for the outputs."
             )
+
+        self._behavior = behavior
         super().__init__(config, task=task)
 
     @classmethod
@@ -557,7 +575,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 if dummy_input_gen.supports_input(input_name):
                     # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
                     # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-                    if self._behavior != ConfigBehavior.MONOLITH and self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
+                    if (
+                        self._behavior != ConfigBehavior.MONOLITH
+                        and self.use_past is True
+                        and input_name in ["decoder_input_ids", "input_ids"]
+                    ):
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
@@ -621,44 +643,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return flattened_output
 
-
-class ConfigBehavior(str, enum.Enum):
-    """
-    Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`]:
-        - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
-        - ENCODER: the config can be used to export the encoder part of the seq2seq model.
-        - DECODER: the config can be used to export the decoder part of the seq2seq model.
-    """
-
-    MONOLITH = "monolith"
-    ENCODER = "encoder"
-    DECODER = "decoder"
-
-
-class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
-    """
-    Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
-    """
-
-    def __init__(
-        self,
-        config: "PretrainedConfig",
-        task: str = "default",
-        use_past: bool = False,
-        use_past_in_inputs: Optional[bool] = None,
-        use_present_in_outputs: Optional[bool] = None,
-        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
-    ):
-        super().__init__(
-            config,
-            task=task,
-            use_past=use_past,
-            use_past_in_inputs=use_past_in_inputs,
-            use_present_in_outputs=use_present_in_outputs,
-        )
-        self._behavior = behavior
-        self.override_attributes_for_behavior()
-
     def override_attributes_for_behavior(self):
         """Override this to specify custom attribute change for a given behavior."""
         if self._behavior is ConfigBehavior.ENCODER:
@@ -692,6 +676,31 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             behavior=behavior,
         )
+
+
+class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
+    """
+    Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
+    """
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "default",
+        use_past: bool = False,
+        use_past_in_inputs: Optional[bool] = None,
+        use_present_in_outputs: Optional[bool] = None,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+    ):
+        super().__init__(
+            config,
+            task=task,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+            behavior=behavior,
+        )
+        self.override_attributes_for_behavior()
 
     @property
     def outputs(self) -> Mapping[str, Mapping[int, str]]:
