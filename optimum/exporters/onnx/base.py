@@ -557,7 +557,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 if dummy_input_gen.supports_input(input_name):
                     # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
                     # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-                    if self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
+                    if self._behavior != ConfigBehavior.MONOLITH and self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(

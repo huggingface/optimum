@@ -377,6 +377,18 @@ def export_pytorch(
 
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
+        print("---- AT EXPORT")
+        for name, val in dummy_inputs.items():
+            if isinstance(val, torch.Tensor):
+                print(name, val.shape)
+            else:
+                print(name)
+                for v in val:
+                    if isinstance(v, torch.Tensor):
+                        print("   ", v.shape)
+                    else:
+                        for a in v:
+                            print("   ", a.shape)
 
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
