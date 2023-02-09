@@ -544,6 +544,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        print("------------- IN THIS generate_dummy_inputs")
         dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
 
         dummy_inputs = {}
