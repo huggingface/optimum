@@ -482,7 +482,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
     """
 
-    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH: bool = True
     USE_PAST_IN_INPUTS: Optional[bool] = None
     USE_PRESENT_IN_OUTPUTS: Optional[bool] = None
 
@@ -544,7 +543,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        print("------------- IN THIS generate_dummy_inputs")
         dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
 
         dummy_inputs = {}
@@ -555,12 +553,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    if self.use_past is True and input_name == "decoder_input_ids":
+                    # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
+                    # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+                    if self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
                                 f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 "
-                                "will be used with use_past == True for `decoder_input_ids`."
+                                f"will be used with use_past == True for `{input_name}`."
                             )
                         dummy_input_gen.sequence_length = 1
                         dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
@@ -574,15 +574,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                     f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to the model ONNX config.'
                 )
 
-        if (
-            self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH
-            and self.use_past_in_inputs
-            and "attention_mask" in dummy_inputs
-        ):
+        if self.use_past_in_inputs and "attention_mask" in dummy_inputs:
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
-                padding_length=past_length,
+                desired_length=past_length + 1,
                 dim=1,
                 dtype=dummy_inputs["attention_mask"].dtype,
             )
@@ -640,8 +636,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
     Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
     """
-
-    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
 
     def __init__(
         self,
