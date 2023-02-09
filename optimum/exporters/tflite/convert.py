@@ -122,9 +122,7 @@ def validate_model_outputs(
 
     if shape_failures:
         msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (TFLite)" for t in shape_failures)
-        raise ShapeError(
-            f"Output shapes do not match between reference model and the TFLite exported model:\n" "{msg}"
-        )
+        raise ShapeError("Output shapes do not match between reference model and the TFLite exported model:\n" "{msg}")
 
     if value_failures:
         msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)

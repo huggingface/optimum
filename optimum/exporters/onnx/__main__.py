@@ -15,7 +15,6 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 from argparse import ArgumentParser
-from pathlib import Path
 
 from transformers import AutoTokenizer
 

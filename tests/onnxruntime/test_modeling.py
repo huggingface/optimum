@@ -22,8 +22,13 @@ import unittest
 from typing import Dict
 
 import numpy as np
+import onnx
+import onnxruntime
 import pytest
+import requests
 import torch
+from huggingface_hub.constants import default_cache_path
+from parameterized import parameterized
 from PIL import Image
 from transformers import (
     AutoConfig,
@@ -49,10 +54,6 @@ from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
-import onnx
-import onnxruntime
-import requests
-from huggingface_hub.constants import default_cache_path
 from optimum.exporters import TasksManager
 from optimum.onnxruntime import (
     ONNX_DECODER_NAME,
@@ -73,13 +74,11 @@ from optimum.onnxruntime import (
     ORTModelForTokenClassification,
     ORTModelForVision2Seq,
 )
-from optimum.onnxruntime.base import ORTDecoder, ORTEncoder
+from optimum.onnxruntime.base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTDecoder as ORTSeq2SeqDecoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.testing_utils import grid_parameters, require_hf_token
-from parameterized import parameterized
 
 
 logger = logging.get_logger()
@@ -244,14 +243,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
             "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", from_transformers=True
         )
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.config, PretrainedConfig)
 
         model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-onnx-subfolder", subfolder="my_folder")
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_cache(self):
@@ -276,8 +275,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_empty_cache(self):
@@ -310,14 +309,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_seq2seq_model_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
-        self.assertIsInstance(model.decoder_with_past, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
+        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_without_past_from_hub(self):
         model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
         self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
         self.assertTrue(model.decoder_with_past is None)
         self.assertIsInstance(model.config, PretrainedConfig)
 
@@ -362,7 +361,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_missing_execution_provider(self):
         with self.assertRaises(ValueError) as cm:
-            model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="ThisProviderDoesNotExist")
+            ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="ThisProviderDoesNotExist")
 
         self.assertTrue("but the available execution providers" in str(cm.exception))
 
@@ -434,7 +433,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @pytest.mark.gpu_test
     def test_model_on_gpu_str(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
-        gpu = torch.device("cuda")
         model.to("cuda")
         self.assertEqual(model.device, torch.device("cuda:0"))
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
@@ -2375,9 +2373,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
         if onnx_model.use_cache is True:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2676,9 +2674,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
         if onnx_model.use_cache is True:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2871,12 +2869,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     SPEEDUP_CACHE = 1.2
 
     def exclude_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] == True:
+        if params[0] == "trocr" and params[1] is True:
             return None
         return params
 
     def update_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] == True:
+        if params[0] == "trocr" and params[1] is True:
             params[1] = False
         return params
 
@@ -2928,9 +2926,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        self.assertIsInstance(onnx_model.decoder, ORTSeq2SeqDecoder)
+        self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
         if onnx_model.use_cache is True:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTSeq2SeqDecoder)
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)

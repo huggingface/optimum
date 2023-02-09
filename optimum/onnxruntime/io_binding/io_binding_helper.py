@@ -102,7 +102,7 @@ class IOBindingHelper:
         else:
             try:
                 return IOBindingHelper.to_pytorch_via_cupy(ort_value)
-            except Exception as e:
+            except Exception:
                 logging.error(traceback.format_exc())
                 logging.info("Unable to access output memory in CUDA, will offload to CPU")
                 return IOBindingHelper.to_pytorch_via_numpy(ort_value)

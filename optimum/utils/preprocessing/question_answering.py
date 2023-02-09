@@ -2,9 +2,8 @@ from functools import partial
 from typing import Dict, List
 
 from datasets import Dataset, load_dataset
-from transformers import PreTrainedTokenizerBase, QuestionAnsweringPipeline
-
 from evaluate import combine, evaluator, load
+from transformers import PreTrainedTokenizerBase, QuestionAnsweringPipeline
 
 from .base import DatasetProcessing
 
