@@ -656,36 +656,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         self._behavior = behavior
         self.override_attributes_for_behavior()
 
-    @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = super(OnnxConfigWithPast, self).outputs
-        # Renaming the outputs axes properly.
-        for name, axes_names in common_outputs.items():
-            if self._behavior is ConfigBehavior.ENCODER or "encoder" in name:
-                sequence_name = "encoder_sequence_length"
-            else:
-                sequence_name = "decoder_sequence_length"
-
-            new_axes_names = {}
-            for axis_idx, axis_name in axes_names.items():
-                if "sequence" in axis_name:
-                    if not self.use_past_in_inputs:
-                        new_axes_names[axis_idx] = sequence_name
-                    else:
-                        # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
-                        new_axes_names[axis_idx] = "1"
-                else:
-                    new_axes_names[axis_idx] = axis_name
-            common_outputs[name] = new_axes_names
-
-        if self._behavior is not ConfigBehavior.ENCODER:
-            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
-        if self.use_present_in_outputs:
-            self.add_past_key_values(common_outputs, direction="outputs")
-
-        return common_outputs
-
     def override_attributes_for_behavior(self):
         """Override this to specify custom attribute change for a given behavior."""
         if self._behavior is ConfigBehavior.ENCODER:
@@ -719,6 +689,36 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             behavior=behavior,
         )
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        common_outputs = super(OnnxConfigWithPast, self).outputs
+        # Renaming the outputs axes properly.
+        for name, axes_names in common_outputs.items():
+            if self._behavior is ConfigBehavior.ENCODER or "encoder" in name:
+                sequence_name = "encoder_sequence_length"
+            else:
+                sequence_name = "decoder_sequence_length"
+
+            new_axes_names = {}
+            for axis_idx, axis_name in axes_names.items():
+                if "sequence" in axis_name:
+                    if not self.use_past_in_inputs:
+                        new_axes_names[axis_idx] = sequence_name
+                    else:
+                        # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
+                        new_axes_names[axis_idx] = "1"
+                else:
+                    new_axes_names[axis_idx] = axis_name
+            common_outputs[name] = new_axes_names
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self.use_present_in_outputs:
+            self.add_past_key_values(common_outputs, direction="outputs")
+
+        return common_outputs
 
     def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
