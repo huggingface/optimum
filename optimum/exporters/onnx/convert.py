@@ -376,6 +376,7 @@ def export_pytorch(
 
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
+
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)

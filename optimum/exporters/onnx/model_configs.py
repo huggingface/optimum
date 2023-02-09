@@ -380,20 +380,25 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def inputs_for_causal_lm(self):
-        common_inputs = {
-            "input_ids": {0: "batch_size", 1: "sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "sequence_length"},
-        }
         if self.use_past_in_inputs:
+            common_inputs = {
+                "input_ids": {0: "batch_size"},
+                "attention_mask": {0: "batch_size", 1: "past_sequence_length + 1"},
+            }
             for i in range(self._normalized_config.decoder_num_layers):
                 common_inputs[f"past_key_values.{i}.key"] = {
                     0: "batch_size",
-                    2: "past_sequence_length + sequence_length",
+                    2: "past_sequence_length",
                 }
                 common_inputs[f"past_key_values.{i}.value"] = {
                     0: "batch_size",
-                    2: "past_sequence_length + sequence_length",
+                    2: "past_sequence_length",
                 }
+        else:
+            common_inputs = {
+                "input_ids": {0: "batch_size", 1: "sequence_length"},
+                "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            }
 
         return common_inputs
 
@@ -434,12 +439,12 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         # This will handle the attention mask padding when Bart is used for causal-lm.
         if self.task == "causal-lm":
-            self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = True
+            self.PAD_ATTENTION_MASK_TO_PAST = True
 
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
 
         # Setting it back to the default version.
-        self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
+        self.PAD_ATTENTION_MASK_TO_PAST = False
         return dummy_inputs
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
