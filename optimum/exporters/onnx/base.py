@@ -575,6 +575,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                     f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to the model ONNX config.'
                 )
 
+        # refer to https://github.com/huggingface/optimum/pull/764
         if self.use_past_in_inputs and "attention_mask" in dummy_inputs and self.PAD_ATTENTION_MASK_TO_PAST:
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
