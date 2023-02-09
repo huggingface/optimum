@@ -901,7 +901,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     def prepare_inputs_for_generation(
         self,
         input_ids,
-        past=None,
+        past_key_values=None,
         attention_mask=None,
         head_mask=None,
         decoder_head_mask=None,
@@ -912,7 +912,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     ) -> Dict:
         return {
             "decoder_input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "encoder_outputs": encoder_outputs,
             "attention_mask": attention_mask,
             "head_mask": head_mask,
@@ -1006,7 +1006,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     def prepare_inputs_for_generation(
         self,
         input_ids,
-        past=None,
+        past_key_values=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
@@ -1016,7 +1016,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     ) -> Dict:
         return {
             "decoder_input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "encoder_outputs": encoder_outputs,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
@@ -1132,7 +1132,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     def prepare_inputs_for_generation(
         self,
         input_ids,
-        past=None,
+        past_key_values=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
@@ -1142,7 +1142,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     ) -> Dict:
         return {
             "decoder_input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "encoder_outputs": encoder_outputs,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
