@@ -1926,7 +1926,7 @@ class ORTModelForAudioXVector(ORTModel):
             return XVectorOutput(logits=logits, embeddings=embeddings)
 
 
-AUDIO_XVECTOR_EXAMPLE = r"""
+AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
     Example of audio classification:
 
     ```python
@@ -1977,7 +1977,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + AUDIO_XVECTOR_EXAMPLE.format(
+        + AUDIO_FRAME_CLASSIFICATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForAudioXVector",
             checkpoint="optimum/roberta-base-squad2",
