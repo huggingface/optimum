@@ -1773,7 +1773,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForCausalLM
     TASK = "causal-lm"
 
-    GENERATION_LENGTH = 120
+    GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -2334,7 +2334,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForSeq2SeqLM
     TASK = "seq2seq-lm"
 
-    GENERATION_LENGTH = 120
+    GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -2633,7 +2633,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
     TASK = "speech2seq-lm"
 
-    GENERATION_LENGTH = 120
+    GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
     def _generate_random_audio_data(self):
@@ -2867,7 +2867,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     TASK = "vision2seq-lm"
 
-    GENERATION_LENGTH = 120
+    GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
     def exclude_trocr_with_cache(params):
