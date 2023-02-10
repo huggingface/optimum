@@ -61,11 +61,9 @@ def _get_models_to_test(export_models_dict: Dict):
                     ):
                         models_to_test.append((f"{model_type}_{task}_monolith", model_name, task, True, False))
 
+                    # for other tasks, we don't test --no-post-process as there is none anyway
                     if task == "causal-lm-with-past":
                         models_to_test.append((f"{model_type}_{task}_no_postprocess", model_name, task, False, True))
-                        models_to_test.append(
-                            (f"{model_type}_{task}_monolith_no_postprocess", model_name, task, True, True)
-                        )
 
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
