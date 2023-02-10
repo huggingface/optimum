@@ -93,7 +93,6 @@ class BetterTransformerBaseLayer(nn.Module):
         else:
             self.orig_layer = orig_layer
 
-
     def validate_bettertransformer(self):
         r"""
         A wrapper function to validate the `BetterTransformer` implementation. Implements most relevant checks
@@ -170,9 +169,7 @@ class BetterTransformerBaseLayer(nn.Module):
                         )
             elif isinstance(original_layer_key_names, str):
                 if module not in self.keys_to_ignore:
-                    recurse_setattr(
-                        self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
-                    )
+                    recurse_setattr(self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names))
             else:
                 raise ValueError(
                     f"Invalid type {type(modified_layer_key_names)} for `original_layers_mapping`",
