@@ -25,7 +25,7 @@ import os
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Union
 
 import onnx
 from onnxruntime import InferenceSession
@@ -264,22 +264,22 @@ class OnnxConfig(ExportConfig, ABC):
 
     @property
     @abstractmethod
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         """
-        Mapping containing the axis definition of the input tensors to provide to the model.
+        Dict containing the axis definition of the input tensors to provide to the model.
 
         Returns:
-            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
+            `Dict[str, Dict[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
         """
         raise NotImplementedError()
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         """
-        Mapping containing the axis definition of the output tensors to provide to the model.
+        Dict containing the axis definition of the output tensors to provide to the model.
 
         Returns:
-            `Mapping[str, Mapping[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
+            `Dict[str, Dict[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
@@ -342,12 +342,12 @@ class OnnxConfig(ExportConfig, ABC):
         return ModelPatcher(self, model)
 
     @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
+    def values_override(self) -> Optional[Dict[str, Any]]:
         """
         Dictionary of keys to override in the model's config before exporting.
 
         Returns:
-            `Optional[Mapping[str, Any]]`: A dictionary specifying the configuration items to override.
+            `Optional[Dict[str, Any]]`: A dictionary specifying the configuration items to override.
         """
         if hasattr(self._config, "use_cache"):
             return {"use_cache": False}
@@ -369,17 +369,17 @@ class OnnxConfig(ExportConfig, ABC):
         return False
 
     @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
         """
         Dictionary of keys to update the ONNX input name for export. Override the function when
         the dummy input names and the exported ONNX input names need to be different.
 
         Returns:
-            `Mapping[str, str]`: A dictionary specifying the dummy input name to exported ONNX input name map.
+            `Dict[str, str]`: A dictionary specifying the dummy input name to exported ONNX input name map.
         """
         return {}
 
-    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Mapping[str, Mapping[int, str]]:
+    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
 
@@ -388,7 +388,7 @@ class OnnxConfig(ExportConfig, ABC):
                 The model for which we will use the OnnxConfig.
 
         Returns:
-            `Mapping[str, Mappingp[int, str]]`: The properly ordered inputs.
+            `Dict[str, Dictp[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
 
@@ -448,15 +448,15 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
         Args:
-            reference_model_inputs ([`Mapping[str, Tensor]`):
+            reference_model_inputs ([`Dict[str, Tensor]`):
                 Reference inputs for the model.
         Returns:
-            `Mapping[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
+            `Dict[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
         """
         return reference_model_inputs
 
@@ -528,14 +528,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return cls(config, task=task, use_past=True)
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super().outputs
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
         return common_outputs
 
     @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
+    def values_override(self) -> Optional[Dict[str, Any]]:
         if hasattr(self._config, "use_cache"):
             return {"use_cache": self.use_past_in_inputs or self.use_present_in_outputs}
 
@@ -585,12 +585,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return dummy_inputs
 
-    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         """
         Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
-            inputs_or_outputs (`Mapping[str, Mapping[int, str]]`):
+            inputs_or_outputs (`Dict[str, Dict[int, str]]`):
                 The mapping to fill.
             direction (`str`):
                 either "inputs" or "outputs", it specifies whether `input_or_outputs` is the input mapping or the
@@ -691,7 +691,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         )
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super(OnnxConfigWithPast, self).outputs
         # Renaming the outputs axes properly.
         for name, axes_names in common_outputs.items():
@@ -720,7 +720,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         return common_outputs
 
-    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
@@ -783,13 +783,13 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         return cls(config)
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         inputs = self._onnx_config.inputs
         inputs.update(self._tasks_to_extra_inputs[self.task])
         return inputs
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = self._onnx_config.outputs
         extra_outputs = self._tasks_to_extra_outputs["default"]
         common_outputs.update(extra_outputs)
@@ -824,13 +824,13 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
         return dummy_inputs
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         return self._onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
     @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
         return self._onnx_config.torch_to_onnx_input_map
 
     @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
+    def values_override(self) -> Optional[Dict[str, Any]]:
         return self._onnx_config.values_override
