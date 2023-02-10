@@ -89,9 +89,34 @@ class BetterTransformerBaseLayer(nn.Module):
         if orig_layer is not None:
             # Last step, store the old module skeleton by copying the old module and putting
             # it on the `meta` device.
-            self.orig_layer = deepcopy(orig_layer).to("meta")
+            self._orig_layer = deepcopy(orig_layer).to("meta")
         else:
-            self.orig_layer = orig_layer
+            self._orig_layer = orig_layer
+
+    def _modules(self, *args, **kwargs):
+        r"""
+        A wrapper function to get the modules of the layer by removing
+        the `_orig_layer` module.
+        """
+        modules = super()._modules(*args, **kwargs)
+        if self._orig_layer is not None:
+            modules.pop("_orig_layer")
+        return modules
+
+    def state_dict(self, *args, **kwargs):
+        r"""
+        A wrapper function to get the state dict of the layer by removing
+        the `_orig_layer` module.
+        """
+        state_dict = super().state_dict(*args, **kwargs)
+        new_state_dict = {}
+        if self._orig_layer is not None:
+            for key, value in state_dict.items():
+                if "_orig_layer" not in key:
+                    new_state_dict[key] = value
+        else:
+            new_state_dict = state_dict
+        return new_state_dict
 
     def validate_bettertransformer(self):
         r"""
@@ -163,17 +188,19 @@ class BetterTransformerBaseLayer(nn.Module):
                 for i, module in enumerate(original_layer_key_names):
                     if module not in self.keys_to_ignore:
                         recurse_setattr(
-                            self.orig_layer,
+                            self._orig_layer,
                             module,
                             nn.Parameter(current_weight[i * split_index : (i + 1) * split_index]),
                         )
             elif isinstance(original_layer_key_names, str):
                 if module not in self.keys_to_ignore:
-                    recurse_setattr(self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names))
+                    recurse_setattr(
+                        self._orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
+                    )
             else:
                 raise ValueError(
                     f"Invalid type {type(modified_layer_key_names)} for `original_layers_mapping`",
                     " please use either `str` or `list`.",
                 )
 
-        return self.orig_layer
+        return self._orig_layer

@@ -40,6 +40,71 @@ def raise_save_or_push_incompatible(dummy, /, *_, **__):
     )
 
 
+def create_device_map(model, device_map):
+    r"""
+    Creates a new detailed device_map for the model to ignore the `_orig_layer` attribute
+    by excplitly setting it to the `meta` device.
+
+    Args:
+        `model` (`torch.nn.Module`):
+            The model to create the device map for.
+        `device_map` (`Dict[str, str]`):
+            The device map to use as a base for the new device map.
+    """
+    new_device_map = {}
+
+    for keys in model.state_dict():
+        new_key = keys
+
+        # if any of the key starts with any of the key in
+        # `device_map`, assign it with the correct value
+        for old_key in device_map:
+            if keys.startswith(old_key):
+                new_device_map[keys] = device_map[old_key]
+
+        # check if `orig_layer` is in keys and set it
+        # on the `meta` device
+        if "_orig_layer" in keys:
+            new_device_map[new_key] = "meta"
+
+    # remove duplicates check if no key starts with any other key
+    # in `device_map`
+    keys_to_remove = []
+    for key in new_device_map:
+        for other_key in new_device_map:
+            if key != other_key and key.startswith(other_key) and other_key not in keys_to_remove:
+                keys_to_remove.append(other_key)
+
+    for key in keys_to_remove:
+        new_device_map.pop(key)
+
+    return new_device_map
+
+
+def post_process_accelerate_models(model):
+    r"""
+    Apply some post-processing on `accelerate` loaded models by:
+
+    - removing the `_orig_layer` keys on `hf_device_map` attribute
+    - checking that no other keys are on the `meta` device except the ones above
+    - removing the modules that starts with `_orig_layer` from self._modules
+    """
+    device_map = model.hf_device_map.copy()
+    for key, _ in model.hf_device_map.items():
+        if "_orig_layer" in key:
+            del device_map[key]
+
+    if "meta" in set(device_map.values()):
+        raise ValueError(
+            " Conversion failed ! The model has been loaded with `accelerate` but some of the keys are still on the `meta` device."
+            " This is not expected and should be reported as a bug."
+        )
+
+    model.hf_device_map = device_map
+
+    return model
+
+
 def replace_to_bettertransformer(model, config):
     r"""
     Replaces the current model to its `BetterTransformer` implementation. Loops recursively into the model and replaces the
@@ -215,11 +280,6 @@ class BetterTransformer(object):
         else:
             load_accelerate = False
 
-        if hasattr(model, "use_bettertransformer") and model.use_bettertransformer is True:
-            raise Exception(
-                "`BetterTransform.transform()` was called on a model already using Better Transformer modeling."
-            )
-
         if BetterTransformerManager.cannot_support(model.config.model_type):
             raise ValueError(
                 f"The model type {model.config.model_type} can not be supported to be used with BetterTransformer. The identified reason is:"
@@ -265,11 +325,28 @@ class BetterTransformer(object):
 
         # Step 7: dispatch model if `accelerate` is enabled
         if load_accelerate:
-            device_map_bt = infer_auto_device_map(model_fast, max_memory=max_memory)
+            if max_memory is not None:
+                no_split_class = BetterTransformerManager.MODEL_MAPPING[model_fast.config.model_type][1].__name__
 
-            remove_hook_from_module(model_fast, recurse=True)
+                device_map_bt = infer_auto_device_map(
+                    model_fast, max_memory=max_memory, no_split_module_classes=no_split_class
+                )
+            else:
+                device_map_bt = model.hf_device_map if model is not None else infer_auto_device_map(model_fast)
+
+            total_devices = set(device_map_bt.values())
+            if len(total_devices) > 1:
+                raise ValueError(
+                    "The `BetterTransformer` model can only be used with a single device when loading a model with `accelerate`. "
+                )
+
+            model_fast = remove_hook_from_module(model_fast, recurse=True)
+
+            device_map_bt = create_device_map(model_fast, device_map_bt)
 
             model_fast = dispatch_model(model_fast, device_map_bt)
+
+            model_fast = post_process_accelerate_models(model_fast)
 
             if keep_original_model:
                 # It is not recommended to have `keep_original_model=True` with a model
