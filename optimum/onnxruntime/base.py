@@ -41,9 +41,11 @@ class ORTModelPart:
     ):
         self.session = session
         self.parent_model = parent_model
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-            self.parent_model.config.model_type
-        )(self.parent_model.config)
+        self.normalized_config = None
+        if self.parent_model.use_io_binding:
+            self.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                self.parent_model.config.model_type
+            )(self.parent_model.config)
         self.main_input_name = self.parent_model.main_input_name
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}

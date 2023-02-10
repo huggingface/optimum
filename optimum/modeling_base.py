@@ -120,7 +120,8 @@ class OptimizedModel(ABC):
 
         os.makedirs(save_directory, exist_ok=True)
 
-        self.config.save_pretrained(save_directory)
+        if hasattr(self.config, "save_pretrained"):
+            self.config.save_pretrained(save_directory)
         for preprocessor in self.preprocessors:
             preprocessor.save_pretrained(save_directory)
         self._save_pretrained(save_directory)
@@ -281,7 +282,7 @@ class OptimizedModel(ABC):
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
-        from_transformers: bool = False,
+        export: bool = False,
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
@@ -295,6 +296,13 @@ class OptimizedModel(ABC):
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
+        from_transformers = kwargs.pop("from_transformers", None)
+        if from_transformers is not None:
+            logger.warning(
+                "The argument `from_transformers` is deprecated, and will be removed in optimum 2.0.  Use `export` instead"
+            )
+            export = from_transformers
+
         revision = None
         if len(str(model_id).split("@")) == 2:
             model_id, revision = model_id.split("@")
@@ -309,7 +317,15 @@ class OptimizedModel(ABC):
                         f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
                     )
                 else:
-                    raise OSError(f"config.json not found in {model_id} local folder")
+                    # raise OSError(f"config.json not found in {model_id} local folder")
+                    config = cls._load_config(
+                        model_id,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        use_auth_token=use_auth_token,
+                        force_download=force_download,
+                        subfolder=subfolder,
+                    )
             else:
                 config = cls._load_config(
                     model_id,
@@ -329,14 +345,14 @@ class OptimizedModel(ABC):
                 subfolder=subfolder,
             )
 
-        if not from_transformers and trust_remote_code is not False:
+        if not export and trust_remote_code is not False:
             logger.warning(
-                "The argument `trust_remote_code` is to be used along with from_transformers=True. It will be ignored."
+                "The argument `trust_remote_code` is to be used along with export=True. It will be ignored."
             )
-        elif from_transformers and trust_remote_code is None:
+        elif export and trust_remote_code is None:
             trust_remote_code = False
 
-        from_pretrained_method = cls._from_transformers if from_transformers else cls._from_pretrained
+        from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
         return from_pretrained_method(
             model_id=model_id,
             config=config,

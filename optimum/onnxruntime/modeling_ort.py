@@ -213,11 +213,11 @@ class ORTModel(OptimizedModel):
             )
 
         self._use_io_binding = use_io_binding
-
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
-        self.auto_model_class.register(AutoConfig, self.__class__)
+        if hasattr(self.auto_model_class, "register"):
+            self.auto_model_class.register(AutoConfig, self.__class__)
 
         # Define the pattern here to avoid recomputing it everytime.
         self.output_shape_inference_pattern = re.compile(r"([a-zA-Z_]+)|([0-9]+)|([+-/*])|([\(\)])")
@@ -358,13 +358,12 @@ class ORTModel(OptimizedModel):
                 Directory where to save the model file.
         """
         src_paths = [self.model_path]
-        dst_file_names = [self.model_path.name]
+        dst_paths = [Path(save_directory) / self.model_path.name]
 
         # add external data paths in case of large models
-        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+        src_paths, dst_paths = _get_external_data_paths(src_paths, dst_paths)
 
-        for src_path, dst_file_name in zip(src_paths, dst_file_names):
-            dst_path = Path(save_directory) / dst_file_name
+        for src_path, dst_path in zip(src_paths, dst_paths):
             shutil.copyfile(src_path, dst_path)
 
     @staticmethod
@@ -578,7 +577,7 @@ class ORTModel(OptimizedModel):
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
-        from_transformers: bool = False,
+        export: bool = False,
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
@@ -607,7 +606,7 @@ class ORTModel(OptimizedModel):
         """
         return super().from_pretrained(
             model_id,
-            from_transformers=from_transformers,
+            export=export,
             force_download=force_download,
             use_auth_token=use_auth_token,
             cache_dir=cache_dir,
