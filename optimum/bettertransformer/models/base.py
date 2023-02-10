@@ -93,30 +93,6 @@ class BetterTransformerBaseLayer(nn.Module):
         else:
             self._orig_layer = orig_layer
 
-    def _modules(self, *args, **kwargs):
-        r"""
-        A wrapper function to get the modules of the layer by removing
-        the `_orig_layer` module.
-        """
-        modules = super()._modules(*args, **kwargs)
-        if self._orig_layer is not None:
-            modules.pop("_orig_layer")
-        return modules
-
-    def state_dict(self, *args, **kwargs):
-        r"""
-        A wrapper function to get the state dict of the layer by removing
-        the `_orig_layer` module.
-        """
-        state_dict = super().state_dict(*args, **kwargs)
-        new_state_dict = {}
-        if self._orig_layer is not None:
-            for key, value in state_dict.items():
-                if "_orig_layer" not in key:
-                    new_state_dict[key] = value
-        else:
-            new_state_dict = state_dict
-        return new_state_dict
 
     def validate_bettertransformer(self):
         r"""
