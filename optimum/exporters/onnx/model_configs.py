@@ -658,7 +658,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
         }
 
     @property
-    def torch_to_onnx_output_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
         return {
             "sample": "out_sample",
         }
