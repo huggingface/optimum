@@ -657,8 +657,11 @@ class UNetOnnxConfig(VisionOnnxConfig):
             "out_sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
 
-    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
-        return ["sample"]
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        return {
+            "sample": "out_sample",
+        }
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
