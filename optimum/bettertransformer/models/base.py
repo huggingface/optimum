@@ -89,9 +89,9 @@ class BetterTransformerBaseLayer(nn.Module):
         if orig_layer is not None:
             # Last step, store the old module skeleton by copying the old module and putting
             # it on the `meta` device.
-            self._orig_layer = deepcopy(orig_layer).to("meta")
+            self.orig_layer = deepcopy(orig_layer).to("meta")
         else:
-            self._orig_layer = orig_layer
+            self.orig_layer = orig_layer
 
 
     def validate_bettertransformer(self):
@@ -164,14 +164,14 @@ class BetterTransformerBaseLayer(nn.Module):
                 for i, module in enumerate(original_layer_key_names):
                     if module not in self.keys_to_ignore:
                         recurse_setattr(
-                            self._orig_layer,
+                            self.orig_layer,
                             module,
                             nn.Parameter(current_weight[i * split_index : (i + 1) * split_index]),
                         )
             elif isinstance(original_layer_key_names, str):
                 if module not in self.keys_to_ignore:
                     recurse_setattr(
-                        self._orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
+                        self.orig_layer, original_layer_key_names, getattr(self, modified_layer_key_names)
                     )
             else:
                 raise ValueError(
@@ -179,4 +179,4 @@ class BetterTransformerBaseLayer(nn.Module):
                     " please use either `str` or `list`.",
                 )
 
-        return self._orig_layer
+        return self.orig_layer

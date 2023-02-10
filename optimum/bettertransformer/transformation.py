@@ -42,7 +42,7 @@ def raise_save_or_push_incompatible(dummy, /, *_, **__):
 
 def create_device_map(model, device_map):
     r"""
-    Creates a new detailed device_map for the model to ignore the `_orig_layer` attribute
+    Creates a new detailed device_map for the model to ignore the `orig_layer` attribute
     by excplitly setting it to the `meta` device.
 
     Args:
@@ -64,7 +64,7 @@ def create_device_map(model, device_map):
 
         # check if `orig_layer` is in keys and set it
         # on the `meta` device
-        if "_orig_layer" in keys:
+        if "orig_layer" in keys:
             new_device_map[new_key] = "meta"
 
     # remove duplicates check if no key starts with any other key
@@ -85,13 +85,13 @@ def post_process_accelerate_models(model):
     r"""
     Apply some post-processing on `accelerate` loaded models by:
 
-    - removing the `_orig_layer` keys on `hf_device_map` attribute
+    - removing the `orig_layer` keys on `hf_device_map` attribute
     - checking that no other keys are on the `meta` device except the ones above
-    - removing the modules that starts with `_orig_layer` from self._modules
+    - removing the modules that starts with `orig_layer` from self._modules
     """
     device_map = model.hf_device_map.copy()
     for key, _ in model.hf_device_map.items():
-        if "_orig_layer" in key:
+        if "orig_layer" in key:
             del device_map[key]
 
     if "meta" in set(device_map.values()):
