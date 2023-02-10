@@ -229,7 +229,12 @@ class ORTModelDecoder(ORTModel):
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
         name, extension = filename.rsplit(".", maxsplit=1)
-        return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}", f"{name}_merged.{extension}"]
+        return [
+            filename,
+            f"{name}_quantized.{extension}",
+            f"{name}_optimized.{extension}",
+            f"{name}_merged.{extension}",
+        ]
 
     @staticmethod
     def load_model(
@@ -339,7 +344,7 @@ class ORTModelDecoder(ORTModel):
             )
         else:
             decoder_path = model_path / subfolder / decoder_file_name
-        
+
         decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
         if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
@@ -493,7 +498,7 @@ class ORTModelDecoder(ORTModel):
     ) -> "ORTModelDecoder":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
-        
+
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to ORTModelForCausalLM.from_pretrained()."
@@ -626,10 +631,9 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
-
         if self.use_merged is True:
             use_cache_branch, past_key_values, is_dummy = self.prepare_inputs_for_merged(input_ids, past_key_values)
-        
+
         if past_key_values is None or self.decoder_with_past is None:
             outputs = self.decoder(
                 input_ids=input_ids,
