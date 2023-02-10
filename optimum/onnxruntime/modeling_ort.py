@@ -347,7 +347,7 @@ class ORTModel(OptimizedModel):
             provider_options=providers_options,
         )
 
-    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME, **kwargs):
+    def _save_pretrained(self, save_directory: Union[str, Path], **kwargs):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
@@ -356,11 +356,9 @@ class ORTModel(OptimizedModel):
         Args:
             save_directory (`Union[str, Path]`):
                 Directory where to save the model file.
-            file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
-                The filename to use when saving the model.
         """
         src_paths = [self.model_path]
-        dst_file_names = [file_name]
+        dst_file_names = [self.model_path.name]
 
         # add external data paths in case of large models
         src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)

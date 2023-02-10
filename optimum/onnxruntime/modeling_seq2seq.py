@@ -510,15 +510,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         return encoder_session, decoder_session, decoder_with_past_session
 
-    def _save_pretrained(
-        self,
-        save_directory: Union[str, Path],
-        # TODO: should we make the default values available here?
-        encoder_file_name: str = ONNX_ENCODER_NAME,
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        **kwargs,
-    ):
+    def _save_pretrained(self, save_directory: Union[str, Path]):
         """
         Saves the model encoder, decoder and decoder with past key values as well as its configuration file to a
         directory, so that it can be re-loaded using the
@@ -527,21 +519,12 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         Args:
             save_directory (`Union[str, Path`]):
                 The directory where to save the model files.
-            encoder_file_name(`str`, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
-                The encoder model file name. Overwrites the default file name and allows one to save the encoder model
-                with a different name.
-            decoder_file_name(`str`, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
-                with a different name.
-            decoder_with_past_file_name(`str`, defaults to `optimum.onnxruntime.ONNX_DECODER_WITH_PAST_NAME`):
-                The decoder with past key values model file name overwriting the default file name, allowing to save
-                the decoder model with a different name.
         """
         src_paths = [self.encoder_model_path, self.decoder_model_path]
-        dst_file_names = [encoder_file_name, decoder_file_name]
+        dst_file_names = [self.encoder_model_path.name, self.decoder_model_path.name]
         if self.use_cache:
             src_paths.append(self.decoder_with_past_model_path)
-            dst_file_names.append(decoder_with_past_file_name)
+            dst_file_names.append(self.decoder_with_past_model_path.name)
 
         # add external data paths in case of large models
         src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)

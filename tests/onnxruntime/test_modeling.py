@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from typing import Dict
 
 import numpy as np
@@ -1770,6 +1771,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
+        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForCausalLM
@@ -1777,11 +1779,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.2
-
-    def exclude_use_cache_False_use_merged_True(params):
-        if params[1] is False and params[2] is True:
-            return None
-        return params
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -1816,62 +1813,72 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_transformers(self, model_arch):
+    def test_merge_from_transformers_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_merged=True)
         with tempfile.TemporaryDirectory() as tmpdir:
             model.save_pretrained(tmpdir)
-            save_path = os.path.join(tmpdir, ONNX_DECODER_NAME)
-            assert has_onnx_input(save_path, "use_cache")
+            save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
+            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
 
             folder_contents = os.listdir(tmpdir)
+            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
             self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_onnx(self, model_arch):
+    def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         task = "causal-lm-with-past"
         with tempfile.TemporaryDirectory() as tmpdir:
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                f"optimum-cli export onnx --model {model_id} --for-ort --task {task} {tmpdir}",
                 shell=True,
                 check=True,
             )
 
-            config = AutoConfig.from_pretrained(model_id, use_cache=True)
-            model = ORTModelForCausalLM.from_pretrained(
-                model_id=tmpdir,
-                decoder_file_name="decoder_model.onnx",
-                decoder_with_past_file_name="decoder_with_past_model.onnx",
-                config=config,
-                use_cache=False,
-                use_merged=True,
-            )
+            model = ORTModelForCausalLM.from_pretrained(tmpdir)
 
-            save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
-            folder_contents = os.listdir(tmpdir)
-            self.assertTrue(ONNX_DECODER_MERGED_NAME in folder_contents)
-            assert has_onnx_input(save_path, "use_cache")
+            model.save_pretrained(tmpdir + "_save")
+            save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
+            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
 
-            tokenizer = get_preprocessor(model_id)
-            tokens = tokenizer("This is a sample output", return_tensors="pt")
-            model(**tokens)
+            folder_contents = os.listdir(tmpdir + "_save")
+            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
+            self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
 
-    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_use_cache_False_use_merged_True))
+    @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[test_name],
             use_cache=use_cache,
-            use_merged=use_merged,
         )
+        if use_merged is False:
+            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
+            self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
+            self.assertEqual(onnx_model.use_merged, False)
+        else:
+            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
+            self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
+            self.assertEqual(onnx_model.use_merged, True)
 
         self.assertIsInstance(onnx_model.decoder, ORTDecoder)
         if onnx_model.use_cache is True and onnx_model.use_merged is False:
             self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+        if onnx_model.use_cache is True and onnx_model.use_merged is True:
+            self.assertTrue(onnx_model.decoder_with_past is None)
+
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1891,17 +1898,25 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_use_cache_False_use_merged_True))
+    @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        if use_cache is False and use_merged is True:
+            unittest.skip("use_cache=False, use_merged=True are uncompatible")
+
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[test_name],
             use_cache=use_cache,
-            use_merged=use_merged,
         )
+
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -2029,9 +2044,21 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
         )
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
-        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
+        model_args = {
+            "test_name": test_name + "_True",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": True,
+        }
+        self._setup(model_args)
+        model_args = {
+            "test_name": test_name + "_False",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": False,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
@@ -2039,20 +2066,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt")
 
-        model_merged = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"],
-            use_merged=True,
-        )
+        model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
+        model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
+
+        model_not_merged = ORTModelForCausalLM.from_pretrained(model_not_merged_dir)
+        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
+        self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
+        self.assertEqual(model_not_merged.use_merged, False)
+
+        model_merged = ORTModelForCausalLM.from_pretrained(model_merged_dir)
+        merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
+        self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
+        self.assertEqual(model_merged.decoder_with_past, None)
+        self.assertEqual(model_merged.use_merged, True)
+
+        outputs_model_not_merged = model_not_merged.generate(**tokens)
         outputs_model_merged = model_merged.generate(**tokens)
 
-        model_not_merged = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"],
-            use_merged=False,
-        )
-        outputs_model_not_merged = model_not_merged.generate(**tokens)
-
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
-        self.assertEqual(model_merged.decoder_with_past, None)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu

@@ -274,13 +274,7 @@ class ORTModelDecoder(ORTModel):
 
         return decoder_session, decoder_with_past_session
 
-    def _save_pretrained(
-        self,
-        save_directory: Union[str, Path],
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        **kwargs,
-    ):
+    def _save_pretrained(self, save_directory: Union[str, Path]):
         """
         Saves the model decoder and decoder with past key values as well as its configuration file to a
         directory, so that it can be re-loaded using the
@@ -289,19 +283,13 @@ class ORTModelDecoder(ORTModel):
         Args:
             save_directory (`str` or `Path`):
                 The directory where to save the model files.
-            decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
-                with a different name.
-            decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
-                The decoder with past key values model file name overwriting the default file name, allowing to save
-                the decoder model with a different name.
         """
         src_paths = [self.decoder_model_path]
-        dst_file_names = [decoder_file_name]
+        dst_file_names = [self.decoder_model_path.name]
 
         if self.use_cache and not self.use_merged:
             src_paths.append(self.decoder_with_past_model_path)
-            dst_file_names.append(decoder_with_past_file_name)
+            dst_file_names.append(self.decoder_with_past_model_path.name)
 
         # add external data paths in case of large models
         src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
@@ -538,7 +526,9 @@ class ORTModelDecoder(ORTModel):
         )
 
         if use_merged is True:
-            _, _ = onnx_config.post_process_exported_models(models_and_onnx_configs, onnx_files_subpaths)
+            _, _ = onnx_config.post_process_exported_models(
+                save_dir_path, models_and_onnx_configs, onnx_files_subpaths
+            )
 
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
@@ -586,33 +576,6 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
 
-    def prepare_inputs_for_merged(
-        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
-    ):
-        # Prepare use cache
-        if past_key_values is not None and self.use_merged:  # Uses "with past" branch of a merged decoder
-            use_cache = torch.full((1,), True).to(self._device)
-        elif self.use_merged:  # Uses "no past" branch of a merged decoder
-            use_cache = torch.full((1,), False).to(self._device)
-        else:  # Uses separate decoders
-            use_cache = None
-
-        # Prepare past key values
-        is_dummy = False
-        if (
-            self.use_merged and past_key_values is None
-        ):  # Generate dummy past for the first forward if uses a merged decoder
-            batch_size = input_ids.size(0)
-            num_attention_heads = self.normalized_config.num_attention_heads
-            hidden_size = self.normalized_config.hidden_size
-            embed_size_per_head = hidden_size // num_attention_heads
-            shape = (batch_size, num_attention_heads, 1, embed_size_per_head)  # "1" is the dummy sequence length
-            key_or_value = torch.zeros(shape, dtype=torch.float32).to(self._device)
-            past_key_values = [key_or_value for _ in range(len(self.key_value_input_names))]
-            is_dummy = True
-
-        return use_cache, past_key_values, is_dummy
-
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
         + TEXT_GENERATION_EXAMPLE.format(
@@ -629,13 +592,11 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
-        if self.use_merged is True:
-            use_cache_branch, past_key_values, is_dummy = self.prepare_inputs_for_merged(input_ids, past_key_values)
-
-        if past_key_values is None or self.decoder_with_past is None:
+        if past_key_values is None or self.use_cache is False:
             outputs = self.decoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
+                past_key_values=past_key_values,
             )
         elif self.use_merged is True:
             outputs = self.decoder(

@@ -15,6 +15,7 @@
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional
 
 from transformers import is_torch_available
@@ -75,31 +76,28 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             }
         return common_inputs
 
-    def post_process_exported_models(self, models_and_onnx_configs, onnx_files_subpaths):
+    def post_process_exported_models(self, path: Path, models_and_onnx_configs, onnx_files_subpaths):
         if self.use_past is True:
             if onnx_files_subpaths is not None:
-                decoder_subpath = onnx_files_subpaths[0]
-                decoder_with_past_subpath = onnx_files_subpaths[1]
+                decoder_path = Path(path, onnx_files_subpaths[0])
+                decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             else:
-                decoder_subpath = ONNX_DECODER_NAME + ".onnx"
-                decoder_with_past_subpath = ONNX_DECODER_WITH_PAST_NAME + ".onnx"
-            decoder_merged_subpath = ONNX_DECODER_MERGED_NAME + ".onnx"
+                decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
+                decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
                 merge_decoders(
-                    decoder=decoder_subpath,
-                    decoder_with_past=decoder_with_past_subpath,
-                    save_path=decoder_merged_subpath,
+                    decoder=decoder_path,
+                    decoder_with_past=decoder_with_past_path,
+                    save_path=decoder_merged_path,
                 )
             except Exception as e:
-                logger.error(
-                    f"Unable to merge decoders, separate decoder and decoder-with-past will be used. Detailed error: {e}"
-                )
-                return models_and_onnx_configs, onnx_files_subpaths
-            os.remove(decoder_subpath)
-            os.remove(decoder_with_past_subpath)
+                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+            os.remove(decoder_path)
+            os.remove(decoder_with_past_path)
 
             # in order to do the validation of the two branches on the same file
-            onnx_files_subpaths = [decoder_merged_subpath, decoder_merged_subpath]
+            onnx_files_subpaths = [decoder_merged_path.name, decoder_merged_path.name]
 
             # we validate the two branches of the decoder model then
             models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True

@@ -472,7 +472,9 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return reference_output_names
 
-    def post_process_exported_models(self, models_and_onnx_configs: Tuple, onnx_files_subpaths: List[str]):
+    def post_process_exported_models(
+        self, path: "Path", models_and_onnx_configs: Tuple, onnx_files_subpaths: List[str]
+    ):
         """
         Performs any model-specific post-processing on the ONNX.
 
