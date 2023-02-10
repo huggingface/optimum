@@ -93,7 +93,7 @@ def parse_args_onnx(parser):
         help="Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.",
     )
     optional_group.add_argument(
-        "--disable-post-process",
+        "--no-post-process",
         action="store_true",
         help=(
             "Allows to disable any post-processing done by default on the exported ONNX models. This is for example the merging of decoder"

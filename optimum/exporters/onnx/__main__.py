@@ -171,7 +171,7 @@ def main():
     )
 
     # optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
-    if not args.disable_post_process:
+    if not args.no_post_process:
         models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
             args.output, models_and_onnx_configs, onnx_files_subpaths
         )
