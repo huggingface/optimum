@@ -626,6 +626,10 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
+
+        if self.use_merged is True:
+            use_cache_branch, past_key_values, is_dummy = self.prepare_inputs_for_merged(input_ids, past_key_values)
+        
         if past_key_values is None or self.decoder_with_past is None:
             outputs = self.decoder(
                 input_ids=input_ids,
