@@ -23,7 +23,8 @@ from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, is_diffusers_available
 from ..tasks import TasksManager
-from .constants import ONNX_ENCODER_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+
 
 if TYPE_CHECKING:
     from .base import OnnxConfig

@@ -260,7 +260,7 @@ def validate_model_outputs(
             onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
         else:
             onnx_inputs[name] = value.cpu().numpy()
-    
+
     print("----- onnx_inputs:")
     for name, val in onnx_inputs.items():
         print(name, val.shape)

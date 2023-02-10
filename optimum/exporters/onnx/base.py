@@ -448,11 +448,11 @@ class OnnxConfig(ExportConfig, ABC):
         """
         Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
-    
+
         Args:
             reference_model_inputs ([`Mapping[str, Tensor]`):
                 Reference inputs for the model.
-        
+
         Returns:
             `Mapping[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
         """
@@ -466,12 +466,12 @@ class OnnxConfig(ExportConfig, ABC):
         Args:
             reference_output_names ([`List[str]`):
                 The original ONNX model output names.
-        
+
         Returns:
             `List[str]`: The corresponding reference model output names.
         """
         return reference_output_names
-    
+
     def post_process_exported_models(self, path: "Path", models_and_onnx_configs, output_names):
         """
         Performs any model-specific post-processing on the ONNX.

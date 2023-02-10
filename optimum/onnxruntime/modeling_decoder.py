@@ -30,7 +30,6 @@ import onnxruntime
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export_models, get_decoder_models_for_export
-from ..onnx import merge_decoders
 from ..onnx.utils import _get_external_data_paths, has_onnx_input
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
@@ -38,7 +37,6 @@ from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessor
 from .base import ORTDecoder
 from .modeling_ort import ORTModel
 from .utils import (
-    ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     get_provider_for_device,
@@ -340,9 +338,9 @@ class ORTModelDecoder(ORTModel):
                 f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
                 f"{cls.__name__} might not behave as expected."
             )
-        
+
         decoder_with_past_path = None
-        use_merged = has_onnx_input(decoder_path, "use_cache_branch")            
+        use_merged = has_onnx_input(decoder_path, "use_cache_branch")
 
         decoder_with_past_path = None
         if use_cache is True or not use_merged:
@@ -427,7 +425,7 @@ class ORTModelDecoder(ORTModel):
                 decoder_with_past_path = new_model_save_dir / last_decoder_with_past_name
 
             decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
-                
+
         model = cls.load_model(
             decoder_path=decoder_path,
             decoder_with_past_path=decoder_with_past_path,
@@ -567,7 +565,6 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     def prepare_inputs_for_merged(
         self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
     ):
-
         # Prepare use cache
         if past_key_values is not None and self.use_merged:  # Uses "with past" branch of a merged decoder
             use_cache = torch.full((1,), True).to(self._device)

@@ -13,9 +13,8 @@
 #  limitations under the License.
 import copy
 import os
-from collections import defaultdict
 from pathlib import Path
-from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
+from typing import Optional, Union
 
 import onnx
 from onnx import ModelProto

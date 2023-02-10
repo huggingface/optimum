@@ -24,7 +24,7 @@ from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs
+from .convert import export_models, validate_models_outputs
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
@@ -168,9 +168,7 @@ def main():
     # optionally post process the obtained .onnx, for example to merge the decoder / decoder with past
     if not args.disable_post_process:
         models_and_onnx_configs, onnx_outputs = onnx_config.post_process_exported_models(
-            args.output,
-            models_and_onnx_configs,
-            onnx_outputs
+            args.output, models_and_onnx_configs, onnx_outputs
         )
     print("len(models_and_onnx_configs)", len(models_and_onnx_configs))
 

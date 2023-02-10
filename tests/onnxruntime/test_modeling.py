@@ -1855,7 +1855,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
             tokenizer = get_preprocessor(model_id)
             tokens = tokenizer("This is a sample output", return_tensors="pt")
-            onnx_outputs = model(**tokens)
+            model(**tokens)
 
     @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_use_cache_False_use_merged_True))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
@@ -2038,7 +2038,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer = get_preprocessor(model_id)
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt")
-        
+
         model_merged = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"],
             use_merged=True,

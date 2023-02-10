@@ -98,7 +98,7 @@ def parse_args_onnx(parser):
         help=(
             "Allows to disable any post-processing done by default on the exported ONNX models. This is for example the merging of decoder"
             " and decoder-with-past into a single ONNX with If node."
-        )
+        ),
     )
 
     input_group = parser.add_argument_group(
