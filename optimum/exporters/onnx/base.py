@@ -25,7 +25,7 @@ import os
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 import onnx
 from onnxruntime import InferenceSession
@@ -472,7 +472,9 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return reference_output_names
 
-    def post_process_exported_models(self, path: "Path", models_and_onnx_configs, output_names):
+    def post_process_exported_models(
+        self, path: "Path", models_and_onnx_configs: Tuple, onnx_files_subpaths: List[str]
+    ):
         """
         Performs any model-specific post-processing on the ONNX.
 
@@ -480,7 +482,7 @@ class OnnxConfig(ExportConfig, ABC):
             path (`Path`):
                 Path to the directory of the stored ONNX model.
         """
-        return models_and_onnx_configs, output_names
+        return models_and_onnx_configs, onnx_files_subpaths
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
@@ -519,6 +521,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
                 "of use_present_in_outputs value will be used for the outputs."
             )
+        self.is_merged = False
+        self.use_cache_branch = None
         super().__init__(config, task=task)
 
     @classmethod
@@ -564,7 +568,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 if dummy_input_gen.supports_input(input_name):
                     # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
                     # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-                    if self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
+                    if (
+                        self.use_past is True
+                        and self.use_cache_branch is not False
+                        and input_name in ["decoder_input_ids", "input_ids"]
+                    ):
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
@@ -584,7 +592,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 )
 
         # refer to https://github.com/huggingface/optimum/pull/764
-        if self.use_past_in_inputs and "attention_mask" in dummy_inputs and self.PAD_ATTENTION_MASK_TO_PAST:
+        if (
+            self.use_past_in_inputs
+            and "attention_mask" in dummy_inputs
+            and self.PAD_ATTENTION_MASK_TO_PAST
+            and self.use_cache_branch is not False
+        ):
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
@@ -812,6 +825,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         input_name, _ = next(iter(self._onnx_config.inputs.items()))
         batch_size = dummy_inputs[input_name].shape[0]
 
+        # TODO: doesn't this break attention_mask generation?
         if isinstance(self._onnx_config, OnnxSeq2SeqConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
             kwargs["sequence_length"] = 1
 

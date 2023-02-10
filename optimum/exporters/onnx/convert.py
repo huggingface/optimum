@@ -79,10 +79,10 @@ def validate_models_outputs(
     models_and_onnx_configs: Dict[
         str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
     ],
-    onnx_named_outputs: List[str],
+    onnx_named_outputs: List[List[str]],
     output_dir: Path,
     atol: Optional[float] = None,
-    output_names: Optional[List[str]] = None,
+    onnx_files_subpaths: Optional[List[str]] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
 ):
@@ -93,15 +93,15 @@ def validate_models_outputs(
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
             A dictionnary containing the models to validate and their corresponding onnx configs.
-        onnx_named_outputs (`List[str]`):
+        onnx_named_outputs (`List[List[str]]`):
             The names of the outputs to check.
         output_dir (`Path`):
             Output directory where the exported ONNX models are stored.
         atol (`Optional[float]`, defaults to `None`):
             The absolute tolerance in terms of outputs difference between the reference and the exported model.
-        output_names (`Optional[List[str]]`, defaults to `None`):
-            The names to use for the exported ONNX files. The order must be the same as the order of submodels in the ordered dict `models_and_onnx_configs`.
-            If None, will use the keys from the `models_and_onnx_configs` as names.
+        onnx_files_subpaths (`Optional[List[str]]`, defaults to `None`):
+            The relative paths from `output_dir` to the ONNX files to do validation on. The order must be the same as the order of submodels
+            in the ordered dict `models_and_onnx_configs`. If None, will use the keys from the `models_and_onnx_configs` as names.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes to validate the ONNX model on.
         device (`str`, defaults to `"cpu"`):
@@ -115,16 +115,16 @@ def validate_models_outputs(
             f"Invalid number of ONNX named outputs. Required {len(models_and_onnx_configs.keys())}, Provided {len(onnx_named_outputs)}"
         )
 
-    if output_names is not None and len(output_names) != len(models_and_onnx_configs):
+    if onnx_files_subpaths is not None and len(onnx_files_subpaths) != len(models_and_onnx_configs):
         raise ValueError(
-            f"Provided custom names {output_names} for the validation of {len(models_and_onnx_configs)} models. Please provide the same number of ONNX file names as models to export."
+            f"Provided custom names {onnx_files_subpaths} for the validation of {len(models_and_onnx_configs)} models. Please provide the same number of ONNX file names as models to export."
         )
 
     for i, model_name in enumerate(models_and_onnx_configs.keys()):
         submodel, sub_onnx_config = models_and_onnx_configs[model_name]
         onnx_model_path = (
-            output_dir.joinpath(output_names[i])
-            if output_names is not None
+            output_dir.joinpath(onnx_files_subpaths[i])
+            if onnx_files_subpaths is not None
             else output_dir.joinpath(model_name + ".onnx")
         )
         validate_model_outputs(
@@ -249,21 +249,18 @@ def validate_model_outputs(
         else:
             ref_outputs_dict[name] = value
 
-    # Create onnxruntime inputs from the reference model inputs
-    reference_model_inputs_for_validation = config.generate_dummy_inputs_for_validation(reference_model_inputs)
+    # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
+    # models where the input `use_cache_branch` is added
+    reference_ort_inputs = config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}
-    for name, value in reference_model_inputs_for_validation.items():
+    for name, value in reference_ort_inputs.items():
         if isinstance(value, (list, tuple)):
             value = config.flatten_output_collection_property(name, value)
             onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
         else:
             onnx_inputs[name] = value.cpu().numpy()
-
-    print("----- onnx_inputs:")
-    for name, val in onnx_inputs.items():
-        print(name, val.shape)
 
     # Compute outputs from the ONNX model
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)

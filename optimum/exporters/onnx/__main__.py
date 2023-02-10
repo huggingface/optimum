@@ -133,7 +133,7 @@ def main():
         maybe_save_preprocessors(args.model, args.output)
 
     if task == "stable-diffusion":
-        output_names = [
+        onnx_files_subpaths = [
             "text_encoder/model.onnx",
             "unet/model.onnx",
             "vae_encoder/model.onnx",
@@ -153,7 +153,7 @@ def main():
                 f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
             )
 
-        output_names = None
+        onnx_files_subpaths = None
         if model.config.is_encoder_decoder and not args.monolith:
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
         elif task.startswith("causal-lm") and not args.monolith:
@@ -161,23 +161,20 @@ def main():
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}
 
-    onnx_inputs, onnx_outputs = export_models(
+    _, onnx_outputs = export_models(
         models_and_onnx_configs=models_and_onnx_configs,
         opset=args.opset,
         output_dir=args.output,
-        output_names=output_names,
+        output_names=onnx_files_subpaths,
         input_shapes=input_shapes,
         device=args.device,
     )
 
-    print("------------- type onnx_config:", type(onnx_config))
-    print("onnx_config.use_past:", onnx_config.use_past)
-    # optionally post process the obtained .onnx, for example to merge the decoder / decoder with past
+    # optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     if not args.disable_post_process:
-        models_and_onnx_configs, onnx_outputs = onnx_config.post_process_exported_models(
-            args.output, models_and_onnx_configs, onnx_outputs
+        models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
+            args.output, models_and_onnx_configs, onnx_files_subpaths
         )
-    print("len(models_and_onnx_configs)", len(models_and_onnx_configs))
 
     try:
         validate_models_outputs(
@@ -185,7 +182,7 @@ def main():
             onnx_named_outputs=onnx_outputs,
             atol=args.atol,
             output_dir=args.output,
-            output_names=output_names,
+            onnx_files_subpaths=onnx_files_subpaths,
             input_shapes=input_shapes,
             device=args.device,
         )
