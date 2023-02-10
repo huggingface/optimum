@@ -27,14 +27,12 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
 
-from transformers.utils import is_torch_available
-
 import onnx
 from onnxruntime import InferenceSession
+from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES
+from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummyTrainingLabelsInputGenerator, logging
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
-from ...utils import DummyInputGenerator, DummyTrainingLabelsInputGenerator, logging
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
 
@@ -228,6 +226,11 @@ class OnnxConfig(ExportConfig, ABC):
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        # TODO: enable that and verify that once OwlViTOnnxConfig can work.
+        # "zero-shot-object-detection": OrderedDict({
+        #     "logits": {0: "batch_size"},
+        #     "pred_boxes": {0: "batch_size"},
+        # }),
     }
 
     def __init__(self, config: "PretrainedConfig", task: str = "default"):
@@ -293,8 +296,6 @@ class OnnxConfig(ExportConfig, ABC):
             allowed_dynamic_axes |= set(input_.values())
         for output in self.outputs.values():
             allowed_dynamic_axes |= set(output.values())
-
-        from onnxruntime.capi import _ld_preload
 
         if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
             providers = ["CPUExecutionProvider"]
@@ -487,7 +488,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
     """
 
-    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH: bool = True
+    PAD_ATTENTION_MASK_TO_PAST: bool = False
     USE_PAST_IN_INPUTS: Optional[bool] = None
     USE_PRESENT_IN_OUTPUTS: Optional[bool] = None
 
@@ -495,7 +496,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         self,
         config: "PretrainedConfig",
         task: str = "default",
-        patching_specs: Optional[List[PatchingSpec]] = None,
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -507,11 +507,13 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             use_present_in_outputs = self.USE_PRESENT_IN_OUTPUTS
         self.use_past_in_inputs = use_past if use_past_in_inputs is None else use_past_in_inputs
         self.use_present_in_outputs = use_past if use_present_in_outputs is None else use_present_in_outputs
+
         if use_past != self.use_past_in_inputs:
             logger.warning(
                 f"use_past = {use_past} is different than use_past_in_inputs = {use_past_in_inputs}, the value of "
                 "use_past_in_inputs will used for the inputs."
             )
+
         if use_past != self.use_present_in_outputs:
             logger.warning(
                 f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
@@ -555,16 +557,19 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
         if self.use_past:
             input_names.append("past_key_values")
+
         for input_name in input_names:
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    if self.use_past is True and input_name == "decoder_input_ids":
+                    # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
+                    # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+                    if self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
                                 f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 "
-                                "will be used with use_past == True for `decoder_input_ids`."
+                                f"will be used with use_past == True for `{input_name}`."
                             )
                         dummy_input_gen.sequence_length = 1
                         dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
@@ -578,15 +583,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                     f'Could not generate dummy input for "{input_name}". Try adding a proper dummy input generator to the model ONNX config.'
                 )
 
-        if (
-            self.PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH
-            and self.use_past_in_inputs
-            and "attention_mask" in dummy_inputs
-        ):
+        # refer to https://github.com/huggingface/optimum/pull/764
+        if self.use_past_in_inputs and "attention_mask" in dummy_inputs and self.PAD_ATTENTION_MASK_TO_PAST:
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
-                padding_length=past_length,
+                desired_length=past_length + 1,
                 dim=1,
                 dtype=dummy_inputs["attention_mask"].dtype,
             )
@@ -644,8 +646,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
     Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
     """
-
-    PAD_ATTENTION_MASK_TO_MATCH_TOTAL_SEQUENCE_LENGTH = False
 
     def __init__(
         self,
@@ -775,7 +775,6 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             "end_positions": {0: "batch_size"},
         },
         "image-classification": {"labels": {0: "batch_size"}},
-        "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
     }
     _tasks_to_extra_outputs = {
         "default": OrderedDict({"loss": {}}),

@@ -7,8 +7,6 @@ import sys
 import unittest
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
-from packaging import version
-
 from . import is_accelerate_available, is_diffusers_available
 
 

@@ -13,23 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import subprocess
 import unittest
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
+from parameterized import parameterized
 from transformers import is_torch_available
 from transformers.testing_utils import require_torch, require_vision
 
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
-from parameterized import parameterized
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-import subprocess
-
-from exporters_utils import PYTORCH_EXPORT_MODELS_TINY
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
 
 def _get_models_to_test(export_models_dict: Dict):
@@ -55,11 +54,12 @@ def _get_models_to_test(export_models_dict: Dict):
                 for task in tasks:
                     models_to_test.append((f"{model_type}_{task}", model_name, task, False))
 
+                    # -with-past and monolith case are absurd, so we don't test them as not supported
                     if any(
-                        task.startswith(ort_special_task)
+                        task == ort_special_task
                         for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
                     ):
-                        models_to_test.append((f"{model_type}_{task}_forort", model_name, task, True))
+                        models_to_test.append((f"{model_type}_{task}_monolith", model_name, task, True))
 
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
@@ -81,7 +81,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     """
 
     def _onnx_export(self, test_name: str, model_name: str, task: Optional[str], monolith: bool = False):
-
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
             if task is not None:
@@ -114,7 +113,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
 
         with TemporaryDirectory() as tmpdirname:
-
             task = "seq2seq-lm"
             if use_cache:
                 task += "-with-past"
@@ -146,7 +144,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 capture_output=True,
             )
             self.assertTrue(out.returncode, 1)
-            self.assertTrue(f"requires you to execute the modeling file in that repo" in out.stderr.decode("utf-8"))
+            self.assertTrue("requires you to execute the modeling file in that repo" in out.stderr.decode("utf-8"))
 
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(

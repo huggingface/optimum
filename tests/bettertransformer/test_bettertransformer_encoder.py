@@ -19,12 +19,12 @@ import unittest
 import pytest
 import torch
 import transformers
+from parameterized import parameterized
+from testing_bettertransformer_utils import BetterTransformersTestMixin
 from transformers import AutoModel, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
-from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_ENCODER_MODELS_TO_TEST = [

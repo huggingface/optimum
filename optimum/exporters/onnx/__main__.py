@@ -15,7 +15,6 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 from argparse import ArgumentParser
-from pathlib import Path
 
 from transformers import AutoTokenizer
 
@@ -182,6 +181,7 @@ def main():
             atol=args.atol,
             output_dir=args.output,
             output_names=output_names,
+            input_shapes=input_shapes,
             device=args.device,
         )
         logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.as_posix()}")

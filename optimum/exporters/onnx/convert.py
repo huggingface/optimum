@@ -21,9 +21,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-from transformers.utils import is_tf_available, is_torch_available
-
 import onnx
+from transformers.utils import is_tf_available, is_torch_available
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
@@ -359,7 +358,6 @@ def export_pytorch(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
-    import torch
     from torch.onnx import export as onnx_export
     from torch.utils._pytree import tree_map
 
@@ -382,6 +380,7 @@ def export_pytorch(
 
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
+
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)

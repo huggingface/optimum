@@ -32,13 +32,12 @@ import datasets
 import numpy as np
 import transformers
 from datasets import ClassLabel, load_dataset
+from evaluate import load
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from transformers import AutoTokenizer, HfArgumentParser, PretrainedConfig, PreTrainedTokenizer, TrainingArguments
-from transformers.onnx import FeaturesManager
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from evaluate import load
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
@@ -354,7 +353,7 @@ def main():
                 label2id=label2id,
                 label_column=label_column_name,
             )
-        except Exception as e:
+        except Exception:
             logger.warning(
                 f"\nModel label mapping: {label2id}"
                 f"\nDataset label features: {eval_dataset.features[label_column_name]}"
@@ -581,7 +580,7 @@ def main():
         outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
     # Prediction
@@ -618,7 +617,7 @@ def main():
         ]
 
         # Save test metrics
-        with open(os.path.join(training_args.output_dir, f"predict_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "predict_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
         # Save predictions

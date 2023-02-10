@@ -47,7 +47,7 @@ jobs:
       run: |
         source venv/bin/activate
         black --check .
-    - name: Check style with isort
+    - name: Check style with ruff
       run: |
         source venv/bin/activate
-        isort --check .
+        ruff .

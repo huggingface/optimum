@@ -16,11 +16,11 @@ import os
 import tempfile
 import unittest
 
+from huggingface_hub import HfFolder, delete_repo, set_access_token
+from requests.exceptions import HTTPError
 from transformers.testing_utils import TOKEN, USER, is_staging_test
 
-from huggingface_hub import HfFolder, delete_repo, set_access_token
 from optimum.configuration_utils import BaseConfig
-from requests.exceptions import HTTPError
 
 
 class FakeConfig(BaseConfig):

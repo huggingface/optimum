@@ -24,13 +24,12 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import torch
+from huggingface_hub import hf_hub_download
 from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoModelForVision2Seq, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 import onnxruntime as ort
-from huggingface_hub import hf_hub_download
-from onnxruntime import InferenceSession
 
 from ..exporters.onnx import export_models, get_encoder_decoder_models_for_export
 from ..exporters.tasks import TasksManager
@@ -39,7 +38,7 @@ from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.normalized_config import NormalizedConfigManager
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
+from .base import ORTDecoderForSeq2Seq, ORTEncoder
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
@@ -414,6 +413,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The generation configuration used by default when calling `generate()`.
                 Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
+
         # TODO: remove at version 2.0
         def show_deprecated_argument(arg_name):
             if kwargs.pop(arg_name, None) is not None:
@@ -685,7 +685,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 )
                 # try download external data
                 try:
-                    model_data_cache_path = hf_hub_download(
+                    hf_hub_download(
                         repo_id=model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
@@ -871,7 +871,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
@@ -902,19 +901,18 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     def prepare_inputs_for_generation(
         self,
         input_ids,
-        past=None,
+        past_key_values=None,
         attention_mask=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
         use_cache=None,
         encoder_outputs=None,
-        **kwargs
+        **kwargs,
     ) -> Dict:
-
         return {
             "decoder_input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "encoder_outputs": encoder_outputs,
             "attention_mask": attention_mask,
             "head_mask": head_mask,
@@ -980,7 +978,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_features=input_features)
@@ -1009,18 +1006,17 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     def prepare_inputs_for_generation(
         self,
         input_ids,
-        past=None,
+        past_key_values=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
         use_cache=None,
         encoder_outputs=None,
-        **kwargs
+        **kwargs,
     ) -> Dict:
-
         return {
             "decoder_input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "encoder_outputs": encoder_outputs,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
@@ -1065,7 +1061,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             encoder_session,
@@ -1108,7 +1104,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(pixel_values=pixel_values)
@@ -1137,18 +1132,17 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     def prepare_inputs_for_generation(
         self,
         input_ids,
-        past=None,
+        past_key_values=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
         use_cache=None,
         encoder_outputs=None,
-        **kwargs
+        **kwargs,
     ) -> Dict:
-
         return {
             "decoder_input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "encoder_outputs": encoder_outputs,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,

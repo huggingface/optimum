@@ -14,15 +14,15 @@
 # limitations under the License.
 import unittest
 
+import requests
 import torch
+from parameterized import parameterized
 from PIL import Image
+from testing_bettertransformer_utils import BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
-import requests
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import grid_parameters
-from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersTestMixin
 
 
 ALL_VISION_MODELS_TO_TEST = [

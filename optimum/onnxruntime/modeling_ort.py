@@ -19,10 +19,12 @@ import shutil
 from inspect import signature
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
+from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
 from transformers import (
     AutoConfig,
     AutoModel,
@@ -48,8 +50,6 @@ from transformers.modeling_outputs import (
 )
 
 import onnxruntime as ort
-from huggingface_hub import HfApi, HfFolder, hf_hub_download
-from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
@@ -487,7 +487,7 @@ class ORTModel(OptimizedModel):
 
             # try download external data
             try:
-                model_data_cache_path = hf_hub_download(
+                hf_hub_download(
                     repo_id=model_id,
                     subfolder=subfolder,
                     filename=file_name + "_data",
@@ -682,7 +682,7 @@ class ORTModel(OptimizedModel):
         *model_inputs: torch.Tensor,
         known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
         forward_function: Optional[Callable[..., Any]] = None,
-        outputs_to_not_bind: Optional[Union[Set[str], str]] = None
+        outputs_to_not_bind: Optional[Union[Set[str], str]] = None,
     ) -> Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
         """
         Prepares IO binding for ONNX Runtime.
