@@ -33,7 +33,7 @@ ONNX_WEIGHTS_NAME = "model.onnx"
 ONNX_ENCODER_NAME = "encoder_model.onnx"
 ONNX_DECODER_NAME = "decoder_model.onnx"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
-ONNX_DECODER_MERGED_NAME = "decoder_merged_model.onnx"
+ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
 
 
 def _is_gpu_available():

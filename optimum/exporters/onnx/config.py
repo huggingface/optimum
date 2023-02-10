@@ -32,7 +32,7 @@ from ...utils import (
     logging,
 )
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 
 
 if is_torch_available():
@@ -78,22 +78,25 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
     def post_process_exported_models(self, path: Path, models_and_onnx_configs, onnx_files_subpaths):
         if self.use_past is True:
+            decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
             decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
                 merge_decoders(
-                    decoder=Path(path, ONNX_DECODER_NAME + ".onnx"),
+                    decoder=decoder_path,
                     decoder_with_past=decoder_with_past_path,
-                    save_path=Path(path, ONNX_DECODER_NAME + ".onnx"),
+                    save_path=decoder_merged_path,
                 )
             except Exception as e:
                 logger.error(
                     f"Unable to merge decoders, separate decoder and decoder-with-past will be used. Detailed error: {e}"
                 )
                 return models_and_onnx_configs, onnx_files_subpaths
+            os.remove(decoder_path)
             os.remove(decoder_with_past_path)
 
             # in order to do the validation of the two branches on the same file
-            onnx_files_subpaths = [ONNX_DECODER_NAME + ".onnx", ONNX_DECODER_NAME + ".onnx"]
+            onnx_files_subpaths = [decoder_merged_path, decoder_merged_path]
 
             # we validate the two branches of the decoder model then
             models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True

@@ -19,3 +19,4 @@ EXTERNAL_DATA_FORMAT_SIZE_LIMIT = 2 * 1024 * 1024 * 1024
 ONNX_ENCODER_NAME = "encoder_model"
 ONNX_DECODER_NAME = "decoder_model"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model"
+ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
