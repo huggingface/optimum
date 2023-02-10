@@ -64,7 +64,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.use_past_in_inputs:
             common_inputs = {"input_ids": {0: "batch_size"}}
             self.add_past_key_values(common_inputs, direction="inputs")
@@ -142,7 +142,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
@@ -152,7 +152,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return {}
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = {}
         if self._behavior is not ConfigBehavior.DECODER:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
@@ -202,7 +202,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return dummy_inputs_generators
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
@@ -235,7 +235,7 @@ class AudioOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"input_values": {0: "batch_size", 1: "sequence_length"}}
 
 
@@ -247,7 +247,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = {}
 
         if self._behavior is not ConfigBehavior.DECODER:
@@ -268,7 +268,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return common_inputs
 
     @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
@@ -277,7 +277,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
             }
         return {}
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
@@ -351,7 +351,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
 
     @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
@@ -360,7 +360,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             }
         return {}
 
-    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         if self.is_decoder_with_past:
             return self._decoder_onnx_config.add_past_key_values(inputs_or_outputs, direction)
 
@@ -371,7 +371,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
@@ -379,7 +379,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return reference_model_inputs
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super().outputs
         # This is handled by OnnxSeq2SeqConfigWithPast, but not by OnnxConfigWithPast, so we take care of this here to
         # make sure this output is moved at the end.

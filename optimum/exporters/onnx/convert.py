@@ -266,7 +266,8 @@ def validate_model_outputs(
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
 
     # Modify the ONNX output names to match the reference model output names
-    onnx_named_outputs = config.output_names_for_validation(onnx_named_outputs)
+    onnx_to_torch = {v: k for k, v in config.torch_to_onnx_output_map.items()}
+    onnx_named_outputs = [onnx_to_torch.get(k, k) for k in onnx_named_outputs]
 
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
     ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)

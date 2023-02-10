@@ -90,7 +90,7 @@ def main():
                 f" if needed, please pass `--task {args.task}-with-past` to export using the past key values."
             )
 
-    if args.task == "auto":
+    if task == "auto":
         logger.info(f"Automatic task detection to {task}.")
 
     if task != "stable-diffusion":
