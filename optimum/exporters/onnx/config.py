@@ -78,8 +78,8 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
     def post_process_exported_models(self, path: Path, models_and_onnx_configs, onnx_files_subpaths):
         if self.use_past is True:
-            decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
-            decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            decoder_path = Path(path, onnx_files_subpaths[0])
+            decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
                 merge_decoders(

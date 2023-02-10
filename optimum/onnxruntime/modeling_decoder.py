@@ -184,6 +184,8 @@ class ORTModelDecoder(ORTModel):
             )
 
         if use_cache is True:
+            # auto-detect whether the provided session is a merged non-past / with-past or not
+            # TODO: make __init__ private and pass `use_merged` as an argument
             use_merged = "use_cache_branch" in [inp.name for inp in decoder_session.get_inputs()]
 
             if use_merged is True and decoder_with_past_session is not None:
@@ -223,6 +225,11 @@ class ORTModelDecoder(ORTModel):
         if generation_config is None:
             generation_config = GenerationConfig.from_model_config(config)
         self.generation_config = generation_config
+
+    @staticmethod
+    def _generate_regular_names_for_filename(filename: str):
+        name, extension = filename.rsplit(".", maxsplit=1)
+        return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}", f"{name}_merged.{extension}"]
 
     @staticmethod
     def load_model(
@@ -332,6 +339,7 @@ class ORTModelDecoder(ORTModel):
             )
         else:
             decoder_path = model_path / subfolder / decoder_file_name
+        
         decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
         if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
@@ -342,8 +350,9 @@ class ORTModelDecoder(ORTModel):
         decoder_with_past_path = None
         use_merged = has_onnx_input(decoder_path, "use_cache_branch")
 
+        # if the decoder without / with past has been merged, we do not need to look for any additional file
         decoder_with_past_path = None
-        if use_cache is True or not use_merged:
+        if use_cache is True and not use_merged:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
                 try:
                     decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
@@ -426,7 +435,7 @@ class ORTModelDecoder(ORTModel):
 
             decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
 
-        model = cls.load_model(
+        ort_inference_sessions = cls.load_model(
             decoder_path=decoder_path,
             decoder_with_past_path=decoder_with_past_path,
             provider=provider,
@@ -452,9 +461,9 @@ class ORTModelDecoder(ORTModel):
             logger.info("Generation config file not found, using a generation config created from the model config.")
 
         return cls(
-            model[0],
+            ort_inference_sessions[0],
             config,
-            decoder_with_past_session=model[1],
+            decoder_with_past_session=ort_inference_sessions[1],
             use_cache=use_cache,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
@@ -475,7 +484,7 @@ class ORTModelDecoder(ORTModel):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         use_cache: bool = True,
-        use_merged: bool = True,
+        use_merged: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
@@ -484,6 +493,13 @@ class ORTModelDecoder(ORTModel):
     ) -> "ORTModelDecoder":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
+        
+        if use_cache is False and use_merged is True:
+            raise ValueError(
+                "The incompatible arguments use_cache=False, use_merged=True were passed to ORTModelForCausalLM.from_pretrained()."
+                " Please pass either use_cache=False, use_merged=False to disable past key value caching, or use_cache=True, use_merged=False"
+                " to disable the merging of the decoder not using / using past key and value."
+            )
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
@@ -504,17 +520,22 @@ class ORTModelDecoder(ORTModel):
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
 
-        output_names = [ONNX_DECODER_NAME]
+        onnx_files_subpaths = [ONNX_DECODER_NAME]
         if use_cache is True:
-            output_names.append(ONNX_DECODER_WITH_PAST_NAME)
+            onnx_files_subpaths.append(ONNX_DECODER_WITH_PAST_NAME)
 
         models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
         export_models(
             models_and_onnx_configs=models_and_onnx_configs,
             opset=onnx_config.DEFAULT_ONNX_OPSET,
             output_dir=save_dir_path,
-            output_names=output_names,
+            output_names=onnx_files_subpaths,
         )
+
+        if use_merged is True:
+            _, _ = onnx_config.post_process_exported_models(
+                save_dir_path, models_and_onnx_configs, onnx_files_subpaths
+            )
 
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
