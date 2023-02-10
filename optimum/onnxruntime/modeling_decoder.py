@@ -538,9 +538,7 @@ class ORTModelDecoder(ORTModel):
         )
 
         if use_merged is True:
-            _, _ = onnx_config.post_process_exported_models(
-                save_dir_path, models_and_onnx_configs, onnx_files_subpaths
-            )
+            _, _ = onnx_config.post_process_exported_models(models_and_onnx_configs, onnx_files_subpaths)
 
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)

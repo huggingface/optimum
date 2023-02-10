@@ -208,6 +208,8 @@ class ORTDecoder(ORTModelPart):
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
+            if self.parent_model.use_merged is True:
+                raise ValueError("NOT SUPPORTED")
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 past_key_values=past_key_values,
