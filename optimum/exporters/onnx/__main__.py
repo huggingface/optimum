@@ -154,10 +154,7 @@ def main():
             )
 
         onnx_files_subpaths = None
-        if (
-            task.startswith(("seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
-            and not args.monolith
-        ):
+        if task.startswith(("seq2seq-lm", "speech2seq-lm", "vision2seq-lm")) and not args.monolith:
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
         elif task.startswith("causal-lm") and not args.monolith:
             models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)

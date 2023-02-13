@@ -1901,7 +1901,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if use_cache is False and use_merged is True:
-            unittest.skip("use_cache=False, use_merged=True are uncompatible")
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
         model_args = {
             "test_name": test_name,
