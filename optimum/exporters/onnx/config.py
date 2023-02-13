@@ -97,7 +97,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             os.remove(decoder_path)
             os.remove(decoder_with_past_path)
 
-            # in order to do the validation of the two branches on the same file
+            # In order to do the validation of the two branches on the same file
             onnx_files_subpaths = [decoder_merged_path.name, decoder_merged_path.name]
 
             # we validate the two branches of the decoder model then
