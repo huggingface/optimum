@@ -18,8 +18,6 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional
 
-from transformers import is_torch_available
-
 from ...onnx import merge_decoders
 from ...utils import (
     DummyAudioInputGenerator,
@@ -33,10 +31,6 @@ from ...utils import (
 )
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-
-
-if is_torch_available():
-    import torch
 
 
 if TYPE_CHECKING:
@@ -114,11 +108,11 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         return models_and_onnx_configs, onnx_files_subpaths
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        # TODO: tensorflow support?
+        DummyInputGenerator.constant_tensor(shape=[1], value=True)
         if self.is_merged is True and self.use_cache_branch is True:
-            reference_model_inputs["use_cache_branch"] = torch.tensor([True])
+            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
         elif self.is_merged is True and self.use_cache_branch is False:
-            reference_model_inputs["use_cache_branch"] = torch.tensor([False])
+            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=False)
 
             # We don't support optional inputs for now, so even though the non-cache branch is used,
             # dummy past key values are necessary

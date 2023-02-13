@@ -35,6 +35,7 @@ from .transformations_utils import (
 
 logger = logging.get_logger()
 
+
 ONNX_BYTE_SIZE_LIMIT = 2147483648
 
 
