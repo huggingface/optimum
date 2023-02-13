@@ -100,7 +100,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             # In order to do the validation of the two branches on the same file
             onnx_files_subpaths = [decoder_merged_path.name, decoder_merged_path.name]
 
-            # we validate the two branches of the decoder model then
+            # We validate the two branches of the decoder model then
             models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
             models_and_onnx_configs[ONNX_DECODER_NAME][1].use_cache_branch = False
 
