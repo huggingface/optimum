@@ -184,7 +184,7 @@ class ORTModelDecoder(ORTModel):
             )
 
         if use_cache is True:
-            # auto-detect whether the provided session is a merged non-past / with-past or not
+            # Auto-detect whether the provided session is a merged non-past / with-past or not
             # TODO: make __init__ private and pass `use_merged` as an argument
             use_merged = "use_cache_branch" in [inp.name for inp in decoder_session.get_inputs()]
 
