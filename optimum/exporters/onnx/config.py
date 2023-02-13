@@ -120,7 +120,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         elif self.is_merged is True and self.use_cache_branch is False:
             reference_model_inputs["use_cache_branch"] = torch.tensor([False])
 
-            # we don't support optional inputs for now, so even though the non-cache branch is used,
+            # We don't support optional inputs for now, so even though the non-cache branch is used,
             # dummy past key values are necessary
             batch_size = reference_model_inputs["input_ids"].shape[0]
             pkv_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
