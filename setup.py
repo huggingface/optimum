@@ -18,7 +18,7 @@ REQUIRED_PKGS = [
     "transformers[sentencepiece]>=4.26.0",
     "torch>=1.9",
     "packaging",
-    "numpy<1.24.0",
+    "numpy",
     "huggingface_hub>=0.8.0",
     "datasets",
 ]
