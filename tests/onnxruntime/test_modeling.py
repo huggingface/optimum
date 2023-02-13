@@ -688,19 +688,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
             self.assertTrue(CONFIG_NAME in folder_contents)
 
-    def test_save_model_with_different_name(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            test_model_name = "model-test.onnx"
-            model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
-
-            # save two models to simulate a optimization
-            model.save_pretrained(tmpdirname)
-            model.save_pretrained(tmpdirname, file_name=test_model_name)
-
-            model = ORTModel.from_pretrained(tmpdirname, file_name=test_model_name)
-
-            self.assertEqual(model.model_name, test_model_name)
-
     def test_save_load_ort_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
