@@ -656,6 +656,19 @@ class OptimizationConfig:
         disable_shape_inference (`bool`, defaults to `False`):
             Whether to disable symbolic shape inference.
             The default value is set to `False` but symbolic shape inference might cause issues sometimes.
+        use_multi_head_attention (`bool`, defaults to `False`):
+            Experimental argument. Use MultiHeadAttention instead of Attention operator, which has merged weights for Q/K/V projection,
+            which might be faster in some cases since 3 MatMul is merged into one."
+            "Note that MultiHeadAttention might be slower than Attention since MatMul of input projection is excluded. "
+            "MultiHeadAttention has only CUDA implementation so the model can only run with CUDAExecutionProvider.
+        enable_gemm_fast_gelu (`bool`, defaults to `True`):
+            Enable GemmfastGelu fusion.
+        use_raw_attention_mask (`bool`, defaults to `False`):
+            Use raw attention mask. Use this option if your input is not right-side padding. This might deactivate fused attention and get worse performance.
+        disable_group_norm (`bool`, defaults to `False`):
+            Do not fuse GroupNorm. Only works for model_type=unet.
+        disable_packed_kv (`bool`, defaults to `False`):
+            Do not use packed kv in cross attention. Only works for model_type=unet.
     """
 
     optimization_level: int = 1
@@ -692,6 +705,13 @@ class OptimizationConfig:
     no_attention_mask: bool = False
     disable_embed_layer_norm: bool = True
     disable_shape_inference: bool = False
+
+    # ONNX Runtime 1.14.0 arguments
+    use_multi_head_attention = False
+    enable_gemm_fast_gelu_fusion = False
+    use_raw_attention_mask = False
+    disable_group_norm_fusion = True
+    disable_packed_kv = True
 
     def __post_init__(self):
         def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
@@ -737,6 +757,11 @@ class OptimizationConfig:
             "disable_bias_skip_layer_norm_fusion": "disable_bias_skip_layer_norm",
             "disable_bias_gelu_fusion": "disable_bias_gelu",
             "disable_embed_layer_norm_fusion": "disable_embed_layer_norm",
+            "disable_group_norm_fusion": "disable_group_norm",
+            "disable_packed_kv": "disable_packed_kv",
+            "use_raw_attention_mask": "use_raw_attention_mask",
+            "enable_gemm_fast_gelu_fusion": "enable_gemm_fast_gelu",
+            "use_multi_head_attention": "use_multi_head_attention",
         }
         for attr_name, fusion_attr_name in attribute_map.items():
             setattr(args, fusion_attr_name, getattr(self, attr_name))
