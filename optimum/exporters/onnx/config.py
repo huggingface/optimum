@@ -77,7 +77,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         return common_inputs
 
     def post_process_exported_models(self, path: Path, models_and_onnx_configs, onnx_files_subpaths):
-        # attempt to merge only if the decoder-only was exported separately without/with past
+        # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
             if onnx_files_subpaths is not None:
                 decoder_path = Path(path, onnx_files_subpaths[0])
