@@ -22,6 +22,7 @@ from ...onnx import merge_decoders
 from ...utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
+    DummyInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
@@ -35,8 +36,6 @@ from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
-
-    from ...utils import DummyInputGenerator
 
 logger = logging.get_logger(__name__)
 
@@ -108,7 +107,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         return models_and_onnx_configs, onnx_files_subpaths
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
-        DummyInputGenerator.constant_tensor(shape=[1], value=True)
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
         elif self.is_merged is True and self.use_cache_branch is False:
