@@ -175,6 +175,9 @@ def validate_provider_availability(provider: str):
     Args:
         provider (str): Name of an ONNX Runtime execution provider.
     """
+    # disable on Windows as reported in https://github.com/huggingface/optimum/issues/769
+    if os.name == "nt":
+        return
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
         path_cuda_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_cuda.so")
         path_trt_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_tensorrt.so")
