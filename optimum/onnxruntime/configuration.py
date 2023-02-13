@@ -707,9 +707,9 @@ class OptimizationConfig:
 
     # ONNX Runtime 1.14.0 arguments
     use_multi_head_attention = False
-    enable_gemm_fast_gelu = False
+    enable_gemm_fast_gelu_fusion = False
     use_raw_attention_mask = False
-    disable_group_norm = True
+    disable_group_norm_fusion = True
     disable_packed_kv = True
 
     def __post_init__(self):
@@ -756,6 +756,11 @@ class OptimizationConfig:
             "disable_bias_skip_layer_norm_fusion": "disable_bias_skip_layer_norm",
             "disable_bias_gelu_fusion": "disable_bias_gelu",
             "disable_embed_layer_norm_fusion": "disable_embed_layer_norm",
+            "disable_group_norm_fusion": "disable_group_norm",
+            "disable_packed_kv": "disable_packed_kv",
+            "use_raw_attention_mask": "use_raw_attention_mask",
+            "enable_gemm_fast_gelu_fusion": "enable_gemm_fast_gelu",
+            "use_multi_head_attention": "use_multi_head_attention",
         }
         for attr_name, fusion_attr_name in attribute_map.items():
             setattr(args, fusion_attr_name, getattr(self, attr_name))
