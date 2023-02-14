@@ -201,6 +201,8 @@ class TasksManager:
             onnx="BertOnnxConfig",
             tflite="BertTFLiteConfig",
         ),
+        # for big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
+        """
         "big-bird": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -225,6 +227,7 @@ class TasksManager:
             "question-answering",
             onnx="BigBirdPegasusOnnxConfig",
         ),
+        """
         "blenderbot": supported_tasks_mapping(
             "default",
             "default-with-past",
