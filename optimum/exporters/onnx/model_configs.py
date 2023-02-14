@@ -469,6 +469,7 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
 
 
 # big_bird and bigbird_pegasus are unsupported for now as block sparse attention is written in pure python and numpy in transformers.
+# Thus, the case attention_type == "block_sparse" is unusable.
 # Even with rewritting this part in pure PyTorch, torch.onnx.export is then prohibitively slow.
 # References: https://github.com/pytorch/pytorch/issues/63734 & https://github.com/pytorch/pytorch/issues/94821
 """
