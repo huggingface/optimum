@@ -96,8 +96,8 @@ def parse_args_onnx(parser):
         "--no-post-process",
         action="store_true",
         help=(
-            "Allows to disable any post-processing done by default on the exported ONNX models. This is for example the merging of decoder"
-            " and decoder-with-past into a single ONNX with If node."
+            "Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder"
+            " and decoder-with-past models into a single ONNX model file to reduce memory usage."
         ),
     )
 
