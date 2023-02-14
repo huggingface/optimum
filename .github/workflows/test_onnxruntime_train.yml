@@ -12,9 +12,7 @@ jobs:
   start-runner:
     if: |
       ${{ github.event_name == 'schedule' }} || 
-      ${{ (contains(github.event.pull_request.labels.*.name, 'onnxruntime')) && (contains(github.event.pull_request.labels.*.name, 'training')) }} ||
       ${{ github.event.label.name == 'training' }}
-
     name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
     env:
