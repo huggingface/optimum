@@ -23,4 +23,5 @@ RUN pip install datasets evaluate scipy
 COPY . /workspace/optimum
 RUN pip install /workspace/optimum[onnxruntime-gpu,tests]
 
+ENV TEST_LEVEL=1
 CMD pytest onnxruntime/test_*.py --durations=0 -s -m gpu_test
