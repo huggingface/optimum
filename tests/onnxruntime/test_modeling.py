@@ -86,19 +86,6 @@ from optimum.utils.testing_utils import grid_parameters, require_hf_token
 
 logger = logging.get_logger()
 
-ORTMODEL_TASK_MAP = {
-    "ORTModelForQuestionAnsweringIntegrationTest": "question-answering",
-    "ORTModelForSequenceClassificationIntegrationTest": "sequence-classification",
-    "ORTModelForTokenClassificationIntegrationTest": "token-classification",
-    "ORTModelForFeatureExtractionIntegrationTest": "default",
-    "ORTModelForMultipleChoiceIntegrationTest": "multiple-choice",
-    "ORTModelForCausalLMIntegrationTest": "causal-lm",
-    "ORTModelForImageClassificationIntegrationTest": "image-classification",
-    "ORTModelForSemanticSegmentationIntegrationTest": "semantic-segmentation",
-    "ORTModelForSeq2SeqLMIntegrationTest": "seq2seq-lm",
-    "ORTModelForSpeechSeq2SeqIntegrationTest": "speech2seq-lm",
-}
-
 
 class Timer(object):
     def __enter__(self):
@@ -107,14 +94,6 @@ class Timer(object):
 
     def __exit__(self, type, value, traceback):
         self.elapsed = (time.perf_counter() - self.elapsed) * 1e3
-
-
-def is_supported_export_task(test_class_name, model_arch, use_cache=None, **kwargs):
-    task = ORTMODEL_TASK_MAP[test_class_name]
-    if use_cache is True:
-        task = task + "-with-past"
-
-    return task in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx")
 
 
 MODEL_NAMES = {
@@ -208,7 +187,11 @@ class ORTModelTestMixin(unittest.TestCase):
         model_arch_and_params = model_args["test_name"]
 
         # TODO: this should actually be checked in ORTModel!
-        if not is_supported_export_task(self.__class__.__name__, **model_args):
+        task = self.TASK
+        if "use_cache" in model_args and model_args["use_cache"] is True:
+            task = task + "-with-past"
+
+        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
             self.skipTest("Unsupported export case")
 
         if model_arch_and_params not in self.onnx_model_dirs:
