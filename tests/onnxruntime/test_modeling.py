@@ -1809,6 +1809,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
+        if "causal-lm-with-past" not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx"
+        ):
+            self.skipTest("Unsupported export case")
+
         model_id = MODEL_NAMES[model_arch]
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_merged=True)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1824,9 +1829,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         task = "causal-lm-with-past"
+
+        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+            self.skipTest("Unsupported export case")
+
         with tempfile.TemporaryDirectory() as tmpdir:
             subprocess.run(
-                f"optimum-cli export onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                f"optimum-cli export onnx --model {model_id} --task {task} {tmpdir}",
                 shell=True,
                 check=True,
             )
