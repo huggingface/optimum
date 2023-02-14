@@ -13,7 +13,7 @@ on:
 
 jobs:
   start-runner:
-    if: ${{ github.event_name == 'schedule' }} || ${{ github.event.label.name == 'gpu-test' }}
+    if: ${{ (github.event_name == 'schedule') || (github.event.label.name == 'gpu-test') }}
     name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
     env:
