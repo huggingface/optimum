@@ -195,9 +195,9 @@ class ORTModelDecoder(ORTModel):
                 )
             if use_cache is True and use_merged is False and decoder_with_past_session is None:
                 raise ValueError(
-                    "The parameter use_cache was passed as True, although no decoder_with_past_session was passed"
-                    " and the decoder_session does not include the use_cache case."
-                    " Please pass a decoder_with_past_session or pass use_cache=False."
+                    "The parameter use_cache was set as True, but neither decoder_with_past_session was passed"
+                    " nor a use_cache branch can be found in the decoder_session."
+                    " Please pass a decoder_with_past_session or set use_cache=False."
                 )
         else:
             use_merged = False
