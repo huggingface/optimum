@@ -1,4 +1,4 @@
-name: ONNX Runtime / Test ORTTrainer
+name: ONNX Runtime / Test Trainer
 
 on:
   workflow_dispatch:
