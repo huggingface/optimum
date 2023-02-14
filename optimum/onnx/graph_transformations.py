@@ -109,7 +109,7 @@ def merge_decoders(
             Decoder with past ONNX model.
         graph_name (`str`, defaults to `"merged"`):
             Name of the parent graph (graph of the control flow node).
-        producer_name (`str`):
+        producer_name (`str`, defaults to `"optimum-onnx"`):
             Graph producer name.
         save_path (`Optional[Union[str, Path]]`, defaults to `None`):
             The path to save merged ONNX model. The model will be saved if the path is given.
