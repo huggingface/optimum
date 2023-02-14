@@ -1,4 +1,4 @@
-name: ONNX Runtime / Test Trainer
+name: ONNX Runtime / Test ORTTrainer
 
 on:
   workflow_dispatch:
@@ -10,10 +10,7 @@ on:
 
 jobs:
   start-runner:
-    if: ${{ github.event.label.name == 'training' }}
-      # ${{ github.event_name == 'schedule' }} || 
-      # ${{ (contains(github.event.pull_request.labels.*.name, 'onnxruntime')) && (contains(github.event.pull_request.labels.*.name, 'training')) }} ||
-      # ${{ github.event.label.name == 'training' }}
+    if: ${{ github.event_name == 'schedule' }} || ${{ github.event.label.name == 'training' }}
     name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
     env:
