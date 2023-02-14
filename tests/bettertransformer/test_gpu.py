@@ -2,12 +2,12 @@ import os
 import unittest
 
 import torch
+from parameterized import parameterized
 from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils import logging
 from optimum.utils.testing_utils import grid_parameters
-from parameterized import parameterized
 
 
 logger = logging.get_logger()

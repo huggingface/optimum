@@ -21,17 +21,18 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-from transformers.utils import is_tf_available, is_torch_available
-
 import onnx
+from transformers.utils import is_tf_available, is_torch_available
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
+from ..error_utils import AtolError, OutputMatchError, ShapeError
 from .base import OnnxConfig
 from .utils import recursive_to_device
 
 
 if is_torch_available():
+    import torch
     import torch.nn as nn
     from transformers.modeling_utils import PreTrainedModel
     from transformers.pytorch_utils import is_torch_less_than_1_11
@@ -46,15 +47,7 @@ if is_tf_available():
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
-class ShapeError(ValueError):
-    pass
-
-
-class AtolError(ValueError):
-    pass
-
-
-class OutputMatchError(ValueError):
+class DynamicAxisNameError(ValueError):
     pass
 
 
@@ -202,6 +195,38 @@ def validate_model_outputs(
 
     session = InferenceSession(onnx_model.as_posix(), options, providers=[provider])
 
+    # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
+    # PyTorch model has more outputs that were forgotten in the config, so we check for that.
+    all_onnx_outputs = {output.name for output in session.get_outputs()}
+    config_outputs = set(config.outputs)
+    if all_onnx_outputs != config_outputs:
+        if len(all_onnx_outputs) > len(config_outputs):
+            diff = all_onnx_outputs - config_outputs
+        else:
+            diff = config_outputs - all_onnx_outputs
+
+        raise OutputMatchError(
+            "The exported ONNX model does not have the exact same outputs as what is provided in "
+            f"{config.__class__.__name__}. Difference: {', '.join(diff)}"
+        )
+
+    # Sometimes the exported model can have axes that are inferred as dynamic axes but were not specified as such in
+    # the ONNX Config: it was either an error on the config side, or an error on the ONNX side inferring a dynamic axis
+    # that is actually static.
+    # The `OnnxConfig.fix_dynamic_axes` method should fix that at export time, but it is still worth checking here.
+    all_config_dynamic_axes_names = set()
+    for input_ in config.inputs.values():
+        all_config_dynamic_axes_names |= set(input_.values())
+    for output in config.outputs.values():
+        all_config_dynamic_axes_names |= set(output.values())
+
+    for node in session.get_outputs():
+        for idx, axis in enumerate(node.shape):
+            if isinstance(axis, str) and axis not in all_config_dynamic_axes_names:
+                raise DynamicAxisNameError(
+                    f"The axis {idx} of input / output node called {node.name} has an unknown name: {axis}"
+                )
+
     # Compute outputs from the reference model
     if is_torch_available() and isinstance(reference_model, nn.Module):
         reference_model.to(device)
@@ -240,7 +265,8 @@ def validate_model_outputs(
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
 
     # Modify the ONNX output names to match the reference model output names
-    onnx_named_outputs = config.output_names_for_validation(onnx_named_outputs)
+    onnx_to_torch = {v: k for k, v in config.torch_to_onnx_output_map.items()}
+    onnx_named_outputs = [onnx_to_torch.get(k, k) for k in onnx_named_outputs]
 
     # Check we have a subset of the keys into onnx_outputs against ref_outputs
     ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
@@ -276,12 +302,17 @@ def validate_model_outputs(
             logger.info(f"\t\t-[✓] {ort_value.shape} matches {ref_value.shape}")
 
         # Values
-        if not np.allclose(ref_value, ort_value, atol=atol):
-            max_diff = np.amax(np.abs(ref_value - ort_value))
-            logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
-            value_failures.append((name, max_diff))
-        else:
-            logger.info(f"\t\t-[✓] all values close (atol: {atol})")
+        try:
+            if not np.allclose(ref_value, ort_value, atol=atol):
+                max_diff = np.amax(np.abs(ref_value - ort_value))
+                logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
+                value_failures.append((name, max_diff))
+            else:
+                logger.info(f"\t\t-[✓] all values close (atol: {atol})")
+        except Exception:
+            # If shapes do not match, it is possible that the np.allclose call fails, since we raise the proper issue
+            # right after, we do not do anything here.
+            pass
 
     if shape_failures:
         msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
@@ -324,7 +355,6 @@ def export_pytorch(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
         the ONNX configuration.
     """
-    import torch
     from torch.onnx import export as onnx_export
     from torch.utils._pytree import tree_map
 
@@ -347,6 +377,7 @@ def export_pytorch(
 
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
+
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
@@ -358,25 +389,24 @@ def export_pytorch(
         input_names = list(inputs.keys())
         output_names = list(config.outputs.keys())
 
-        config.patch_ops()
-
         # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
         # so we check the torch version for backwards compatibility
         if is_torch_less_than_1_11:
             raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
         else:
-            # Export can work with named args but the dict containing named args has to be the last element of the args
-            # tuple.
-            onnx_export(
-                model,
-                (dummy_inputs,),
-                f=output.as_posix(),
-                input_names=input_names,
-                output_names=output_names,
-                dynamic_axes={name: axes for name, axes in chain(inputs.items(), config.outputs.items())},
-                do_constant_folding=True,
-                opset_version=opset,
-            )
+            with config.patch_model_for_export(model):
+                # Export can work with named args but the dict containing named args has to be the last element of the args
+                # tuple.
+                onnx_export(
+                    model,
+                    (dummy_inputs,),
+                    f=output.as_posix(),
+                    input_names=input_names,
+                    output_names=output_names,
+                    dynamic_axes={name: axes for name, axes in chain(inputs.items(), config.outputs.items())},
+                    do_constant_folding=True,
+                    opset_version=opset,
+                )
 
             # check if external data was exported
             onnx_model = onnx.load(str(output), load_external_data=False)
@@ -405,8 +435,6 @@ def export_pytorch(
                 # delete previous external data
                 for tensor in tensors_paths:
                     os.remove(output.parent / tensor)
-
-        config.restore_ops()
 
     return input_names, output_names
 
@@ -468,7 +496,6 @@ def export_tensorflow(
     input_names = list(inputs.keys())
     output_names = list(config.outputs.keys())
 
-    config.patch_ops()
     input_signature = []
     for key, tensor in dummy_inputs.items():
         shape = [tensor.shape[i] for i in range(tensor.ndim)]
@@ -477,9 +504,9 @@ def export_tensorflow(
 
         input_signature.append(tf.TensorSpec(shape, dtype=tensor.dtype, name=key))
 
-    onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature, opset=opset)
+    with config.patch_model_for_export(model):
+        onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature, opset=opset)
     onnx.save(onnx_model, output.as_posix())
-    config.restore_ops()
 
     return input_names, output_names
 
@@ -585,6 +612,8 @@ def export(
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
+    export_output = None
+
     if opset is None:
         opset = config.DEFAULT_ONNX_OPSET
 
@@ -604,16 +633,19 @@ def export(
                 f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
                 f" got: {torch.__version__}"
             )
-        return export_pytorch(model, config, opset, output, device=device, input_shapes=input_shapes)
+        export_output = export_pytorch(model, config, opset, output, device=device, input_shapes=input_shapes)
 
     elif is_tf_available() and issubclass(type(model), TFPreTrainedModel):
         if device == "cuda":
             raise RuntimeError("`tf2onnx` does not support export on CUDA device.")
         if input_shapes is not None:
             logger.info("`input_shapes` argument is not supported by the Tensorflow ONNX export and will be ignored.")
-        return export_tensorflow(model, config, opset, output)
+        export_output = export_tensorflow(model, config, opset, output)
 
     else:
         raise RuntimeError(
             "You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed."
         )
+
+    config.fix_dynamic_axes(output)
+    return export_output

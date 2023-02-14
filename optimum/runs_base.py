@@ -5,12 +5,11 @@ from time import perf_counter_ns
 from typing import Set
 
 import numpy as np
+import optuna
 import torch
 import transformers
 from datasets import Dataset
 from tqdm import trange
-
-import optuna
 
 from . import version as optimum_version
 from .utils.preprocessing import (

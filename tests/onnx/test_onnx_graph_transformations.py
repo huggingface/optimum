@@ -19,26 +19,25 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-import numpy as np
-import torch
-from transformers import AutoModel, AutoTokenizer
-
 import huggingface_hub
+import numpy as np
 import onnx
+import torch
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
+from parameterized import parameterized
+from transformers import AutoModel, AutoTokenizer
+
 from optimum.onnx.graph_transformations import (
     cast_slice_nodes_inputs_to_int32,
     merge_decoders,
     remove_duplicate_weights,
 )
-from parameterized import parameterized
 
 
 class WeightSharingTestCase(TestCase):
     def test_weight_sharing_output_match(self):
         with torch.no_grad():
-
             for model_id in {"albert-base-v1", "albert-base-v2"}:
                 tokenizer = AutoTokenizer.from_pretrained(model_id)
                 model = AutoModel.from_pretrained(model_id)
@@ -46,7 +45,7 @@ class WeightSharingTestCase(TestCase):
                 task = "default"
                 with TemporaryDirectory() as tmpdir:
                     subprocess.run(
-                        f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                        f"python3 -m optimum.exporters.onnx --model {model_id} --task {task} {tmpdir}",
                         shell=True,
                         check=True,
                     )
@@ -65,9 +64,6 @@ class WeightSharingTestCase(TestCase):
             self.assertTrue(
                 np.allclose(original_outputs.last_hidden_state.cpu().numpy(), compressed_outputs[0], atol=1e-4)
             )
-            self.assertTrue(
-                np.allclose(original_outputs.pooler_output.cpu().numpy(), compressed_outputs[1], atol=1e-4)
-            )
 
 
 class OnnxMergingTestCase(TestCase):
@@ -82,7 +78,7 @@ class OnnxMergingTestCase(TestCase):
 
         with TemporaryDirectory() as tmpdir:
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model {model_id} --for-ort --task {task} {tmpdir}",
+                f"python3 -m optimum.exporters.onnx --model {model_id} --task {task} {tmpdir}",
                 shell=True,
                 check=True,
             )

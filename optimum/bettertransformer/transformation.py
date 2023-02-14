@@ -17,7 +17,7 @@ from typing import Dict, Optional
 import torch
 
 from ..utils import check_if_pytorch_greater, is_accelerate_available
-from .models import BetterTransformerManager, warn_uncompatible_save
+from .models import BetterTransformerManager
 
 
 if is_accelerate_available():
@@ -25,6 +25,19 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 ERROR_MESSAGE = r"The Better Transformers implementation for the model {model_name} has not been implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer` implementation."
+
+
+def raise_save_or_push_incompatible(dummy, /, *_, **__):
+    r"""
+    Simply raise an error if the user tries to save or push a model that is not compatible with
+    `BetterTransformer` and needs to be reverted to the original model before calling these
+    functions.
+    """
+    raise ValueError(
+        "You are trying to save or push a model that has been converted with `BetterTransformer`.",
+        " Please revert the model to its original state before calling `save_pretrained` or `push_to_hub`.",
+        " By calling model = BetterTransformer.reverse(model) before saving or pushing.",
+    )
 
 
 def replace_to_bettertransformer(model, config):
@@ -77,6 +90,33 @@ def replace_to_bettertransformer(model, config):
             bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][1](module, config)
             model._modules[name] = bettertransformer_module
     return model
+
+
+def revert_to_original_model(
+    bt_model: torch.nn.Module,
+):
+    r"""
+    Replaces the BT-converted model to its old variant, to be able to safely store the weights
+    of a trained model.
+
+    Args:
+        `bt_model` (`torch.nn.Module`):
+            The input `BetterTransformer` converted model
+    Returns:
+        The original `transformers` model
+    """
+
+    for name, module in bt_model.named_children():
+        if len(list(module.children())) > 0:
+            # we may explicitly exclude part of the model to use BetterTransformer
+            revert_to_original_model(module)
+
+        can_be_reversed = getattr(module, "orig_layer", None) is not None
+
+        if can_be_reversed:
+            bt_model._modules[name] = module._revert_back_to_original_module()
+            module = None
+    return bt_model
 
 
 def set_last_layer(model: torch.nn.Module):
@@ -175,6 +215,11 @@ class BetterTransformer(object):
         else:
             load_accelerate = False
 
+        if hasattr(model, "use_bettertransformer") and model.use_bettertransformer is True:
+            raise Exception(
+                "`BetterTransform.transform()` was called on a model already using Better Transformer modeling."
+            )
+
         if BetterTransformerManager.cannot_support(model.config.model_type):
             raise ValueError(
                 f"The model type {model.config.model_type} can not be supported to be used with BetterTransformer. The identified reason is:"
@@ -232,7 +277,30 @@ class BetterTransformer(object):
                 model = dispatch_model(model, model.hf_device_map)
 
         # Step 8: overwrite the `save_pretrained` method
-        # by adding a context manager
-        setattr(model_fast, "save_pretrained", warn_uncompatible_save(model_fast.save_pretrained))
+        # by raising an error if the user tries to save the model
+        # or push it to the hub.
+        model_fast._old_save_pretrained = model_fast.save_pretrained
+        model_fast._old_push_to_hub = model_fast.push_to_hub
+
+        model_fast.save_pretrained = raise_save_or_push_incompatible
+        model_fast.push_to_hub = raise_save_or_push_incompatible
 
         return model_fast
+
+    @check_if_pytorch_greater(
+        "1.13.0",
+        "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
+    )
+    def reverse(model: torch.nn.Module, **kwargs) -> torch.nn.Module:
+        # Step 1: check if the model has the attribute `use_bettertransformer`
+        if not getattr(model, "use_bettertransformer", False):
+            raise ValueError(
+                "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer format, which appears to not be the case."
+            )
+
+        model = revert_to_original_model(model)
+
+        model.save_pretrained = model._old_save_pretrained
+        model.push_to_hub = model._old_push_to_hub
+
+        return model

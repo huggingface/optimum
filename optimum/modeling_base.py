@@ -21,9 +21,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
-from transformers import AutoConfig, add_start_docstrings
-
 from huggingface_hub import HfApi, HfFolder
+from transformers import AutoConfig, add_start_docstrings
 
 from .utils import CONFIG_NAME
 

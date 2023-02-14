@@ -62,7 +62,7 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.task == "multiple-choice":
             dynamic_axis = {0: "batch_size", 1: "num_choices", 2: "sequence_length"}
         else:
@@ -113,7 +113,7 @@ You can also view the outputs associated with the model as follows:
 
 ```python
 >>> print(onnx_config.outputs)
-OrderedDict([("last_hidden_state", {0: "batch_size", 1: "sequence_length"})])
+OrderedDict([('last_hidden_state', {0: 'batch_size', 1: 'sequence_length'})])
 ```
 
 Notice that the outputs property follows the same structure as the inputs; it returns an

@@ -16,19 +16,15 @@ import gc
 import timeit
 import unittest
 
+import pytest
 import torch
 import transformers
+from parameterized import parameterized
+from testing_bettertransformer_utils import BetterTransformersTestMixin
 from transformers import AutoModel, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
-from optimum.utils.testing_utils import (
-    grid_parameters,
-    is_torch_greater_than_113,
-    require_accelerate,
-    require_torch_gpu,
-)
-from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersTestMixin
+from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 
 
 ALL_ENCODER_MODELS_TO_TEST = [
@@ -125,7 +121,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         with self.assertRaises(ValueError):
             _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
-    @unittest.skipIf(not is_torch_greater_than_113(), "the test needs Pytorch >= 1.13.0")
     @torch.no_grad()
     def test_inference_speed(self):
         r"""
@@ -182,7 +177,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.assertEqual(out[0]["token_str"], "role")
         gc.collect()
 
-    @unittest.skipIf(not is_torch_greater_than_113(), "The test needs accelerate and torch>=1.13 installed")
     @require_torch_gpu
     @require_accelerate
     def check_accelerate_compatibility_cpu_gpu(self, keep_original_model=True, max_memory=None):
@@ -225,6 +219,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.assertTrue(torch.allclose(output_bt[0][1, 3:], torch.zeros_like(output_bt[0][1, 3:])))
         gc.collect()
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_cpu_gpu(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
@@ -232,6 +227,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "1GB", "cpu": "3GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_cpu_gpu_without_keeping(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
@@ -239,6 +235,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "1GB", "cpu": "3GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_single_gpu(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
@@ -247,6 +244,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
+    @pytest.mark.gpu_test
     def test_accelerate_compatibility_single_gpu_without_keeping(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
@@ -254,6 +252,50 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         """
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
+        super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
+        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
 
 
 class BetterTransformersRoCBertTest(BetterTransformersEncoderTest):
@@ -297,6 +339,50 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     )
     def test_logits(self, test_name: str, model_id, padding, max_length=20):
         super().test_logits([model_id], padding=padding, max_length=max_length)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
+        super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
+        super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
+        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

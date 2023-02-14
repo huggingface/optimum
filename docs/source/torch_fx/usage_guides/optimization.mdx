@@ -26,14 +26,15 @@ The most basic case of transformations is non-reversible transformations. Those 
 For instance, the following transformation changes all the multiplications to additions:
 
 ```python
+>>> import operator
 >>> from optimum.fx.optimization import Transformation
 
 >>> class ChangeMulToAdd(Transformation):
->>>     def transform(self, graph_module):
->>>         for node in graph_module.graph.nodes:
->>>             if node.op == "call_function" and node.target == operator.mul:
->>>                 node.target = operator.add
->>>         return graph_module
+...     def transform(self, graph_module):
+...         for node in graph_module.graph.nodes:
+...             if node.op == "call_function" and node.target == operator.mul:
+...                 node.target = operator.add
+...         return graph_module
 ```
 
 After implementing it, your transformation can be used as a regular function:
@@ -44,9 +45,9 @@ After implementing it, your transformation can be used as a regular function:
 
 >>> model = BertModel.from_pretrained("bert-base-uncased")
 >>> traced = symbolic_trace(
->>>     model,
->>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
->>> )
+...     model,
+...     input_names=["input_ids", "attention_mask", "token_type_ids"],
+... )
 
 >>> transformation = ChangeMulToAdd()
 >>> transformed_model = transformation(traced)
@@ -59,22 +60,23 @@ A reversible transformation implements both the transformation and its reverse, 
 For instance, the following transformation is reversible:
 
 ```python
+>>> import operator
 >>> from optimum.fx.optimization import ReversibleTransformation
 
 >>> class MulToMulTimesTwo(ReversibleTransformation):
->>>     def transform(self, graph_module):
->>>         for node in graph_module.graph.nodes:
->>>             if node.op == "call_function" and node.target == operator.mul:
->>>                 x, y = node.args
->>>                 node.args = (2 * x, y)
->>>         return graph_module
-
->>>     def reverse(self, graph_module):
->>>         for node in graph_module.graph.nodes:
->>>             if node.op == "call_function" and node.target == operator.mul:
->>>                 x, y = node.args
->>>                 node.args = (x / 2, y)
->>>         return graph_module
+...     def transform(self, graph_module):
+...         for node in graph_module.graph.nodes:
+...             if node.op == "call_function" and node.target == operator.mul:
+...                 x, y = node.args
+...                 node.args = (2 * x, y)
+...         return graph_module
+...
+...     def reverse(self, graph_module):
+...         for node in graph_module.graph.nodes:
+...             if node.op == "call_function" and node.target == operator.mul:
+...                 x, y = node.args
+...                 node.args = (x / 2, y)
+...         return graph_module
 ```
 
 ### Composing transformations together

@@ -93,6 +93,7 @@ class ORTConfigManager:
         "mbart": "bart",
         "mt5": "bart",
         "m2m_100": "bart",
+        "nystromformer": "bert",
         "roberta": "bert",
         "t5": "t5",
         "whisper": "whisper",
@@ -159,7 +160,7 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
     provider_options = {}
 
     if device.type == "cuda":
-        if device.index == None:
+        if device.index is None:
             device = torch.device("cuda:0")
 
         provider_options["device_id"] = device.index
@@ -174,7 +175,8 @@ def validate_provider_availability(provider: str):
     Args:
         provider (str): Name of an ONNX Runtime execution provider.
     """
-    if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+    # disable on Windows as reported in https://github.com/huggingface/optimum/issues/769
+    if os.name != "nt" and provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
         path_cuda_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_cuda.so")
         path_trt_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_tensorrt.so")
         path_dependecy_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")
@@ -187,12 +189,15 @@ def validate_provider_availability(provider: str):
                     raise ImportError(
                         f"`onnxruntime-gpu` is installed, but GPU dependencies are not loaded. It is likely there is a conflicting install between `onnxruntime` and `onnxruntime-gpu`. Please install only `onnxruntime-gpu` in order to use {provider}."
                     )
+                elif os.path.isfile(path_cuda_lib) and is_onnxruntime_training_available():
+                    if provider == "TensorrtExecutionProvider":
+                        raise ImportError(
+                            f"Asked to use {provider}, but `onnxruntime-training` package doesn't support {provider}. Please use `CUDAExecutionProvider` instead."
+                        )
                 else:
                     raise ImportError(
                         f"Asked to use {provider}, but `onnxruntime-gpu` package was not found. Make sure to install `onnxruntime-gpu` package instead of `onnxruntime`."
                     )
-
-            from onnxruntime.capi import _ld_preload
 
             if provider == "CUDAExecutionProvider":
                 if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
@@ -224,7 +229,6 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
                 "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
             )
         use_io_binding = False
-
     return use_io_binding
 
 

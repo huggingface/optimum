@@ -12,8 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import tempfile
-import unittest
 from typing import List, Optional
 
 import torch
@@ -118,7 +118,7 @@ class BetterTransformersTestMixin:
         Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
         """
         for model_id in self.all_models_to_test:
-            with self.assertWarns(UserWarning), tempfile.TemporaryDirectory() as tmpdirname:
+            with self.assertRaises(ValueError), tempfile.TemporaryDirectory() as tmpdirname:
                 hf_model = AutoModel.from_pretrained(model_id).eval()
                 bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
                 bt_model.save_pretrained(tmpdirname)
@@ -175,6 +175,115 @@ class BetterTransformersTestMixin:
 
             self.assertTrue(isinstance(converted_model, hf_random_model.__class__))
             self.assertTrue(hasattr(converted_model, "generate"))
+
+    def test_invert_modules(self, model_id, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same modules
+        """
+        # get hf and bt model
+        hf_model = AutoModel.from_pretrained(model_id)
+        # get bt model and invert it
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+        bt_model = BetterTransformer.reverse(bt_model)
+
+        # get modules:
+        hf_modules = list(hf_model.modules())
+        bt_modules = list(bt_model.modules())
+
+        # Assert that the modules are the same
+        self.assertEqual(len(hf_modules), len(bt_modules))
+        for hf_module, bt_module in zip(hf_modules, bt_modules):
+            # check the modules have the same signature and code
+            # for the `forward` and `__init__` methods
+            # as those are the only functions we change
+            self.assertEqual(inspect.signature(hf_module.forward), inspect.signature(bt_module.forward))
+            self.assertEqual(inspect.signature(hf_module.__init__), inspect.signature(bt_module.__init__))
+
+            self.assertEqual(inspect.getsource(hf_module.forward), inspect.getsource(bt_module.forward))
+            self.assertEqual(inspect.getsource(hf_module.__init__), inspect.getsource(bt_module.__init__))
+
+    def test_save_load_invertible(self, model_id, keep_original_model=True):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            hf_model = AutoModel.from_pretrained(model_id).eval()
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+
+            bt_model = BetterTransformer.reverse(bt_model)
+            # check if no parameter is on the `meta` device
+
+            for name, param in bt_model.named_parameters():
+                self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
+
+            bt_model.save_pretrained(tmpdirname)
+
+            bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
+
+            # check if the state dict is the same
+            # first check if the keys are the same
+            self.assertEqual(
+                set(bt_model.state_dict().keys()),
+                set(bt_model_from_load.state_dict().keys()),
+            )
+            # check also with HF model
+            self.assertEqual(
+                set(hf_model.state_dict().keys()),
+                set(bt_model_from_load.state_dict().keys()),
+            )
+
+            for key in bt_model.state_dict().keys():
+                self.assertTrue(
+                    torch.allclose(
+                        bt_model.state_dict()[key],
+                        bt_model_from_load.state_dict()[key],
+                    )
+                )
+
+                self.assertTrue(
+                    torch.allclose(
+                        hf_model.state_dict()[key],
+                        bt_model_from_load.state_dict()[key],
+                    )
+                )
+
+    def test_invert_model_logits(self, model_id, keep_original_model=True, **preprocessor_kwargs):
+        r"""
+        Test that the inverse converted model and hf model have the same logits
+        """
+        # get hf and bt model
+        hf_model = AutoModel.from_pretrained(model_id)
+        # get bt model and invert it
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+        bt_model = BetterTransformer.reverse(bt_model)
+
+        # get inputs
+        inputs = self.prepare_inputs_for_class(model_id, **preprocessor_kwargs)
+
+        # get outputs
+        torch.manual_seed(42)
+        output_bt = bt_model(**inputs)
+
+        torch.manual_seed(42)
+        output_hf = hf_model(**inputs)
+
+        # Assert that the outputs are the same
+        self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
+
+    def test_raise_save_pretrained_error(self, model_id, keep_original_model=True):
+        r"""
+        Test if the converted model raises an error when calling `save_pretrained`
+        but not when the model is reverted
+        """
+        # get hf and bt model
+        hf_model = AutoModel.from_pretrained(model_id)
+        # get bt model and invert it
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+
+        with self.assertRaises(ValueError), tempfile.TemporaryDirectory() as tmpdirname:
+            bt_model.save_pretrained(tmpdirname)
+
+        # revert model and save it
+        bt_model = BetterTransformer.reverse(bt_model)
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            bt_model.save_pretrained(tmpdirname)
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

@@ -15,7 +15,7 @@
 """Normalization configuration classes."""
 
 import functools
-from typing import TYPE_CHECKING, Callable, Dict, Type, Union
+from typing import Callable, Dict, Type, Union
 
 from transformers import PretrainedConfig
 
@@ -49,7 +49,14 @@ class NormalizedConfig:
         config = self.config
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
+
         attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
+
+        # If the attribute was not specified manually, try to fallback on the attribute_map.
+        if attr is None:
+            attribute_map = getattr(self.config, "attribute_map", {})
+            attr = getattr(self.config, attribute_map.get(leaf_attr_name, ""), None)
+
         if attr is None:
             raise AttributeError(f'Could not find the attribute named "{leaf_attr_name}" in the normalized config.')
         return attr
@@ -94,6 +101,23 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+class NormalizedEncoderDecoderConfig(NormalizedConfig):
+    ENCODER_NORMALIZED_CONFIG_CLASS = None
+    DECODER_NORMALIZED_CONFIG_CLASS = None
+
+    def __getattr__(self, attr_name):
+        if self.ENCODER_NORMALIZED_CONFIG_CLASS is not None and attr_name.upper() in dir(
+            self.ENCODER_NORMALIZED_CONFIG_CLASS
+        ):
+            return self.ENCODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+        if self.DECODER_NORMALIZED_CONFIG_CLASS is not None and attr_name.upper() in dir(
+            self.DECODER_NORMALIZED_CONFIG_CLASS
+        ):
+            return self.DECODER_NORMALIZED_CONFIG_CLASS.__getattr__(attr_name)
+
+        return super().__getattr__(attr_name)
+
+
 # TODO: this config is bug prone, as `encoder_attention_heads` and `decoder_attention_heads` may be different
 BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="encoder_attention_heads",
@@ -107,6 +131,13 @@ T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
 )
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
+)
+
+TrOCRLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
+    decoder_num_layers="decoder_layers",
+    num_layers="decoder_layers",
+    decoder_num_attention_heads="decoder_attention_heads",
+    hidden_size="cross_attention_hidden_size",
 )
 
 
@@ -127,7 +158,6 @@ class NormalizedConfigManager:
         'convnext',
         'data2vec-text',
         'data2vec-vision',
-        'deit',
         'detr',
         'flaubert',
         'groupvit',
@@ -142,7 +172,6 @@ class NormalizedConfigManager:
         'roformer',
         'segformer',
         'squeezebert',
-        'vit',
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -154,27 +183,34 @@ class NormalizedConfigManager:
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot_small": BartLikeNormalizedTextConfig,
-        "bloom": NormalizedTextConfig.with_args(hidden_size="n_embd", num_layers="n_layer"),
+        "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "deberta": NormalizedTextConfig,
         "deberta-v2": NormalizedTextConfig,
+        "deit": NormalizedVisionConfig,
         "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
+        "gpt_neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m_100": BartLikeNormalizedTextConfig,
+        "nystromformer": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
+        "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
+        "trocr": TrOCRLikeNormalizedTextConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
+        "vision-encoder-decoder": NormalizedEncoderDecoderConfig,
+        "vit": NormalizedVisionConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
     }

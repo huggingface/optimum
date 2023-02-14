@@ -15,24 +15,16 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 from argparse import ArgumentParser
-from pathlib import Path
 
 from transformers import AutoTokenizer
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
+from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import (
-    AtolError,
-    OutputMatchError,
-    ShapeError,
-    export,
-    export_models,
-    validate_model_outputs,
-    validate_models_outputs,
-)
+from .convert import export, export_models, validate_model_outputs, validate_models_outputs
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
@@ -56,6 +48,12 @@ def main():
     if not args.output.parent.exists():
         args.output.parent.mkdir(parents=True)
 
+    if args.for_ort:
+        logger.warning(
+            "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
+            " and passing it is not required anymore."
+        )
+
     # Infer the task
     task = args.task
     if task == "auto":
@@ -74,6 +72,27 @@ def main():
     model = TasksManager.get_model_from_task(
         task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
     )
+
+    if task.endswith("-with-past") and args.monolith is True:
+        task_non_past = task.replace("-with-past", "")
+        raise ValueError(
+            f"The task {task} is not compatible with the --monolith argument. Please either use"
+            f" `--task {task_non_past} --monolith`, or `--task {task}` without the monolith argument."
+        )
+
+    if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
+        model.config.model_type.replace("_", "-"), "onnx"
+    ):
+        if args.task == "auto":  # Make -with-past the default if --task was not explicitely specified
+            task = task + "-with-past"
+        else:
+            logger.info(
+                f"The task `{task}` was manually specified, and past key values will not be reused in the decoding."
+                f"Please pass `--task {task}-with-past` to export using the past key values."
+            )
+
+    if task == "auto":
+        logger.info(f"Automatic task detection to {task}.")
 
     if task != "stable-diffusion":
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
@@ -115,7 +134,8 @@ def main():
         maybe_save_preprocessors(args.model, args.output.parent)
 
     if task == "stable-diffusion" or (
-        args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+        task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
+        and not args.monolith
     ):
         if task == "stable-diffusion":
             output_names = [
@@ -163,7 +183,8 @@ def main():
 
     try:
         if task == "stable-diffusion" or (
-            args.for_ort and (model.config.is_encoder_decoder or task.startswith("causal-lm"))
+            task.startswith(("causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
+            and not args.monolith
         ):
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,

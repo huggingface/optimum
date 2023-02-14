@@ -25,19 +25,21 @@ _import_structure = {
         "OptimizationConfig",
         "AutoOptimizationConfig",
         "ORTConfig",
+        "QuantizationConfig",
     ],
     "modeling_ort": [
         "ORTModel",
         "ORTModelForCustomTasks",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
+        "ORTModelForMaskedLM",
         "ORTModelForMultipleChoice",
         "ORTModelForQuestionAnswering",
         "ORTModelForSemanticSegmentation",
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
     ],
-    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq"],
+    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq", "ORTModelForVision2Seq"],
     "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
     "quantization": ["ORTQuantizer"],
@@ -57,13 +59,14 @@ _import_structure = {
 
 # Direct imports for type-checking
 if TYPE_CHECKING:
-    from .configuration import ORTConfig
+    from .configuration import ORTConfig, QuantizationConfig
     from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
         ORTModel,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForMaskedLM,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
         ORTModelForSemanticSegmentation,
