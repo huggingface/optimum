@@ -107,7 +107,7 @@ def merge_decoders(
             Decoder ONNX model.
         decoder_with_past (`Union[ModelProto, Path, str]`):
             Decoder with past ONNX model.
-        graph_name (`str`):
+        graph_name (`str`, defaults to `"merged"`):
             Name of the parent graph (graph of the control flow node).
         producer_name (`str`):
             Graph producer name.
