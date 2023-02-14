@@ -343,7 +343,7 @@ class ORTModelDecoder(ORTModel):
         decoder_with_past_path = None
         use_merged = has_onnx_input(decoder_path, "use_cache_branch")
 
-        # if the decoder without / with past has been merged, we do not need to look for any additional file
+        # If the decoder without / with past has been merged, we do not need to look for any additional file
         decoder_with_past_path = None
         if use_cache is True and not use_merged:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
