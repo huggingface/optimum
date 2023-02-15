@@ -27,7 +27,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        pip install .[tests,exporters-tf]
+        pip install .[tests,exporters]
     - name: Test with unittest
       working-directory: tests
       run: |

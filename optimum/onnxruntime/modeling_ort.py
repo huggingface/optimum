@@ -347,7 +347,7 @@ class ORTModel(OptimizedModel):
             provider_options=providers_options,
         )
 
-    def _save_pretrained(self, save_directory: Union[str, Path], **kwargs):
+    def _save_pretrained(self, save_directory: Union[str, Path]):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the

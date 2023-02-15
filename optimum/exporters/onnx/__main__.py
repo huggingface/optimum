@@ -209,7 +209,7 @@ def main():
         )
     except Exception as e:
         logger.error(
-            f"An error occured with the error message: {e}.\n The exported model was saved at: {args.output.as_posix()}"
+            f"An error occured during validation with the error message: {e}.\n The exported model was saved at: {args.output.as_posix()}"
         )
 
 

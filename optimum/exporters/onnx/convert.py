@@ -120,6 +120,8 @@ def validate_models_outputs(
             f"Provided custom names {onnx_files_subpaths} for the validation of {len(models_and_onnx_configs)} models. Please provide the same number of ONNX file names as models to export."
         )
 
+    exceptions = []  # run all validations before raising
+    onnx_paths = []
     for i, model_name in enumerate(models_and_onnx_configs.keys()):
         submodel, sub_onnx_config = models_and_onnx_configs[model_name]
         onnx_model_path = (
@@ -127,15 +129,24 @@ def validate_models_outputs(
             if onnx_files_subpaths is not None
             else output_dir.joinpath(model_name + ".onnx")
         )
-        validate_model_outputs(
-            config=sub_onnx_config,
-            reference_model=submodel,
-            onnx_model=onnx_model_path,
-            onnx_named_outputs=onnx_named_outputs[i],
-            atol=atol,
-            input_shapes=input_shapes,
-            device=device,
-        )
+        onnx_paths.append(onnx_model_path)
+        try:
+            validate_model_outputs(
+                config=sub_onnx_config,
+                reference_model=submodel,
+                onnx_model=onnx_model_path,
+                onnx_named_outputs=onnx_named_outputs[i],
+                atol=atol,
+                input_shapes=input_shapes,
+                device=device,
+            )
+        except Exception as e:
+            exceptions.append(e)
+
+    if len(exceptions) != 0:
+        for i, exception in enumerate(exceptions[:-1]):
+            logger.error(f"Validation {i} for the model {onnx_paths[i].as_posix()} raised: {exception}")
+        raise exceptions[-1]
 
 
 def validate_model_outputs(
@@ -169,7 +180,7 @@ def validate_model_outputs(
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    from onnxruntime import InferenceSession, SessionOptions
+    from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 
     logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
 
@@ -186,14 +197,15 @@ def validate_model_outputs(
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
 
     # Create ONNX Runtime session
-    options = SessionOptions()
+    session_options = SessionOptions()
+    session_options.graph_optimization_level = GraphOptimizationLevel.ORT_DISABLE_ALL  # no need to optimize here
 
     if device.startswith("cuda"):
         provider = "CUDAExecutionProvider"
     else:
         provider = "CPUExecutionProvider"
 
-    session = InferenceSession(onnx_model.as_posix(), options, providers=[provider])
+    session = InferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=[provider])
 
     # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
     # PyTorch model has more outputs that were forgotten in the config, so we check for that.

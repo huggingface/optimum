@@ -27,7 +27,7 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import onnx
-from onnxruntime import InferenceSession
+from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 from transformers.utils import is_torch_available
 
 from ...utils import (
@@ -309,7 +309,9 @@ class OnnxConfig(ExportConfig, ABC):
         else:
             providers = ["CPUExecutionProvider"]
 
-        session = InferenceSession(model_path.as_posix(), providers=providers)
+        session_options = SessionOptions()
+        session_options.graph_optimization_level = GraphOptimizationLevel.ORT_DISABLE_ALL  # no need to optimize here
+        session = InferenceSession(model_path.as_posix(), providers=providers, sess_options=session_options)
 
         to_fix = []
         for output_idx, node in enumerate(session.get_outputs()):
