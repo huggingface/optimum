@@ -152,22 +152,18 @@ class ScriptablePNDMScheduler(nn.Module):
             returning a tuple, the first element is the sample tensor.
 
         """
-        """
         if self.counter < len(self.prk_timesteps) and not self.skip_prk_steps:
-            return self.step_prk(model_output=model_output, timestep=timestep, sample=sample)
+            return (self.step_prk(model_output=model_output, timestep=timestep, sample=sample), ets_buffer)
         else:
-            return self.step_plms(model_output=model_output, timestep=timestep, sample=sample)
-        """
-        return self.step_plms(model_output=model_output, timestep=timestep, sample=sample, ets_buffer=ets_buffer)
+            return self.step_plms(model_output=model_output, timestep=timestep, sample=sample, ets_buffer=ets_buffer)
 
-    """
-    @torch.jit.ignore
+    @torch.jit.export
     def step_prk(
         self,
         model_output: torch.FloatTensor,
         timestep: torch.Tensor,
         sample: torch.FloatTensor,
-    ) -> Tuple[torch.Tensor]:
+    ) -> torch.Tensor:
 
         if self.num_inference_steps is None:
             raise ValueError(
@@ -198,8 +194,7 @@ class ScriptablePNDMScheduler(nn.Module):
         prev_sample = self._get_prev_sample(cur_sample, timestep, prev_timestep, model_output)
         self.counter = self.counter + 1
 
-        return (prev_sample,)
-    """
+        return prev_sample
 
     @torch.jit.export
     def step_plms(
@@ -267,6 +262,7 @@ class ScriptablePNDMScheduler(nn.Module):
         elif self.set_ets == 1 and self.counter == 1:
             model_output = (model_output + ets_buffer[-1]) / 2
             sample = self.cur_sample
+            # TODO: to fix?
             # self.cur_sample = torch.tensor(-5., dtype=torch.float32)
         elif self.set_ets == 2:
             model_output = (3 * ets_buffer[-1] - ets_buffer[-2]) / 2

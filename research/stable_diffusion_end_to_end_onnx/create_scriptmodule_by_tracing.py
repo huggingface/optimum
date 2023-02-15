@@ -100,8 +100,8 @@ print(traced_pipeline.code)
 print("----")
 print(traced_pipeline.graph)
 
-#print("decode_latent:")
-#print(traced_pipeline.decode_latents.code)
+print("decode_latent:")
+print(traced_pipeline.decode_latents.code)
 
 print("unet:")
 print(traced_pipeline.unet.code)

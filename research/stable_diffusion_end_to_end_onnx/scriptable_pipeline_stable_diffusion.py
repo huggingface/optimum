@@ -209,7 +209,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
-
+    
         # NOTE: we don't support passing generator :(
         # NOTE: we don't support DDIMScheduler because eta is ignored
         # TODO: avoid hardcoding height, width, guidance_scale, num_images_per_prompt
@@ -243,7 +243,6 @@ class ScriptableStableDiffusionPipeline(nn.Module):
 
         device = prompt_embeds.device
 
-        """
         # 5. Prepare latent variables
         num_channels_latents = self.unet_in_channels
         latents = self.prepare_latents(
@@ -254,7 +253,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             prompt_embeds.dtype,
             device,
         )
-        """
+
         # TODO: remove this horror
         num_channels_latents = self.unet_in_channels
         latents = self.deterministic_latents
@@ -287,15 +286,11 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
             noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
             
-            latents = noise_pred
             # compute the previous noisy sample x_t -> x_t-1
             # t is used as an index here, and should be on CPU
-            
-            """
             latents, ets_buffer = self.scheduler.step(
                 noise_pred, t.to("cpu"), latents, ets_buffer
             )  # a tuple is returned by step
-            """
 
         # 8. Post-processing
         image = self.decode_latents(latents)
