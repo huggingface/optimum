@@ -72,13 +72,15 @@ inp = {
     "timesteps": timesteps.astype(np.int64),
 }
 
+# warmup
 print("FORWARD")
 np_image = session.run(None, inp)[0]
 
-print("FORWARD")
-start = time.time()
-np_image = session.run(None, inp)[0]
-print(f"Took {time.time() - start} s")
+for i in range(3):
+    print("FORWARD")
+    start = time.time()
+    np_image = session.run(None, inp)[0]
+    print(f"Took {time.time() - start} s")
 
 image = numpy_to_pil(np_image)
 image[0].save("ort_out.png")

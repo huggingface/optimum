@@ -56,6 +56,7 @@ print(timesteps)
 
 print("Running inference...")
 with torch.inference_mode():
+    # warmup
     print("FORWARD")
     torch_image = scripted_pipeline(
         text_input_ids=text_input_ids,
@@ -63,14 +64,15 @@ with torch.inference_mode():
         timesteps=timesteps,
     )[0][0] # first item in "image"
 
-    print("FORWARD")
-    start = time.time()
-    torch_image = scripted_pipeline(
-        text_input_ids=text_input_ids,
-        uncond_text_input_ids=uncond_text_input_ids,
-        timesteps=timesteps,
-    )[0][0] # first item in "image"
-    print(f"Took {time.time() - start} s")
+    for i in range(3):
+        print("FORWARD")
+        start = time.time()
+        torch_image = scripted_pipeline(
+            text_input_ids=text_input_ids,
+            uncond_text_input_ids=uncond_text_input_ids,
+            timesteps=timesteps,
+        )[0][0] # first item in "image"
+        print(f"Took {time.time() - start} s")
 
 np_image = torch_image.cpu().float().numpy()
 
