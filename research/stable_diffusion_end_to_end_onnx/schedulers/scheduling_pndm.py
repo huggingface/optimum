@@ -56,7 +56,7 @@ class ScriptablePNDMScheduler(nn.Module):
     timesteps: torch.Tensor
     ets: List[torch.Tensor]
     cur_sample: torch.Tensor
-    # ets_buffer: torch.Tensor
+    ets_buffer: torch.Tensor
 
     def __init__(
         self,
@@ -121,7 +121,7 @@ class ScriptablePNDMScheduler(nn.Module):
 
         self.clip_sample = kwargs["clip_sample"]
 
-        # self.ets_buffer = torch.empty(4)  # this buffer should be initialized in the pipeline's forward call
+        self.ets_buffer = torch.empty(4)  # this buffer should be initialized in the pipeline's forward call
         self.set_ets = torch.tensor(
             0, dtype=torch.int64
         )  # this attribute should be reset to 0 in the pipeline's forward call

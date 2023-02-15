@@ -10,8 +10,8 @@ from optimum.onnx.utils import check_model_uses_external_data, _get_onnx_externa
 
 scripted_pipeline = torch.load("scripted_sd_cpu.pt")
 
-#model_path = "CompVis/stable-diffusion-v1-4"
-model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
+model_path = "CompVis/stable-diffusion-v1-4"
+#model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
 text_encoder_config = CLIPTextConfig.from_pretrained(model_path, subfolder="text_encoder")
 tokenizer = AutoTokenizer.from_pretrained(model_path, subfolder="tokenizer")
 scheduler = PNDMScheduler.from_pretrained(model_path, subfolder="scheduler")

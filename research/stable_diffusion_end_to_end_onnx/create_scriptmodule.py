@@ -19,8 +19,8 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-#model_name = "CompVis/stable-diffusion-v1-4"
-model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
+model_name = "CompVis/stable-diffusion-v1-4"
+#model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
 pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False)
 
 num_inference_steps = 50
@@ -85,12 +85,12 @@ if script:
     print("unet:")
     print(scripted_pipeline.unet.code)
 
-    """
+    
     print("scheduler:")
     print(scripted_pipeline.scheduler.step.code)
 
     print("scheduler plms:")
     print(scripted_pipeline.scheduler.step_plms.code)
-    """
+    
 
 torch.jit.save(scripted_pipeline, f"scripted_sd_{device}.pt")
