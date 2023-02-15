@@ -529,8 +529,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     def outputs(self) -> Dict[str, Dict[int, str]]:
         if self.use_past is False:
             common_outputs = super().outputs
+        # In the other cases, the sequence_length axis is not dynamic, always of length 1
+        elif self.task == "default":
+            common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
         else:
-            # In this case, the sequence_length axis is not dynamic, always of length 1
             common_outputs = OrderedDict({"logits": {0: "batch_size"}})
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
