@@ -16,7 +16,9 @@
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+
+from transformers.utils import is_tf_available
 
 from ...onnx import merge_decoders
 from ...utils import (
@@ -28,6 +30,7 @@ from ...utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+    is_diffusers_available,
     logging,
 )
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
@@ -35,7 +38,13 @@ from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig
+    from transformers import PretrainedConfig, PreTrainedModel
+
+    if is_tf_available():
+        from transformers import TFPreTrainedModel
+
+    if is_diffusers_available():
+        from diffusers import ModelMixin
 
 logger = logging.get_logger(__name__)
 
@@ -69,7 +78,14 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             }
         return common_inputs
 
-    def post_process_exported_models(self, path: Path, models_and_onnx_configs, onnx_files_subpaths):
+    def post_process_exported_models(
+        self,
+        path: Path,
+        models_and_onnx_configs: Dict[
+            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        ],
+        onnx_files_subpaths: List[str],
+    ):
         # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
             if onnx_files_subpaths is not None:

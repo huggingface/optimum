@@ -31,7 +31,13 @@ import onnx
 from onnxruntime import InferenceSession
 from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummyTrainingLabelsInputGenerator, logging
+from ...utils import (
+    DEFAULT_DUMMY_SHAPES,
+    DummyInputGenerator,
+    DummyTrainingLabelsInputGenerator,
+    is_diffusers_available,
+    logging,
+)
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
@@ -41,6 +47,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
+
+    if is_diffusers_available():
+        from diffusers import ModelMixin
 
 
 logger = logging.get_logger(__name__)
@@ -469,7 +478,12 @@ class OnnxConfig(ExportConfig, ABC):
         return reference_model_inputs
 
     def post_process_exported_models(
-        self, path: "Path", models_and_onnx_configs: Tuple, onnx_files_subpaths: List[str]
+        self,
+        path: "Path",
+        models_and_onnx_configs: Dict[
+            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        ],
+        onnx_files_subpaths: List[str],
     ):
         """
         Performs any model-specific post-processing on the ONNX.
@@ -477,6 +491,11 @@ class OnnxConfig(ExportConfig, ABC):
         Args:
             path (`Path`):
                 Path to the directory of the stored ONNX model.
+            models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]]`):
+                A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
+            onnx_files_subpaths (`List[str]`):
+            The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as*
+            the order of submodels in the ordered dict `models_and_onnx_configs`.
         """
         return models_and_onnx_configs, onnx_files_subpaths
 

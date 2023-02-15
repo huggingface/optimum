@@ -528,7 +528,7 @@ def export_models(
     ONNX files.
 
     Args:
-        models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]]):
+        models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`, `ModelMixin`], `OnnxConfig`]]):
             A dictionnary containing the models to export and their corresponding onnx configs.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
