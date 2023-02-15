@@ -154,6 +154,46 @@ class ORTDecoder(ORTModelPart):
             ):
                 self.value_sequence_length_idx = -1
 
+    def prepare_inputs_for_merged(
+        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
+    ):
+        # Prepare use cache
+        if past_key_values is None and self.parent_model.use_merged:  # Uses "no past" branch of a merged decoder
+            use_cache_branch = torch.full((1,), False).to(self.device)
+        elif (
+            past_key_values is not None and self.parent_model.use_merged
+        ):  # Uses "with past" branch of a merged decoder
+            use_cache_branch = torch.full((1,), True).to(self.device)
+        else:  # Uses separate decoders
+            use_cache_branch = None
+
+        # Prepare past key values
+        is_dummy = False
+        if (
+            self.parent_model.use_merged and past_key_values is None
+        ):  # Generate dummy past for the first forward if uses a merged decoder
+            batch_size = input_ids.size(0)
+            num_attention_heads = self.normalized_config.num_attention_heads
+            embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+
+            # TODO: find a way to better handle this controlflow, this is EXTREMELY ugly
+            # "1" is the dummy sequence length
+            if self.parent_model.config.model_type == "bloom":
+                shape_value = (batch_size * num_attention_heads, 1, embed_size_per_head)
+                shape_key = (batch_size * num_attention_heads, embed_size_per_head, 1)
+                key = torch.zeros(shape_key, dtype=torch.float32).to(self.device)
+                value = torch.zeros(shape_value, dtype=torch.float32).to(self.device)
+                past_key_values = [
+                    key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
+                ]
+            else:
+                shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
+                key_or_value = torch.zeros(shape, dtype=torch.float32).to(self.device)
+                past_key_values = [key_or_value for _ in range(len(self.key_value_input_names))]
+            is_dummy = True
+
+        return use_cache_branch, past_key_values, is_dummy
+
     def compute_past_key_values_output_shapes(
         self, input_ids: torch.Tensor, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     ) -> Dict[str, List[int]]:
@@ -208,6 +248,12 @@ class ORTDecoder(ORTModelPart):
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
+            # TODO: support merged decoder with IO Binding
+            if self.parent_model.use_merged is True:
+                raise ValueError(
+                    "Merged decoder without / with past is currently not supported when using IO Binding but will be in a future release."
+                    " Please disable IO Binding setting model.use_io_binding = False, or use a model that does not merge the decoder."
+                )
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 past_key_values=past_key_values,
@@ -254,6 +300,12 @@ class ORTDecoder(ORTModelPart):
                 "input_ids": input_ids.cpu().detach().numpy(),
                 "attention_mask": attention_mask.cpu().detach().numpy(),
             }
+
+            if self.parent_model.use_merged is True:
+                use_cache_branch, past_key_values, is_dummy = self.prepare_inputs_for_merged(
+                    input_ids, past_key_values
+                )
+                onnx_inputs["use_cache_branch"] = use_cache_branch.cpu().detach().numpy()
 
             if past_key_values is not None:
                 # Add the past_key_values to the decoder inputs

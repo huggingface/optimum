@@ -24,13 +24,19 @@ import itertools
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import onnx
-from onnxruntime import InferenceSession
+from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummyTrainingLabelsInputGenerator, logging
+from ...utils import (
+    DEFAULT_DUMMY_SHAPES,
+    DummyInputGenerator,
+    DummyTrainingLabelsInputGenerator,
+    is_diffusers_available,
+    logging,
+)
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
@@ -41,12 +47,11 @@ if TYPE_CHECKING:
 
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
+    if is_diffusers_available():
+        from diffusers import ModelMixin
+
 
 logger = logging.get_logger(__name__)
-
-
-# 2 Gb
-EXTERNAL_DATA_FORMAT_SIZE_LIMIT = 2 * 1024 * 1024 * 1024
 
 
 @dataclasses.dataclass
@@ -304,7 +309,9 @@ class OnnxConfig(ExportConfig, ABC):
         else:
             providers = ["CPUExecutionProvider"]
 
-        session = InferenceSession(model_path.as_posix(), providers=providers)
+        session_options = SessionOptions()
+        session_options.graph_optimization_level = GraphOptimizationLevel.ORT_DISABLE_ALL  # no need to optimize here
+        session = InferenceSession(model_path.as_posix(), providers=providers, sess_options=session_options)
 
         to_fix = []
         for output_idx, node in enumerate(session.get_outputs()):
@@ -463,13 +470,37 @@ class OnnxConfig(ExportConfig, ABC):
         """
         Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
+
         Args:
             reference_model_inputs ([`Dict[str, Tensor]`):
                 Reference inputs for the model.
+
         Returns:
             `Dict[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
         """
         return reference_model_inputs
+
+    def post_process_exported_models(
+        self,
+        path: "Path",
+        models_and_onnx_configs: Dict[
+            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        ],
+        onnx_files_subpaths: List[str],
+    ):
+        """
+        Performs any model-specific post-processing on the ONNX.
+
+        Args:
+            path (`Path`):
+                Path to the directory of the stored ONNX model.
+            models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]]`):
+                A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
+            onnx_files_subpaths (`List[str]`):
+            The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as*
+            the order of submodels in the ordered dict `models_and_onnx_configs`.
+        """
+        return models_and_onnx_configs, onnx_files_subpaths
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
@@ -508,6 +539,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
                 "of use_present_in_outputs value will be used for the outputs."
             )
+        self.is_merged = False
+        self.use_cache_branch = None
         super().__init__(config, task=task)
 
     @classmethod
@@ -559,7 +592,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 if dummy_input_gen.supports_input(input_name):
                     # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
                     # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-                    if self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
+                    if (
+                        self.use_past is True
+                        and self.use_cache_branch is not False
+                        and input_name in ["decoder_input_ids", "input_ids"]
+                    ):
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
@@ -579,7 +616,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 )
 
         # refer to https://github.com/huggingface/optimum/pull/764
-        if self.use_past_in_inputs and "attention_mask" in dummy_inputs and self.PAD_ATTENTION_MASK_TO_PAST:
+        if (
+            self.use_past_in_inputs
+            and self.PAD_ATTENTION_MASK_TO_PAST
+            and self.use_cache_branch is not False
+            and "attention_mask" in dummy_inputs
+        ):
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
@@ -807,6 +849,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         input_name, _ = next(iter(self._onnx_config.inputs.items()))
         batch_size = dummy_inputs[input_name].shape[0]
 
+        # TODO: doesn't this break attention_mask generation?
         if isinstance(self._onnx_config, OnnxSeq2SeqConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
             kwargs["sequence_length"] = 1
 

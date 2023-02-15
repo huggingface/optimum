@@ -388,5 +388,5 @@ class OnnxExportTestCase(TestCase):
                 onnx_named_outputs=onnx_outputs,
                 output_dir=Path(tmpdirname),
                 atol=1e-3,
-                output_names=output_names,
+                onnx_files_subpaths=output_names,
             )
