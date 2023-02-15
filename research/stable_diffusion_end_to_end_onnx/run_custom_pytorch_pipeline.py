@@ -7,7 +7,7 @@ from utils import StableDiffusionPreprocessor, numpy_to_pil
 from schedulers.scheduling_pndm import ScriptablePNDMScheduler
 
 device = "cuda"
-dtype = torch.float16
+dtype = torch.float32
 
 model_name = "CompVis/stable-diffusion-v1-4"
 #model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
@@ -44,16 +44,24 @@ timesteps = preprocessed_input["timesteps"].to(device)
 # np_image = pipeline(text_input_ids=text_input_ids, attention_mask=attention_mask).images[0]
 print("len timesteps", timesteps.shape)
 
-start = time.time()
 with torch.inference_mode():
+    # warmup
+    print("FORWARD")
     torch_image = pipeline(
         text_input_ids=text_input_ids,
         uncond_text_input_ids=uncond_text_input_ids,
         timesteps=timesteps,
-    )[0][
-        0
-    ]  # first item in "image" output, indexed at 0
-    print(f"\nforward took: {time.time() - start}\n\n")
+    )[0][0]  # first item in "image" output, indexed at 0
+
+    for i in range(5):
+        print("FORWARD")
+        start = time.time()
+        torch_image = pipeline(
+            text_input_ids=text_input_ids,
+            uncond_text_input_ids=uncond_text_input_ids,
+            timesteps=timesteps,
+        )[0][0] # first item in "image"
+        print(f"Took {time.time() - start} s")
 
 np_image = torch_image.cpu().float().numpy()
 
