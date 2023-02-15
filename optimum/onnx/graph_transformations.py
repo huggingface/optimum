@@ -142,7 +142,7 @@ def merge_decoders(
     for _, inp in enumerate(all_inputs):
         if inp.name == "attention_mask":
             if inp.type.tensor_type.shape.dim[1].dim_param != "sequence_length":
-                raise ValueError("Expected attention_mask second axis to be named dynamic and name `sequence_length`.")
+                raise ValueError("Expected attention_mask second axis to be dynamic and named `sequence_length`.")
             inp.type.tensor_type.shape.dim[1].dim_param = "attention_mask_sequence_length"
 
     deduplicated_initializers = _deduplicated_cross_model_initializers([decoder, decoder_with_past], suffix=graph_name)
