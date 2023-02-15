@@ -87,7 +87,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         width = self.sample_size * self.vae_scale_factor
         # batch size = 1 fixed!
         shape = (1, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
-        self.deterministic_latents = torch.randn(shape, device="cuda", dtype=torch.float16)
+        self.deterministic_latents = torch.randn(shape, device="cuda", dtype=torch.float32)
         #self.deterministic_latents = torch.randn(shape, device="cpu", dtype=torch.float32)
         
 
