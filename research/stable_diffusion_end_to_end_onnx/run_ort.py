@@ -76,7 +76,7 @@ inp = {
 print("FORWARD")
 np_image = session.run(None, inp)[0]
 
-for i in range(3):
+for i in range(5):
     print("FORWARD")
     start = time.time()
     np_image = session.run(None, inp)[0]

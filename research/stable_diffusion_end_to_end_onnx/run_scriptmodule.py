@@ -64,7 +64,7 @@ with torch.inference_mode():
         timesteps=timesteps,
     )[0][0] # first item in "image"
 
-    for i in range(3):
+    for i in range(5):
         print("FORWARD")
         start = time.time()
         torch_image = scripted_pipeline(
