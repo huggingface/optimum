@@ -213,6 +213,7 @@ class ORTModel(OptimizedModel):
             )
 
         self._use_io_binding = use_io_binding
+
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
