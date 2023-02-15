@@ -25,7 +25,13 @@ import onnx
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
-from ...utils import TORCH_MINIMUM_VERSION, is_diffusers_available, is_torch_onnx_support_available, logging
+from ...utils import (
+    TORCH_MINIMUM_VERSION,
+    is_diffusers_available,
+    is_torch_onnx_support_available,
+    logging,
+    require_numpy_strictly_lower,
+)
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from .base import OnnxConfig
 from .utils import recursive_to_device
@@ -439,6 +445,7 @@ def export_pytorch(
     return input_names, output_names
 
 
+@require_numpy_strictly_lower("1.24.0", "The Tensorflow ONNX export only supports numpy<1.24.0.")
 def export_tensorflow(
     model: "TFPreTrainedModel",
     config: OnnxConfig,
