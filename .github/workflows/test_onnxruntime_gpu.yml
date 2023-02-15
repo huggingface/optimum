@@ -66,7 +66,6 @@ jobs:
           docker run --rm --gpus all --workdir=/workspace/optimum/tests onnxruntime-gpu:latest
 
   stop-runner:
-    if: ${{ (github.event_name == 'schedule') || contains( github.event.pull_request.labels.*.name, 'gpu-test') }}
     name: Stop self-hosted EC2 runner
     needs:
       - start-runner # required to get output from the start-runner job
@@ -74,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
-    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    if: ${{ always() &&  !needs.start-runner.result == 'skipped'}} # required to stop the runner even if the error happened in the previous jobs unless the runner was not even started
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1

@@ -67,7 +67,6 @@ jobs:
               ort13/cu116:latest /bin/bash examples/onnxruntime/training/docker/run.sh
 
   stop-runner:
-    if: ${{ (github.event_name == 'schedule') ||  contains( github.event.pull_request.labels.*.name, 'training')}}
     name: Stop self-hosted EC2 runner
     needs:
       - start-runner # required to get output from the start-runner job
