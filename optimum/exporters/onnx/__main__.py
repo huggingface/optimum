@@ -193,6 +193,7 @@ def main():
                 output_dir=args.output.parent,
                 output_names=output_names,
                 device=args.device,
+                input_shapes=input_shapes,
             )
         else:
             validate_model_outputs(
@@ -202,6 +203,7 @@ def main():
                 onnx_named_outputs=onnx_outputs,
                 atol=args.atol,
                 device=args.device,
+                input_shapes=input_shapes,
             )
 
         logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.parent.as_posix()}")

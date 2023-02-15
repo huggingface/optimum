@@ -21,7 +21,6 @@ import functools
 import gc
 import inspect
 import itertools
-import os
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -283,7 +282,7 @@ class OnnxConfig(ExportConfig, ABC):
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
 
-    def fix_dynamic_axes(self, model_path: "Path"):
+    def fix_dynamic_axes(self, model_path: "Path", device: str = "cpu", input_shapes: Dict = None):
         """
         Fixes potential issues with dynamic axes.
 
@@ -300,10 +299,10 @@ class OnnxConfig(ExportConfig, ABC):
         for output in self.outputs.values():
             allowed_dynamic_axes |= set(output.values())
 
-        if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
-            providers = ["CPUExecutionProvider"]
-        else:
+        if device.startswith("cuda"):
             providers = ["CUDAExecutionProvider"]
+        else:
+            providers = ["CPUExecutionProvider"]
 
         session = InferenceSession(model_path.as_posix(), providers=providers)
 
@@ -315,7 +314,9 @@ class OnnxConfig(ExportConfig, ABC):
 
         # We branch here to avoid doing an unnecessary forward pass.
         if to_fix:
-            dummy_inputs = self.generate_dummy_inputs(framework="np")
+            if input_shapes is None:
+                input_shapes = {}
+            dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs)
             onnx_inputs = {}
             for name, value in dummy_inputs.items():
