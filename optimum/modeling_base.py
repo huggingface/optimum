@@ -73,6 +73,7 @@ class OptimizedModel(ABC):
     config_class = AutoConfig
     load_tf_weights = None
     base_model_prefix = "optimized_model"
+    config_name = CONFIG_NAME
 
     def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "PretrainedConfig"):
         super().__init__()
@@ -120,8 +121,7 @@ class OptimizedModel(ABC):
 
         os.makedirs(save_directory, exist_ok=True)
 
-        if hasattr(self.config, "save_pretrained"):
-            self.config.save_pretrained(save_directory)
+        self._save_config(save_directory)
         for preprocessor in self.preprocessors:
             preprocessor.save_pretrained(save_directory)
         self._save_pretrained(save_directory)
@@ -136,6 +136,13 @@ class OptimizedModel(ABC):
         [`from_pretrained`] class method.
         """
         raise NotImplementedError
+
+    def _save_config(self, save_directory):
+        """
+        Saves a model configuration into a directory, so that it can be re-loaded using the
+        [`from_pretrained`] class method.
+        """
+        self.config.save_pretrained(save_directory)
 
     def push_to_hub(
         self,
@@ -308,7 +315,7 @@ class OptimizedModel(ABC):
             model_id, revision = model_id.split("@")
 
         if config is None:
-            if os.path.isdir(os.path.join(model_id, subfolder)):
+            if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
                 if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
                     config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
                 elif CONFIG_NAME in os.listdir(model_id):
@@ -317,15 +324,7 @@ class OptimizedModel(ABC):
                         f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
                     )
                 else:
-                    # raise OSError(f"config.json not found in {model_id} local folder")
-                    config = cls._load_config(
-                        model_id,
-                        revision=revision,
-                        cache_dir=cache_dir,
-                        use_auth_token=use_auth_token,
-                        force_download=force_download,
-                        subfolder=subfolder,
-                    )
+                    raise OSError(f"config.json not found in {model_id} local folder")
             else:
                 config = cls._load_config(
                     model_id,

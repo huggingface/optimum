@@ -179,7 +179,6 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 
-        self.save_config(save_directory)
         self.tokenizer.save_pretrained(save_directory.joinpath("tokenizer"))
         self.scheduler.save_pretrained(save_directory.joinpath("scheduler"))
         if self.feature_extractor is not None:
@@ -359,6 +358,9 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
     @classmethod
     def _load_config(cls, config_name_or_path: Union[str, os.PathLike], **kwargs):
         return cls.load_config(config_name_or_path, **kwargs)
+
+    def _save_config(self, save_directory):
+        self.save_config(save_directory)
 
 
 class ORTModelTextEncoder(ORTModelPart):
