@@ -25,10 +25,17 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+    - name: Install dependencies for pytorch export
+      run: |
+        pip install .[tests,exporters]
+    - name: Test with unittest
+      working-directory: tests
+      run: |
+        pytest exporters/onnx/test_onnx_*.py -s -n auto -m "not tensorflow_test" --durations=0
+    - name: Install dependencies for tensorflow export
       run: |
         pip install .[tests,exporters-tf]
     - name: Test with unittest
       working-directory: tests
       run: |
-        pytest exporters/onnx/test_onnx_*.py -s --durations=0
+        pytest exporters/onnx/test_exporters_onnx_cli.py -n auto -m "tensorflow_test" -s --durations=0

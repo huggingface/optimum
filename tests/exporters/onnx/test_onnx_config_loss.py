@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 
 import onnxruntime
+import pytest
 import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -37,6 +38,7 @@ from optimum.utils.normalized_config import NormalizedConfigManager
 
 
 class TestOnnxConfigWithLoss(unittest.TestCase):
+    @pytest.mark.tensorflow_test
     def test_onnx_config_with_loss(self):
         # Prepare model and dataset
         model_checkpoint = "hf-internal-testing/tiny-random-bert"
