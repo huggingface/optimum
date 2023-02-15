@@ -151,12 +151,14 @@ def _get_data_collator(data_metric_config, tokenizer=None, model=None, training_
         data_collator = data_metric_config["data_collator"]
     elif "data_collator_class" in data_metric_config.keys():
         data_collator_class = data_metric_config["data_collator_class"]
+        if training_args is not None:
+            pad_to_multiple_of = 8 if training_args.fp16 else None
         if data_collator_class is DataCollatorForSeq2Seq:
             data_collator = data_collator_class(
                 tokenizer,
                 model=model,
                 label_pad_token_id=label_pad_token_id,
-                pad_to_multiple_of=8 if training_args.fp16 else None,
+                pad_to_multiple_of=pad_to_multiple_of,
             )
         else:
             data_collator = data_collator_class(tokenizer, pad_to_multiple_of=8)
@@ -189,6 +191,7 @@ def get_ort_trainer(
         model_name,
         data_metric_config,
         max_seq_length,
+        training_args=training_args,
         max_train_samples=max_train_samples,
         max_valid_samples=max_valid_samples,
         max_test_samples=max_test_samples,
