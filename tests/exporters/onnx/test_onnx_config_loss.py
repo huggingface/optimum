@@ -18,14 +18,14 @@ import unittest
 from pathlib import Path
 
 import onnxruntime
+import pytest
 import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
-    TFAutoModelForSequenceClassification,
 )
-from transformers.modeling_tf_utils import TFPreTrainedModel
 from transformers.modeling_utils import PreTrainedModel
+from transformers.utils import is_tf_available
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import OnnxConfigWithLoss, export
@@ -36,7 +36,13 @@ from optimum.utils import DummyTextInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
 
 
+if is_tf_available():
+    from transformers import TFAutoModelForSequenceClassification
+    from transformers.modeling_tf_utils import TFPreTrainedModel
+
+
 class TestOnnxConfigWithLoss(unittest.TestCase):
+    @pytest.mark.tensorflow_test
     def test_onnx_config_with_loss(self):
         # Prepare model and dataset
         model_checkpoint = "hf-internal-testing/tiny-random-bert"

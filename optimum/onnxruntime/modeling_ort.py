@@ -347,7 +347,7 @@ class ORTModel(OptimizedModel):
             provider_options=providers_options,
         )
 
-    def _save_pretrained(self, save_directory: Union[str, Path], file_name: str = ONNX_WEIGHTS_NAME, **kwargs):
+    def _save_pretrained(self, save_directory: Union[str, Path]):
         """
         Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
@@ -356,11 +356,9 @@ class ORTModel(OptimizedModel):
         Args:
             save_directory (`Union[str, Path]`):
                 Directory where to save the model file.
-            file_name (`str`, *optional*, defaults to the value of `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
-                The filename to use when saving the model.
         """
         src_paths = [self.model_path]
-        dst_file_names = [file_name]
+        dst_file_names = [self.model_path.name]
 
         # add external data paths in case of large models
         src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
@@ -377,21 +375,25 @@ class ORTModel(OptimizedModel):
     @staticmethod
     def infer_onnx_filename(
         model_name_or_path: Union[str, Path],
-        pattern: str,
+        patterns: List[str],
         argument_name: str,
         subfolder: str = "",
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         fail_if_not_found: bool = True,
     ) -> str:
-        onnx_files = find_files_matching_pattern(
-            model_name_or_path,
-            pattern,
-            glob_pattern="**/*.onnx",
-            subfolder=subfolder,
-            use_auth_token=use_auth_token,
-            revision=revision,
-        )
+        onnx_files = []
+        for pattern in patterns:
+            onnx_files = find_files_matching_pattern(
+                model_name_or_path,
+                pattern,
+                glob_pattern="**/*.onnx",
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
+            )
+            if onnx_files:
+                break
 
         path = model_name_or_path
         if subfolder != "":
@@ -399,7 +401,7 @@ class ORTModel(OptimizedModel):
 
         if len(onnx_files) == 0:
             if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {pattern} in {path}.")
+                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {patterns} in {path}.")
             return None
         elif len(onnx_files) > 1:
             if argument_name is not None:

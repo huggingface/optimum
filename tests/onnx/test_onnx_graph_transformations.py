@@ -78,7 +78,7 @@ class OnnxMergingTestCase(TestCase):
 
         with TemporaryDirectory() as tmpdir:
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model {model_id} --task {task} {tmpdir}",
+                f"python3 -m optimum.exporters.onnx --model {model_id} --task {task} {tmpdir} --no-post-process",
                 shell=True,
                 check=True,
             )
@@ -86,7 +86,11 @@ class OnnxMergingTestCase(TestCase):
             decoder = onnx.load(os.path.join(tmpdir, "decoder_model.onnx"))
             decoder_with_past = onnx.load(os.path.join(tmpdir, "decoder_with_past_model.onnx"))
 
-            merge_decoders(decoder, decoder_with_past)
+            merge_decoders(
+                decoder,
+                decoder_with_past,
+                save_path=os.path.join(tmpdir, "decoder_model_merged.onnx"),
+            )
 
 
 if __name__ == "__main__":
