@@ -134,6 +134,17 @@ def merge_decoders(
 
     _unify_onnx_outputs(decoder, decoder_with_past)
     all_inputs = _get_all_inputs([decoder, decoder_with_past])
+
+    # Replace the axis name `sequence_length` of the attention_mask input by `attention_mask_sequence_length`.
+    # This is because the merged model `input_ids` and `attention_mask` inputs may not always have the same length on the 2nd axis.
+    # In the first pass, `input_ids` and `attention_mask` are indeed of the same length, but in later path `input_ids` is of length 1
+    # while `attention_mask` is of length `past_sequence_length + 1`
+    for _, inp in enumerate(all_inputs):
+        if inp.name == "attention_mask":
+            if inp.type.tensor_type.shape.dim[1].dim_param != "sequence_length":
+                raise ValueError("Expected attention_mask second axis to be named dynamic and name `sequence_length`.")
+            inp.type.tensor_type.shape.dim[1].dim_param = "attention_mask_sequence_length"
+
     deduplicated_initializers = _deduplicated_cross_model_initializers([decoder, decoder_with_past], suffix=graph_name)
 
     # Make subgraphs

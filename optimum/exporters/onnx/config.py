@@ -15,6 +15,7 @@
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
 import os
+from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
@@ -77,6 +78,17 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
                 "attention_mask": {0: "batch_size", 1: "sequence_length"},
             }
         return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.is_merged is False:
+            common_outputs = super().outputs
+        else:
+            # in the merged case, we need to allow the `sequence_length` to be variable, as it is not 1
+            # during the first pass without past key values
+            common_outputs = OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}})
+            self.add_past_key_values(common_outputs, direction="outputs")
+        return common_outputs
 
     def post_process_exported_models(
         self,
