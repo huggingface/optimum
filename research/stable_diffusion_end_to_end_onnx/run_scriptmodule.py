@@ -13,18 +13,18 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--path",
-    type=str,
-    help="Path to a .pt ScriptModule",
-)
-parser.add_argument(
     "--gpu",
     action="store_true",
     help="use to trace and script on GPU.",
 )
 args = parser.parse_args()
 
-scripted_pipeline = torch.load(args.path)
+if args.gpu:
+    device = "cuda"
+else:
+    device = "cpu"
+
+scripted_pipeline = torch.load(f"scripted_sd_{device}.pt")
 
 # NOTE: Beware that model_path should match with the .pt model!
 #model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
@@ -42,11 +42,6 @@ preprocessor = StableDiffusionPreprocessor(
 
 num_inference_steps = 50
 preprocessed_input = preprocessor.preprocess("A cat sleeping on the beach", num_inference_steps=num_inference_steps)
-
-if args.gpu:
-    device = "cuda"
-else:
-    device = "cpu"
 
 text_input_ids = preprocessed_input["text_input_ids"].to(device)
 uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to(device)

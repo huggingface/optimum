@@ -17,8 +17,12 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+if args.gpu:
+    device = "cuda"
+else:
+    device = "cpu"
 
-scripted_pipeline = torch.load("scripted_sd_cpu.pt")
+scripted_pipeline = torch.load(f"scripted_sd_{device}.pt")
 
 model_path = "CompVis/stable-diffusion-v1-4"
 #model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
@@ -40,10 +44,6 @@ text_input_ids = preprocessed_input["text_input_ids"]
 uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"]
 timesteps = preprocessed_input["timesteps"]
 
-if args.gpu:
-    device = "cuda"
-else:
-    device = "cpu"
 
 text_input_ids = preprocessed_input["text_input_ids"].to(device)
 uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to(device)

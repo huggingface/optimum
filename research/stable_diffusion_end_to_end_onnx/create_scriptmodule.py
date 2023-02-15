@@ -1,5 +1,4 @@
 from optimum.exporters.onnx.utils import get_stable_diffusion_models_for_export
-from optimum.exporters import TasksManager
 
 from diffusers import DiffusionPipeline
 import torch
