@@ -27,10 +27,7 @@ from tqdm.auto import tqdm
 
 
 # Integrations must be imported before ML frameworks:
-from transformers.integrations import (  # isort: split
-    hp_params,
-    is_fairscale_available,
-)
+from transformers.integrations import hp_params, is_fairscale_available  # isort: split
 
 
 import numpy as np
@@ -144,22 +141,23 @@ class ModuleWithLoss(nn.Module):
         else:
             self.label_smoother = None
 
-    def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        """
+        How the loss is computed by Trainer. By default, all models return the loss in the first element.
+        Subclass and override for custom behavior.
+        """
         if self.label_smoother is not None and "labels" in inputs:
             labels = inputs.pop("labels")
         else:
             labels = None
-        outputs = self._original_model(**inputs)
-
+        outputs = model(**inputs)
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
 
         if labels is not None:
-            from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
-
-            if unwrap_model(self._original_model)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
+            if unwrap_model(model)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
                 loss = self.label_smoother(outputs, labels, shift_labels=True)
             else:
                 loss = self.label_smoother(outputs, labels)
@@ -173,6 +171,9 @@ class ModuleWithLoss(nn.Module):
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
+
+    def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
+        return self.compute_loss(self._original_model, inputs, return_outputs=False)
 
     @property
     def config(self):
@@ -309,6 +310,10 @@ class ORTTrainer(Trainer):
             optimizers=optimizers,
             preprocess_logits_for_metrics=preprocess_logits_for_metrics,
         )
+
+        # We leverage both training_model and inference_model in conjunction with model.
+        # _training_model will be wrapped so it will use ORT and will use the overriden functions in ModuleWithLoss.
+        # _inferencing_model will be storing the default version of the model and we will switch to it in case of eval/test.
         self._training_model = ModuleWithLoss(model, args)
         self.model = model
         self._inferencing_model = model
@@ -318,12 +323,14 @@ class ORTTrainer(Trainer):
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
 
+    # we assume that training_model and inference_model have the same forward signature column.
+    # self._signature_columns attribute only stores the first-time parsed signature
     def _set_signature_columns_if_needed(self):
         if self._signature_columns is None:
             # Inspect model forward signature to keep only the arguments it accepts.
             import inspect
 
-            if self.model == self._training_model:
+            if isinstance(self.model, ModuleWithLoss):
                 signature = inspect.signature(self.model._original_model.forward)
             else:
                 signature = inspect.signature(self.model.forward)
@@ -394,7 +401,7 @@ class ORTTrainer(Trainer):
                 "You need to install `onnxruntime-training` to use `ORTTrainer` for training. Check out "
                 "https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer#install-onnx-runtime."
             )
-            
+
         self.model = self._training_model
 
         if resume_from_checkpoint is False:
@@ -544,7 +551,6 @@ class ORTTrainer(Trainer):
                     RuntimeWarning,
                 )
 
-            self.model = self._training_model
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
             )
@@ -885,6 +891,7 @@ class ORTTrainer(Trainer):
             dictionary also contains the epoch number which comes from the training state.
         """
         # memory metrics - must set up as early as possible
+        # TODO: We need to enable evaluation using ORT backend.
         self.model = self._inferencing_model
         self._memory_tracker.start()
 
@@ -977,6 +984,9 @@ class ORTTrainer(Trainer):
             - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
               labels).
         """
+        # TODO: We need to enable evaluation using ORT backend.
+        self.model = self._inferencing_model
+
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
 
@@ -994,10 +1004,7 @@ class ORTTrainer(Trainer):
 
         try:
             output = eval_loop(
-                test_dataloader,
-                description="Prediction",
-                ignore_keys=ignore_keys,
-                metric_key_prefix=metric_key_prefix,
+                test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
             )
         except Exception as error:
             logger.error(error)
@@ -1740,11 +1747,7 @@ class ORTTrainer(Trainer):
                 optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
             if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                self.optimizer = OSS(
-                    params=optimizer_grouped_parameters,
-                    optim=optimizer_cls,
-                    **optimizer_kwargs,
-                )
+                self.optimizer = OSS(params=optimizer_grouped_parameters, optim=optimizer_cls, **optimizer_kwargs)
             else:
                 self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
                 if optimizer_cls.__name__ == "Adam8bit":
@@ -1774,10 +1777,7 @@ class ORTTrainer(Trainer):
                 The training arguments for the training session.
         """
         optimizer_kwargs = {"lr": args.learning_rate}
-        adam_kwargs = {
-            "betas": (args.adam_beta1, args.adam_beta2),
-            "eps": args.adam_epsilon,
-        }
+        adam_kwargs = {"betas": (args.adam_beta1, args.adam_beta2), "eps": args.adam_epsilon}
         if args.optim == ORTOptimizerNames.ADAMW_ORT_FUSED:
             try:
                 from onnxruntime.training.optim import FusedAdam
