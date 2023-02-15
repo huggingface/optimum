@@ -202,32 +202,30 @@ class TasksManager:
             tflite="BertTFLiteConfig",
         ),
         # for big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
-        """
-        "big-bird": supported_tasks_mapping(
-            "default",
-            "masked-lm",
-            # the logic for causal-lm is not supported for big-bird
-            # "causal-lm",
-            "sequence-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-            onnx="BigBirdOnnxConfig",
-            # TODO: check model_config.py to know why it cannot be enabled yet.
-            # tflite="BigBirdTFLiteConfig",
-        ),
-        "bigbird-pegasus": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "causal-lm",
-            "causal-lm-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
-            "sequence-classification",
-            "question-answering",
-            onnx="BigBirdPegasusOnnxConfig",
-        ),
-        """
+        # "big-bird": supported_tasks_mapping(
+        #     "default",
+        #     "masked-lm",
+        #     # the logic for causal-lm is not supported for big-bird
+        #     # "causal-lm",
+        #     "sequence-classification",
+        #     "multiple-choice",
+        #     "token-classification",
+        #     "question-answering",
+        #     onnx="BigBirdOnnxConfig",
+        #     # TODO: check model_config.py to know why it cannot be enabled yet.
+        #     # tflite="BigBirdTFLiteConfig",
+        # ),
+        # "bigbird-pegasus": supported_tasks_mapping(
+        #     "default",
+        #     "default-with-past",
+        #     "causal-lm",
+        #     "causal-lm-with-past",
+        #     "seq2seq-lm",
+        #     "seq2seq-lm-with-past",
+        #     "sequence-classification",
+        #     "question-answering",
+        #     onnx="BigBirdPegasusOnnxConfig",
+        # ),
         "blenderbot": supported_tasks_mapping(
             "default",
             "default-with-past",
