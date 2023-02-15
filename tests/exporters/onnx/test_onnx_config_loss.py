@@ -23,10 +23,9 @@ import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
-    TFAutoModelForSequenceClassification,
 )
-from transformers.modeling_tf_utils import TFPreTrainedModel
 from transformers.modeling_utils import PreTrainedModel
+from transformers.utils import is_tf_available
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import OnnxConfigWithLoss, export
@@ -35,6 +34,11 @@ from optimum.exporters.onnx import OnnxConfigWithLoss, export
 from optimum.onnxruntime.utils import ONNX_DECODER_NAME
 from optimum.utils import DummyTextInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
+
+
+if is_tf_available():
+    from transformers import TFAutoModelForSequenceClassification
+    from transformers.modeling_tf_utils import TFPreTrainedModel
 
 
 class TestOnnxConfigWithLoss(unittest.TestCase):
