@@ -66,6 +66,7 @@ jobs:
           docker run --rm --gpus all --workdir=/workspace/optimum/tests onnxruntime-gpu:latest
 
   stop-runner:
+    if: ${{ (github.event_name == 'schedule') || contains( github.event.pull_request.labels.*.name, 'gpu-test') }}
     name: Stop self-hosted EC2 runner
     needs:
       - start-runner # required to get output from the start-runner job
