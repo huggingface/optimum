@@ -350,6 +350,7 @@ class OnnxExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    @pytest.mark.tensorflow_test
     def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor, monolith: bool):
         if monolith is False:
             return 0
