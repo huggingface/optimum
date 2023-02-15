@@ -201,7 +201,7 @@ class TasksManager:
             onnx="BertOnnxConfig",
             tflite="BertTFLiteConfig",
         ),
-        # for big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
+        # For big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
         # "big-bird": supported_tasks_mapping(
         #     "default",
         #     "masked-lm",
