@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
-    if: ${{ always() && !needs.start-runner.result == 'skipped' }} # required to stop the runner even if the error happened in the previous jobs unless the runner was not even started
+    if: ${{ always() && !(needs.start-runner.result == 'skipped' && needs.do-the-job.result == 'skipped') }} # required to stop the runner even if the error happened in the previous jobs are all skipped
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
