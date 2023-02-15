@@ -1,4 +1,5 @@
-# DISCLAIMER: create_scriptmodule.py needs to be run with the --for-gpu flag for this script to work
+# NOTE: create_scriptmodule.py needs to be run without the flag --gpu for this to work
+import argparse
 
 import torch
 
@@ -8,7 +9,22 @@ from transformers import AutoTokenizer, CLIPTextConfig
 
 from diffusers.schedulers import PNDMScheduler
 
-scripted_pipeline = torch.load("scripted_sd_cuda.pt")
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--path",
+    type=str,
+    help="Path to a .pt ScriptModule",
+)
+parser.add_argument(
+    "--gpu",
+    action="store_true",
+    help="use to trace and script on GPU.",
+)
+args = parser.parse_args()
+
+scripted_pipeline = torch.load(args.path)
 
 # NOTE: Beware that model_path should match with the .pt model!
 #model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
@@ -25,13 +41,19 @@ preprocessor = StableDiffusionPreprocessor(
 )
 
 num_inference_steps = 50
-preprocessed_input = preprocessor.preprocess("A cat sleeping on the beach", num_inference_steps=num_inference_steps, device="cuda")
+preprocessed_input = preprocessor.preprocess("A cat sleeping on the beach", num_inference_steps=num_inference_steps)
 
-text_input_ids = preprocessed_input["text_input_ids"].to("cuda")
-uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to("cuda")
-timesteps = preprocessed_input["timesteps"].to("cuda")
+if args.gpu:
+    device = "cuda"
+else:
+    device = "cpu"
 
-scripted_pipeline = scripted_pipeline.to("cuda")
+text_input_ids = preprocessed_input["text_input_ids"].to(device)
+uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to(device)
+timesteps = preprocessed_input["timesteps"].to(device)
+
+if device == "cuda":
+    scripted_pipeline = scripted_pipeline.to("cuda")
 
 print(text_input_ids)
 print(uncond_text_input_ids)
@@ -48,4 +70,4 @@ with torch.inference_mode():
 np_image = torch_image.cpu().float().numpy()
 
 image = numpy_to_pil(np_image)
-image[0].save("scripted_out_gpu.png")
+image[0].save(f"scripted_out_{device}.png")

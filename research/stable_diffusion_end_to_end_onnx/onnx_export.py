@@ -2,11 +2,21 @@ import torch
 import onnx
 import os
 from utils import StableDiffusionPreprocessor
+import argparse
 
 from transformers import AutoTokenizer, CLIPTextConfig
 
 from diffusers.schedulers import PNDMScheduler
 from optimum.onnx.utils import check_model_uses_external_data, _get_onnx_external_data_tensors
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--gpu",
+    action="store_true",
+    help="use to trace and script on GPU.",
+)
+args = parser.parse_args()
+
 
 scripted_pipeline = torch.load("scripted_sd_cpu.pt")
 
@@ -29,6 +39,18 @@ preprocessed_input = preprocessor.preprocess("A cat sleeping on the beach", num_
 text_input_ids = preprocessed_input["text_input_ids"]
 uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"]
 timesteps = preprocessed_input["timesteps"]
+
+if args.gpu:
+    device = "cuda"
+else:
+    device = "cpu"
+
+text_input_ids = preprocessed_input["text_input_ids"].to(device)
+uncond_text_input_ids = preprocessed_input["uncond_text_input_ids"].to(device)
+timesteps = preprocessed_input["timesteps"].to(device)
+
+if device == "cuda":
+    scripted_pipeline = scripted_pipeline.to("cuda")
 
 print(text_input_ids)
 print(uncond_text_input_ids)
