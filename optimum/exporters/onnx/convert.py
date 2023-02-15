@@ -648,5 +648,5 @@ def export(
             "You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed."
         )
 
-    config.fix_dynamic_axes(output)
+    config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes)
     return export_output
