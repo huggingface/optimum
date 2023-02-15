@@ -45,7 +45,6 @@ from transformers.testing_utils import (
     require_ray,
     require_sigopt,
     require_torch,
-    require_torch_bf16_gpu,
     require_wandb,
     slow,
 )
@@ -446,7 +445,7 @@ def load_and_prepare_clm(model_name, data_metric_config, max_seq_length, padding
     }
 
 
-def load_and_prepare_xsum(model_name, data_metric_config, **kwargs):
+def load_and_prepare_xsum(model_name, data_metric_config, _, **kwargs):
     # Prepare model
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -659,45 +658,46 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
             trainer.predict(test_dataset, inference_with_ort=True)
             gc.collect()
 
-    @unittest.skip("Skip BF16 test.")
-    @slow
-    @require_torch_bf16_gpu
-    @parameterized.expand(
-        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-        + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
-        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
-        skip_on_empty=True,
-    )
-    def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-                bf16=True,  # A large amount of ops don't support bf16 yet.
-            )
+    # Skip this test as a large amount of ops don't support bf16 yet.
+    # @unittest.skip("Skip BF16 test.")
+    # @slow
+    # @require_torch_bf16_gpu
+    # @parameterized.expand(
+    #     _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
+    #     + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+    #     + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
+    #     skip_on_empty=True,
+    # )
+    # def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
+    #     with tempfile.TemporaryDirectory() as tmp_dir:
+    #         training_args = get_ort_training_args(
+    #             feature=feature,
+    #             output_dir=tmp_dir,
+    #             num_train_epochs=self.n_epochs,
+    #             per_device_train_batch_size=self.per_device_train_batch_size,
+    #             per_device_eval_batch_size=self.per_device_eval_batch_size,
+    #             warmup_steps=self.warmup_steps,
+    #             weight_decay=self.weight_decay,
+    #             logging_dir=tmp_dir,
+    #             bf16=True,
+    #         )
 
-            trainer, test_dataset = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
+    #         trainer, test_dataset = get_ort_trainer(
+    #             model_name,
+    #             feature,
+    #             data_metric_config,
+    #             training_args,
+    #             max_seq_length=self.max_seq_length,
+    #             max_train_samples=self.max_train_samples,
+    #             max_valid_samples=self.max_valid_samples,
+    #             max_test_samples=self.max_test_samples,
+    #         )
 
-            trainer.train()
-            trainer.save_model()
-            trainer.evaluate()
-            trainer.predict(test_dataset)
-            gc.collect()
+    #         trainer.train()
+    #         trainer.save_model()
+    #         trainer.evaluate()
+    #         trainer.predict(test_dataset)
+    #         gc.collect()
 
 
 class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
@@ -726,6 +726,7 @@ class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
             )
 
             trainer.push_to_hub()
+            gc.collect()
 
 
 @slow
