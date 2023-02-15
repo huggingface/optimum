@@ -18,9 +18,9 @@ import os
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 from transformers.utils import logging
-import numpy as np
 
 import onnxruntime as ort
 
