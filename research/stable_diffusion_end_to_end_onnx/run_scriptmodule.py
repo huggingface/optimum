@@ -8,7 +8,7 @@ from utils import numpy_to_pil, StableDiffusionPreprocessor
 from transformers import AutoTokenizer, CLIPTextConfig
 
 from diffusers.schedulers import PNDMScheduler
-
+import time
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -24,7 +24,7 @@ if args.gpu:
 else:
     device = "cpu"
 
-scripted_pipeline = torch.load(f"scripted_sd_{device}.pt")
+scripted_pipeline = torch.jit.load(f"scripted_sd_{device}.pt")
 
 # NOTE: Beware that model_path should match with the .pt model!
 #model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
@@ -56,11 +56,21 @@ print(timesteps)
 
 print("Running inference...")
 with torch.inference_mode():
+    print("FORWARD")
     torch_image = scripted_pipeline(
         text_input_ids=text_input_ids,
         uncond_text_input_ids=uncond_text_input_ids,
         timesteps=timesteps,
     )[0][0] # first item in "image"
+
+    print("FORWARD")
+    start = time.time()
+    torch_image = scripted_pipeline(
+        text_input_ids=text_input_ids,
+        uncond_text_input_ids=uncond_text_input_ids,
+        timesteps=timesteps,
+    )[0][0] # first item in "image"
+    print(f"Took {time.time() - start} s")
 
 np_image = torch_image.cpu().float().numpy()
 

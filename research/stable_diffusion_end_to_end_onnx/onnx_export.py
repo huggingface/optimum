@@ -22,7 +22,7 @@ if args.gpu:
 else:
     device = "cpu"
 
-scripted_pipeline = torch.load(f"scripted_sd_{device}.pt")
+scripted_pipeline = torch.jit.load(f"scripted_sd_{device}.pt")
 
 model_path = "CompVis/stable-diffusion-v1-4"
 #model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
