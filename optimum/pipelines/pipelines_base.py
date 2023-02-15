@@ -40,15 +40,15 @@ from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 from transformers.onnx.utils import get_preprocessor
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 
-from .bettertransformer import BetterTransformer
-from .utils import is_onnxruntime_available
-from .utils.file_utils import find_files_matching_pattern
+from ..bettertransformer import BetterTransformer
+from ..utils import is_onnxruntime_available
+from ..utils.file_utils import find_files_matching_pattern
 
 
 SUPPORTED_TASKS = {}
 
 if is_onnxruntime_available():
-    from .onnxruntime import (
+    from ..onnxruntime import (
         ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
@@ -61,7 +61,7 @@ if is_onnxruntime_available():
         ORTModelForTokenClassification,
         ORTModelForVision2Seq,
     )
-    from .onnxruntime.modeling_ort import ORTModel
+    from ..onnxruntime.modeling_ort import ORTModel
 
     SUPPORTED_TASKS = {
         "feature-extraction": {
@@ -216,7 +216,7 @@ def load_ort_pipeline(
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
     elif isinstance(model, str):
-        from .onnxruntime.modeling_seq2seq import ENCODER_ONNX_FILE_PATTERN, ORTModelForConditionalGeneration
+        from ..onnxruntime.modeling_seq2seq import ENCODER_ONNX_FILE_PATTERN, ORTModelForConditionalGeneration
 
         model_id = model
         ort_model_class = SUPPORTED_TASKS[targeted_task]["class"][0]

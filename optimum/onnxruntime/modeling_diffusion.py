@@ -85,6 +85,7 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
+        self._internal_dict = config
         self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
         self.vae_decoder_model_path = Path(vae_decoder_session._model_path)
         self.text_encoder = ORTModelTextEncoder(text_encoder_session, self)
@@ -97,9 +98,8 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         self.safety_checker = None
         sub_models = {"text_encoder": self.text_encoder, "unet": self.unet, "vae_decoder": self.vae_decoder}
         for name in sub_models.keys():
-            config[name] = ("optimum", sub_models[name].__class__.__name__)
-        config.pop("vae", None)
-        self._internal_dict = config
+            self._internal_dict[name] = ("optimum", sub_models[name].__class__.__name__)
+        self._internal_dict.pop("vae", None)
 
     @staticmethod
     def load_model(

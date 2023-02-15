@@ -17,6 +17,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import torch
+from transformers import PretrainedConfig
 from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput
 
 from onnxruntime import InferenceSession
@@ -42,7 +43,7 @@ class ORTModelPart:
         self.session = session
         self.parent_model = parent_model
         self.normalized_config = None
-        if self.parent_model.use_io_binding:
+        if isinstance(self.parent_model.config, PretrainedConfig):
             self.normalized_config = NormalizedConfigManager.get_normalized_config_class(
                 self.parent_model.config.model_type
             )(self.parent_model.config)
