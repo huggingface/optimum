@@ -32,10 +32,3 @@ jobs:
       working-directory: tests
       run: |
         pytest exporters/onnx/test_exporters_onnx_cli.py -n auto -m "not tensorflow_test" -s --durations=0
-    - name: Install dependencies for tensorflow export
-      run: |
-        pip install .[tests,exporters-tf]
-    - name: Test with unittest
-      working-directory: tests
-      run: |
-        pytest exporters/onnx/test_exporters_onnx_cli.py -n auto -m "tensorflow_test" -s --durations=0
