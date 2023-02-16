@@ -10,6 +10,7 @@ from transformers import AutoTokenizer, CLIPTextConfig
 from diffusers.schedulers import PNDMScheduler
 import time
 import argparse
+from constants import MODEL_NAME
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -27,8 +28,7 @@ else:
 scripted_pipeline = torch.jit.load(f"scripted_sd_{device}.pt")
 
 # NOTE: Beware that model_path should match with the .pt model!
-model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
-#model_path = "CompVis/stable-diffusion-v1-4"
+model_path = MODEL_NAME
 text_encoder_config = CLIPTextConfig.from_pretrained(model_path, subfolder="text_encoder")
 tokenizer = AutoTokenizer.from_pretrained(model_path, subfolder="tokenizer")
 scheduler = PNDMScheduler.from_pretrained(model_path, subfolder="scheduler")
@@ -54,27 +54,44 @@ print(text_input_ids)
 print(uncond_text_input_ids)
 print(timesteps)
 
+# 0. Defaults
+height = scripted_pipeline.sample_size * scripted_pipeline.vae_scale_factor
+width = scripted_pipeline.sample_size * scripted_pipeline.vae_scale_factor
+height = 128
+width = 60
+num_images_per_prompt = 1
+guidance_scale = 7.5
+
 print("Running inference...")
 with torch.inference_mode():
     # warmup
     print("FORWARD")
-    torch_image = scripted_pipeline(
+    torch_images = scripted_pipeline(
         text_input_ids=text_input_ids,
         uncond_text_input_ids=uncond_text_input_ids,
         timesteps=timesteps,
-    )[0][0] # first item in "image"
+        num_images_per_prompt=num_images_per_prompt,
+        height=height,
+        width=width,
+        guidance_scale=guidance_scale,
+    )[0]
 
     for i in range(5):
         print("FORWARD")
         start = time.time()
-        torch_image = scripted_pipeline(
+        torch_images = scripted_pipeline(
             text_input_ids=text_input_ids,
             uncond_text_input_ids=uncond_text_input_ids,
             timesteps=timesteps,
-        )[0][0] # first item in "image"
+            num_images_per_prompt=num_images_per_prompt,
+            height=height,
+            width=width,
+            guidance_scale=guidance_scale,
+        )[0]
         print(f"Took {time.time() - start} s")
 
-np_image = torch_image.cpu().float().numpy()
+np_images = torch_images[0].cpu().float().numpy()
 
-image = numpy_to_pil(np_image)
-image[0].save(f"scripted_out_{device}.png")
+images = numpy_to_pil(np_images)
+for i, im in enumerate(images):
+    im.save(f"scriptmodule_out{i}.png")

@@ -9,6 +9,8 @@ from transformers import AutoTokenizer, CLIPTextConfig
 from diffusers.schedulers import PNDMScheduler
 from optimum.onnx.utils import check_model_uses_external_data, _get_onnx_external_data_tensors
 
+from constants import MODEL_NAME
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--gpu",
@@ -24,8 +26,7 @@ else:
 
 scripted_pipeline = torch.jit.load(f"scripted_sd_{device}.pt")
 
-model_path = "CompVis/stable-diffusion-v1-4"
-#model_path = "hf-internal-testing/tiny-stable-diffusion-torch"
+model_path = MODEL_NAME
 text_encoder_config = CLIPTextConfig.from_pretrained(model_path, subfolder="text_encoder")
 tokenizer = AutoTokenizer.from_pretrained(model_path, subfolder="tokenizer")
 scheduler = PNDMScheduler.from_pretrained(model_path, subfolder="scheduler")
@@ -56,15 +57,20 @@ print(text_input_ids)
 print(uncond_text_input_ids)
 print(timesteps)
 
+height = scripted_pipeline.sample_size * scripted_pipeline.vae_scale_factor
+width = scripted_pipeline.sample_size * scripted_pipeline.vae_scale_factor
+guidance_scale = 7.5
+
 onnx_file = "stable_diffusion_pipeline.onnx"
 with torch.inference_mode():
     torch.onnx.export(
         scripted_pipeline,
-        args=(text_input_ids, uncond_text_input_ids, timesteps),
+        args=(text_input_ids, uncond_text_input_ids, timesteps, 1, height, width, guidance_scale),
         f=onnx_file,
-        input_names=["text_input_ids", "uncond_text_input_ids", "timesteps"],
+        input_names=["text_input_ids", "uncond_text_input_ids", "timesteps", "num_images_per_prompt", "height", "width", "guidance_scale"],
         # output_names=output_names,
-        # dynamic_axes={name: axes for name, axes in chain(inputs.items(), config.outputs.items())},
+        #dynamic_axes={name: axes for name, axes in chain(inputs.items(), config.outputs.items())},
+        #dynamic_axes={"num_images_per_prompt": [0]},
         # do_constant_folding=True,
         # opset_version=16,
     )

@@ -7,6 +7,7 @@ from scriptable_pipeline_stable_diffusion import ScriptableStableDiffusionPipeli
 
 from utils import export_models, get_traced_submodules, StableDiffusionPreprocessor
 
+from constants import MODEL_NAME
 from schedulers.scheduling_pndm import ScriptablePNDMScheduler
 import argparse
 
@@ -18,9 +19,8 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-model_name = "CompVis/stable-diffusion-v1-4"
-#model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
-pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False)
+model_path = MODEL_NAME
+pipeline = DiffusionPipeline.from_pretrained(model_path, low_cpu_mem_usage=False)
 
 num_inference_steps = 50
 
@@ -43,6 +43,9 @@ pipeline = ScriptableStableDiffusionPipeline(
 if args.gpu:
     pipeline = pipeline.to(device)
 
+
+script = True
+
 models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
 
 in_dummy_out_per_model = export_models(
@@ -55,15 +58,6 @@ text_encoder_traced, unet_traced, vae_decoder_traced = get_traced_submodules(
 )
 print("Tracing done.")
 
-preprocessor = StableDiffusionPreprocessor(
-    pipeline.tokenizer,
-    pipeline.text_encoder.config,
-    do_classifier_free_guidance=True,
-    scheduler=pipeline.scheduler,
-)
-
-script = True
-
 if script:
     pipeline.vae_decoder = vae_decoder_traced
     pipeline.vae = None  # the VAE is not scriptable
@@ -75,6 +69,7 @@ pipeline.text_encoder = text_encoder_traced
 # torch.jit.script at the top level to capture the loops and controlflows in the scheduler
 if script:
     scripted_pipeline = torch.jit.script(pipeline)
+    torch.jit.save(scripted_pipeline, f"scripted_sd_{device}.pt")
 
     print(scripted_pipeline.code)
 
@@ -89,6 +84,3 @@ if script:
 
     print("scheduler plms:")
     print(scripted_pipeline.scheduler.step_plms.code)
-    
-
-torch.jit.save(scripted_pipeline, f"scripted_sd_{device}.pt")

@@ -66,20 +66,16 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         self.tokenizer = tokenizer
         self.unet = unet
         self.scheduler = scheduler
-
+        
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
 
         assert all(device == self.vae.device for device in [self.text_encoder.device, self.unet.device])
         self.device = self.vae.device
+        
+        self.sample_size = self.unet.config.sample_size
+        self.unet_in_channels = self.unet.in_channels
 
-        self.sample_size = torch.tensor(self.unet.config.sample_size, dtype=torch.int64)
-        self.unet_in_channels = torch.tensor(self.unet.in_channels, dtype=torch.int64)
-
-        self.height = -1
-        self.width = -1
-        self.guidance_scale = 7.5
-        self.num_images_per_prompt = 1
-
+        """
         # TODO: remove
         torch.manual_seed(42)
         num_channels_latents = self.unet_in_channels
@@ -88,9 +84,8 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         # batch size = 1 fixed!
         shape = (1, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
         self.deterministic_latents = torch.randn(shape, device="cpu", dtype=torch.float32)
-        #self.deterministic_latents = torch.randn(shape, device="cpu", dtype=torch.float32)
+        """
         
-
     def _encode_prompt(
         self,
         text_input_ids: torch.Tensor,
@@ -181,6 +176,10 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         text_input_ids: torch.Tensor,
         uncond_text_input_ids: torch.Tensor,
         timesteps: torch.Tensor,
+        num_images_per_prompt: int,
+        height: int,
+        width: int,
+        guidance_scale: float,
     ):
         r"""
         Performs reversed stable diffusion.
@@ -220,10 +219,6 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         if text_input_ids is None:
             raise ValueError("text_input_ids should be passed")
 
-        # 0. Default height and width to unet
-        height = self.sample_size * self.vae_scale_factor
-        width = self.sample_size * self.vae_scale_factor
-
         # height = height or self.unet.config.sample_size * self.vae_scale_factor
         # width = width or self.unet.config.sample_size * self.vae_scale_factor
 
@@ -238,15 +233,17 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         prompt_embeds = self._encode_prompt(
             text_input_ids,
             uncond_text_input_ids,
-            self.num_images_per_prompt,
+            num_images_per_prompt,
         )
 
         device = prompt_embeds.device
 
         # 5. Prepare latent variables
         num_channels_latents = self.unet_in_channels
+
+        
         latents = self.prepare_latents(
-            batch_size * self.num_images_per_prompt,
+            batch_size * num_images_per_prompt,
             num_channels_latents,
             height,
             width,
@@ -254,9 +251,16 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             device,
         )
 
-        # TODO: remove this horror
-        latents = self.deterministic_latents
+        """
+        # num_images_per_prompt = 1
+        shape = (batch_size * num_images_per_prompt, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
 
+        # latents = torch.zeros(shape, device=device, dtype=prompt_embeds.dtype)
+        latents = torch.zeros(shape, device="cpu", dtype=torch.float32)
+
+        # TODO: remove this horror
+        #latents = self.deterministic_latents
+        """
         self.scheduler.init_forward(
             device=device,
             dtype=prompt_embeds.dtype,
@@ -265,7 +269,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             num_channels_latents=num_channels_latents,
             vae_scale_factor=self.vae_scale_factor,
             batch_size=batch_size,
-            num_images_per_prompt=self.num_images_per_prompt
+            num_images_per_prompt=num_images_per_prompt
         )
         
         # 7. Denoising loop
@@ -277,13 +281,12 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
             # predict the noise residual
-            # shape: 2, 4, 64, 64
             noise_pred = self.unet(latent_model_input, t, prompt_embeds)[0]
 
             # perform guidance
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-            noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
-            
+            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
             # compute the previous noisy sample x_t -> x_t-1
             # t is used as an index here, and should be on CPU
             latents = self.scheduler.step(noise_pred, t.to("cpu"), latents)

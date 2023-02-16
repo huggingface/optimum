@@ -120,8 +120,8 @@ class ScriptablePNDMScheduler(nn.Module):
         self.clip_sample = kwargs["clip_sample"]
 
         # these buffers should be initialized in the pipeline's forward call
-        self.ets_buffer = torch.empty(0)  
-        self.set_ets = torch.empty(0)  
+        self.ets_buffer = torch.empty(0)
+        self.set_ets = torch.empty(0)
         self.counter = torch.empty(0)
 
     @torch.jit.export
@@ -131,10 +131,10 @@ class ScriptablePNDMScheduler(nn.Module):
         dtype: torch.dtype,
         height: int,
         width: int,
-        num_channels_latents,
+        num_channels_latents: int,
         vae_scale_factor: int,
         batch_size: int,
-        num_images_per_prompt: int
+        num_images_per_prompt: int,
     ):
         """
         Initializes buffers in a forward pass in the diffusion pipeline.
@@ -150,8 +150,8 @@ class ScriptablePNDMScheduler(nn.Module):
         ).to(device, dtype=dtype)
 
         # ONNX Runtime would otherwise complain when assigning as self.cur_sample shape is statically registered as {0}
-        self.cur_sample = torch.empty(
-            batch_size,
+        self.cur_sample = torch.zeros(
+            batch_size * num_images_per_prompt,
             num_channels_latents,
             height // vae_scale_factor,
             width // vae_scale_factor,
@@ -191,9 +191,9 @@ class ScriptablePNDMScheduler(nn.Module):
     @torch.jit.export
     def step_prk(
         self,
-        model_output: torch.FloatTensor,
+        model_output: torch.Tensor,
         timestep: torch.Tensor,
-        sample: torch.FloatTensor,
+        sample: torch.Tensor,
     ) -> torch.Tensor:
 
         if self.num_inference_steps is None:
@@ -229,9 +229,9 @@ class ScriptablePNDMScheduler(nn.Module):
     @torch.jit.export
     def step_plms(
         self,
-        model_output: torch.FloatTensor,
+        model_output: torch.Tensor,
         timestep: torch.Tensor,
-        sample: torch.FloatTensor,
+        sample: torch.Tensor,
     ) -> torch.Tensor:
         """
         Step function propagating the sample with the linear multi-step method. This has one forward pass with multiple
@@ -263,6 +263,7 @@ class ScriptablePNDMScheduler(nn.Module):
                 "for more information."
             )
         """
+        
         prev_timestep = timestep - self.num_train_timesteps // self.num_inference_steps
 
         # print("sample dtype:", sample.dtype)
@@ -285,8 +286,14 @@ class ScriptablePNDMScheduler(nn.Module):
 
         # print("model_output.shape before", model_output.shape)
         # print("ets_buffer[-1] shape", ets_buffer[-1].shape)
+
         if self.set_ets == 1 and self.counter == 0:
-            self.cur_sample = sample
+            # the `1 *` is somehow necessary to avoid the cryptic error:
+            #RuntimeException: [ONNXRuntimeError] Non-zero status code returned while running Identity node. Name:'/Identity_5' Status
+            # Message: /onnxruntime_src/include/onnxruntime/core/framework/ort_value.h:101 const T& OrtValue::Get() 
+            # const [with T = onnxruntime::TensorSeq] IsTensorSequence() was false. Trying to get a TensorSeq, but got: (null)
+            # adding it visibly duplicates memory in the torch_jit6 graph
+            self.cur_sample = 1 * sample
         elif self.set_ets == 1 and self.counter == 1:
             model_output = (model_output + self.ets_buffer[-1]) / 2
             sample = self.cur_sample
@@ -300,8 +307,6 @@ class ScriptablePNDMScheduler(nn.Module):
             model_output = (1 / 24) * (
                 55 * self.ets_buffer[-1] - 59 * self.ets_buffer[-2] + 37 * self.ets_buffer[-3] - 9 * self.ets_buffer[-4]
             )
-
-        # print("model_output.shape after", model_output.shape)
 
         prev_sample = self._get_prev_sample(sample, timestep, prev_timestep, model_output)
         self.counter = self.counter + 1
