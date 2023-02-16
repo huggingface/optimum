@@ -87,7 +87,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         width = self.sample_size * self.vae_scale_factor
         # batch size = 1 fixed!
         shape = (1, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
-        self.deterministic_latents = torch.randn(shape, device="cuda", dtype=torch.float32)
+        self.deterministic_latents = torch.randn(shape, device="cpu", dtype=torch.float32)
         #self.deterministic_latents = torch.randn(shape, device="cpu", dtype=torch.float32)
         
 
@@ -286,8 +286,8 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             
             # compute the previous noisy sample x_t -> x_t-1
             # t is used as an index here, and should be on CPU
-            latents, ets_buffer = self.scheduler.step(
-                noise_pred, t.to("cpu"), latents, ets_buffer
+            latents = self.scheduler.step(
+                noise_pred, t.to("cpu"), latents
             )  # a tuple is returned by step
 
         # 8. Post-processing

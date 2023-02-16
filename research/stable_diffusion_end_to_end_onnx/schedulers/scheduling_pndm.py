@@ -54,7 +54,6 @@ class ScriptablePNDMScheduler(nn.Module):
     prk_timesteps: torch.Tensor  # Optional is non subscriptable
     plms_timesteps: torch.Tensor
     timesteps: torch.Tensor
-    ets: List[torch.Tensor]
     cur_sample: torch.Tensor
     ets_buffer: torch.Tensor
 
@@ -104,8 +103,8 @@ class ScriptablePNDMScheduler(nn.Module):
 
         # running values
         self.cur_model_output = torch.tensor(0)
-        #self.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
-        self.cur_sample = torch.empty(0)
+        self.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
+        #self.cur_sample = torch.empty(0)
 
         # setable values
         self.num_inference_steps = None
@@ -139,7 +138,7 @@ class ScriptablePNDMScheduler(nn.Module):
         num_images_per_prompt: int
     ):
         """
-        Initialize a forward pass in the diffusion pipeline.
+        Initializes buffers in a forward pass in the diffusion pipeline.
         """
         self.set_ets = torch.tensor(0, dtype=torch.int64).to(device)
         self.counter = torch.tensor(0, dtype=torch.int64).to(device)
@@ -158,8 +157,7 @@ class ScriptablePNDMScheduler(nn.Module):
         model_output: torch.FloatTensor,
         timestep: torch.Tensor,
         sample: torch.FloatTensor,
-        ets_buffer: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         """
         Predict the sample at the previous timestep by reversing the SDE. Core function to propagate the diffusion
         process from the learned model outputs (most often the predicted noise).
@@ -179,10 +177,10 @@ class ScriptablePNDMScheduler(nn.Module):
 
         """
         if self.counter < len(self.prk_timesteps) and not self.skip_prk_steps:
-            return (self.step_prk(model_output=model_output, timestep=timestep, sample=sample), ets_buffer)
+            return self.step_prk(model_output=model_output, timestep=timestep, sample=sample)
         else:
-            return self.step_plms(model_output=model_output, timestep=timestep, sample=sample, ets_buffer=ets_buffer)
-
+            return self.step_plms(model_output=model_output, timestep=timestep, sample=sample)
+    
     @torch.jit.export
     def step_prk(
         self,
@@ -228,8 +226,7 @@ class ScriptablePNDMScheduler(nn.Module):
         model_output: torch.FloatTensor,
         timestep: torch.Tensor,
         sample: torch.FloatTensor,
-        ets_buffer: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         """
         Step function propagating the sample with the linear multi-step method. This has one forward pass with multiple
         times to approximate the solution.
@@ -270,8 +267,8 @@ class ScriptablePNDMScheduler(nn.Module):
         # print("timestep dtype", timestep.dtype)
 
         if self.counter != 1:
-            ets_buffer = torch.roll(ets_buffer, shifts=-1, dims=0)
-            ets_buffer[3] = model_output
+            self.ets_buffer = torch.roll(self.ets_buffer, shifts=-1, dims=0)
+            self.ets_buffer[3] = model_output
             self.set_ets = self.set_ets + 1
         else:
             prev_timestep = timestep
@@ -286,27 +283,25 @@ class ScriptablePNDMScheduler(nn.Module):
             model_output = model_output
             self.cur_sample = sample
         elif self.set_ets == 1 and self.counter == 1:
-            model_output = (model_output + ets_buffer[-1]) / 2
+            model_output = (model_output + self.ets_buffer[-1]) / 2
             sample = self.cur_sample
             # TODO: to fix?
             # self.cur_sample = torch.tensor(-5., dtype=torch.float32)
         elif self.set_ets == 2:
-            model_output = (3 * ets_buffer[-1] - ets_buffer[-2]) / 2
+            model_output = (3 * self.ets_buffer[-1] - self.ets_buffer[-2]) / 2
         elif self.set_ets == 3:
-            model_output = (23 * ets_buffer[-1] - 16 * ets_buffer[-2] + 5 * ets_buffer[-3]) / 12
+            model_output = (23 * self.ets_buffer[-1] - 16 * self.ets_buffer[-2] + 5 * self.ets_buffer[-3]) / 12
         else:
             model_output = (1 / 24) * (
-                55 * ets_buffer[-1] - 59 * ets_buffer[-2] + 37 * ets_buffer[-3] - 9 * ets_buffer[-4]
+                55 * self.ets_buffer[-1] - 59 * self.ets_buffer[-2] + 37 * self.ets_buffer[-3] - 9 * self.ets_buffer[-4]
             )
 
         # print("model_output.shape after", model_output.shape)
 
-        #TODO: put back?
         prev_sample = self._get_prev_sample(sample, timestep, prev_timestep, model_output)
-        #prev_sample = sample
         self.counter = self.counter + 1
 
-        return (prev_sample, ets_buffer)
+        return prev_sample
 
     @torch.jit.export
     def _get_prev_sample(
