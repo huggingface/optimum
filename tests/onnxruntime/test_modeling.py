@@ -3343,5 +3343,31 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
 
         with torch.no_grad():
             diffusers_outputs = diffusers_pipeline(latents=torch.from_numpy(latents), **kwargs)
-        # Compare tensor outputs
+        # Compare model outputs
         self.assertTrue(np.allclose(ort_outputs.images[0], diffusers_outputs.images[0], atol=1e-4))
+        # Check model devices
+        self.assertEqual(diffusers_pipeline.device, ort_pipeline.device)
+
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    @require_diffusers
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+
+        pipe = ORTStableDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        outputs = pipe("This is a simple test", output_type="numpy")
+        import pdb
+
+        pdb.set_trace()
+
+        # Compare model devices
+        self.assertEqual(pipe.device.type.lower(), "cuda")
+        # Compare model outputs
+        self.assertIsInstance(outputs.images[0], np.ndarray)
+        self.assertEqual(outputs.images[0].shape, (128, 128, 3))
