@@ -66,6 +66,7 @@ from optimum.onnxruntime import (
     ONNX_ENCODER_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForAudioClassification,
+    ORTModelForCTC,
     ORTModelForCausalLM,
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
