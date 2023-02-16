@@ -74,10 +74,10 @@ SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
             `(batch_size, encoder_sequence_length)`. Mask values selected in `[0, 1]`.
 """
 
-WHISPER_ENCODER_INPUTS_DOCSTRING = r"""
+SPEECH_ENCODER_INPUTS_DOCSTRING = r"""
     Args:
         input_features (`torch.FloatTensor`):
-            Mel features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
+            Mel / fbank features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
 """
 
 VISION_ENCODER_INPUTS_DOCSTRING = r"""
@@ -273,7 +273,7 @@ DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
 
 
-class ORTEncoderForWhisper(ORTEncoder):
+class ORTEncoderForSpeech(ORTEncoder):
     """
     Encoder model for ONNX Runtime inference for Whisper model.
 
@@ -282,7 +282,7 @@ class ORTEncoderForWhisper(ORTEncoder):
             The ONNX Runtime inference session associated to the encoder.
     """
 
-    @add_start_docstrings_to_model_forward(WHISPER_ENCODER_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(SPEECH_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
         input_features: torch.FloatTensor,
@@ -934,18 +934,8 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
 
-    _MODEL_TYPE_TO_ORTENCODER = {
-        "whisper": ORTEncoderForWhisper,
-    }
-
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
-        if self.config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
-            raise KeyError(
-                f"{self.config.model_type} is not supported yet. "
-                f"Only {list(self._MODEL_TYPE_TO_ORTENCODER.keys())} are supported. "
-                f"If you want to support {self.config.model_type} please propose a PR or open up an issue."
-            )
-        return self._MODEL_TYPE_TO_ORTENCODER[self.config.model_type](session, self)
+        return ORTEncoderForSpeech(session, self)
 
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, feature_size, sequence_length")

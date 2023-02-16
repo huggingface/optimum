@@ -83,6 +83,7 @@ logger = logging.getLogger(__name__)
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
+_PROCESSOR_FOR_DOC = "AutoProcessor"
 
 ONNX_MODEL_START_DOCSTRING = r"""
     This model inherits from [`~onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
@@ -121,6 +122,13 @@ ONNX_IMAGE_INPUTS_DOCSTRING = r"""
         pixel_values (`Union[torch.Tensor, np.ndarray, None]` of shape `({0})`, defaults to `None`):
             Pixel values corresponding to the images in the current batch.
             Pixel values can be obtained from encoded images using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
+"""
+
+ONNX_AUDIO_INPUTS_DOCSTRING = r"""
+    Args:
+        input_values (`torch.Tensor` of shape `({0})`):
+            Float values of input raw speech waveform..
+            Input values can be obtained from audio file loaded into an array using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
 """
 
 
@@ -1663,19 +1671,24 @@ AUDIO_CLASSIFICATION_EXAMPLE = r"""
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
+    >>> from datasets import load_dataset
     >>> import torch
 
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
+    >>> dataset = dataset.sort("id")
+    >>> sampling_rate = dataset.features["audio"].sampling_rate
+
+    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> inputs = tokenizer(question, text, return_tensors="pt")
-    >>> start_positions = torch.tensor([1])
-    >>> end_positions = torch.tensor([3])
-A
-    >>> outputs = model(**inputs, start_positions=start_positions, end_positions=end_positions)
-    >>> start_scores = outputs.start_logits
-    >>> end_scores = outputs.end_logits
+    >>> # audio file is decoded on the fly
+    >>> inputs = feature_extractor(dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="pt")
+
+    >>> with torch.no_grad():
+    ...     logits = model(**inputs).logits
+
+    >>> predicted_class_ids = torch.argmax(logits, dim=-1).item()
+    >>> predicted_label = model.config.id2label[predicted_class_ids]
     ```
     Example using `transformers.pipeline`:
 
@@ -1683,12 +1696,14 @@ A
     >>> from transformers import {processor_class}, pipeline
     >>> from optimum.onnxruntime import {model_class}
 
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
+    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
+    >>> dataset = dataset.sort("id")
 
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> pred = onnx_qa(question, text)
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> onnx_ac = pipeline("audio-classification", model=model, feature_extractor=feature_extractor, sampling_rate=sampling_rat)
+
+    >>> pred = onnx_ac(dataset[0]["audio"]["array"])
     ```
 """
 
@@ -1708,17 +1723,17 @@ class ORTModelForAudioClassification(ORTModel):
     auto_model_class = AutoModelForAudioClassification
 
     @add_start_docstrings_to_model_forward(
-        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + AUDIO_CLASSIFICATION_EXAMPLE.format(
-            processor_class=_TOKENIZER_FOR_DOC,
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForAudioClassification",
-            checkpoint="optimum/roberta-base-squad2",
+            checkpoint="optimum/hubert-base-superb-ks",
         )
     )
     def forward(
         self,
         input_values: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        attenton_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
@@ -1735,7 +1750,6 @@ class ORTModelForAudioClassification(ORTModel):
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
                 "input_values": input_values.cpu().detach().numpy(),
-                # "attention_mask": attention_mask.cpu().detach().numpy(),
             }
 
             # run inference
@@ -1747,38 +1761,28 @@ class ORTModelForAudioClassification(ORTModel):
 
 
 CTC_EXAMPLE = r"""
-    Example of audio classification:
+    Example of CTC:
 
     ```python
-    >>> from transformers import {processor_class}
+    >>> from transformers import {processor_class}, HubertForCTC
     >>> from optimum.onnxruntime import {model_class}
+    >>> from datasets import load_dataset
     >>> import torch
 
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
+    >>> dataset = dataset.sort("id")
+    >>> sampling_rate = dataset.features["audio"].sampling_rate
+
+    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> inputs = tokenizer(question, text, return_tensors="pt")
-    >>> start_positions = torch.tensor([1])
-    >>> end_positions = torch.tensor([3])
-A
-    >>> outputs = model(**inputs, start_positions=start_positions, end_positions=end_positions)
-    >>> start_scores = outputs.start_logits
-    >>> end_scores = outputs.end_logits
-    ```
-    Example using `transformers.pipeline`:
+    >>> # audio file is decoded on the fly
+    >>> inputs = processor(dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="pt")
+    >>> with torch.no_grad():
+    ...     logits = model(**inputs).logits
+    >>> predicted_ids = torch.argmax(logits, dim=-1)
 
-    ```python
-    >>> from transformers import {processor_class}, pipeline
-    >>> from optimum.onnxruntime import {model_class}
-
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
-
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> pred = onnx_qa(question, text)
-    ```
+    >>> transcription = processor.batch_decode(predicted_ids)
 """
 
 
@@ -1796,17 +1800,16 @@ class ORTModelForCTC(ORTModel):
     auto_model_class = AutoModelForCTC
 
     @add_start_docstrings_to_model_forward(
-        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + CTC_EXAMPLE.format(
-            processor_class=_TOKENIZER_FOR_DOC,
+            processor_class=_PROCESSOR_FOR_DOC,
             model_class="ORTModelForCTC",
-            checkpoint="optimum/roberta-base-squad2",
+            checkpoint="optimum/hubert-large-ls960-ft",
         )
     )
     def forward(
         self,
         input_values: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
@@ -1823,7 +1826,6 @@ class ORTModelForCTC(ORTModel):
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
                 "input_values": input_values.cpu().detach().numpy(),
-                # "attention_mask": attention_mask.cpu().detach().numpy(),
             }
 
             # run inference
@@ -1835,38 +1837,36 @@ class ORTModelForCTC(ORTModel):
 
 
 AUDIO_XVECTOR_EXAMPLE = r"""
-    Example of audio classification:
+    Example of audio XVector:
 
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
+    >>> from datasets import load_dataset
     >>> import torch
 
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
+    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
+    >>> dataset = dataset.sort("id")
+    >>> sampling_rate = dataset.features["audio"].sampling_rate
+
+    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> inputs = tokenizer(question, text, return_tensors="pt")
-    >>> start_positions = torch.tensor([1])
-    >>> end_positions = torch.tensor([3])
+    >>> # audio file is decoded on the fly
+    >>> inputs = feature_extractor(
+    ...     [d["array"] for d in dataset[:2]["audio"]], sampling_rate=sampling_rate, return_tensors="pt", padding=True
+    ... )
+    >>> with torch.no_grad():
+    ...     embeddings = model(**inputs).embeddings
 
-    >>> outputs = model(**inputs, start_positions=start_positions, end_positions=end_positions)
-    >>> start_scores = outputs.start_logits
-    >>> end_scores = outputs.end_logits
-    ```
-    Example using `transformers.pipeline`:
+    >>> embeddings = torch.nn.functional.normalize(embeddings, dim=-1).cpu()
 
-    ```python
-    >>> from transformers import {processor_class}, pipeline
-    >>> from optimum.onnxruntime import {model_class}
-
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
-
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> pred = onnx_qa(question, text)
-    ```
+    >>> cosine_sim = torch.nn.CosineSimilarity(dim=-1)
+    >>> similarity = cosine_sim(embeddings[0], embeddings[1])
+    >>> threshold = 0.7
+    >>> if similarity < threshold:
+    ...     print("Speakers are not the same!")
+    >>> round(similarity.item(), 2)
 """
 
 
@@ -1884,17 +1884,16 @@ class ORTModelForAudioXVector(ORTModel):
     auto_model_class = AutoModelForAudioXVector
 
     @add_start_docstrings_to_model_forward(
-        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + AUDIO_XVECTOR_EXAMPLE.format(
-            processor_class=_TOKENIZER_FOR_DOC,
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
             model_class="ORTModelForAudioXVector",
-            checkpoint="optimum/roberta-base-squad2",
+            checkpoint="optimum/wav2vec2-base-superb-sv",
         )
     )
     def forward(
         self,
         input_values: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
@@ -1914,7 +1913,6 @@ class ORTModelForAudioXVector(ORTModel):
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
                 "input_values": input_values.cpu().detach().numpy(),
-                # "attention_mask": attention_mask.cpu().detach().numpy(),
             }
 
             # run inference
@@ -1927,38 +1925,28 @@ class ORTModelForAudioXVector(ORTModel):
 
 
 AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
-    Example of audio classification:
+    Example of audio frame classification:
 
     ```python
     >>> from transformers import {processor_class}
     >>> from optimum.onnxruntime import {model_class}
+    >>> from datasets import load_dataset
     >>> import torch
 
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
+    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
+    >>> dataset = dataset.sort("id")
+    >>> sampling_rate = dataset.features["audio"].sampling_rate
 
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> inputs = tokenizer(question, text, return_tensors="pt")
-    >>> start_positions = torch.tensor([1])
-    >>> end_positions = torch.tensor([3])
+    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model =  {model_class}.from_pretrained("{checkpoint}")
 
-    >>> outputs = model(**inputs, start_positions=start_positions, end_positions=end_positions)
-    >>> start_scores = outputs.start_logits
-    >>> end_scores = outputs.end_logits
-    ```
-    Example using `transformers.pipeline`:
+    >>> inputs = feature_extractor(dataset[0]["audio"]["array"], return_tensors="pt", sampling_rate=sampling_rate)
+    >>> with torch.no_grad():
+    ...     logits = model(**inputs).logits
 
-    ```python
-    >>> from transformers import {processor_class}, pipeline
-    >>> from optimum.onnxruntime import {model_class}
-
-    >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
-
-    >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> pred = onnx_qa(question, text)
-    ```
+    >>> probabilities = torch.sigmoid(logits[0])
+    >>> labels = (probabilities > 0.5).long()
+    >>> labels[0].tolist()
 """
 
 
@@ -1976,17 +1964,16 @@ class ORTModelForAudioFrameClassification(ORTModel):
     auto_model_class = AutoModelForAudioFrameClassification
 
     @add_start_docstrings_to_model_forward(
-        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + AUDIO_FRAME_CLASSIFICATION_EXAMPLE.format(
-            processor_class=_TOKENIZER_FOR_DOC,
-            model_class="ORTModelForAudioXVector",
-            checkpoint="optimum/roberta-base-squad2",
+            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
+            model_class="ORTModelForAudioFrameClassification",
+            checkpoint="optimum/wav2vec2-base-superb-sd",
         )
     )
     def forward(
         self,
         input_values: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
@@ -2003,7 +1990,6 @@ class ORTModelForAudioFrameClassification(ORTModel):
             # converts pytorch inputs into numpy inputs for onnx
             onnx_inputs = {
                 "input_values": input_values.cpu().detach().numpy(),
-                # "attention_mask": attention_mask.cpu().detach().numpy(),
             }
 
             # run inference

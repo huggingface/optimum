@@ -140,6 +140,13 @@ TrOCRLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
     hidden_size="cross_attention_hidden_size",
 )
 
+SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
+    decoder_num_layers="decoder_layers",
+    num_layers="decoder_layers",
+    input_features_per_channel="input_feat_per_channel",
+    allow_new=True,
+)
+
 
 class NormalizedConfigManager:
     """
@@ -205,6 +212,7 @@ class NormalizedConfigManager:
         "poolformer": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
+        "speech_to_text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "trocr": TrOCRLikeNormalizedTextConfig,
