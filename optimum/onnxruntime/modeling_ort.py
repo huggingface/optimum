@@ -1701,7 +1701,7 @@ AUDIO_CLASSIFICATION_EXAMPLE = r"""
     >>> dataset = dataset.sort("id")
 
     >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_ac = pipeline("audio-classification", model=model, feature_extractor=feature_extractor, sampling_rate=sampling_rat)
+    >>> onnx_ac = pipeline("audio-classification", model=model, feature_extractor=feature_extractor)
 
     >>> pred = onnx_ac(dataset[0]["audio"]["array"])
     ```
@@ -1717,7 +1717,7 @@ AUDIO_CLASSIFICATION_EXAMPLE = r"""
 )
 class ORTModelForAudioClassification(ORTModel):
     """
-    Question Answering model for ONNX.
+    Audio Classification model for ONNX.
     """
 
     auto_model_class = AutoModelForAudioClassification
@@ -1794,7 +1794,7 @@ CTC_EXAMPLE = r"""
 )
 class ORTModelForCTC(ORTModel):
     """
-    Question Answering model for ONNX.
+    CTC model for ONNX.
     """
 
     auto_model_class = AutoModelForCTC
@@ -1837,7 +1837,7 @@ class ORTModelForCTC(ORTModel):
 
 
 AUDIO_XVECTOR_EXAMPLE = r"""
-    Example of audio XVector:
+    Example of Audio XVector:
 
     ```python
     >>> from transformers import {processor_class}
@@ -1878,7 +1878,7 @@ AUDIO_XVECTOR_EXAMPLE = r"""
 )
 class ORTModelForAudioXVector(ORTModel):
     """
-    Question Answering model for ONNX.
+    Audio XVector model for ONNX.
     """
 
     auto_model_class = AutoModelForAudioXVector
@@ -1958,7 +1958,7 @@ AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
 )
 class ORTModelForAudioFrameClassification(ORTModel):
     """
-    Question Answering model for ONNX.
+    Audio Frame Classification model for ONNX.
     """
 
     auto_model_class = AutoModelForAudioFrameClassification
