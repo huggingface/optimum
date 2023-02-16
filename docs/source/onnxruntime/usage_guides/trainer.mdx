@@ -56,12 +56,12 @@ To use `ORTTrainer` or `ORTSeq2SeqTrainer`, you need to install ONNX Runtime Tra
 To set up the environment, we __strongly recommend__ you install the dependencies with Docker to ensure that the versions are correct and well
 configured. You can find dockerfiles with various combinations [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
 
-Here below we take the installation of `onnxruntime-training 1.13.1` as an example:
+Here below we take the installation of `onnxruntime-training 1.14.0` as an example:
 
-* If you want to install `onnxruntime-training 1.13.1` via [Dockerfile](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort1.13.1-cu116):
+* If you want to install `onnxruntime-training 1.14.0` via [Dockerfile](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort1.14.0-cu116):
 
 ```bash
-docker build -f Dockerfile-ort1.13.1-cu116 -t <imagename:tag> .
+docker build -f Dockerfile-ort1.14.0-cu116 -t ort/train:1.14.0 .
 ```
 
 * If you want to install the dependencies beyond in a local Python environment. You can pip install them once you have [CUDA 11.6](https://docs.nvidia.com/cuda/archive/11.6.2/) and [cuDNN 8](https://developer.nvidia.com/cudnn) well installed.
@@ -69,7 +69,7 @@ docker build -f Dockerfile-ort1.13.1-cu116 -t <imagename:tag> .
 ```bash
 pip install onnx ninja
 pip install torch==1.13.1+cu116 torchvision==0.14.1 -f https://download.pytorch.org/whl/cu116/torch_stable.html
-pip install onnxruntime-training==1.13.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
+pip install onnxruntime-training==1.14.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
 pip install torch-ort
 pip install --upgrade protobuf==3.20.2
 ```
