@@ -255,21 +255,19 @@ class ScriptableStableDiffusionPipeline(nn.Module):
         )
 
         # TODO: remove this horror
-        num_channels_latents = self.unet_in_channels
         latents = self.deterministic_latents
 
-        # TODO: put this out of the forward, as this is scheduler specific
-        # 4D buffer rolled at each step
-        ets_buffer = torch.zeros(
-            4,
-            batch_size * self.num_images_per_prompt,
-            num_channels_latents,
-            height // self.vae_scale_factor,
-            width // self.vae_scale_factor,
-        ).to(device, dtype=prompt_embeds.dtype)
-        self.scheduler.set_ets = torch.tensor(0, dtype=torch.int64).to(device)
-        self.scheduler.counter = torch.tensor(0, dtype=torch.int64).to(device)
-
+        self.scheduler.init_forward(
+            device=device,
+            dtype=prompt_embeds.dtype,
+            height=height,
+            width=width,
+            num_channels_latents=num_channels_latents,
+            vae_scale_factor=self.vae_scale_factor,
+            batch_size=batch_size,
+            num_images_per_prompt=self.num_images_per_prompt
+        )
+        
         # 7. Denoising loop
         # TODO: what is self.scheduler.order?
         for _, t in enumerate(timesteps):

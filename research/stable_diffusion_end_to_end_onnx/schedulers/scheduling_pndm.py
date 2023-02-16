@@ -104,8 +104,8 @@ class ScriptablePNDMScheduler(nn.Module):
 
         # running values
         self.cur_model_output = torch.tensor(0)
-        self.counter = torch.tensor(0, dtype=torch.int64)  # shouldn't it be reset?
-        self.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
+        #self.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
+        self.cur_sample = torch.empty(0)
 
         # setable values
         self.num_inference_steps = None
@@ -121,10 +121,36 @@ class ScriptablePNDMScheduler(nn.Module):
 
         self.clip_sample = kwargs["clip_sample"]
 
-        self.ets_buffer = torch.empty(4)  # this buffer should be initialized in the pipeline's forward call
-        self.set_ets = torch.tensor(
-            0, dtype=torch.int64
-        )  # this attribute should be reset to 0 in the pipeline's forward call
+        # these buffers should be initialized in the pipeline's forward call
+        self.ets_buffer = torch.empty(0)  
+        self.set_ets = torch.empty(0)  
+        self.counter = torch.empty(0)
+
+    @torch.jit.export
+    def init_forward(
+        self,
+        device: torch.device,
+        dtype: torch.dtype,
+        height: int,
+        width: int,
+        num_channels_latents,
+        vae_scale_factor: int,
+        batch_size: int,
+        num_images_per_prompt: int
+    ):
+        """
+        Initialize a forward pass in the diffusion pipeline.
+        """
+        self.set_ets = torch.tensor(0, dtype=torch.int64).to(device)
+        self.counter = torch.tensor(0, dtype=torch.int64).to(device)
+        self.ets_buffer = torch.zeros(
+            4,
+            batch_size * num_images_per_prompt,
+            num_channels_latents,
+            height // vae_scale_factor,
+            width // vae_scale_factor,
+        ).to(device, dtype=dtype)
+
 
     @torch.jit.export
     def step(
