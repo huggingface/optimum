@@ -2439,7 +2439,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["hubert"], from_transformers=True)
+            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -2544,6 +2544,265 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
         io_model = ORTModelForAudioClassification.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True
+        ).to("cuda")
+
+        processor = get_preprocessor(model_id)
+        data = self._generate_random_audio_data()
+
+        input_values = processor(data, return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+        io_outputs = io_model(**input_values)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+
+class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "data2vec-audio",
+        "hubert",
+        "sew",
+        "sew-d",
+        "unispeech",
+        "unispeech-sat",
+        "wavlm",
+        "wav2vec2",
+        "wav2vec2-conformer",
+    ]
+
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    ORTMODEL_CLASS = ORTModelForCTC
+    TASK = "ctc"
+
+    def _generate_random_audio_data(self):
+        np.random.seed(10)
+        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        # generate pure sine wave at 220 Hz
+        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+        return audio_data
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModelForCTC.from_pretrained(model_id)
+        processor = get_preprocessor(model_id)
+        input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**input_values)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=False).to("cuda")
+        io_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to("cuda")
+
+        processor = get_preprocessor(model_id)
+        data = self._generate_random_audio_data()
+
+        input_values = processor(data, return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+        io_outputs = io_model(**input_values)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+
+class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "data2vec-audio",
+        "unispeech-sat",
+        "wavlm",
+        "wav2vec2",
+        "wav2vec2-conformer",
+    ]
+
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    ORTMODEL_CLASS = ORTModelForAudioXVector
+    TASK = "audio-xvector"
+
+    def _generate_random_audio_data(self):
+        np.random.seed(10)
+        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        # generate pure sine wave at 220 Hz
+        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+        return audio_data
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForAudioXVector.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModelForAudioXVector.from_pretrained(model_id)
+        processor = get_preprocessor(model_id)
+        input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+        self.assertIsInstance(onnx_outputs.embeddings, torch.Tensor)
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**input_values)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        self.assertTrue(torch.allclose(onnx_outputs.embeddings, transformers_outputs.embeddings, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForAudioXVector.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=False
+        ).to("cuda")
+        io_model = ORTModelForAudioXVector.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
+            "cuda"
+        )
+
+        processor = get_preprocessor(model_id)
+        data = self._generate_random_audio_data()
+
+        input_values = processor(data, return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+        io_outputs = io_model(**input_values)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+        self.assertIsInstance(io_outputs.embeddings, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        self.assertTrue(torch.equal(onnx_outputs.embeddings, io_outputs.embeddings))
+
+        gc.collect()
+
+
+class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "data2vec-audio",
+        "unispeech-sat",
+        "wavlm",
+        "wav2vec2",
+        "wav2vec2-conformer",
+    ]
+
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    ORTMODEL_CLASS = ORTModelForAudioFrameClassification
+    TASK = "audio-frame-classification"
+
+    def _generate_random_audio_data(self):
+        np.random.seed(10)
+        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        # generate pure sine wave at 220 Hz
+        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+        return audio_data
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+
+        self.assertIn("Unrecognized configuration class", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForAudioFrameClassification.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModelForAudioFrameClassification.from_pretrained(model_id)
+        processor = get_preprocessor(model_id)
+        input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**input_values)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForAudioFrameClassification.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=False
+        ).to("cuda")
+        io_model = ORTModelForAudioFrameClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=True
         ).to("cuda")
 
@@ -2877,7 +3136,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
 class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     # TODO: speech_to_text should be tested
-    SUPPORTED_ARCHITECTURES = ["whisper"]
+    SUPPORTED_ARCHITECTURES = ["whisper", "speech_to_text"]
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -3403,6 +3662,10 @@ class TestBothExportersORTModel(unittest.TestCase):
             ["semantic-segmentation", ORTModelForSemanticSegmentationIntegrationTest],
             ["seq2seq-lm", ORTModelForSeq2SeqLMIntegrationTest],
             ["speech2seq-lm", ORTModelForSpeechSeq2SeqIntegrationTest],
+            ["audio-classification", ORTModelForAudioClassificationIntegrationTest],
+            ["audio-ctc", ORTModelForCTCIntegrationTest],
+            ["audio-xvector", ORTModelForAudioXVectorIntegrationTest],
+            ["audio-frame-classification", ORTModelForAudioFrameClassificationIntegrationTest],
         ]
     )
     def test_find_untested_architectures(self, task: str, test_class):
