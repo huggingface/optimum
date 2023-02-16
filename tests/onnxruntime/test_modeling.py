@@ -3323,7 +3323,7 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
         diffusers_pipeline.safety_checker = None
         num_images_per_prompt, height, width, scale_factor = 1, 512, 512, 8
         latents_shape = (
-            1 * num_images_per_prompt,
+            num_images_per_prompt,
             diffusers_pipeline.unet.in_channels,
             height // scale_factor,
             width // scale_factor,
