@@ -6,11 +6,11 @@ import time
 from utils import StableDiffusionPreprocessor, numpy_to_pil
 from schedulers.scheduling_pndm import ScriptablePNDMScheduler
 
-device = "cuda"
+device = "cpu"
 dtype = torch.float32
 
-model_name = "CompVis/stable-diffusion-v1-4"
-#model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
+#model_name = "CompVis/stable-diffusion-v1-4"
+model_name = "hf-internal-testing/tiny-stable-diffusion-torch"
 pipeline = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=False, torch_dtype=dtype)
 
 num_inference_steps = 50

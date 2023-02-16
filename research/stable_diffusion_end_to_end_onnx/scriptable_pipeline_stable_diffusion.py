@@ -286,9 +286,7 @@ class ScriptableStableDiffusionPipeline(nn.Module):
             
             # compute the previous noisy sample x_t -> x_t-1
             # t is used as an index here, and should be on CPU
-            latents = self.scheduler.step(
-                noise_pred, t.to("cpu"), latents
-            )  # a tuple is returned by step
+            latents = self.scheduler.step(noise_pred, t.to("cpu"), latents)
 
         # 8. Post-processing
         image = self.decode_latents(latents)

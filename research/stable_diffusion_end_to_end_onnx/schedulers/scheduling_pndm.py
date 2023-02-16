@@ -103,8 +103,7 @@ class ScriptablePNDMScheduler(nn.Module):
 
         # running values
         self.cur_model_output = torch.tensor(0)
-        self.cur_sample = torch.rand(1, 4, 64, 64, dtype=torch.float32)
-        #self.cur_sample = torch.empty(0)
+        self.cur_sample = torch.empty(0)
 
         # setable values
         self.num_inference_steps = None
@@ -150,6 +149,14 @@ class ScriptablePNDMScheduler(nn.Module):
             width // vae_scale_factor,
         ).to(device, dtype=dtype)
 
+        # ONNX Runtime would otherwise complain when assigning as self.cur_sample shape is statically registered as {0}
+        self.cur_sample = torch.empty(
+            batch_size,
+            num_channels_latents,
+            height // vae_scale_factor,
+            width // vae_scale_factor,
+            dtype=torch.float32
+        )
 
     @torch.jit.export
     def step(
@@ -211,8 +218,7 @@ class ScriptablePNDMScheduler(nn.Module):
             model_output = self.cur_model_output + 1 / 6 * model_output
             self.cur_model_output = torch.tensor(0)
 
-        # cur_sample should not be `None`
-        # if self.cur_sample_initialized
+        # TODO: this is useless?
         cur_sample = self.cur_sample if self.cur_sample != -1 else sample
 
         prev_sample = self._get_prev_sample(cur_sample, timestep, prev_timestep, model_output)
@@ -280,7 +286,6 @@ class ScriptablePNDMScheduler(nn.Module):
         # print("model_output.shape before", model_output.shape)
         # print("ets_buffer[-1] shape", ets_buffer[-1].shape)
         if self.set_ets == 1 and self.counter == 0:
-            model_output = model_output
             self.cur_sample = sample
         elif self.set_ets == 1 and self.counter == 1:
             model_output = (model_output + self.ets_buffer[-1]) / 2
