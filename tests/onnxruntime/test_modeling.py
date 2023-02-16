@@ -2408,8 +2408,16 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
 class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
+        "audio-spectrogram-transformer",
+        "data2vec-audio",
         "hubert",
+        "sew",
+        "sew-d",
+        "unispeech",
+        "unispeech-sat",
+        "wavlm",
         "wav2vec2",
+        "wav2vec2-conformer",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -2465,7 +2473,9 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         processor = get_preprocessor(model_id)
-        pipe = pipeline("audio-classification", model=onnx_model, feature_extractor=processor.feature_extractor, sampling_rate=220)
+        pipe = pipeline(
+            "audio-classification", model=onnx_model, feature_extractor=processor.feature_extractor, sampling_rate=220
+        )
         data = self._generate_random_audio_data()
         outputs = pipe(data)
 
