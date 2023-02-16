@@ -47,8 +47,8 @@ print("len timesteps", timesteps.shape)
 # 0. Defaults
 height = pipeline.sample_size * pipeline.vae_scale_factor
 width = pipeline.sample_size * pipeline.vae_scale_factor
-height = 128
-width = 50
+#height = 128
+#width = 50
 num_images_per_prompt = 1
 guidance_scale = 7.5
 

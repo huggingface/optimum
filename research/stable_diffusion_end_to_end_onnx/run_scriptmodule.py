@@ -57,8 +57,8 @@ print(timesteps)
 # 0. Defaults
 height = scripted_pipeline.sample_size * scripted_pipeline.vae_scale_factor
 width = scripted_pipeline.sample_size * scripted_pipeline.vae_scale_factor
-height = 128
-width = 60
+#height = 128
+#width = 60
 num_images_per_prompt = 1
 guidance_scale = 7.5
 

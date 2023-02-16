@@ -72,8 +72,8 @@ inp = {
     "uncond_text_input_ids": uncond_text_input_ids.astype(np.int64),
     "timesteps": timesteps.astype(np.int64),
     "num_images_per_prompt": np.array(1).astype(np.int64),
-    "height": np.array(128).astype(np.int64),
-    "width": np.array(60).astype(np.int64),
+    "height": np.array(512).astype(np.int64),
+    "width": np.array(512).astype(np.int64),
     "guidance_scale": np.array(7.5).astype(np.float64),
 }
 
