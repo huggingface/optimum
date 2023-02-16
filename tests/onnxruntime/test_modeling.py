@@ -55,6 +55,10 @@ from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
+
+
+from optimum.onnxruntime.modeling_diffusion import ORTModelTextEncoder, ORTModelVaeDecoder, ORTModelUnet
+
 from optimum.exporters import TasksManager
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
@@ -75,13 +79,14 @@ from optimum.onnxruntime import (
     ORTModelForSequenceClassification,
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
+    ORTStableDiffusionPipeline,
     ORTModelForVision2Seq,
 )
 from optimum.onnxruntime.base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
-from optimum.utils.testing_utils import grid_parameters, require_hf_token
+from optimum.utils.testing_utils import grid_parameters, require_hf_token, require_diffusers
 
 
 logger = logging.get_logger()
@@ -148,6 +153,7 @@ MODEL_NAMES = {
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
     "vit": "hf-internal-testing/tiny-random-vit",
@@ -191,7 +197,7 @@ class ORTModelTestMixin(unittest.TestCase):
         if "use_cache" in model_args and model_args["use_cache"] is True:
             task = task + "-with-past"
 
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+        if "use_cache" in model_args  and task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
             self.skipTest("Unsupported export case")
 
         if model_arch_and_params not in self.onnx_model_dirs:
@@ -3281,3 +3287,56 @@ class TestBothExportersORTModel(unittest.TestCase):
                 f"For the task `{task}`, the ONNX export supports {supported_export_models}, but only {tested_architectures} are tested.\n"
                 f"    Missing {untested_architectures}."
             )
+
+
+class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion",
+    ]
+    ORTMODEL_CLASS = ORTStableDiffusionPipeline
+    TASK = "stable-diffusion"
+
+    @require_diffusers
+    def test_load_vanilla_model_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES["bert"], export=True)
+
+        self.assertIn(f"does not appear to have a file named {ORTStableDiffusionPipeline.config_name}", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_diffusers(self, model_arch: str):
+
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        model_id = MODEL_NAMES[model_arch]
+        ort_pipeline = ORTStableDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
+        self.assertIsInstance(ort_pipeline.config, Dict)
+
+        from diffusers import StableDiffusionPipeline
+
+        diffusers_pipeline = StableDiffusionPipeline.from_pretrained(model_id)
+        diffusers_pipeline.safety_checker = None
+        num_images_per_prompt, height, width, scale_factor = 1, 512, 512, 8
+        latents_shape = (1 * num_images_per_prompt, diffusers_pipeline.unet.in_channels, height // scale_factor, width // scale_factor)
+        latents = np.random.randn(*latents_shape).astype(np.float32)
+        kwargs = {
+            "prompt": "a photo of an astronaut riding a horse on mars",
+            "num_inference_steps": 1,
+            "output_type": "numpy",
+            "num_images_per_prompt": num_images_per_prompt,
+            "height": height,
+            "width": width,
+        }
+        ort_outputs = ort_pipeline(latents=latents, **kwargs)
+        self.assertTrue("images" in ort_outputs)
+        self.assertIsInstance(ort_outputs.images[0], np.ndarray)
+
+        with torch.no_grad():
+            diffusers_outputs = diffusers_pipeline(latents=torch.from_numpy(latents), **kwargs)
+        # Compare tensor outputs
+        self.assertTrue(np.allclose(ort_outputs.images[0], diffusers_outputs.images[0], atol=1e-4))

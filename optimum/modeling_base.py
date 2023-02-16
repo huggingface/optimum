@@ -297,12 +297,16 @@ class OptimizedModel(ABC):
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        revision: Optional[str] = None,
         **kwargs,
     ) -> "OptimizedModel":
         """
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
+        if isinstance(model_id, Path):
+            model_id = model_id.as_posix()
+
         from_transformers = kwargs.pop("from_transformers", None)
         if from_transformers is not None:
             logger.warning(
@@ -310,8 +314,11 @@ class OptimizedModel(ABC):
             )
             export = from_transformers
 
-        revision = None
-        if len(str(model_id).split("@")) == 2:
+        if len(model_id.split("@")) == 2:
+            if revision is not None:
+                logger.warning(
+                    f"The argument `revision` was set to {revision} but will be ignored for {model_id.split('@')[1]}"
+                )
             model_id, revision = model_id.split("@")
 
         if config is None:
