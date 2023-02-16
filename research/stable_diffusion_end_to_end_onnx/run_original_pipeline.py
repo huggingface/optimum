@@ -28,6 +28,8 @@ width = 512
 height = 512
 guidance_scale = 7.5
 
+pipeline = pipeline.to(device)
+
 with torch.inference_mode():
     print("FORWARD")
     res = pipeline(
