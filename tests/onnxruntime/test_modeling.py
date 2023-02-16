@@ -55,10 +55,6 @@ from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 
-
-
-from optimum.onnxruntime.modeling_diffusion import ORTModelTextEncoder, ORTModelVaeDecoder, ORTModelUnet
-
 from optimum.exporters import TasksManager
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
@@ -79,14 +75,15 @@ from optimum.onnxruntime import (
     ORTModelForSequenceClassification,
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
-    ORTStableDiffusionPipeline,
     ORTModelForVision2Seq,
+    ORTStableDiffusionPipeline,
 )
 from optimum.onnxruntime.base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
+from optimum.onnxruntime.modeling_diffusion import ORTModelTextEncoder, ORTModelUnet, ORTModelVaeDecoder
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
-from optimum.utils.testing_utils import grid_parameters, require_hf_token, require_diffusers
+from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_hf_token
 
 
 logger = logging.get_logger()
@@ -197,7 +194,9 @@ class ORTModelTestMixin(unittest.TestCase):
         if "use_cache" in model_args and model_args["use_cache"] is True:
             task = task + "-with-past"
 
-        if "use_cache" in model_args  and task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx"
+        ):
             self.skipTest("Unsupported export case")
 
         if model_arch_and_params not in self.onnx_model_dirs:
@@ -3301,12 +3300,13 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn(f"does not appear to have a file named {ORTStableDiffusionPipeline.config_name}", str(context.exception))
+        self.assertIn(
+            f"does not appear to have a file named {ORTStableDiffusionPipeline.config_name}", str(context.exception)
+        )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers(self, model_arch: str):
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
         model_id = MODEL_NAMES[model_arch]
@@ -3322,7 +3322,12 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
         diffusers_pipeline = StableDiffusionPipeline.from_pretrained(model_id)
         diffusers_pipeline.safety_checker = None
         num_images_per_prompt, height, width, scale_factor = 1, 512, 512, 8
-        latents_shape = (1 * num_images_per_prompt, diffusers_pipeline.unet.in_channels, height // scale_factor, width // scale_factor)
+        latents_shape = (
+            1 * num_images_per_prompt,
+            diffusers_pipeline.unet.in_channels,
+            height // scale_factor,
+            width // scale_factor,
+        )
         latents = np.random.randn(*latents_shape).astype(np.float32)
         kwargs = {
             "prompt": "a photo of an astronaut riding a horse on mars",
