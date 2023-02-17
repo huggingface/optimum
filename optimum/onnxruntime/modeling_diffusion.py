@@ -78,12 +78,12 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             config (`Dict[str, Any]`):
                 A config dictionary from which the model components will be instantiated. Make sure to only load
                 configuration files of compatible classes.
-            feature_extractor (`CLIPFeatureExtractor`, *optional*):
+            feature_extractor (`Optional[CLIPFeatureExtractor]`, defaults to `None`):
                 A model extracting features from generated images to be used as inputs for the `safety_checker`
-            use_io_binding (`bool`, *optional*, defaults to `None`):
+            use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
-            model_save_dir (`str`, *optional*, defaults to `""`):
+            model_save_dir (`Optional[str]`, defaults to `None`):
                 The directory under which the model exported to ONNX was saved.
         """
         self.shared_attributes_init(
@@ -131,12 +131,12 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
                 The path of the text encoder ONNX model.
             unet_path (`Union[str, Path]`):
                 The path of the U-NET ONNX model.
-            provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
+            provider (`str`, defaults to `"CPUExecutionProvider"`):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers.
-            session_options (`Optional[ort.SessionOptions]`, *optional*),:
+            session_options (`Optional[ort.SessionOptions]`, defaults to `None`):
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
-            provider_options (`Optional[Dict]`, *optional*):
+            provider_options (`Optional[Dict]`, defaults to `None`):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
