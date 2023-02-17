@@ -779,6 +779,13 @@ class ORTModel(OptimizedModel):
         return self._prepare_io_binding(self.model, *model_inputs)
 
     def raise_on_numpy_input_io_binding(self, use_torch: bool):
+        """
+        Raises an error if IO Binding is requested although the tensor used are numpy arrays.
+
+        Args:
+            use_torch (`bool`):
+                Whether the tensor used during inference are of type torch.Tensor or not.
+        """
         if use_torch is False and self.use_io_binding:
             raise ValueError(
                 "IO Binding can not be used when passing numpy inputs. Please disable IO Binding"
