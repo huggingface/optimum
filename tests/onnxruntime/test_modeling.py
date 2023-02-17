@@ -960,7 +960,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.start_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
             self.assertIsInstance(onnx_outputs.end_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
-            # compare tensor outputs
+            # Compare tensor outputs
             self.assertTrue(
                 torch.allclose(torch.Tensor(onnx_outputs.start_logits), transformers_outputs.start_logits, atol=1e-4)
             )
