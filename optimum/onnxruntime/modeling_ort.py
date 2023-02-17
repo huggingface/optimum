@@ -1705,7 +1705,7 @@ class ORTModelForCustomTasks(ORTModel):
             return ModelOutput(**outputs)
         else:
             # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = self._prepare_onnx_inputs(**kwargs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch=use_torch, **kwargs)
 
             # run inference
             onnx_outputs = self.model.run(None, onnx_inputs)
