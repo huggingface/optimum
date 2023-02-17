@@ -1389,8 +1389,8 @@ class ORTModelForMultipleChoice(ORTModel):
     def forward(
         self,
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        token_type_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
