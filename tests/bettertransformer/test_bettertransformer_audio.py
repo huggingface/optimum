@@ -30,6 +30,10 @@ ALL_AUDIO_MODELS_TO_TEST = [
     "ybelkada/hubert-tiny-random",
 ]
 
+AST_TO_TEST = [
+    "Ericwang/tiny-random-ast",
+]
+
 
 class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
@@ -105,6 +109,24 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
     )
     def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
         super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+
+
+class BetterTransformersASTTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for AST - tests all the tests defined in `BetterTransformersTestMixin`
+    Since `AST` uses slightly different preprocessor than other audio models, it is preferrable
+    to define its own testing class.
+    """
+    all_models_to_test = AST_TO_TEST
+
+    def prepare_inputs_for_class(self, model_id):
+        batch_duration_in_seconds = [1, 3, 2, 6]
+        input_features = [np.random.random(16_000 * s) for s in batch_duration_in_seconds]
+
+        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
+
+        input_dict = feature_extractor(input_features, return_tensors="pt", padding=True)
+        return input_dict
 
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
