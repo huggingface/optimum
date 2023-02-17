@@ -91,3 +91,39 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 >>> result = onnx_translation(text)
 >>> # [{'translation_text': "Il n'est jamais sorti sans un livre sous son bras, et il est souvent revenu avec deux."}]
 ```
+
+
+
+## Export and inference of stable diffusion models
+
+Stable diffusion models can also be used when running inference with ONNX Runtime. When Stable diffusion models
+are exported to the ONNX format, they are decomposed into three components that are later combined during inference:
+- The text encoder component
+- The U-NET component
+- The VAE decoder component
+
+Here is an example of how you can load a stable diffusion model, export it to the ONNX format and run inference using ONNX Runtime:
+
+
+```diff
+-from diffusers import StableDiffusionPipeline
++from optimum.onnxruntime import ORTStableDiffusionPipeline
+
+repo_id = "runwayml/stable-diffusion-v1-5"
+-stable_diffusion = StableDiffusionPipeline.from_pretrained(repo_id)
++stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(repo_id, export=True)
+prompt = "sailing ship in storm by Leonardo da Vinci"
+image = stable_diffusion(prompt).images[0]
+```
+
+
+```python
+from optimum.onnxruntime import ORTStableDiffusionPipeline
+
+repo_id = "runwayml/stable-diffusion-v1-5"
+stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(repo_id, export=True)
+prompt = "sailing ship in storm by Leonardo da Vinci"
+image = stable_diffusion(prompt).images[0]
+```
+
+![img](https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/stable_diffusion_v1_5_ort.png)
