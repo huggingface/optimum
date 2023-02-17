@@ -804,7 +804,7 @@ FEATURE_EXTRACTION_EXAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
+    >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="np")
 
     >>> outputs = model(**inputs)
     >>> last_hidden_state = outputs.last_hidden_state
@@ -908,7 +908,7 @@ MASKED_LM_EXAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("The capital of France is [MASK].", return_tensors="pt")
+    >>> inputs = tokenizer("The capital of France is [MASK].", return_tensors="np")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -1013,7 +1013,7 @@ QUESTION_ANSWERING_EXAMPLE = r"""
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
     >>> question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
-    >>> inputs = tokenizer(question, text, return_tensors="pt")
+    >>> inputs = tokenizer(question, text, return_tensors="np")
     >>> start_positions = torch.tensor([1])
     >>> end_positions = torch.tensor([3])
 
@@ -1122,7 +1122,7 @@ SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
+    >>> inputs = tokenizer("Hello, my dog is cute", return_tensors="np")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -1240,7 +1240,7 @@ TOKEN_CLASSIFICATION_EXAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="pt")
+    >>> inputs = tokenizer("My name is Philipp and I live in Germany.", return_tensors="np")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -1448,7 +1448,7 @@ IMAGE_CLASSIFICATION_EXAMPLE = r"""
     >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = preprocessor(images=image, return_tensors="pt")
+    >>> inputs = preprocessor(images=image, return_tensors="np")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -1545,7 +1545,7 @@ SEMANTIC_SEGMENTATION_EXAMPLE = r"""
     >>> preprocessor = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = preprocessor(images=image, return_tensors="pt")
+    >>> inputs = preprocessor(images=image, return_tensors="np")
 
     >>> outputs = model(**inputs)
     >>> logits = outputs.logits
@@ -1644,7 +1644,7 @@ CUSTOM_TASKS_EXAMPLE = r"""
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
     >>> model = {model_class}.from_pretrained("{checkpoint}")
 
-    >>> inputs = tokenizer("I love burritos!", return_tensors="pt")
+    >>> inputs = tokenizer("I love burritos!", return_tensors="np")
 
     >>> outputs = model(**inputs)
     >>> last_hidden_state = outputs.last_hidden_state
