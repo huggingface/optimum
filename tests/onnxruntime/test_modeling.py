@@ -3359,13 +3359,8 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
-
         pipe = ORTStableDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
         outputs = pipe("This is a simple test", output_type="numpy")
-        import pdb
-
-        pdb.set_trace()
-
         # Compare model devices
         self.assertEqual(pipe.device.type.lower(), "cuda")
         # Compare model outputs
