@@ -92,8 +92,6 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 >>> # [{'translation_text': "Il n'est jamais sorti sans un livre sous son bras, et il est souvent revenu avec deux."}]
 ```
 
-
-
 ## Export and inference of stable diffusion models
 
 Stable diffusion models can also be used when running inference with ONNX Runtime. When Stable diffusion models
@@ -107,8 +105,8 @@ Here is an example of how you can load a stable diffusion model, export it to th
 ```python
 from optimum.onnxruntime import ORTStableDiffusionPipeline
 
-repo_id = "runwayml/stable-diffusion-v1-5"
-stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(repo_id, export=True)
+model_id = "runwayml/stable-diffusion-v1-5"
+stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(model_id, export=True)
 prompt = "sailing ship in storm by Leonardo da Vinci"
 image = stable_diffusion(prompt).images[0]
 ```
