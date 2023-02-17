@@ -15,10 +15,12 @@
 """TensorFlow Lite model check and export functions."""
 
 from pathlib import Path
+from re import I
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import numpy as np
+from optimum.utils.preprocessing.dataset_preprocessing_manager import DatasetProcessingManager
 from transformers.utils import is_tf_available
 
 from ...utils import logging
@@ -130,6 +132,25 @@ def validate_model_outputs(
             "The maximum absolute difference between the output of the reference model and the TFLite "
             f"exported model is not within the set tolerance {atol}:\n{msg}"
         )
+
+
+def create_calibration_dataset(
+    task,
+    preprocessor,
+    config,
+    dataset_name_or_path: str,
+    num_calibration_samples: int = 200,
+    calibration_split: str = "train",
+):
+    dataset_processing = DatasetProcessingManager.for_task(
+        task, 
+        config=config,
+        dataset_path=dataset_name_or_path,
+        num_calibration_samples=num_calibration_samples,
+        calibration_split=calibration_split,
+        static_quantization=True,
+    )
+    dataset = dataset_processing.load_datasets()["calibration"]
 
 
 def export(

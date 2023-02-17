@@ -1,11 +1,31 @@
-from functools import partial
-from typing import Dict, List
+# coding=utf-8
+# Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Token classification processing."""
 
-from datasets import Dataset, load_dataset
+from functools import partial
+from typing import TYPE_CHECKING, Any, Dict, List
+
+from datasets import load_dataset
 from evaluate import combine, evaluator
-from transformers import PreTrainedTokenizerBase, TokenClassificationPipeline
+from transformers import PreTrainedTokenizerBase
 
 from .base import DatasetProcessing
+
+if TYPE_CHECKING:
+    from datasets import Dataset
+    from transformers import TokenClassificationPipeline
 
 
 class TokenClassificationProcessing(DatasetProcessing):
@@ -20,7 +40,7 @@ class TokenClassificationProcessing(DatasetProcessing):
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
             raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
 
-    def load_datasets(self) -> Dict:
+    def load_datasets(self) -> Dict[str, "Dataset"]:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
@@ -79,7 +99,7 @@ class TokenClassificationProcessing(DatasetProcessing):
 
         return datasets_dict
 
-    def run_evaluation(self, eval_dataset: Dataset, pipeline: TokenClassificationPipeline, metrics: List[str]):
+    def run_evaluation(self, eval_dataset: "Dataset", pipeline: "TokenClassificationPipeline", metrics: List[str]):
         all_metrics = combine(metrics)
 
         task_evaluator = evaluator("token-classification")
@@ -95,7 +115,7 @@ class TokenClassificationProcessing(DatasetProcessing):
 
         return results
 
-    def get_pipeline_kwargs(self):
+    def get_pipeline_kwargs(self) -> Dict[str, Any]:
         res = {
             "ignore_labels": [],  # do not ignore "O"
         }

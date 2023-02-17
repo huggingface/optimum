@@ -1,11 +1,31 @@
-from functools import partial
-from typing import Dict, List
+# coding=utf-8
+# Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Text classification processing."""
 
-from datasets import Dataset, load_dataset
+from functools import partial
+from typing import TYPE_CHECKING, Any, Dict, List
+
+from datasets import load_dataset
 from evaluate import combine, evaluator
-from transformers import PreTrainedTokenizerBase, TextClassificationPipeline
+from transformers import PreTrainedTokenizerBase
 
 from .base import DatasetProcessing
+
+if TYPE_CHECKING:
+    from datasets import Dataset
+    from transformers import TextClassificationPipeline
 
 
 class TextClassificationProcessing(DatasetProcessing):
@@ -19,7 +39,7 @@ class TextClassificationProcessing(DatasetProcessing):
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
             raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
 
-    def load_datasets(self):
+    def load_datasets(self) -> Dict[str, "Dataset"]:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
@@ -44,7 +64,6 @@ class TextClassificationProcessing(DatasetProcessing):
         datasets_dict = {"eval": eval_dataset}
 
         if self.static_quantization:
-            assert self.calibration_split
             # Run the tokenizer on the calibration dataset
             calibration_dataset = raw_datasets[self.calibration_split].map(
                 partial(
@@ -68,7 +87,7 @@ class TextClassificationProcessing(DatasetProcessing):
 
         return datasets_dict
 
-    def run_evaluation(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline, metrics: List[str]):
+    def run_evaluation(self, eval_dataset: "Dataset", pipeline: "TextClassificationPipeline", metrics: List[str]):
         all_metrics = combine(metrics)
 
         task_evaluator = evaluator("text-classification")
@@ -84,5 +103,5 @@ class TextClassificationProcessing(DatasetProcessing):
 
         return results
 
-    def get_pipeline_kwargs(self):
+    def get_pipeline_kwargs(self) -> Dict[str, Any]:
         return {}
