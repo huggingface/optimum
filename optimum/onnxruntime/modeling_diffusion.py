@@ -23,6 +23,12 @@ from ..exporters.onnx import (
 from ..exporters.tasks import TasksManager
 from ..onnx.utils import _get_external_data_paths
 from ..pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
+from ..utils import (
+    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+    DIFFUSION_MODEL_UNET_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+)
 from .base import ORTModelPart
 from .modeling_ort import ORTModel
 from .utils import (
@@ -50,8 +56,8 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         unet_session: ort.InferenceSession,
         tokenizer: CLIPTokenizer,
         scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
-        feature_extractor: CLIPFeatureExtractor,
         config: Dict[str, Any],
+        feature_extractor: Optional[CLIPFeatureExtractor] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
@@ -69,11 +75,11 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
                 [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer).
             scheduler (`Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler]`):
                 A scheduler to be used in combination with the U-NET component to denoise the encoded image latents.
-            feature_extractor ([`CLIPFeatureExtractor`]):
+            config (`Dict[str, Any]`):
+                A config dictionary from which the model components will be instantiated. Make sure to only load
+                configuration files of compatible classes.
+            feature_extractor (`CLIPFeatureExtractor`, *optional*):
                 A model extracting features from generated images to be used as inputs for the `safety_checker`
-            config ([`PretrainedConfig`]):
-                `config` is an instance of the configuration associated to the model. Initializing with a config file
-                does not load the weights associated with the model, only the configuration.
             use_io_binding (`bool`, *optional*, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
@@ -96,7 +102,11 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         self.scheduler = scheduler
         self.feature_extractor = feature_extractor
         self.safety_checker = None
-        sub_models = {"text_encoder": self.text_encoder, "unet": self.unet, "vae_decoder": self.vae_decoder}
+        sub_models = {
+            DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER: self.text_encoder,
+            DIFFUSION_MODEL_UNET_SUBFOLDER: self.unet,
+            DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER: self.vae_decoder,
+        }
         for name in sub_models.keys():
             self._internal_dict[name] = ("optimum", sub_models[name].__class__.__name__)
         self._internal_dict.pop("vae", None)
@@ -164,9 +174,13 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         """
         save_directory = Path(save_directory)
         src_to_dst_path = {
-            self.vae_decoder_model_path: save_directory / "vae_decoder" / vae_decoder_file_name,
-            self.text_encoder_model_path: save_directory / "text_encoder" / text_encoder_file_name,
-            self.unet_model_path: save_directory / "unet" / unet_file_name,
+            self.vae_decoder_model_path: save_directory
+            / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER
+            / vae_decoder_file_name,
+            self.text_encoder_model_path: save_directory
+            / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER
+            / text_encoder_file_name,
+            self.unet_model_path: save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
         }
 
         # TODO: Modify _get_external_data_paths to give dictionnary
@@ -231,21 +245,22 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
                 ignore_patterns=["*.msgpack", "*.safetensors", "*.bin"],
             )
         new_model_save_dir = Path(model_id)
-
         for name in sub_models_names:
-            library = importlib.import_module(sub_models_to_load[name][0])
-            class_obj = getattr(library, sub_models_to_load[name][1])
-            load_method = getattr(class_obj, "from_pretrained")
-            # Check if the module is in a subdirectory
-            if (new_model_save_dir / name).is_dir():
-                sub_models[name] = load_method(new_model_save_dir / name)
-            else:
-                sub_models[name] = load_method(new_model_save_dir)
+            library_name, library_classes = sub_models_to_load[name]
+            if library_classes is not None:
+                library = importlib.import_module(library_name)
+                class_obj = getattr(library, library_classes)
+                load_method = getattr(class_obj, "from_pretrained")
+                # Check if the module is in a subdirectory
+                if (new_model_save_dir / name).is_dir():
+                    sub_models[name] = load_method(new_model_save_dir / name)
+                else:
+                    sub_models[name] = load_method(new_model_save_dir)
 
         inference_sessions = cls.load_model(
-            vae_decoder_path=new_model_save_dir / "vae_decoder" / vae_decoder_file_name,
-            text_encoder_path=new_model_save_dir / "text_encoder" / text_encoder_file_name,
-            unet_path=new_model_save_dir / "unet" / unet_file_name,
+            vae_decoder_path=new_model_save_dir / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
+            text_encoder_path=new_model_save_dir / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
+            unet_path=new_model_save_dir / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -303,17 +318,18 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             trust_remote_code=trust_remote_code,
         )
         output_names = [
-            os.path.join("text_encoder", ONNX_WEIGHTS_NAME),
-            os.path.join("unet", ONNX_WEIGHTS_NAME),
-            os.path.join("vae_encoder", ONNX_WEIGHTS_NAME),
-            os.path.join("vae_decoder", ONNX_WEIGHTS_NAME),
+            os.path.join(DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER, ONNX_WEIGHTS_NAME),
+            os.path.join(DIFFUSION_MODEL_UNET_SUBFOLDER, ONNX_WEIGHTS_NAME),
+            os.path.join(DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER, ONNX_WEIGHTS_NAME),
+            os.path.join(DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER, ONNX_WEIGHTS_NAME),
         ]
         models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
 
         model.save_config(save_dir_path)
         model.tokenizer.save_pretrained(save_dir_path.joinpath("tokenizer"))
         model.scheduler.save_pretrained(save_dir_path.joinpath("scheduler"))
-        model.feature_extractor.save_pretrained(save_dir_path.joinpath("feature_extractor"))
+        if model.feature_extractor is not None:
+            model.feature_extractor.save_pretrained(save_dir_path.joinpath("feature_extractor"))
 
         export_models(
             models_and_onnx_configs=models_and_onnx_configs,
