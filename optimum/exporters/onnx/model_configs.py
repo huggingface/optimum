@@ -93,6 +93,8 @@ class RoFormerOnnxConfig(BertOnnxConfig):
 class SqueezeBertOnnxConfig(BertOnnxConfig):
     pass
 
+class TAPASOnnxConfig(BertOnnxConfig):
+    pass
 
 class MobileBertOnnxConfig(BertOnnxConfig):
     pass
