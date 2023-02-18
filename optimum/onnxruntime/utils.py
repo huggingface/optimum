@@ -97,6 +97,7 @@ class ORTConfigManager:
         "nystromformer": "bert",
         "roberta": "bert",
         "t5": "t5",
+        "TAPAS": "bert",
         "whisper": "whisper",
         "xlm-roberta": "bert",
     }
