@@ -596,6 +596,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 past_key_values=past_key_values,
+                labels=labels,
             )
         elif self.use_merged is True:
             outputs = self.decoder(

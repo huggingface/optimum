@@ -979,7 +979,14 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
+        support_loss_in_modeling = self.feature in [
+            "causal-lm",
+            "causal-lm-with-past",
+            "seq2seq-lm",
+            "seq2seq-lm-with-past",
+        ]
+        support_feature = self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
+        if support_loss_in_modeling or (not self.exported_with_loss and support_feature):
             # Exported with standard outputs, use specific ORTModels
             ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
         else:
@@ -1203,7 +1210,14 @@ class ORTTrainer(Trainer):
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
         # Load ORT model
-        if not self.exported_with_loss and self.feature in ORTFeaturesManager.SUPPORTED_FEATURES:
+        support_loss_in_modeling = self.feature in [
+            "causal-lm",
+            "causal-lm-with-past",
+            "seq2seq-lm",
+            "seq2seq-lm-with-past",
+        ]
+        support_feature = self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
+        if support_loss_in_modeling or (not self.exported_with_loss and support_feature):
             # Exported with standard outputs, use specific ORTModels
             ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
         else:
@@ -1500,6 +1514,7 @@ class ORTTrainer(Trainer):
                 output_dir=model_path,
                 output_names=output_names,
                 device=device,
+                disable_dynamic_axes_fix=True,  # onnxruntime floating point exception (core dumped)
             )
         else:
             if with_loss is True:

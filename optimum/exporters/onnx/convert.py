@@ -540,6 +540,7 @@ def export_models(
     output_names: Optional[List[str]] = None,
     device: str = "cpu",
     input_shapes: Optional[Dict] = None,
+    disable_dynamic_axes_fix: Optional[bool] = False,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
     Exports a Pytorch or TensorFlow encoder decoder model to an ONNX Intermediate Representation.
@@ -561,6 +562,8 @@ def export_models(
             export on CUDA devices.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
+        disable_dynamic_axes_fix (`Optional[bool]`, defaults to `False`):
+            Whether to disable the default dynamic axes fixing.
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         outputs from the ONNX configuration.
@@ -587,6 +590,7 @@ def export_models(
                 opset=opset,
                 device=device,
                 input_shapes=input_shapes,
+                disable_dynamic_axes_fix=disable_dynamic_axes_fix,
             )
         )
 
@@ -601,6 +605,7 @@ def export(
     opset: Optional[int] = None,
     device: str = "cpu",
     input_shapes: Optional[Dict] = None,
+    disable_dynamic_axes_fix: Optional[bool] = False,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a Pytorch or TensorFlow model to an ONNX Intermediate Representation.
@@ -619,6 +624,8 @@ def export(
             export on CUDA devices.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
+        disable_dynamic_axes_fix (`Optional[bool]`, defaults to `False`):
+            Whether to disable the default dynamic axes fixing.
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -667,5 +674,6 @@ def export(
             "You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed."
         )
 
-    config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes)
+    if not disable_dynamic_axes_fix:
+        config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes)
     return export_output
