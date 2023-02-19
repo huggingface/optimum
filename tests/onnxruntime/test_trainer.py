@@ -650,10 +650,10 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
 
     @slow
     @parameterized.expand(
-        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS) +
+        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
         # Exclude "with-past" tests as they fail for ORT inference after the mixed-precision training
-        # _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, excluded=["causal-lm-with-past"])  # Skip test for OOM bug
-        +_get_models_to_test(
+        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, excluded=["causal-lm-with-past"])  # Skip test for OOM bug
+        + _get_models_to_test(
             _SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, excluded=["seq2seq-lm-with-past"]
         ),
         skip_on_empty=True,
