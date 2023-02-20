@@ -2230,7 +2230,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
             onnx_outputs = onnx_model(**inputs)
 
             self.assertIn("logits", onnx_outputs)
-            self.assertTrue(isinstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type]))
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
             self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
