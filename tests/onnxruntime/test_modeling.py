@@ -1285,7 +1285,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
             tokens = tokenizer(text, return_tensors=input_type)
             onnx_outputs = onnx_model(**tokens)
 
-            self.assertTrue("logits" in onnx_outputs)
+            self.assertIn("logits", onnx_outputs)
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
