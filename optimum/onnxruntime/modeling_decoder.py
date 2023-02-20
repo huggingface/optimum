@@ -589,8 +589,11 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         attention_mask: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
+        use_cache_branch: None = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
+        # adding use_cache_branch in the signature here is just a hack for IO Binding
+
         if past_key_values is None or self.use_cache is False:
             outputs = self.decoder(
                 input_ids=input_ids,
