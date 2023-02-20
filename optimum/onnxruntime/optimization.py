@@ -29,6 +29,7 @@ from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
+from .modeling_decoder import ORTModelForCausalLM
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
@@ -81,6 +82,17 @@ class ORTOptimizer:
                     model_or_path.decoder_model_path,
                 ]
                 # Add the decoder with past key/values if present
+                if model_or_path.use_cache:
+                    onnx_model_path.append(model_or_path.decoder_with_past_model_path)
+            elif isinstance(model_or_path, ORTModelForCausalLM):
+                if model_or_path.use_merged is True:
+                    raise NotImplementedError(
+                        "ORTOptimizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
+                        " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. The can be done"
+                        " by using `ORTModelForCausalLM.from_pretrained(..., from_transformers=True, use_merged=False)`, or by"
+                        " using the option `--no-post-process` in the optimum-cli ONNX export tool."
+                    )
+                onnx_model_path.append(model_or_path.decoder_model_path)
                 if model_or_path.use_cache:
                     onnx_model_path.append(model_or_path.decoder_with_past_model_path)
             else:

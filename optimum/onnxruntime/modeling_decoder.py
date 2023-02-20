@@ -350,7 +350,7 @@ class ORTModelDecoder(ORTModel):
                 try:
                     decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
                         model_id,
-                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                         "decoder_with_past_file_name",
                         subfolder=subfolder,
                         use_auth_token=use_auth_token,
