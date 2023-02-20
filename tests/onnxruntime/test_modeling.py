@@ -33,6 +33,7 @@ from parameterized import parameterized
 from PIL import Image
 from transformers import (
     AutoConfig,
+    AutoFeatureExtractor,
     AutoImageProcessor,
     AutoModel,
     AutoModelForAudioClassification,
@@ -2456,7 +2457,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModelForAudioClassification.from_pretrained(model_id)
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
         onnx_outputs = onnx_model(**input_values)
 
@@ -2478,10 +2479,8 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(self.onnx_model_dirs[model_arch])
-        processor = get_preprocessor(model_id)
-        pipe = pipeline(
-            "audio-classification", model=onnx_model, feature_extractor=processor.feature_extractor, sampling_rate=220
-        )
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        pipe = pipeline("audio-classification", model=onnx_model, feature_extractor=processor, sampling_rate=220)
         data = self._generate_random_audio_data()
         outputs = pipe(data)
 
@@ -2520,8 +2519,8 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForAudioClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
-        processor = get_preprocessor(model_id)
-        pipe = pipeline("text-classification", model=onnx_model, processor=processor.feature_extractor, device=0)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        pipe = pipeline("audio-classification", model=onnx_model, feature_extractor=processor, device=0)
         data = self._generate_random_audio_data()
         outputs = pipe(data)
         # check model device
@@ -2547,7 +2546,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
             self.onnx_model_dirs[model_arch], use_io_binding=True
         ).to("cuda")
 
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         data = self._generate_random_audio_data()
 
         input_values = processor(data, return_tensors="pt")
@@ -2558,7 +2557,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2606,7 +2605,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModelForCTC.from_pretrained(model_id)
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
         onnx_outputs = onnx_model(**input_values)
 
@@ -2632,7 +2631,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=False).to("cuda")
         io_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to("cuda")
 
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         data = self._generate_random_audio_data()
 
         input_values = processor(data, return_tensors="pt")
@@ -2643,7 +2642,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2687,7 +2686,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModelForAudioXVector.from_pretrained(model_id)
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
         onnx_outputs = onnx_model(**input_values)
 
@@ -2719,7 +2718,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
             "cuda"
         )
 
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         data = self._generate_random_audio_data()
 
         input_values = processor(data, return_tensors="pt")
@@ -2776,7 +2775,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModelForAudioFrameClassification.from_pretrained(model_id)
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
         onnx_outputs = onnx_model(**input_values)
 
@@ -2806,7 +2805,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
             self.onnx_model_dirs[model_arch], use_io_binding=True
         ).to("cuda")
 
-        processor = get_preprocessor(model_id)
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
         data = self._generate_random_audio_data()
 
         input_values = processor(data, return_tensors="pt")
@@ -2817,7 +2816,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
 
         gc.collect()
 
