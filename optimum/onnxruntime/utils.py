@@ -15,8 +15,10 @@
 
 import importlib.util
 import os
+import re
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from inspect import signature
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from transformers.utils import logging
@@ -232,6 +234,30 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
         use_io_binding = False
 
     return use_io_binding
+
+
+def get_ordered_input_names(input_names: Dict[str, int], func: Callable) -> List[str]:
+    """
+    Returns the input names from input_names keys ordered according to the signature of func. This is especially useful with the
+    forward function when using IO Binding, as the input order of the ONNX and forward may be different.
+
+    Method inspired from OnnxConfig.ordered_inputs.
+
+    Args:
+        input_names (`Dict[str, int]`):
+            Dictionary mapping the input names to the input index of the ONNX model.
+        func (`Callable`):
+            Callable to remap the input_names order to.
+
+    """
+    signature_func = signature(func)
+    _ordered_input_names = []
+    for param in signature_func.parameters:
+        param_regex = re.compile(rf"{param}(\.\d*)?")  # will for example match input_ids, past_key_values.0
+        for name in input_names:
+            if re.search(param_regex, name):
+                _ordered_input_names.append(name)
+    return _ordered_input_names
 
 
 class ORTQuantizableOperator(Enum):
