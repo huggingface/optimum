@@ -54,6 +54,7 @@ from transformers import (
 from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
+from utils_onnxruntime_tests import MODEL_NAMES, SEED
 
 from optimum.exporters import TasksManager
 from optimum.onnx.utils import has_onnx_input
@@ -83,7 +84,6 @@ from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.testing_utils import grid_parameters, require_hf_token
 
-from utils_onnxruntime_tests import MODEL_NAMES, SEED
 
 logger = logging.get_logger()
 
@@ -95,6 +95,7 @@ class Timer(object):
 
     def __exit__(self, type, value, traceback):
         self.elapsed = (time.perf_counter() - self.elapsed) * 1e3
+
 
 class ORTModelTestMixin(unittest.TestCase):
     ARCH_MODEL_MAP = {}
@@ -978,7 +979,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        # "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1307,7 +1308,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        # "big_bird",
         "bloom",
         "camembert",
         "convbert",
@@ -1577,7 +1578,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        # "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",

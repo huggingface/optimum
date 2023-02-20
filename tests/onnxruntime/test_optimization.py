@@ -14,29 +14,27 @@
 
 import gc
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
-import shutil
+from typing import Dict
+
 import onnx
 import torch
 from parameterized import parameterized
 from transformers import AutoTokenizer
-
-from optimum.onnxruntime import ORTConfig, ORTModelForSequenceClassification, ORTOptimizer, AutoOptimizationConfig
-from optimum.onnxruntime.configuration import OptimizationConfig
-from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
-from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
-from optimum.utils.testing_utils import grid_parameters
-from optimum.exporters import TasksManager
-
-from typing import Dict
-
 from utils_onnxruntime_tests import MODEL_NAMES
 
-class ORTOptimizerTestMixin(unittest.TestCase):
-    ARCH_MODEL_MAP = {}
+from optimum.exporters import TasksManager
+from optimum.onnxruntime import AutoOptimizationConfig, ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
+from optimum.onnxruntime.configuration import OptimizationConfig
+from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
+from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
+from optimum.utils.testing_utils import grid_parameters
 
+
+class ORTOptimizerTestMixin(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.onnx_model_dirs = {}
@@ -54,7 +52,9 @@ class ORTOptimizerTestMixin(unittest.TestCase):
         if "use_cache" in model_args and model_args["use_cache"] is True:
             task = task + "-with-past"
 
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx"
+        ):
             self.skipTest("Unsupported export case")
 
         if model_arch_and_params not in self.onnx_model_dirs:
@@ -62,9 +62,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
             model_args.pop("test_name")
             model_args.pop("model_arch")
 
-            model_id = (
-                self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
-            )
+            model_id = MODEL_NAMES[model_arch]
             onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, from_transformers=True)
 
             model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
@@ -204,13 +202,72 @@ class ORTOptimizerTest(unittest.TestCase):
             # Compare tensors outputs
             self.assertTrue(torch.allclose(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4))
 
+
+class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
+    TASK = "seq2seq-lm"
+    ORTMODEL_CLASS = ORTModelForSeq2SeqLM
+
+    SUPPORTED_ARCHITECTURES = [
+        "bart",
+        "blenderbot",
+        "blenderbot_small",
+        # "longt5",
+        "m2m_100",
+        "marian",
+        "mbart",
+        "mt5",
+        "pegasus",
+        "t5",
+    ]
+
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [True, False],
+        "optimization_level": ["O1", "O2", "O3", "O4"],
+    }
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_optimization_level(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
+        export_name = test_name[:-3]  # remove `_OX` that is irrelevant as the export
+        model_args = {"test_name": export_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        ort_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[export_name], use_cache=use_cache)
+
+        optimizer = ORTOptimizer.from_pretrained(ort_model)
+
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level)
+        optimization_config.disable_shape_inference = True
+        model_id = MODEL_NAMES[model_arch]
+
+        with tempfile.TemporaryDirectory(suffix="_optimized") as tmp_dir:
+            optimizer.optimize(save_dir=tmp_dir, optimization_config=optimization_config)
+
+            optimized_model = ORTModelForSeq2SeqLM.from_pretrained(tmp_dir, use_cache=use_cache)
+
+            expected_ort_config = ORTConfig(optimization=optimization_config)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
+            tokenizer = AutoTokenizer.from_pretrained(model_id)
+            tokens = tokenizer("This is a sample input", return_tensors="pt")
+            model_outputs = ort_model.generate(**tokens)
+            optimized_model_outputs = optimized_model.generate(**tokens)
+
+            self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
+            gc.collect()
+
+
 class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     TASK = "causal-lm"
     ORTMODEL_CLASS = ORTModelForCausalLM
 
     SUPPORTED_ARCHITECTURES = [
         "bloom",
-        "codegen",
+        # codegen is not supported until https://github.com/microsoft/onnxruntime/pull/14751 is merged
+        # "codegen",
         "gpt2",
         "gpt_neo",
         "gpt_neox",
@@ -223,22 +280,41 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         "use_merged": [True, False],
         "optimization_level": ["O1", "O2", "O3", "O4"],
     }
+
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_optimization_level(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str):
+    def test_optimization_level(
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+    ):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         export_name = test_name[:-3]  # remove `_OX` that is irrelevant as the export
-        model_args = {"test_name": export_name, "model_arch": model_arch, "use_cache": use_cache, "use_merged": use_merged}
+        model_args = {
+            "test_name": export_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
-        ort_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[export_name])
+        ort_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[export_name], use_cache=use_cache)
 
-        optimizer = ORTOptimizer.from_pretrained(ort_model)
+        if use_merged:
+            with self.assertRaises(NotImplementedError) as cm:
+                optimizer = ORTOptimizer.from_pretrained(ort_model)
+
+            self.assertTrue("ORTModelForCausalLM models that use a single ONNX" in str(cm.exception))
+            self.skipTest("Unsupported optimization case")
+        else:
+            optimizer = ORTOptimizer.from_pretrained(ort_model)
 
         optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level)
+        optimization_config.disable_shape_inference = True
         model_id = MODEL_NAMES[model_arch]
 
         with tempfile.TemporaryDirectory(suffix="_opt") as tmp_dir:
             optimizer.optimize(save_dir=tmp_dir, optimization_config=optimization_config)
-        
+
             optimized_model = ORTModelForCausalLM.from_pretrained(tmp_dir, use_cache=use_cache)
 
             expected_ort_config = ORTConfig(optimization=optimization_config)
@@ -249,6 +325,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
             tokenizer = AutoTokenizer.from_pretrained(model_id)
             tokens = tokenizer("This is a sample input", return_tensors="pt")
+
             model_outputs = ort_model.generate(**tokens)
             optimized_model_outputs = optimized_model.generate(**tokens)
 

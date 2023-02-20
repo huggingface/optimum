@@ -75,12 +75,15 @@ class ORTConfigManager:
     """
 
     # Contribution note: Please add new models in alphabetical order
+    # TODO: for encoder-decoder models, validate if bert or gpt2 optimization is better
     _conf = {
         "albert": "bert",
         "bart": "bart",
         "bert": "bert",
         "big_bird": "bert",
         # "bigbird_pegasus": None,  # bug in `fusion_skiplayernorm.py`
+        "blenderbot": "bert",
+        "bloom": "gpt2",
         "camembert": "bert",
         "codegen": "gpt2",
         "deberta": "bert",
@@ -89,15 +92,18 @@ class ORTConfigManager:
         "electra": "bert",
         "gpt2": "gpt2",
         "gpt_neo": "gpt2",
+        "gpt_neox": "gpt2",
+        "gptj": "gpt2",
+        # longt5 with O4 results in segmentation fault
         "longt5": "bert",
         "marian": "bart",
         "mbart": "bart",
         "mt5": "bart",
         "m2m_100": "bart",
         "nystromformer": "bert",
+        "pegasus": "bert",
         "roberta": "bert",
-        "t5": "t5",
-        "whisper": "whisper",
+        "t5": "bert",
         "xlm-roberta": "bert",
     }
 
@@ -116,8 +122,10 @@ class ORTConfigManager:
             )
 
     @classmethod
-    def check_optimization_supported_model(cls, model_type: str):
-        supported_model_types_for_optimization = ["bert", "gpt2", "bart"]
+    def check_optimization_supported_model(cls, model_type: str, optimization_config):
+        # as of 1.14.O: https://github.com/microsoft/onnxruntime/blob/6ccaeddefa65ccac402a47fa4d9cad8229794bb2/onnxruntime/python/tools/transformers/optimizer.py#L39
+        supported_model_types_for_optimization = ["bert", "gpt2", "bart", "unet"]
+
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
             raise KeyError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {supported_model_types_for_optimization} are supported. "

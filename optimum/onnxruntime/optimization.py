@@ -27,9 +27,9 @@ from onnxruntime.transformers.optimizer import optimize_model
 from ..utils import CONFIG_NAME, NormalizedConfigManager
 from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
+from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
-from .modeling_decoder import ORTModelForCausalLM
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
@@ -137,7 +137,7 @@ class ORTOptimizer:
         """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
-        ORTConfigManager.check_optimization_supported_model(self.model_type)
+        ORTConfigManager.check_optimization_supported_model(self.model_type, optimization_config)
 
         self.config.save_pretrained(save_dir)
         maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
