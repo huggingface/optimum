@@ -174,6 +174,11 @@ SEED = 42
 class ORTModelTestMixin(unittest.TestCase):
     ARCH_MODEL_MAP = {}
 
+    TENSOR_ALIAS_TO_TYPE = {
+        "pt": torch.Tensor,
+        "np": np.ndarray,
+    }
+
     @classmethod
     def setUpClass(cls):
         cls.onnx_model_dirs = {}
@@ -941,20 +946,27 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
+
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
-
-        self.assertTrue("start_logits" in onnx_outputs)
-        self.assertTrue("end_logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.start_logits, torch.Tensor)
-        self.assertIsInstance(onnx_outputs.end_logits, torch.Tensor)
-
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.start_logits, transformers_outputs.start_logits, atol=1e-4))
-        self.assertTrue(torch.allclose(onnx_outputs.end_logits, transformers_outputs.end_logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer("This is a sample output", return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("start_logits", onnx_outputs)
+            self.assertIn("end_logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.start_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+            self.assertIsInstance(onnx_outputs.end_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Compare tensor outputs
+            self.assertTrue(
+                torch.allclose(torch.Tensor(onnx_outputs.start_logits), transformers_outputs.start_logits, atol=1e-4)
+            )
+            self.assertTrue(
+                torch.allclose(torch.Tensor(onnx_outputs.end_logits), transformers_outputs.end_logits, atol=1e-4)
+            )
 
         gc.collect()
 
@@ -1101,18 +1113,21 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForMaskedLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        MASK_TOKEN = tokenizer.mask_token
-        tokens = tokenizer(f"The capital of France is {MASK_TOKEN}.", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        text = f"The capital of France is {tokenizer.mask_token}."
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -1260,17 +1275,21 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForSequenceClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -1429,17 +1448,21 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForTokenClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -1548,19 +1571,24 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModel.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
-
-        self.assertTrue("last_hidden_state" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.last_hidden_state, torch.Tensor)
-
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.last_hidden_state, transformers_outputs.last_hidden_state, atol=1e-4)
-        )
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("last_hidden_state", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(
+                torch.allclose(
+                    torch.Tensor(onnx_outputs.last_hidden_state), transformers_outputs.last_hidden_state, atol=1e-4
+                )
+            )
 
         gc.collect()
 
@@ -1698,18 +1726,19 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         for k, v in inputs.items():
             inputs[k] = [v[i : i + num_choices] for i in range(0, len(v), num_choices)]
 
-        inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
-        onnx_outputs = onnx_model(**inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        pt_inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
         with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs)
+            transformers_outputs = transformers_model(**pt_inputs)
 
-        # Compare tensor outputs
-        print(torch.max(torch.abs(onnx_outputs.logits - transformers_outputs.logits)))
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            inps = dict(inputs.convert_to_tensors(tensor_type=input_type))
+            onnx_outputs = onnx_model(**inps)
+
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2190,16 +2219,20 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=image, return_tensors="pt")
-        onnx_outputs = onnx_model(**inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
 
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            inputs = preprocessor(images=image, return_tensors=input_type)
+
+            onnx_outputs = onnx_model(**inputs)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2326,16 +2359,19 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=image, return_tensors="pt")
-        onnx_outputs = onnx_model(**inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
-
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            inputs = preprocessor(images=image, return_tensors=input_type)
+
+            onnx_outputs = onnx_model(**inputs)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -3184,7 +3220,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             )
 
 
-class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
+class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "sbert": "optimum/sbert-all-MiniLM-L6-with-pooler",
     }
@@ -3194,9 +3230,11 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        outputs = model(**tokens)
-        self.assertIsInstance(outputs.pooler_output, torch.Tensor)
+
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer("This is a sample output", return_tensors=input_type)
+            outputs = model(**tokens)
+            self.assertIsInstance(outputs.pooler_output, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
