@@ -236,7 +236,7 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
     return use_io_binding
 
 
-def get_ordered_input_names(input_names: Dict[str, int], func: Callable) -> List[str]:
+def get_ordered_input_names(input_names: List[str], func: Callable) -> List[str]:
     """
     Returns the input names from input_names keys ordered according to the signature of func. This is especially useful with the
     forward function when using IO Binding, as the input order of the ONNX and forward may be different.
@@ -244,8 +244,8 @@ def get_ordered_input_names(input_names: Dict[str, int], func: Callable) -> List
     Method inspired from OnnxConfig.ordered_inputs.
 
     Args:
-        input_names (`Dict[str, int]`):
-            Dictionary mapping the input names to the input index of the ONNX model.
+        input_names (`List[str]`):
+            Names of the inputs of the ONNX model.
         func (`Callable`):
             Callable to remap the input_names order to.
 

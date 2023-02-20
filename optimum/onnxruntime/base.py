@@ -49,7 +49,7 @@ class ORTModelPart:
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
 
-        self._ordered_input_names = get_ordered_input_names(self.input_names, func=self.forward)
+        self._ordered_input_names = get_ordered_input_names(self.input_names.keys(), func=self.forward)
 
     @property
     def device(self):
