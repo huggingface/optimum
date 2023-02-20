@@ -2368,7 +2368,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
             onnx_outputs = onnx_model(**inputs)
 
-            self.assertTrue("logits" in onnx_outputs)
+            self.assertIn("logits", onnx_outputs)
             self.assertTrue(isinstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type]))
 
             # compare tensor outputs
