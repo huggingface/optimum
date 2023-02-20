@@ -2121,16 +2121,27 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+    )
     @require_torch_gpu
     @pytest.mark.gpu_test
-    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False)
-        io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True)
+        onnx_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
+        ).to("cuda")
+        io_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=True
+        ).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
