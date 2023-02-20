@@ -1580,7 +1580,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
             tokens = tokenizer(text, return_tensors=input_type)
             onnx_outputs = onnx_model(**tokens)
 
-            self.assertTrue("last_hidden_state" in onnx_outputs)
+            self.assertIn("last_hidden_state", onnx_outputs)
             self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
