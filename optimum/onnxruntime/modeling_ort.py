@@ -247,7 +247,7 @@ class ORTModel(OptimizedModel):
         self.inputs_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
 
-        self._ordered_input_names = get_ordered_input_names(self.input_names, func=self.forward)
+        self._ordered_input_names = get_ordered_input_names(self.inputs_names, func=self.forward)
 
     # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
     @property
