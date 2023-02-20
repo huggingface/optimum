@@ -39,6 +39,7 @@ class ORTOptimizerTest(unittest.TestCase):
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-gpt2"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-TapasModel"),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
@@ -75,12 +76,13 @@ class ORTOptimizerTest(unittest.TestCase):
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-LongT5ForConditionalGeneration", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", True),
-        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", False),
-        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", True),
-        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-m2m_100", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-mbart", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-onnx-mt5", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-TapasModel", True)
     )
 
     @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
