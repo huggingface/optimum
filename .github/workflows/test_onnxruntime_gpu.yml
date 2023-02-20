@@ -62,7 +62,7 @@ jobs:
           docker build -f tests/onnxruntime/Dockerfile_onnxruntime_gpu -t onnxruntime-gpu .
       - name: Test with unittest within docker container
         run: |
-          docker run --rm --gpus all --workdir=/workspace/optimum/tests onnxruntime-gpu:latest
+          docker run --rm --gpus all -v $(pwd)/hf_cache:/root/.cache/huggingface --workdir=/workspace/optimum/tests onnxruntime-gpu:latest
 
   stop-runner:
     name: Stop self-hosted EC2 runner
