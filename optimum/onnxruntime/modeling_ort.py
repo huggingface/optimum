@@ -786,7 +786,7 @@ class ORTModel(OptimizedModel):
             use_torch (`bool`):
                 Whether the tensor used during inference are of type torch.Tensor or not.
         """
-        if use_torch is False and self.use_io_binding:
+        if use_torch is False and self.use_io_binding is True:
             raise ValueError(
                 "IO Binding can not be used when passing numpy inputs. Please disable IO Binding"
                 " with model.use_io_binding = False, or pass torch.Tensor inputs instead."
