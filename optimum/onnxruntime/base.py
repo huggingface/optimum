@@ -203,7 +203,7 @@ class ORTDecoder(ORTModelPart):
         Args:
             input_ids (`torch.Tensor`):
                 The input ids that are associated with the current inputs.
-            use_cache_branch (`bool`):
+            use_cache_branch (`Optional[bool]`):
                 In the case of a merged decoder, whether the with-past branch is used. In case the decoders without and with past are
                 separate, this parameter should be None.
             past_key_values (`Optional[Tuple[Tuple[torch.Tensor]]]`, defaults to `None`):
