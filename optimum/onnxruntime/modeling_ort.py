@@ -1609,8 +1609,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
             # converts output to namedtuple for pipelines post-processing
             return SemanticSegmenterOutput(logits=outputs["logits"])
         else:
-            if use_torch:
-                onnx_inputs = self._prepare_onnx_inputs(use_torch=use_torch, **kwargs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch=use_torch, **kwargs)
 
             # run inference
             onnx_outputs = self.model.run(None, onnx_inputs)
