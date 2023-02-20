@@ -2414,13 +2414,13 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
 class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
-        "audio-spectrogram-transformer",
-        "data2vec-audio",
+        "audio_spectrogram_transformer",
+        "data2vec_audio",
         "hubert",
         "sew",
-        "sew-d",
+        "sew_d",
         "unispeech",
-        "unispeech-sat",
+        "unispeech_sat",
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
@@ -2565,12 +2565,12 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
 class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
-        "data2vec-audio",
+        "data2vec_audio",
         "hubert",
         "sew",
-        "sew-d",
+        "sew_d",
         "unispeech",
-        "unispeech-sat",
+        "unispeech_sat",
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
@@ -2650,8 +2650,8 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
 class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
-        "data2vec-audio",
-        "unispeech-sat",
+        "data2vec_audio",
+        "unispeech_sat",
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
@@ -2739,8 +2739,8 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
 class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
-        "data2vec-audio",
-        "unispeech-sat",
+        "data2vec_audio",
+        "unispeech_sat",
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
