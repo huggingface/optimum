@@ -157,21 +157,18 @@ class ORTDecoder(ORTModelPart):
     def prepare_inputs_for_merged(
         self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
     ):
-        # Prepare use cache
-        if past_key_values is None and self.parent_model.use_merged:  # Uses "no past" branch of a merged decoder
+        if past_key_values is None and self.parent_model.use_merged:
+            # Uses "no past" branch of a merged decoder
             use_cache_branch = torch.full((1,), False).to(self.device)
-        elif (
-            past_key_values is not None and self.parent_model.use_merged
-        ):  # Uses "with past" branch of a merged decoder
+        elif past_key_values is not None and self.parent_model.use_merged:
+            # Uses "with past" branch of a merged decoder
             use_cache_branch = torch.full((1,), True).to(self.device)
-        else:  # Uses separate decoders
+        else:
+            # Uses separate decoders
             use_cache_branch = None
 
-        # Prepare past key values
-        is_dummy = False
-        if (
-            self.parent_model.use_merged and past_key_values is None
-        ):  # Generate dummy past for the first forward if uses a merged decoder
+        # Generate dummy past for the first forward if uses a merged decoder
+        if self.parent_model.use_merged and past_key_values is None:
             batch_size = input_ids.size(0)
             num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
@@ -190,12 +187,14 @@ class ORTDecoder(ORTModelPart):
                 shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
                 key_or_value = torch.zeros(shape, dtype=torch.float32).to(self.device)
                 past_key_values = [key_or_value for _ in range(len(self.key_value_input_names))]
-            is_dummy = True
 
-        return use_cache_branch, past_key_values, is_dummy
+        return use_cache_branch, past_key_values
 
     def compute_past_key_values_output_shapes(
-        self, input_ids: torch.Tensor, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+        self,
+        input_ids: torch.Tensor,
+        use_cache_branch: Optional[bool],
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
     ) -> Dict[str, List[int]]:
         """
         Computes the outputs of the past key / value because it is not always easy to perform shape inference on them,
@@ -204,6 +203,9 @@ class ORTDecoder(ORTModelPart):
         Args:
             input_ids (`torch.Tensor`):
                 The input ids that are associated with the current inputs.
+            use_cache_branch (`Optional[bool]`):
+                In the case of a merged decoder, whether the with-past branch is used. In case the decoders without and with past are
+                separate, this parameter should be None.
             past_key_values (`Optional[Tuple[Tuple[torch.Tensor]]]`, defaults to `None`):
                 The past key values associated with the current inputs.
 
@@ -213,8 +215,11 @@ class ORTDecoder(ORTModelPart):
         batch_size = input_ids.size(0)
         num_attention_heads = self.normalized_config.num_attention_heads
         embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+
         sequence_length = input_ids.size(1)
-        if past_key_values is not None:
+        if past_key_values is not None and use_cache_branch is not False:
+            # Here, use_cache_branch may be None in the case of separate decoder without/with past, or True if the with past branch
+            # of a merged decoder is used
             sequence_length += past_key_values[0].size(2)
 
         half_shape = [batch_size, num_attention_heads]
@@ -242,20 +247,17 @@ class ORTDecoder(ORTModelPart):
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
     ) -> CausalLMOutputWithCrossAttentions:
-        known_output_shapes = {}
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
 
+        # no-ops if merged decoder is not used
+        use_cache_branch, past_key_values = self.prepare_inputs_for_merged(input_ids, past_key_values)
+
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
-            # TODO: support merged decoder with IO Binding
-            if self.parent_model.use_merged is True:
-                raise ValueError(
-                    "Merged decoder without / with past is currently not supported when using IO Binding but will be in a future release."
-                    " Please disable IO Binding setting model.use_io_binding = False, or use a model that does not merge the decoder."
-                )
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
+                use_cache_branch=use_cache_branch.item() if use_cache_branch is not None else None,
                 past_key_values=past_key_values,
             )
 
@@ -266,6 +268,9 @@ class ORTDecoder(ORTModelPart):
 
             if past_key_values is not None:
                 model_inputs += past_key_values
+
+            if use_cache_branch is not None:
+                model_inputs.append(use_cache_branch)
 
             if "labels" in self.input_names:
                 model_inputs.append(labels)
@@ -302,9 +307,6 @@ class ORTDecoder(ORTModelPart):
             }
 
             if self.parent_model.use_merged is True:
-                use_cache_branch, past_key_values, is_dummy = self.prepare_inputs_for_merged(
-                    input_ids, past_key_values
-                )
                 onnx_inputs["use_cache_branch"] = use_cache_branch.cpu().detach().numpy()
 
             if past_key_values is not None:
@@ -371,7 +373,6 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
     ) -> Seq2SeqLMOutput:
-        known_output_shapes = {}
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = tuple(
