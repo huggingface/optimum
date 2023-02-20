@@ -956,7 +956,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
             onnx_outputs = onnx_model(**tokens)
 
             self.assertIn("start_logits", onnx_outputs)
-            self.assertTrue("end_logits" in onnx_outputs)
+            self.assertIn("end_logits", onnx_outputs)
             self.assertIsInstance(onnx_outputs.start_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
             self.assertIsInstance(onnx_outputs.end_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
