@@ -22,6 +22,7 @@ from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCro
 from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
+from .utils import get_ordered_input_names
 
 
 if TYPE_CHECKING:
@@ -47,6 +48,8 @@ class ORTModelPart:
         self.main_input_name = self.parent_model.main_input_name
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+
+        self._ordered_input_names = get_ordered_input_names(self.input_names.keys(), func=self.forward)
 
     @property
     def device(self):
@@ -76,7 +79,9 @@ class ORTEncoder(ORTModelPart):
             if "attention_mask" in self.input_names:
                 model_inputs.append(attention_mask)
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session, *model_inputs
+                self.session,
+                *model_inputs,
+                ordered_input_names=self._ordered_input_names,
             )
 
             io_binding.synchronize_inputs()
@@ -280,6 +285,7 @@ class ORTDecoder(ORTModelPart):
                 self.session,
                 *model_inputs,
                 known_output_shapes=known_output_shapes,
+                ordered_input_names=self._ordered_input_names,
             )
 
             io_binding.synchronize_inputs()
@@ -410,7 +416,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 self.session,
                 *model_inputs,
                 known_output_shapes=known_output_shapes,
-                forward_function=self.forward,
+                ordered_input_names=self._ordered_input_names,
                 outputs_to_not_bind=outputs_to_not_bind,
             )
 
