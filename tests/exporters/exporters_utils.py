@@ -31,8 +31,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bart": "hf-internal-testing/tiny-random-bart",
-    "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
-    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    # "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
+    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
@@ -131,8 +131,8 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "beit": "microsoft/beit-base-patch16-224",
     "bert": "bert-base-cased",
     "bart": "facebook/bart-base",
-    "big-bird": "google/bigbird-roberta-base",
-    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",  # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
+    # "big-bird": "google/bigbird-roberta-base",
+    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "facebook/blenderbot_small-90M",
     "blenderbot": "facebook/blenderbot-90M",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",  # Not using bigscience/bloom-560m because it goes OOM.

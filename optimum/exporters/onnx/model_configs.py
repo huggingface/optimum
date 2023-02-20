@@ -144,10 +144,6 @@ class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
-class BigBirdOnnxConfig(DistilBertOnnxConfig):
-    pass
-
-
 class DebertaOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
@@ -472,12 +468,21 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
     pass
 
 
+# big_bird and bigbird_pegasus are unsupported for now as block sparse attention is written in pure python and numpy in transformers.
+# Thus, the case attention_type == "block_sparse" is unusable.
+# Even with rewritting this part in pure PyTorch, torch.onnx.export is then prohibitively slow.
+# References: https://github.com/pytorch/pytorch/issues/63734 & https://github.com/pytorch/pytorch/issues/94821
+"""
+class BigBirdOnnxConfig(DistilBertOnnxConfig):
+    pass
+
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
             # TODO: check why the attention mask is not present in the exported model
             reference_model_inputs.pop("attention_mask")
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+"""
 
 
 class PegasusOnnxConfig(BartOnnxConfig):

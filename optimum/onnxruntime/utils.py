@@ -80,7 +80,7 @@ class ORTConfigManager:
         "bart": "bart",
         "bert": "bert",
         "big_bird": "bert",
-        "bigbird_pegasus": None,  # bug in `fusion_skiplayernorm.py`
+        # "bigbird_pegasus": None,  # bug in `fusion_skiplayernorm.py`
         "camembert": "bert",
         "codegen": "gpt2",
         "deberta": "bert",

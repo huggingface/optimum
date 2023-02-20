@@ -33,7 +33,7 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
+        # (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-gpt2"),
