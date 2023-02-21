@@ -280,7 +280,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [True, False],
         "use_merged": [True, False],
-        "optimization_level": ["O1", "O2", "O3", "O4"],
     }
 
     def _test_optimization_levels(
@@ -351,7 +350,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
             gc.collect()
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    @parameterized.expand(grid_parameters({**FULL_GRID, "optimization_level": ["O1", "O2", "O3"]}))
     def test_optimization_levels_cpu(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
     ):
@@ -364,20 +363,13 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             provider="CPUExecutionProvider",
         )
 
-    FULL_GRID = {
-        "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [True, False],
-        "use_merged": [True, False],
-        "optimization_level": ["O1", "O2", "O3", "O4"],
-    }
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    @parameterized.expand(grid_parameters({**FULL_GRID, "optimization_level": ["O1", "O2", "O3", "O4"]}))
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_optimization_levels_gpu(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
     ):
-        for use_io_binding in [False]:
+        for use_io_binding in [False, True]:
             self._test_optimization_levels(
                 test_name=test_name,
                 model_arch=model_arch,
