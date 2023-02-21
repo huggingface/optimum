@@ -278,7 +278,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [True, False],
         "use_merged": [True, False],
     }
 
@@ -350,7 +349,9 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
             gc.collect()
 
-    @parameterized.expand(grid_parameters({**FULL_GRID, "optimization_level": ["O1", "O2", "O3"]}))
+    @parameterized.expand(
+        grid_parameters({**FULL_GRID, "use_cache": [False, True], "optimization_level": ["O1", "O2", "O3"]})
+    )
     def test_optimization_levels_cpu(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
     ):
@@ -363,7 +364,9 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             provider="CPUExecutionProvider",
         )
 
-    @parameterized.expand(grid_parameters({**FULL_GRID, "optimization_level": ["O1", "O2", "O3", "O4"]}))
+    @parameterized.expand(
+        grid_parameters({**FULL_GRID, "use_cache": [True], "optimization_level": ["O1", "O2", "O3", "O4"]})
+    )
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_optimization_levels_gpu(
@@ -373,8 +376,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         if model_arch == "gptj" and use_cache and optimization_level == "O4":
             self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
 
-        # TODO: test with IO Binding once the indexing issue is solved
-        for use_io_binding in [False]:
+        for use_io_binding in [False, True]:
             self._test_optimization_levels(
                 test_name=test_name,
                 model_arch=model_arch,
