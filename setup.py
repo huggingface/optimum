@@ -23,7 +23,7 @@ REQUIRED_PKGS = [
     "datasets",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses", "diffusers", "nltk"]
+TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses", "diffusers"]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241"]
 

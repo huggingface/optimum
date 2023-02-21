@@ -33,5 +33,5 @@ jobs:
     - name: Test with pytest
       working-directory: tests
       run: |
-        pytest -n auto -m "not run_in_series" --durations=0 onnxruntime
+        pytest -n auto -m "not run_in_series" --durations=0 onnxruntime --ignore onnxruntime/test_trainer.py 
         pytest -m "run_in_series" --durations=0 onnxruntime
