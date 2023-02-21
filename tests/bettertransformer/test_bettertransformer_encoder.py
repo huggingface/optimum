@@ -176,6 +176,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         self.assertEqual(out[0]["token_str"], "role")
         gc.collect()
+    
+
 
     @require_torch_gpu
     @require_accelerate
@@ -252,6 +254,18 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         """
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
+
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_id": all_models_to_test,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_orig_layer_state_dict(self, test_name:str, model_id, keep_original_model=False):
+        super().test_state_dict_does_not_contain_orig_layer(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(
         grid_parameters(
