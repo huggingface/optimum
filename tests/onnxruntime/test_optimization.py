@@ -224,28 +224,44 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [True, False],
-        "optimization_level": ["O1", "O2", "O3", "O4"],
     }
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_optimization_level(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
+    def _test_optimization_levels(
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        optimization_level: str,
+        provider: str,
+        use_io_binding: Optional[bool] = None,
+    ):
         export_name = test_name[:-3]  # remove `_OX` that is irrelevant as the export
         model_args = {"test_name": export_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
 
-        ort_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[export_name], use_cache=use_cache)
+        if provider == "CUDAExecutionProvider":
+            for_gpu = True
+            device = "cuda"
+        else:
+            for_gpu = False
+            device = "cpu"
+
+        ort_model = ORTModelForSeq2SeqLM.from_pretrained(
+            self.onnx_model_dirs[export_name], use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
+        )
 
         optimizer = ORTOptimizer.from_pretrained(ort_model)
 
-        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level)
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level, for_gpu=for_gpu)
         optimization_config.disable_shape_inference = True
         model_id = MODEL_NAMES[model_arch]
 
         with tempfile.TemporaryDirectory(suffix="_optimized") as tmp_dir:
             optimizer.optimize(save_dir=tmp_dir, optimization_config=optimization_config)
 
-            optimized_model = ORTModelForSeq2SeqLM.from_pretrained(tmp_dir, use_cache=use_cache)
+            optimized_model = ORTModelForSeq2SeqLM.from_pretrained(
+                tmp_dir, use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
+            )
 
             expected_ort_config = ORTConfig(optimization=optimization_config)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
@@ -254,12 +270,56 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
 
             tokenizer = AutoTokenizer.from_pretrained(model_id)
-            tokens = tokenizer("This is a sample input", return_tensors="pt")
+            tokens = tokenizer("This is a sample input", return_tensors="pt").to(device)
             model_outputs = ort_model.generate(**tokens)
             optimized_model_outputs = optimized_model.generate(**tokens)
 
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
             gc.collect()
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [False, True],
+                "optimization_level": ["O1", "O2", "O3"],
+            }
+        )
+    )
+    def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
+        self._test_optimization_levels(
+            test_name=test_name,
+            model_arch=model_arch,
+            use_cache=use_cache,
+            optimization_level=optimization_level,
+            provider="CPUExecutionProvider",
+        )
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "optimization_level": ["O1", "O2", "O3", "O4"],
+            }
+        )
+    )
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
+        for use_io_binding in [False, True]:
+            # TODO: investigate why marian with IO Binding fails
+            if model_arch == "marian" and use_io_binding is True:
+                continue
+
+            self._test_optimization_levels(
+                test_name=test_name,
+                model_arch=model_arch,
+                use_cache=use_cache,
+                optimization_level=optimization_level,
+                provider="CUDAExecutionProvider",
+                use_io_binding=use_io_binding,
+            )
 
 
 class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
@@ -278,7 +338,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [True, False],
         "use_merged": [True, False],
     }
 
@@ -350,9 +409,11 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
             gc.collect()
 
-    @parameterized.expand(grid_parameters({**FULL_GRID, "optimization_level": ["O1", "O2", "O3"]}))
+    @parameterized.expand(
+        grid_parameters({**FULL_GRID, "use_cache": [False, True], "optimization_level": ["O1", "O2", "O3"]})
+    )
     def test_optimization_levels_cpu(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):
         self._test_optimization_levels(
             test_name=test_name,
@@ -363,18 +424,19 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             provider="CPUExecutionProvider",
         )
 
-    @parameterized.expand(grid_parameters({**FULL_GRID, "optimization_level": ["O1", "O2", "O3", "O4"]}))
+    @parameterized.expand(
+        grid_parameters({**FULL_GRID, "use_cache": [True], "optimization_level": ["O1", "O2", "O3", "O4"]})
+    )
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_optimization_levels_gpu(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):
         # TODO: investigate why bloom with past is the only failing one
         if model_arch == "gptj" and use_cache and optimization_level == "O4":
             self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
 
-        # TODO: test with IO Binding once the indexing issue is solved
-        for use_io_binding in [False]:
+        for use_io_binding in [False, True]:
             self._test_optimization_levels(
                 test_name=test_name,
                 model_arch=model_arch,
