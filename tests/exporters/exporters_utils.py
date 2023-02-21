@@ -52,6 +52,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "fnet": "hf-internal-testing/tiny-random-FNetModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt-neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
@@ -151,6 +152,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "distilbert": "distilbert-base-cased",
     "electra": "google/electra-base-generator",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
+    "fnet": "google/fnet-base",
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",
     "gpt-neox": "EleutherAI/gpt-neox-20b",

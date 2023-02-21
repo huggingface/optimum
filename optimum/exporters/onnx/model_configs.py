@@ -110,6 +110,10 @@ class SplinterOnnxConfig(BertOnnxConfig):
     pass
 
 
+class FNetOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class DistilBertOnnxConfig(BertOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:

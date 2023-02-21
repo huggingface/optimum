@@ -381,6 +381,15 @@ class TasksManager:
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
         ),
+        "fnet": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "sequence-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="FNetOnnxConfig",
+        ),
         "gpt2": supported_tasks_mapping(
             "default",
             "default-with-past",
