@@ -57,7 +57,7 @@ class BetterTransformerManager:
         "vit": ("ViTLayer", ViTLayerBetterTransformer),
         "vit_mae": ("ViTMAELayer", ViTLayerBetterTransformer),
         "vit_msn": ("ViTMSNLayer", ViTLayerBetterTransformer),
-        "wav2vec2": ("Wav2Vec2EncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
+        "wav2vec2": (["Wav2Vec2EncoderLayer", "Wav2Vec2EncoderLayerStableLayerNorm"], Wav2Vec2EncoderLayerBetterTransformer),
         "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
         "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
         "yolos": ("YolosLayer", ViTLayerBetterTransformer),
