@@ -7,4 +7,4 @@ GPU_DEVICES=${2:-"all"}
 pip install pytest pytest-xdist
 
 # Run the test
-RUN_SLOW=1 pytest -v -rs test_trainer.py
+RUN_SLOW=1 pytest -v -rs tests/onnxruntime/test_trainer.py
