@@ -353,7 +353,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         grid_parameters({**FULL_GRID, "use_cache": [False, True], "optimization_level": ["O1", "O2", "O3"]})
     )
     def test_optimization_levels_cpu(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):
         self._test_optimization_levels(
             test_name=test_name,
@@ -370,7 +370,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_optimization_levels_gpu(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):
         # TODO: investigate why bloom with past is the only failing one
         if model_arch == "gptj" and use_cache and optimization_level == "O4":
