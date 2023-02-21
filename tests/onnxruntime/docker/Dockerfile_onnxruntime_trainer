@@ -10,10 +10,6 @@ ARG TORCH_CUDA_VERSION=cu116
 ARG TORCH_VERSION=1.13.1
 ARG TORCHVISION_VERSION=0.14.1
 
-# Bash shell
-RUN chsh -s /bin/bash
-SHELL ["/bin/bash", "-c"]
-
 # Install and update tools to minimize security vulnerabilities
 RUN apt-get update
 RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
@@ -48,6 +44,7 @@ RUN python -m torch_ort.configure
 
 # Install Optimum
 COPY . /workspace/optimum
+RUN pip install /workspace/optimum[tests]
 
 ENV TEST_LEVEL=1
-CMD RUN_SLOW=1 pytest -v -rs onnxruntime/nightly_test_trainer.py
+CMD RUN_SLOW=1 pytest -v -rs onnxruntime/test_trainer.py --durations=0
