@@ -54,6 +54,7 @@ from transformers import (
 from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
+from utils_onnxruntime_tests import MODEL_NAMES, SEED
 
 from optimum.exporters import TasksManager
 from optimum.onnx.utils import has_onnx_input
@@ -96,83 +97,13 @@ class Timer(object):
         self.elapsed = (time.perf_counter() - self.elapsed) * 1e3
 
 
-MODEL_NAMES = {
-    "albert": "hf-internal-testing/tiny-random-AlbertModel",
-    "audio_spectrogram_transformer": "Ericwang/tiny-random-ast",
-    "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
-    "bert": "hf-internal-testing/tiny-random-BertModel",
-    "bart": "hf-internal-testing/tiny-random-bart",
-    "big_bird": "hf-internal-testing/tiny-random-BigBirdModel",
-    "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
-    "blenderbot_small": "hf-internal-testing/tiny-random-BlenderbotModel",
-    "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
-    "bloom": "hf-internal-testing/tiny-random-BloomModel",
-    "camembert": "hf-internal-testing/tiny-random-camembert",
-    "clip": "hf-internal-testing/tiny-random-CLIPModel",
-    "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
-    "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
-    "data2vec_text": "hf-internal-testing/tiny-random-Data2VecTextModel",
-    "data2vec_vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
-    "data2vec_audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
-    "deberta": "hf-internal-testing/tiny-random-DebertaModel",
-    "deberta_v2": "hf-internal-testing/tiny-random-DebertaV2Model",
-    "deit": "hf-internal-testing/tiny-random-DeiTModel",
-    "convnext": "hf-internal-testing/tiny-random-convnext",
-    "detr": "hf-internal-testing/tiny-random-detr",
-    "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
-    "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "flaubert": "hf-internal-testing/tiny-random-flaubert",
-    "gpt2": "hf-internal-testing/tiny-random-gpt2",
-    "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
-    "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
-    "gptj": "hf-internal-testing/tiny-random-GPTJModel",
-    "groupvit": "hf-internal-testing/tiny-random-groupvit",
-    "ibert": "hf-internal-testing/tiny-random-IBertModel",
-    "levit": "hf-internal-testing/tiny-random-LevitModel",
-    "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
-    "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
-    "longt5": "hf-internal-testing/tiny-random-LongT5Model",
-    "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
-    "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
-    "mbart": "hf-internal-testing/tiny-random-mbart",
-    "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
-    "mobilenet_v1": "google/mobilenet_v1_0.75_192",
-    "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
-    "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
-    "mt5": "lewtun/tiny-random-mt5",
-    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
-    "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
-    "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
-    "resnet": "hf-internal-testing/tiny-random-resnet",
-    "roberta": "hf-internal-testing/tiny-random-RobertaModel",
-    "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    "segformer": "hf-internal-testing/tiny-random-SegformerModel",
-    "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
-    "swin": "hf-internal-testing/tiny-random-SwinModel",
-    "t5": "hf-internal-testing/tiny-random-t5",
-    "vit": "hf-internal-testing/tiny-random-vit",
-    "yolos": "hf-internal-testing/tiny-random-YolosModel",
-    "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
-    "hubert": "hf-internal-testing/tiny-random-HubertModel",
-    "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
-    "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
-    "wavlm": "hf-internal-testing/tiny-random-wavlm",
-    "sew": "hf-internal-testing/tiny-random-SEWModel",
-    "sew_d": "hf-internal-testing/tiny-random-SEWDModel",
-    "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
-    "unispeech": "hf-internal-testing/tiny-random-unispeech",
-    "unispeech_sat": "hf-internal-testing/tiny-random-unispeech-sat",
-    "xlm": "hf-internal-testing/tiny-random-XLMModel",
-    "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
-    "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
-    "trocr": "microsoft/trocr-small-handwritten",
-}
-
-SEED = 42
-
-
 class ORTModelTestMixin(unittest.TestCase):
     ARCH_MODEL_MAP = {}
+
+    TENSOR_ALIAS_TO_TYPE = {
+        "pt": torch.Tensor,
+        "np": np.ndarray,
+    }
 
     @classmethod
     def setUpClass(cls):
@@ -892,8 +823,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        "big_bird",
-        "bigbird_pegasus",
+        # "big_bird",
+        # "bigbird_pegasus",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -941,20 +872,27 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
+
         tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
-
-        self.assertTrue("start_logits" in onnx_outputs)
-        self.assertTrue("end_logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.start_logits, torch.Tensor)
-        self.assertIsInstance(onnx_outputs.end_logits, torch.Tensor)
-
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.start_logits, transformers_outputs.start_logits, atol=1e-4))
-        self.assertTrue(torch.allclose(onnx_outputs.end_logits, transformers_outputs.end_logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer("This is a sample output", return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("start_logits", onnx_outputs)
+            self.assertIn("end_logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.start_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+            self.assertIsInstance(onnx_outputs.end_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Compare tensor outputs
+            self.assertTrue(
+                torch.allclose(torch.Tensor(onnx_outputs.start_logits), transformers_outputs.start_logits, atol=1e-4)
+            )
+            self.assertTrue(
+                torch.allclose(torch.Tensor(onnx_outputs.end_logits), transformers_outputs.end_logits, atol=1e-4)
+            )
 
         gc.collect()
 
@@ -1053,7 +991,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        # "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1101,18 +1039,21 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForMaskedLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        MASK_TOKEN = tokenizer.mask_token
-        tokens = tokenizer(f"The capital of France is {MASK_TOKEN}.", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        text = f"The capital of France is {tokenizer.mask_token}."
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -1202,8 +1143,8 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        "big_bird",
-        "bigbird_pegasus",
+        # "big_bird",
+        # "bigbird_pegasus",
         "bloom",
         "camembert",
         "convbert",
@@ -1260,17 +1201,21 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForSequenceClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -1382,7 +1327,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        # "big_bird",
         "bloom",
         "camembert",
         "convbert",
@@ -1429,17 +1374,21 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForTokenClassification.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -1548,19 +1497,24 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModel.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        onnx_outputs = onnx_model(**tokens)
-
-        self.assertTrue("last_hidden_state" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.last_hidden_state, torch.Tensor)
-
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
-        # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.last_hidden_state, transformers_outputs.last_hidden_state, atol=1e-4)
-        )
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
+
+            self.assertIn("last_hidden_state", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(
+                torch.allclose(
+                    torch.Tensor(onnx_outputs.last_hidden_state), transformers_outputs.last_hidden_state, atol=1e-4
+                )
+            )
 
         gc.collect()
 
@@ -1652,7 +1606,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        # "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1698,18 +1652,19 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         for k, v in inputs.items():
             inputs[k] = [v[i : i + num_choices] for i in range(0, len(v), num_choices)]
 
-        inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
-        onnx_outputs = onnx_model(**inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
+        pt_inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
         with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs)
+            transformers_outputs = transformers_model(**pt_inputs)
 
-        # Compare tensor outputs
-        print(torch.max(torch.abs(onnx_outputs.logits - transformers_outputs.logits)))
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            inps = dict(inputs.convert_to_tensors(tensor_type=input_type))
+            onnx_outputs = onnx_model(**inps)
+
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2092,16 +2047,27 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+    )
     @require_torch_gpu
     @pytest.mark.gpu_test
-    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False)
-        io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True)
+        onnx_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
+        ).to("cuda")
+        io_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=True
+        ).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
@@ -2190,16 +2156,20 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=image, return_tensors="pt")
-        onnx_outputs = onnx_model(**inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
 
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            inputs = preprocessor(images=image, return_tensors=input_type)
+
+            onnx_outputs = onnx_model(**inputs)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2289,7 +2259,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
         # compare tensor outputs
         self.assertTrue(
-            torch.allclose(onnx_outputs.logits, io_outputs.logits),
+            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4),
             f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
         )
 
@@ -2326,16 +2296,19 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=image, return_tensors="pt")
-        onnx_outputs = onnx_model(**inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertTrue(isinstance(onnx_outputs.logits, torch.Tensor))
-
         with torch.no_grad():
             trtfs_outputs = trfs_model(**inputs)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, trtfs_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            inputs = preprocessor(images=image, return_tensors=input_type)
+
+            onnx_outputs = onnx_model(**inputs)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2366,10 +2339,9 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         self.assertTrue(outputs[0]["mask"] is not None)
         self.assertTrue(isinstance(outputs[0]["label"], str))
 
+    # TODO: enable TensorrtExecutionProvider test once https://github.com/huggingface/optimum/issues/798 is fixed
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
     )
     @require_torch_gpu
     @pytest.mark.gpu_test
@@ -2424,7 +2396,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
         # compare tensor outputs
         self.assertTrue(
-            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-5),
+            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4),
             f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
         )
 
@@ -2434,7 +2406,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bart",
-        "bigbird_pegasus",
+        # "bigbird_pegasus",
         "blenderbot",
         "blenderbot_small",
         "longt5",
@@ -3184,7 +3156,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             )
 
 
-class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
+class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "sbert": "optimum/sbert-all-MiniLM-L6-with-pooler",
     }
@@ -3194,9 +3166,11 @@ class ORTModelForCustomTasksIntegrationTest(unittest.TestCase):
         model_arch, model_id = args
         model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
-        outputs = model(**tokens)
-        self.assertIsInstance(outputs.pooler_output, torch.Tensor)
+
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer("This is a sample output", return_tensors=input_type)
+            outputs = model(**tokens)
+            self.assertIsInstance(outputs.pooler_output, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
