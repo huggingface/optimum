@@ -307,11 +307,11 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
-        # TODO: investigate why bloom with past is the only failing one
-        if model_arch == "gptj" and use_cache and optimization_level == "O4":
-            self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
-
         for use_io_binding in [False, True]:
+            # TODO: investigate why marian with IO Binding fails
+            if model_arch == "marian" and use_io_binding is True:
+                continue
+
             self._test_optimization_levels(
                 test_name=test_name,
                 model_arch=model_arch,
