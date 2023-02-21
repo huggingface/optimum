@@ -270,7 +270,7 @@ class BetterTransformer(object):
         if load_accelerate:
             device_map_bt = infer_auto_device_map(model_fast, max_memory=max_memory)
 
-            model_fast = remove_hook_from_module(model_fast, recurse=True)
+            remove_hook_from_module(model_fast, recurse=True)
 
             model_fast = dispatch_model(model_fast, device_map_bt)
 
