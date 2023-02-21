@@ -29,7 +29,10 @@ from onnxruntime.quantization.calibrate import create_calibrator
 from onnxruntime.transformers.fusion_options import FusionOptions
 
 from ..configuration_utils import BaseConfig
+from ..utils import logging
 
+
+logger = logging.get_logger(__name__)
 
 NodeName = NodeType = str
 
@@ -55,18 +58,18 @@ class CalibrationConfig:
             The number of samples composing the calibration dataset.
         method (`CalibrationMethod`):
             The method chosen to calculate the activations quantization parameters using the calibration dataset.
-        num_bins (`int`, *optional*):
+        num_bins (`Optional[int]`, defaults to `None`):
             The number of bins to use when creating the histogram when performing the calibration step using the
             Percentile or Entropy method.
-        num_quantized_bins (`int`, *optional*):
+        num_quantized_bins (`Optional[int]`, defaults to `None`):
             The number of quantized bins to use when performing the calibration step using the Entropy method.
-        percentile (`float`, *optional*):
+        percentile (`Optional[float]`, defaults to `None`):
             The percentile to use when computing the activations quantization ranges when performing the calibration
             step using the Percentile method.
-        moving_average (`bool`, *optional*):
+        moving_average (`Optional[bool]`, defaults to `None`):
             Whether to compute the moving average of the minimum and maximum values when performing the calibration step
             using the MinMax method.
-        averaging_constant (`float`, *optional*):
+        averaging_constant (`Optional[float]`, defaults to `None`):
             The constant smoothing factor to use when computing the moving average of the minimum and maximum values.
             Effective only when the MinMax calibration method is selected and `moving_average` is set to True.
     """
@@ -812,10 +815,10 @@ class AutoOptimizationConfig:
                 - O2: Basic and extended general optimizations, transformers-specific fusions.
                 - O3: Same as O2 with Fast Gelu approximation.
                 - O4: Same as O3 with mixed precision.
-            for_gpu (`bool`, *optional*, defaults to `False`):
+            for_gpu (`bool`, defaults to `False`):
                 Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
                 will run on. Only needed for optimization_level > 1.
-            kwargs (`Dict[str, Any]`, *optional*):
+            kwargs (`Dict[str, Any]`):
                 Arguments to provide to the [`~OptimizationConfig`] constructor.
 
         Returns:
@@ -825,6 +828,12 @@ class AutoOptimizationConfig:
             raise ValueError(
                 f"optimization_level must be in {', '.join(cls._LEVELS.keys())}, got {optimization_level}"
             )
+
+        if optimization_level == "O4":
+            if for_gpu is False:
+                logger.warning("Overridding for_gpu=False to for_gpu=True as half precision is available only on GPU.")
+            for_gpu = True
+
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
 
     @classmethod
@@ -833,10 +842,10 @@ class AutoOptimizationConfig:
         Creates an O1 [`~OptimizationConfig`].
 
         Args:
-            for_gpu (`bool`, *optional*, defaults to `False`):
+            for_gpu (`bool`, defaults to `False`):
                 Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
                 will run on. Only needed for optimization_level > 1.
-            kwargs (`Dict[str, Any]`, *optional*):
+            kwargs (`Dict[str, Any]`):
                 Arguments to provide to the [`~OptimizationConfig`] constructor.
 
         Returns:
@@ -850,10 +859,10 @@ class AutoOptimizationConfig:
         Creates an O2 [`~OptimizationConfig`].
 
         Args:
-            for_gpu (`bool`, *optional*, defaults to `False`):
+            for_gpu (`bool`, defaults to `False`):
                 Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
                 will run on. Only needed for optimization_level > 1.
-            kwargs (`Dict[str, Any]`, *optional*):
+            kwargs (`Dict[str, Any]`):
                 Arguments to provide to the [`~OptimizationConfig`] constructor.
 
         Returns:
@@ -867,10 +876,10 @@ class AutoOptimizationConfig:
         Creates an O3 [`~OptimizationConfig`].
 
         Args:
-            for_gpu (`bool`, *optional*, defaults to `False`):
+            for_gpu (`bool`, defaults to `False`):
                 Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
                 will run on. Only needed for optimization_level > 1.
-            kwargs (`Dict[str, Any]`, *optional*):
+            kwargs (`Dict[str, Any]`):
                 Arguments to provide to the [`~OptimizationConfig`] constructor.
 
         Returns:
@@ -879,15 +888,15 @@ class AutoOptimizationConfig:
         return cls.with_optimization_level("O3", for_gpu=for_gpu, **kwargs)
 
     @classmethod
-    def O4(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+    def O4(cls, for_gpu: bool = True, **kwargs) -> OptimizationConfig:
         """
         Creates an O4 [`~OptimizationConfig`].
 
         Args:
-            for_gpu (`bool`, *optional*, defaults to `False`):
+            for_gpu (`bool`, defaults to `False`):
                 Whether the model to optimize will run on GPU, some optimizations depends on the hardware the model
                 will run on. Only needed for optimization_level > 1.
-            kwargs (`Dict[str, Any]`, *optional*):
+            kwargs (`Dict[str, Any]`):
                 Arguments to provide to the [`~OptimizationConfig`] constructor.
 
         Returns:
@@ -902,17 +911,17 @@ class ORTConfig(BaseConfig):
     optimization and quantization parameters.
 
     Attributes:
-        opset (`int`, *optional*):
+        opset (`Optional[int]`, defaults to `None`):
             ONNX opset version to export the model with.
-        use_external_data_format (`bool`, *optional*, defaults to `False`):
+        use_external_data_format (`bool`, defaults to `False`):
             Allow exporting model >= than 2Gb.
         one_external_file (`bool`, defaults to `True`):
             When `use_external_data_format=True`, whether to save all tensors to one external file.
             If false, save each tensor to a file named with the tensor name.
             (Can not be set to `False` for the quantization)
-        optimization (`OptimizationConfig`, *optional*, defaults to None):
+        optimization (`Optional[OptimizationConfig]`, defaults to `None`):
             Specify a configuration to optimize ONNX Runtime model
-        quantization (`QuantizationConfig`, *optional*, defaults to None):
+        quantization (`Optional[QuantizationConfig]`, defaults to `None`):
             Specify a configuration to quantize ONNX Runtime model
     """
 
