@@ -70,7 +70,7 @@ class ORTOptimizer:
                 Can be either:
                     - A path to a local *directory* containing the model to optimize.
                     - An instance of [`~optimum.onnxruntime.ORTModel`].
-            file_names(`Optional[List[str]]`, *optional*):
+            file_names(`Optional[List[str]]`, defaults to `None`):
                 The list of file names of the models to optimize.
         """
         onnx_model_path = []
@@ -126,9 +126,9 @@ class ORTOptimizer:
                 The configuration containing the parameters related to optimization.
             save_dir (`Union[str, os.PathLike]`):
                 The path used to save the optimized model.
-            file_suffix (`str`, *optional*, defaults to `"optimized"`):
+            file_suffix (`str`, defaults to `"optimized"`):
                 The file suffix used to save the optimized model.
-            use_external_data_format (`bool`, *optional*, defaults to `False`):
+            use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model of size >= 2Gb.
             one_external_file (`bool`, defaults to `True`):
                 When `use_external_data_format=True`, whether to save all tensors to one external file.

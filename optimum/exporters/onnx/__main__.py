@@ -19,6 +19,7 @@ from argparse import ArgumentParser
 from transformers import AutoTokenizer
 
 from ...commands.export.onnx import parse_args_onnx
+from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
@@ -173,6 +174,16 @@ def main():
         input_shapes=input_shapes,
         device=args.device,
     )
+
+    if args.ort_optimize is not None:
+        if onnx_files_subpaths is None:
+            onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
+        optimizer = ORTOptimizer.from_pretrained(args.output, file_names=onnx_files_subpaths)
+        print("onnx_files_subpaths", onnx_files_subpaths)
+
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.ort_optimize)
+
+        optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly

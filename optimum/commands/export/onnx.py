@@ -100,6 +100,13 @@ def parse_args_onnx(parser):
             " and decoder-with-past models into a single ONNX model file to reduce memory usage."
         ),
     )
+    optional_group.add_argument(
+        "--ort-optimize",
+        type=str,
+        default=None,
+        choices=["O1", "O2", "O3", "O4"],
+        help=("Allows to run ONNX Runtime optimizations directly during the export."),
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input.)"
