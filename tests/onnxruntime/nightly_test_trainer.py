@@ -1006,7 +1006,3 @@ class ORTSeq2SeqTrainerSpecificIntegrationTest(unittest.TestCase):
             trainer.evaluate(inference_with_ort=True)
             trainer.predict(test_dataset, inference_with_ort=True)
             gc.collect()
-
-
-if __name__ == "__main__":
-    unittest.main()
