@@ -18,12 +18,14 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import onnx
+import pytest
 import torch
 from parameterized import parameterized
 from transformers import AutoTokenizer
+from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES
 
 from optimum.exporters import TasksManager
@@ -281,9 +283,15 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         "optimization_level": ["O1", "O2", "O3", "O4"],
     }
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_optimization_level(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+    def _test_optimization_levels(
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        use_merged: bool,
+        optimization_level: str,
+        provider: str,
+        use_io_binding: Optional[bool] = None,
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -297,7 +305,9 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         }
         self._setup(model_args)
 
-        ort_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[export_name], use_cache=use_cache)
+        ort_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[export_name], use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
+        )
 
         if use_merged:
             with self.assertRaises(NotImplementedError) as cm:
@@ -308,14 +318,23 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         else:
             optimizer = ORTOptimizer.from_pretrained(ort_model)
 
-        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level)
+        if provider == "CUDAExecutionProvider":
+            for_gpu = True
+            device = "cuda"
+        else:
+            for_gpu = False
+            device = "cpu"
+
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level, for_gpu=for_gpu)
         optimization_config.disable_shape_inference = True
         model_id = MODEL_NAMES[model_arch]
 
-        with tempfile.TemporaryDirectory(suffix="_opt") as tmp_dir:
+        with tempfile.TemporaryDirectory(suffix="_optimized") as tmp_dir:
             optimizer.optimize(save_dir=tmp_dir, optimization_config=optimization_config)
 
-            optimized_model = ORTModelForCausalLM.from_pretrained(tmp_dir, use_cache=use_cache)
+            optimized_model = ORTModelForCausalLM.from_pretrained(
+                tmp_dir, use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
+            )
 
             expected_ort_config = ORTConfig(optimization=optimization_config)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
@@ -324,10 +343,47 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
 
             tokenizer = AutoTokenizer.from_pretrained(model_id)
-            tokens = tokenizer("This is a sample input", return_tensors="pt")
+            tokens = tokenizer("This is a sample input", return_tensors="pt").to(device)
 
             model_outputs = ort_model.generate(**tokens)
             optimized_model_outputs = optimized_model.generate(**tokens)
 
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
             gc.collect()
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_optimization_levels_cpu(
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+    ):
+        self._test_optimization_levels(
+            test_name=test_name,
+            model_arch=model_arch,
+            use_cache=use_cache,
+            use_merged=use_merged,
+            optimization_level=optimization_level,
+            provider="CPUExecutionProvider",
+        )
+
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+        "use_cache": [True, False],
+        "use_merged": [True, False],
+        "optimization_level": ["O1", "O2", "O3", "O4"],
+    }
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_optimization_levels_gpu(
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, optimization_level: str
+    ):
+        for use_io_binding in [False]:
+            self._test_optimization_levels(
+                test_name=test_name,
+                model_arch=model_arch,
+                use_cache=use_cache,
+                use_merged=use_merged,
+                optimization_level=optimization_level,
+                provider="CUDAExecutionProvider",
+                use_io_binding=use_io_binding,
+            )

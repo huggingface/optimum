@@ -151,6 +151,8 @@ class ORTOptimizer:
 
         model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
         optimization_options = optimization_config.create_fusion_options(model_type)
+        print("optimization_config", optimization_config)
+        print("use_gpu", optimization_config.optimize_for_gpu)
 
         LOGGER.info("Optimizing model...")
 
