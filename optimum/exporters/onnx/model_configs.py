@@ -110,10 +110,6 @@ class SplinterOnnxConfig(BertOnnxConfig):
     pass
 
 
-class FNetOnnxConfig(BertOnnxConfig):
-    pass
-
-
 class DistilBertOnnxConfig(BertOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -161,6 +157,19 @@ class DebertaOnnxConfig(BertOnnxConfig):
 
 class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
+
+
+class FNetOnnxConfig(BertOnnxConfig):
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "multiple-choice":
+            dynamic_axis = {0: "batch_size", 1: "num_choices", 2: "sequence_length"}
+        else:
+            dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        return {
+            "input_ids": dynamic_axis,
+            "token_type_ids": dynamic_axis,
+        }
 
 
 class GPT2OnnxConfig(TextDecoderOnnxConfig):
