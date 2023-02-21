@@ -133,14 +133,14 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
                     f"Can not match {model_output_1.name} with {model_output_2.name}. Make sure your"
                     f" model protos have same outputs, have same data types and are in the same order."
                 )
-            model1.graph.output.remove(model_output_1)
+            model2.graph.output.remove(model_output_2)
 
             new_output = onnx.helper.make_tensor_value_info(
-                model_output_2.name,
-                model_output_2.type.tensor_type.elem_type,
-                _infer_output_shape(model_output_2),
+                model_output_1.name,
+                model_output_1.type.tensor_type.elem_type,
+                _infer_output_shape(model_output_1),
             )
-            model1.graph.output.insert(idx, new_output)
+            model2.graph.output.insert(idx, new_output)
 
     if not all(
         model_output_1 == model_output_2

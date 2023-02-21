@@ -956,6 +956,7 @@ class ORTTrainer(Trainer):
         # Check if there are labels in the dataset
         dummy_inputs = next(iter(dataloader))
         has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
+        use_cache = ORTFeaturesManager.do_use_cache(self.feature)
 
         if self.onnx_model_path and (has_labels == self.exported_with_loss):
             logger.info("[INFO] Inference with given ONNX model")
@@ -971,7 +972,6 @@ class ORTTrainer(Trainer):
 
             # With `label_smoother` the loss will be computed outside modeling
             with_loss = has_labels and not self.label_smoother
-            use_cache = ORTFeaturesManager.do_use_cache(self.feature)
             self._export(onnx_model_path, with_loss=with_loss, device=export_device, use_cache=use_cache)
 
             self.exported_with_loss = with_loss
@@ -1180,6 +1180,7 @@ class ORTTrainer(Trainer):
         # Check if there are labels in the dataset
         dummy_inputs = next(iter(dataloader))
         has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
+        use_cache = ORTFeaturesManager.do_use_cache(self.feature)
 
         if self.onnx_model_path and (has_labels == self.exported_with_loss):
             logger.info("[INFO] Inference with given ONNX model")
@@ -1195,7 +1196,7 @@ class ORTTrainer(Trainer):
 
             # With `label_smoother` the loss will be computed outside modeling
             with_loss = has_labels and not self.label_smoother
-            self._export(onnx_model_path, with_loss=with_loss, device=export_device)
+            self._export(onnx_model_path, with_loss=with_loss, device=export_device, use_cache=use_cache)
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
@@ -1210,14 +1211,10 @@ class ORTTrainer(Trainer):
 
         model_id = self.onnx_model_path
         args = self.args
-        # Temporary fix for decoder, now `use_cache` set to False which cause overhead on re-computing past keys and values.
-        # TODO: Use cache once `ORTModelForCausalLM` supports `loss` as output
         if ort_model_cls is ORTModelForCausalLM:
-            ort_model = ort_model_cls.from_pretrained(
-                model_id=model_id, use_cache=False, provider="CUDAExecutionProvider"
-            )
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id, use_cache=use_cache).to(args.device)
         else:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id, provider="CUDAExecutionProvider")
+            ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
 
         if not has_length(dataloader):
             raise ValueError("dataloader must implement a working __len__")
@@ -1502,6 +1499,7 @@ class ORTTrainer(Trainer):
                 opset=opset,
                 output_dir=model_path,
                 output_names=output_names,
+                device=device,
             )
         else:
             if with_loss is True:

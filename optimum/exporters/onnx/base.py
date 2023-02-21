@@ -21,17 +21,22 @@ import functools
 import gc
 import inspect
 import itertools
-import os
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import onnx
-from onnxruntime import InferenceSession
+from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 from transformers.utils import is_torch_available
 
-from ...utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummyTrainingLabelsInputGenerator, logging
+from ...utils import (
+    DEFAULT_DUMMY_SHAPES,
+    DummyInputGenerator,
+    DummyTrainingLabelsInputGenerator,
+    is_diffusers_available,
+    logging,
+)
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils.doc import add_dynamic_docstring
 from ..base import ExportConfig
@@ -42,12 +47,11 @@ if TYPE_CHECKING:
 
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
+    if is_diffusers_available():
+        from diffusers import ModelMixin
+
 
 logger = logging.get_logger(__name__)
-
-
-# 2 Gb
-EXTERNAL_DATA_FORMAT_SIZE_LIMIT = 2 * 1024 * 1024 * 1024
 
 
 @dataclasses.dataclass
@@ -85,7 +89,6 @@ class ModelPatcher:
 
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
         self.orig_forward = getattr(self._model, self.orig_forward_name)
-        onnx_to_torch = {v: k for k, v in config.torch_to_onnx_input_map.items()}
 
         # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
         if isinstance(config, OnnxConfigWithLoss):
@@ -100,7 +103,7 @@ class ModelPatcher:
             return {
                 k: v
                 for k, v in outputs.items()
-                if onnx_to_torch.get(k, k) in config.outputs
+                if config.torch_to_onnx_output_map.get(k, k) in config.outputs
                 or (allow_past_in_outputs and k.startswith("past_key_values"))
             }
 
@@ -264,27 +267,27 @@ class OnnxConfig(ExportConfig, ABC):
 
     @property
     @abstractmethod
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         """
-        Mapping containing the axis definition of the input tensors to provide to the model.
+        Dict containing the axis definition of the input tensors to provide to the model.
 
         Returns:
-            `Mapping[str, Mapping[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
+            `Dict[str, Dict[int, str]]`: A mapping of each input name to a mapping of axis position to the axes symbolic name.
         """
         raise NotImplementedError()
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         """
-        Mapping containing the axis definition of the output tensors to provide to the model.
+        Dict containing the axis definition of the output tensors to provide to the model.
 
         Returns:
-            `Mapping[str, Mapping[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
+            `Dict[str, Dict[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
 
-    def fix_dynamic_axes(self, model_path: "Path"):
+    def fix_dynamic_axes(self, model_path: "Path", device: str = "cpu", input_shapes: Dict = None):
         """
         Fixes potential issues with dynamic axes.
 
@@ -301,12 +304,14 @@ class OnnxConfig(ExportConfig, ABC):
         for output in self.outputs.values():
             allowed_dynamic_axes |= set(output.values())
 
-        if os.environ.get("ORT_CUDA_UNAVAILABLE", "0") == "1":
-            providers = ["CPUExecutionProvider"]
-        else:
+        if device.startswith("cuda"):
             providers = ["CUDAExecutionProvider"]
+        else:
+            providers = ["CPUExecutionProvider"]
 
-        session = InferenceSession(model_path.as_posix(), providers=providers)
+        session_options = SessionOptions()
+        session_options.graph_optimization_level = GraphOptimizationLevel.ORT_DISABLE_ALL  # no need to optimize here
+        session = InferenceSession(model_path.as_posix(), providers=providers, sess_options=session_options)
 
         to_fix = []
         for output_idx, node in enumerate(session.get_outputs()):
@@ -316,7 +321,9 @@ class OnnxConfig(ExportConfig, ABC):
 
         # We branch here to avoid doing an unnecessary forward pass.
         if to_fix:
-            dummy_inputs = self.generate_dummy_inputs(framework="np")
+            if input_shapes is None:
+                input_shapes = {}
+            dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs)
             onnx_inputs = {}
             for name, value in dummy_inputs.items():
@@ -342,12 +349,12 @@ class OnnxConfig(ExportConfig, ABC):
         return ModelPatcher(self, model)
 
     @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
+    def values_override(self) -> Optional[Dict[str, Any]]:
         """
         Dictionary of keys to override in the model's config before exporting.
 
         Returns:
-            `Optional[Mapping[str, Any]]`: A dictionary specifying the configuration items to override.
+            `Optional[Dict[str, Any]]`: A dictionary specifying the configuration items to override.
         """
         if hasattr(self._config, "use_cache"):
             return {"use_cache": False}
@@ -369,17 +376,28 @@ class OnnxConfig(ExportConfig, ABC):
         return False
 
     @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
         """
-        Dictionary of keys to update the ONNX input name for export. Override the function when
-        the dummy input names and the exported ONNX input names need to be different.
+        Dictionary mapping input names from the PyTorch model to input names from the exported ONNX model.
+        Override the function when the input names and the exported ONNX input names are different.
 
         Returns:
-            `Mapping[str, str]`: A dictionary specifying the dummy input name to exported ONNX input name map.
+            `Dict[str, str]`: A dictionary mapping the PyTorch model input names to the exported ONNX model input names.
         """
         return {}
 
-    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Mapping[str, Mapping[int, str]]:
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        """
+        Dictionary mapping output names from the PyTorch model to output names from the exported ONNX model.
+        Override the function when the output names and the exported ONNX output names are different.
+
+        Returns:
+            `Dict[str, str]`: A dictionary mapping the PyTorch model output names to the exported ONNX model output names.
+        """
+        return {}
+
+    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
 
@@ -388,7 +406,7 @@ class OnnxConfig(ExportConfig, ABC):
                 The model for which we will use the OnnxConfig.
 
         Returns:
-            `Mapping[str, Mappingp[int, str]]`: The properly ordered inputs.
+            `Dict[str, Dict[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
 
@@ -448,29 +466,41 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
+
         Args:
-            reference_model_inputs ([`Mapping[str, Tensor]`):
+            reference_model_inputs ([`Dict[str, Tensor]`):
                 Reference inputs for the model.
+
         Returns:
-            `Mapping[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
+            `Dict[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
         """
         return reference_model_inputs
 
-    def output_names_for_validation(self, reference_output_names: List[str]) -> List[str]:
+    def post_process_exported_models(
+        self,
+        path: "Path",
+        models_and_onnx_configs: Dict[
+            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        ],
+        onnx_files_subpaths: List[str],
+    ):
         """
-        Returns the output names of the reference model corresponding to the output names of the ONNX model.
-        Useful to compare the outputs from the ONNX and the reference model when their output names differ.
+        Performs any model-specific post-processing on the ONNX.
+
         Args:
-            reference_output_names ([`List[str]`):
-                The original ONNX model output names.
-        Returns:
-            `List[str]`: The corresponding reference model output names.
+            path (`Path`):
+                Path to the directory of the stored ONNX model.
+            models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]]`):
+                A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
+            onnx_files_subpaths (`List[str]`):
+            The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as*
+            the order of submodels in the ordered dict `models_and_onnx_configs`.
         """
-        return reference_output_names
+        return models_and_onnx_configs, onnx_files_subpaths
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
@@ -509,6 +539,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
                 "of use_present_in_outputs value will be used for the outputs."
             )
+        self.is_merged = False
+        self.use_cache_branch = None
         super().__init__(config, task=task)
 
     @classmethod
@@ -528,14 +560,20 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return cls(config, task=task, use_past=True)
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
-        common_outputs = super().outputs
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.use_past is False:
+            common_outputs = super().outputs
+        # In the other cases, the sequence_length axis is not dynamic, always of length 1
+        elif self.task == "default":
+            common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
+        else:
+            common_outputs = OrderedDict({"logits": {0: "batch_size"}})
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
         return common_outputs
 
     @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
+    def values_override(self) -> Optional[Dict[str, Any]]:
         if hasattr(self._config, "use_cache"):
             return {"use_cache": self.use_past_in_inputs or self.use_present_in_outputs}
 
@@ -554,7 +592,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 if dummy_input_gen.supports_input(input_name):
                     # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
                     # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-                    if self.use_past is True and input_name in ["decoder_input_ids", "input_ids"]:
+                    if (
+                        self.use_past is True
+                        and self.use_cache_branch is not False
+                        and input_name in ["decoder_input_ids", "input_ids"]
+                    ):
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
@@ -574,7 +616,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 )
 
         # refer to https://github.com/huggingface/optimum/pull/764
-        if self.use_past_in_inputs and "attention_mask" in dummy_inputs and self.PAD_ATTENTION_MASK_TO_PAST:
+        if (
+            self.use_past_in_inputs
+            and self.PAD_ATTENTION_MASK_TO_PAST
+            and self.use_cache_branch is not False
+            and "attention_mask" in dummy_inputs
+        ):
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
@@ -585,12 +632,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return dummy_inputs
 
-    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         """
         Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
-            inputs_or_outputs (`Mapping[str, Mapping[int, str]]`):
+            inputs_or_outputs (`Dict[str, Dict[int, str]]`):
                 The mapping to fill.
             direction (`str`):
                 either "inputs" or "outputs", it specifies whether `input_or_outputs` is the input mapping or the
@@ -691,7 +738,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         )
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super(OnnxConfigWithPast, self).outputs
         # Renaming the outputs axes properly.
         for name, axes_names in common_outputs.items():
@@ -720,7 +767,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         return common_outputs
 
-    def add_past_key_values(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
@@ -783,13 +830,13 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         return cls(config)
 
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         inputs = self._onnx_config.inputs
         inputs.update(self._tasks_to_extra_inputs[self.task])
         return inputs
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = self._onnx_config.outputs
         extra_outputs = self._tasks_to_extra_outputs["default"]
         common_outputs.update(extra_outputs)
@@ -802,6 +849,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         input_name, _ = next(iter(self._onnx_config.inputs.items()))
         batch_size = dummy_inputs[input_name].shape[0]
 
+        # TODO: doesn't this break attention_mask generation?
         if isinstance(self._onnx_config, OnnxSeq2SeqConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
             kwargs["sequence_length"] = 1
 
@@ -824,13 +872,17 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
         return dummy_inputs
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         return self._onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
     @property
-    def torch_to_onnx_input_map(self) -> Mapping[str, str]:
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
         return self._onnx_config.torch_to_onnx_input_map
 
     @property
-    def values_override(self) -> Optional[Mapping[str, Any]]:
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        return self._onnx_config.torch_to_onnx_output_map
+
+    @property
+    def values_override(self) -> Optional[Dict[str, Any]]:
         return self._onnx_config.values_override

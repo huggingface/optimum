@@ -52,20 +52,24 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
-                    models_to_test.append((f"{model_type}_{task}", model_name, task, False))
+                    models_to_test.append((f"{model_type}_{task}", model_name, task, False, False))
 
                     # -with-past and monolith case are absurd, so we don't test them as not supported
                     if any(
                         task == ort_special_task
                         for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
                     ):
-                        models_to_test.append((f"{model_type}_{task}_monolith", model_name, task, True))
+                        models_to_test.append((f"{model_type}_{task}_monolith", model_name, task, True, False))
+
+                    # For other tasks, we don't test --no-post-process as there is none anyway
+                    if task == "causal-lm-with-past":
+                        models_to_test.append((f"{model_type}_{task}_no_postprocess", model_name, task, False, True))
 
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
             if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
-                models_to_test.append((f"{model_type}_no_task", model_name, None, False))
+                models_to_test.append((f"{model_type}_no_task", model_name, None, False, False))
 
         return sorted(models_to_test)
     else:
@@ -80,18 +84,26 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
-    def _onnx_export(self, test_name: str, model_name: str, task: Optional[str], monolith: bool = False):
+    def _onnx_export(
+        self,
+        test_name: str,
+        model_name: str,
+        task: Optional[str],
+        monolith: bool = False,
+        no_post_process: bool = False,
+    ):
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
+            no_post_process = " --no-post-process " if no_post_process is True else " "
             if task is not None:
                 subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}--task {task} {tmpdir}",
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}--task {task} {tmpdir}",
                     shell=True,
                     check=True,
                 )
             else:
                 subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{tmpdir}",
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}{tmpdir}",
                     shell=True,
                     check=True,
                 )
@@ -105,8 +117,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
-    def test_exporters_cli_pytorch(self, test_name: str, model_name: str, task: str, monolith: bool):
-        self._onnx_export(test_name, model_name, task, monolith)
+    def test_exporters_cli_pytorch(
+        self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        self._onnx_export(test_name, model_name, task, monolith, no_post_process)
 
     @parameterized.expand([(False,), (True,)])
     def test_external_data(self, use_cache: bool):
@@ -149,6 +163,14 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
                 f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm {tmpdirname}",
+                shell=True,
+                check=True,
+            )
+
+    def test_stable_diffusion(self):
+        with TemporaryDirectory() as tmpdirname:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-stable-diffusion-torch --task stable-diffusion {tmpdirname}",
                 shell=True,
                 check=True,
             )
