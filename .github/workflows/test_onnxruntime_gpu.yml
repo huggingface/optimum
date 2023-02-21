@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Build image
         run: |
-          docker build -f tests/onnxruntime/Dockerfile_onnxruntime_gpu -t onnxruntime-gpu .
+          docker build -f tests/onnxruntime/docker/Dockerfile_onnxruntime_gpu -t onnxruntime-gpu .
       - name: Test with unittest within docker container
         run: |
           docker run --rm --gpus all --workdir=/workspace/optimum/tests onnxruntime-gpu:latest

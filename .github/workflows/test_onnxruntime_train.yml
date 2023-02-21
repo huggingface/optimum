@@ -54,17 +54,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Build Image
-        working-directory: examples/onnxruntime/training/docker
+      - name: Build image
         run: |
-            docker build -f Dockerfile-ort-nightly-cu116 -t ort/train:nightly .
-      - name: Run Test
+          docker build -f tests/onnxruntime/docker/Dockerfile_onnxruntime_trainer -t onnxruntime/train .
+      - name: Run test within docker container
         run: |
-            docker run --rm -p 80:8888 \
-              --gpus all \
-              -v $PWD:/workspace \
-              --workdir=/workspace \
-              ort/train:nightly /bin/bash examples/onnxruntime/training/docker/run.sh
+          docker run --rm --gpus all --workdir=/workspace/optimum/tests onnxruntime/train:latest
 
   stop-runner:
     name: Stop self-hosted EC2 runner
