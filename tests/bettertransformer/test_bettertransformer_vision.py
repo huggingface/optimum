@@ -31,6 +31,7 @@ ALL_VISION_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-ViTMAEModel",
     "hf-internal-testing/tiny-random-ViTMSNModel",
     "hf-internal-testing/tiny-random-deit",
+    "hf-internal-testing/tiny-random-DPTModel",
 ]
 
 
