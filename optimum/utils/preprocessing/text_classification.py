@@ -39,6 +39,17 @@ class TextClassificationProcessing(DatasetProcessing):
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
             raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
 
+
+    def dataset_processing_func(self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: List[str]) -> Dict[str, Any]:
+        tokenized_inputs = self(
+            text=examples[data_keys["primary"]],
+            text_pair=examples[data_keys["secondary"]] if data_keys["secondary"] else None,
+            padding="max_length",
+            max_length=tokenizer.model_max_length,
+            truncation=True,
+        )
+        return tokenized_inputs
+
     def load_datasets(self) -> Dict[str, "Dataset"]:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)

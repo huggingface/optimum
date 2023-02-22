@@ -14,8 +14,13 @@
 # limitations under the License.
 """Base class to peform task-specific preprocessing and evaluation."""
 
+import itertools
+import functools
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, List, Optional, Union, Dict, Tuple, Any, Callable
+from pathlib import Path
 
-from typing import TYPE_CHECKING, List, Optional, Union, Dict, Tuple, Any
+from datasets import DatasetDict, Dataset, load_dataset as datasets_load_dataset
 
 
 if TYPE_CHECKING:
@@ -23,104 +28,72 @@ if TYPE_CHECKING:
     from transformers import FeatureExtractionMixin, Pipeline, PretrainedConfig, PreTrainedTokenizerBase
 
 
-class DatasetProcessing:
-    DEFAULT_DATA_KEYS = None
-    DEFAULT_REF_KEYS = None
+class TaskProcessor(ABC):
+    ACCEPTED_PREPROCESSOR_CLASSES = tuple()
 
     def __init__(
         self,
-        dataset_name_or_path: str,
-        eval_split: str,
-        preprocessor: Union["FeatureExtractionMixin", "PreTrainedTokenizerBase"],
-        static_quantization: bool,
         config: "PretrainedConfig",
-        dataset_name: Optional[str] = None,
-        data_keys: Optional[Dict[str, str]] = None,
-        ref_keys: Optional[List[str]] = None,
-        task_args: Optional[Dict] = None,
-        num_calibration_samples: Optional[int] = None,
-        calibration_split: Optional[str] = None,
-        max_eval_samples: Optional[int] = None,
+        preprocessor: Union["FeatureExtractionMixin", "PreTrainedTokenizerBase"],
     ):
         """
-        Initializes the class in charge of loading datasets, running inference and evaluation.
+        Initializes the class in charge of loading processed datasets and of running evaluation.
 
         This class should be task-dependent, backend independent.
 
         Args:
-            dataset_path (`str`): 
-                The path of the dataset, for more information read 
-                https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.path
-            dataset_name (`str`): 
-                The name of the dataset, fore more information read 
-                https://huggingface.co/docs/datasets/v2.2.1/en/package_reference/loading_methods#datasets.load_dataset.name
-            preprocessor (`Union[FeatureExtractionMixin, PreTrainedTokenizerBase]`): 
-                Preprocessor used for evaluation.
-            eval_split (`str`): 
-                Dataset split used for evaluation (e.g. "test").
-            static_quantization (`bool`): 
-                Whether the dataset is used for static quantization or not.
-            config ([`PretrainedConfig`]): 
-                Model configuration, useful for some tasks.
-            data_keys (`Dict[str, str]`): 
-                Map "primary" and "secondary" to data column names.
-            ref_keys (`List[str]`): 
-                References column names.
-            task_args(`Optional[Dict[str, Any]]`, defaults to `None`): 
-                Task-specific arguments.
-            num_calibration_samples (`Optional[int]`, defaults to `None`): 
-                Number of calibration samples for static quantization. If left unspecified, the whole dataset will be 
-                used.
-            calibration_split (`Optional[str]`, defaults to `None`): 
-                Calibration split (e.g. "train") for static quantization. Defaults to None.
-            max_eval_samples (`Optional[int]`; defaults to `None`): 
-                Maximum number of samples to use from the evaluation dataset for evaluation.
+            config (`PretrainedConfig`):
+                The config of the model.
+            preco
         """
-
-        if data_keys is None and self.DEFAULT_DATA_KEYS is None:
-            raise ValueError(
-                f"Data keys need to be specified since no default data keys exist for {self.__class__.__name__}"
-            )
-        elif data_keys is None:
-            data_keys = self.DEFAULT_DATA_KEYS
-
-        if ref_keys is None and self.DEFAULT_REF_KEYS is None:
-            raise ValueError(
-                f"Ref keys need to be specified since no default data keys exist for {self.__class__.__name__}"
-            )
-        elif ref_keys is None:
-            ref_keys = self.DEFAULT_REF_KEYS
-
-        self.dataset_path = dataset_path
-        self.dataset_name = dataset_name
-        self.calibration_split = calibration_split
-        self.eval_split = eval_split
-        self.preprocessor = preprocessor
-        self.num_calibration_samples = num_calibration_samples
-        self.static_quantization = static_quantization
-        self.data_keys = data_keys
-        self.ref_keys = ref_keys
-        self.task_args = task_args
         self.config = config
-        self.max_eval_samples = max_eval_samples
+        self.preprocessor = preprocessor
 
-        if len(ref_keys) != 1:
-            raise ValueError("Only one label column is supported for now.")
+    @abstractmethod
+    def dataset_processing_func(self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: List[str]) -> Dict[str, Any]:
+        raise NotImplementedError("This static method must be implemented in subclasses.")
+    
+    def create_dataset_processing_func(self, data_keys: Dict[str, str], ref_keys: List[str]) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
+        return functools.partial(self.dataset_processing_func, data_keys=data_keys, ref_keys=ref_keys)
+        
+    def prepare_dataset(self, dataset: Union[DatasetDict, Dataset], data_keys: Dict[str, str], ref_keys: List[str], split: Optional[str] = None) -> Union[DatasetDict, Dataset]:
+        if isinstance(dataset, Dataset) and split is not None:
+            raise ValueError("A Dataset and a split name were provided, but splits are for DatasetDict.")
+        elif split is not None:
+            dataset = dataset[split]
+        return dataset.map(self.dataset_processing_func)
 
-        if self.static_quantization and not self.calibration_split:
-            raise ValueError(f"A calibration dataset split must be provided when performing static quantization.")
-
-    def load_datasets(self) -> Dict[str, "Dataset"]:
-        """
-        Loads the calibration dataset if needed, and the evaluation dataset.
-
-        The evaluation dataset is meant to be used by a pipeline and is therefore not preprocessed. The calibration 
-        dataset is preprocessed.
-
-        Returns:
-            `Dict[str, Dataset]`: Dictionary holding the datasets.
-        """
+    @abstractmethod
+    def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
         raise NotImplementedError()
+
+    @abstractmethod
+    def try_to_guess_ref_keys(self, column_names: List[str]) -> Optional[List[str]]:
+        raise NotImplementedError()
+
+    def load_dataset(self, *args, data_keys: Optional[Dict[str, str]] = None, ref_keys: Optional[List[str]] = None, **kwargs) -> Union[DatasetDict, Dataset]:
+        dataset = datasets_load_dataset(*args, **kwargs)
+        column_names = dataset.column_names
+        if isinstance(column_names, dict):
+            column_names = list(set(itertools.chain.from_iterable(column_names.values())))
+
+        if data_keys is None:
+            data_keys = self.try_to_guess_data_keys(column_names)
+            if data_keys is None:
+                raise ValueError(
+                    "Data keys need to be specified manually since they could not be guessed from "
+                    f"{', '.join(column_names)}"
+                )
+
+        if ref_keys is None:
+            ref_keys = self.try_to_guess_ref_keys(column_names)
+            if ref_keys is None:
+                raise ValueError(
+                    "Ref keys need to be specified manually since they could not be guessed from "
+                    f"{', '.join(column_names)}"
+                )
+
+        return self.prepare_dataset(dataset, data_keys=data_keys, ref_keys=ref_keys)
 
     def run_inference(self, eval_dataset: "Dataset", pipeline: "Pipeline") -> Tuple[List, List]:
         """
