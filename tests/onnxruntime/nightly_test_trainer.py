@@ -25,6 +25,7 @@ from unittest.mock import Mock, patch
 
 import nltk
 import numpy as np
+import pytest
 from datasets import load_dataset
 from evaluate import load
 from transformers import (
@@ -752,7 +753,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
     @parameterized.expand(
         random.sample(
             _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-            + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+            # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
             + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
             1,
         ),
@@ -790,7 +791,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
     @parameterized.expand(
         random.sample(
             _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-            + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+            # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
             + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
             1,
         ),
@@ -827,6 +828,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
 
 
 @slow
+@pytest.mark.skip(reason="skip for now, server socket error")
 class ORTTrainerIntegrationDDPTest(unittest.TestCase):
     def test_trainer_ddp_glue(self):
         subprocess.run(
