@@ -105,7 +105,13 @@ def parse_args_onnx(parser):
         type=str,
         default=None,
         choices=["O1", "O2", "O3", "O4"],
-        help=("Allows to run ONNX Runtime optimizations directly during the export."),
+        help=(
+            "Allows to run ONNX Runtime optimizations directly during the export. Possible options:\n"
+            "    - O1: Basic general optimizations\n"
+            "    - O2: Basic and extended general optimizations, transformers-specific fusions\n"
+            "    - O3: Same as O2 with GELU approximation\n"
+            "    - O4: Same as O3 with mixed precision (fp16, GPU-only, requires `--device cuda`)"
+        ),
     )
 
     input_group = parser.add_argument_group(
