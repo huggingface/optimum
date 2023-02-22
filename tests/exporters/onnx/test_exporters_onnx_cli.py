@@ -150,6 +150,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             except subprocess.CalledProcessError as e:
                 if "Tried to use ORTOptimizer for the model type" in e.stderr.decode("utf-8"):
                     self.skipTest("unsupported model type in ORTOptimizer")
+                else:
+                    raise e
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch_gpu
@@ -165,6 +167,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         except subprocess.CalledProcessError as e:
             if "Tried to use ORTOptimizer for the model type" in e.stderr.decode("utf-8"):
                 self.skipTest("unsupported model type in ORTOptimizer")
+            else:
+                raise e
 
     @parameterized.expand([(False,), (True,)])
     def test_external_data(self, use_cache: bool):
