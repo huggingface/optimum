@@ -284,7 +284,13 @@ class ORTTrainer(Trainer):
         # We leverage both training_model and inference_model in conjunction with model.
         # _training_model will be wrapped so it will use ORT and will use the overriden functions in ModuleWithLoss.
         # _inferencing_model will be storing the default version of the model and we will switch to it in case of eval/test.
-        self._training_model = ModuleWithLoss(model, args)
+
+        # Only Wrap the model if we pass --loss_in_train flag.
+        if args.loss_in_train:
+            self._training_model = ModuleWithLoss(model, args)
+        else:
+            self._training_model = model
+
         self.model = model
         self._inferencing_model = model
         self.feature = feature
@@ -311,12 +317,11 @@ class ORTTrainer(Trainer):
 
     def compute_loss(self, model_with_loss, inputs, return_outputs=False):
         # Run model forward + loss compute.
-        if self.model == self._training_model:
+        if self.args.loss_in_train and self.model == self._training_model:
             outputs = model_with_loss(inputs, return_outputs)
             return outputs
         else:
-            loss, outputs = super().compute_loss(model_with_loss, inputs, return_outputs)
-            return (loss, outputs)
+            return super().compute_loss(self.model, inputs, return_outputs)
 
     def train(
         self,
