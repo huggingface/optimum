@@ -45,6 +45,7 @@ class BetterTransformerManager:
         "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
         "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),
         "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
+        "marian": ("MarianEncoderLayer", BartEncoderLayerBetterTransformer),
         "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
         "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
         "rembert": ("RemBertLayer", BertLayerBetterTransformer),
