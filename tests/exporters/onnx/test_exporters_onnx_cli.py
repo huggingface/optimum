@@ -128,7 +128,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_vision
     @require_torch_gpu
     @pytest.mark.gpu_test
-    def test_exporters_cli_pytorch(
+    def test_exporters_cli_pytorch_gpu(
         self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda")
