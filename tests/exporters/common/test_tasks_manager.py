@@ -49,7 +49,7 @@ class TasksManagerTestCase(TestCase):
         defined_classes = inspect.getmembers(importlib.import_module(module_name), predicate)
 
         # inspect.getmembers returns a list of (name, value) tuples, so we retrieve the names here.
-        defined_classes = set(map(lambda x: x[0], defined_classes))
+        defined_classes = {x[0] for x in defined_classes}
 
         diff = defined_classes - registered_classes
         if diff:

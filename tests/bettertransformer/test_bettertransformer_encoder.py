@@ -195,8 +195,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
 
         # Check that the model has been dispatched on CPU and GPU
-        self.assertSetEqual(set(list(hf_model.hf_device_map.values())), set(max_memory))
-        self.assertSetEqual(set(list(bt_model.hf_device_map.values())), set(max_memory))
+        self.assertSetEqual(set(hf_model.hf_device_map.values()), set(max_memory))
+        self.assertSetEqual(set(bt_model.hf_device_map.values()), set(max_memory))
 
         # Check that the model has weights on GPU and CPU
         self.assertEqual(bt_model.encoder.layer[0].in_proj_weight.device, torch.device("cuda:0"))

@@ -150,7 +150,7 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the different components of the model.
     """
-    models_for_export = dict()
+    models_for_export = {}
 
     # Text encoder
     text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
