@@ -21,14 +21,14 @@ from datasets import load_dataset
 from evaluate import combine, evaluator
 from transformers import PreTrainedTokenizerBase
 
-from .base import DatasetProcessing
+from .base import TaskProcessing
 
 if TYPE_CHECKING:
     from datasets import Dataset
     from transformers import TokenClassificationPipeline
 
 
-class TokenClassificationProcessing(DatasetProcessing):
+class TokenClassificationProcessing(TaskProcessing):
     def __init__(self, *args, **kwargs):
         if kwargs["data_keys"].get("secondary", None) is not None:
             raise ValueError("Only one data column is supported for token-classification.")

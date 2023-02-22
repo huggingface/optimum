@@ -21,7 +21,7 @@ from datasets import load_dataset
 from evaluate import combine, evaluator, load
 from transformers import PreTrainedTokenizerBase
 
-from .base import DatasetProcessing
+from .base import TaskProcessing
 
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from transformers import QuestionAnsweringPipeline
 
 
-class QuestionAnsweringProcessing(DatasetProcessing):
+class QuestionAnsweringProcessing(TaskProcessing):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from transformers import FeatureExtractionMixin, Pipeline, PretrainedConfig, PreTrainedTokenizerBase
 
 
-class TaskProcessor(ABC):
+class TaskProcessing(ABC):
     ACCEPTED_PREPROCESSOR_CLASSES = tuple()
 
     def __init__(
@@ -46,22 +46,29 @@ class TaskProcessor(ABC):
                 The config of the model.
             preco
         """
+        if not isinstance(preprocessor, self.ACCEPTED_PREPROCESSOR_CLASSES):
+            raise ValueError(
+                f"Preprocessor is incorrect, provided an instance of {type(preprocessor)} but expected one of the "
+                f"following type: {', '.join(cls_.__name__ for cls_ in self.ACCEPTED_PREPROCESSOR_CLASSES)}."
+            )
+
         self.config = config
         self.preprocessor = preprocessor
 
+
     @abstractmethod
-    def dataset_processing_func(self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: List[str]) -> Dict[str, Any]:
+    def dataset_processing_func(self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None) -> Dict[str, Any]:
         raise NotImplementedError("This static method must be implemented in subclasses.")
     
-    def create_dataset_processing_func(self, data_keys: Dict[str, str], ref_keys: List[str]) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
+    def create_dataset_processing_func(self, data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
         return functools.partial(self.dataset_processing_func, data_keys=data_keys, ref_keys=ref_keys)
         
-    def prepare_dataset(self, dataset: Union[DatasetDict, Dataset], data_keys: Dict[str, str], ref_keys: List[str], split: Optional[str] = None) -> Union[DatasetDict, Dataset]:
+    def prepare_dataset(self, dataset: Union[DatasetDict, Dataset], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None, split: Optional[str] = None) -> Union[DatasetDict, Dataset]:
         if isinstance(dataset, Dataset) and split is not None:
             raise ValueError("A Dataset and a split name were provided, but splits are for DatasetDict.")
         elif split is not None:
             dataset = dataset[split]
-        return dataset.map(self.dataset_processing_func)
+        return dataset.map(self.create_dataset_processing_func(data_keys, ref_keys))
 
     @abstractmethod
     def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
@@ -71,7 +78,14 @@ class TaskProcessor(ABC):
     def try_to_guess_ref_keys(self, column_names: List[str]) -> Optional[List[str]]:
         raise NotImplementedError()
 
-    def load_dataset(self, *args, data_keys: Optional[Dict[str, str]] = None, ref_keys: Optional[List[str]] = None, **kwargs) -> Union[DatasetDict, Dataset]:
+    def load_dataset(
+        self, 
+        *args, 
+        data_keys: Optional[Dict[str, str]] = None, 
+        ref_keys: Optional[List[str]] = None, 
+        only_keep_necessary_columns: bool = False,
+        **kwargs,
+    ) -> Union[DatasetDict, Dataset]:
         dataset = datasets_load_dataset(*args, **kwargs)
         column_names = dataset.column_names
         if isinstance(column_names, dict):
@@ -87,13 +101,16 @@ class TaskProcessor(ABC):
 
         if ref_keys is None:
             ref_keys = self.try_to_guess_ref_keys(column_names)
-            if ref_keys is None:
-                raise ValueError(
-                    "Ref keys need to be specified manually since they could not be guessed from "
-                    f"{', '.join(column_names)}"
-                )
 
-        return self.prepare_dataset(dataset, data_keys=data_keys, ref_keys=ref_keys)
+        dataset = self.prepare_dataset(dataset, data_keys=data_keys, ref_keys=ref_keys)
+
+        if only_keep_necessary_columns:
+            ref_keys = ref_keys if ref_keys is not None else []
+            necessary_columns = self.preprocessor.model_input_names + ref_keys
+            dataset = dataset.remove_columns([name for name in dataset.column_names if name not in necessary_columns])
+
+        return dataset
+
 
     def run_inference(self, eval_dataset: "Dataset", pipeline: "Pipeline") -> Tuple[List, List]:
         """

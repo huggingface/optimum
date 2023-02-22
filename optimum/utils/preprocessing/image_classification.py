@@ -23,7 +23,7 @@ from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTen
 from transformers import FeatureExtractionMixin
 
 from .. import logging
-from .base import DatasetProcessing
+from .base import TaskProcessing
 
 logger = logging.get_logger(__name__)
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from transformers import ImageClassificationPipeline
 
 
-class ImageClassificationProcessing(DatasetProcessing):
+class ImageClassificationProcessing(TaskProcessing):
     def __init__(self, *args, **kwargs):
         if "secondary" in kwargs["data_keys"]:
             raise ValueError("Only one data column is supported for image-classification.")
