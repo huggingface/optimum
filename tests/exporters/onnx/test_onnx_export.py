@@ -321,6 +321,7 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @require_torch_gpu
     @slow
+    @pytest.mark.gpu_test
     def test_pytorch_export_on_cuda(
         self,
         test_name,

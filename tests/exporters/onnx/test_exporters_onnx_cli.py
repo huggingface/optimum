@@ -18,9 +18,10 @@ import unittest
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
+import pytest
 from parameterized import parameterized
 from transformers import is_torch_available
-from transformers.testing_utils import require_torch, require_vision
+from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -86,27 +87,24 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
     def _onnx_export(
         self,
-        test_name: str,
         model_name: str,
         task: Optional[str],
         monolith: bool = False,
         no_post_process: bool = False,
+        optimization_level: str = None,
+        device: str = None,
     ):
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
             no_post_process = " --no-post-process " if no_post_process is True else " "
-            if task is not None:
-                subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}--task {task} {tmpdir}",
-                    shell=True,
-                    check=True,
-                )
-            else:
-                subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}{tmpdir}",
-                    shell=True,
-                    check=True,
-                )
+            optimization_level = f" --ort-optimize {optimization_level} " if optimization_level is not None else " "
+            task = f" --task {task} " if task is not None else " "
+            device = " --device cuda " if device == "cuda" else " "
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{optimization_level}{device}{no_post_process}{task}{tmpdir}",
+                shell=True,
+                check=True,
+            )
 
     def test_all_models_tested(self):
         # make sure we test all models
@@ -120,7 +118,46 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch(
         self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
-        self._onnx_export(test_name, model_name, task, monolith, no_post_process)
+        self._onnx_export(model_name, task, monolith, no_post_process)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_vision
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_exporters_cli_pytorch(
+        self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_with_optimization(
+        self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        for optimization_level in ["O1", "O2", "O3"]:
+            try:
+                self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
+            except NotImplementedError as e:
+                if "Tried to use ORTOptimizer for the model type" in str(e):
+                    self.skipTest("unsupported model type in ORTOptimizer")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch_gpu
+    @require_vision
+    @slow
+    @pytest.mark.gpu_test
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_with_O4_optimization(
+        self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        try:
+            self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
+        except NotImplementedError as e:
+            if "Tried to use ORTOptimizer for the model type" in str(e):
+                self.skipTest("unsupported model type in ORTOptimizer")
 
     @parameterized.expand([(False,), (True,)])
     def test_external_data(self, use_cache: bool):

@@ -57,7 +57,14 @@ class ORTOptimizer:
         self.onnx_model_path = onnx_model_path
         self.config = config
         self.model_type = self.config.model_type
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
+
+        try:
+            self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
+        except KeyError:
+            raise NotImplementedError(
+                f"Tried to use ORTOptimizer for the model type {self.model_type}, but it is not available yet. Please open an issue"
+                " or submit a PR at https://github.com/huggingface/optimum."
+            )
 
     @classmethod
     def from_pretrained(
