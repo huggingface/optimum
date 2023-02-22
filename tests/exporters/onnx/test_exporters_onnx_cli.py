@@ -100,8 +100,11 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             optimization_level = f" --ort-optimize {optimization_level} " if optimization_level is not None else " "
             task = f" --task {task} " if task is not None else " "
             device = " --device cuda " if device == "cuda" else " "
+
+            command = f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{optimization_level}{device}{no_post_process}{task}{tmpdir}"
+            print("Running:", command)
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{optimization_level}{device}{no_post_process}{task}{tmpdir}",
+                command,
                 shell=True,
                 capture_output=True,
             )
