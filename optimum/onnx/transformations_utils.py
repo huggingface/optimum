@@ -35,12 +35,13 @@ def _find_duplicate_initializers(initializers) -> DefaultDict[Tuple[int, bytes],
     duplicates = defaultdict(set)
     for initializer in initializers:
         tensor_dims = tuple(getattr(initializer, "dims"))
-        for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
-            tensor_data = getattr(initializer, data_attr)
-            if tensor_data:
-                tensor_data = tuple(tensor_data)
-                break
-        duplicates[(initializer.data_type, tensor_data, tensor_dims)].add(initializer.name)
+        if len(tensor_dims) > 1 or (len(tensor_dims) == 1 and initializer.data_type not in [6, 7]):
+            for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
+                tensor_data = getattr(initializer, data_attr)
+                if tensor_data:
+                    tensor_data = tuple(tensor_data)
+                    break
+            duplicates[(initializer.data_type, tensor_data, tensor_dims)].add(initializer.name)
     return duplicates
 
 
@@ -180,6 +181,7 @@ def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str
         all_initializers += list(model.graph.initializer)
 
     duplicates = _find_duplicate_initializers(all_initializers)
+
     name_sharing_dict = _create_name_sharing_dict(duplicates, suffix=suffix)
     for model in models:
         _replace_input_names(model, name_sharing_dict)
@@ -188,7 +190,7 @@ def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str
     deduplicated_name = set()
 
     for initializer in all_initializers:
-        if name_sharing_dict[initializer.name] not in deduplicated_name:
+        if initializer.name in name_sharing_dict and name_sharing_dict[initializer.name] not in deduplicated_name:
             deduplicated_name.add(name_sharing_dict[initializer.name])
             initializer.name = name_sharing_dict[initializer.name]
             deduplicated_initializers.append(initializer)

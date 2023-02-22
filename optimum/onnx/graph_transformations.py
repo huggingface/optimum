@@ -147,20 +147,32 @@ def merge_decoders(
 
     deduplicated_initializers = _deduplicated_cross_model_initializers([decoder, decoder_with_past], suffix=graph_name)
 
+    # keep initializers of dim 0 (or dim 1 + int32/int64) in subgraphs for readability purposes, and also because
+    # ONNX Runtime breaks after optimization + merge if they are not
+    decoder_initializers = []
+    for initializer in decoder.graph.initializer:
+        if len(initializer.dims) == 0 or (len(initializer.dims) == 1 and initializer.data_type in [6, 7]):
+            decoder_initializers.append(initializer)
+
+    decoder_with_past_initializers = []
+    for initializer in decoder_with_past.graph.initializer:
+        if len(initializer.dims) == 0 or (len(initializer.dims) == 1 and initializer.data_type in [6, 7]):
+            decoder_with_past_initializers.append(initializer)
+
     # Make subgraphs
     no_past_branch = onnx.helper.make_graph(
         nodes=decoder.graph.node,
         name="no_past",
         inputs=[],
         outputs=decoder.graph.output,
-        initializer=[],
+        initializer=decoder_initializers,
     )
     with_past_branch = onnx.helper.make_graph(
         nodes=decoder_with_past.graph.node,
         name="with_past",
         inputs=[],
         outputs=decoder_with_past.graph.output,
-        initializer=[],
+        initializer=decoder_with_past_initializers,
     )
 
     # Merge subgraphs with a `If` node
@@ -184,19 +196,26 @@ def merge_decoders(
         outputs=no_past_branch.output,
         initializer=deduplicated_initializers,
     )
-    merged_model = onnx.helper.make_model(
-        merged_graph,
-        producer_name=producer_name,
-        opset_imports=[
-            onnx.helper.make_opsetid(
-                domain=onnx.defs.ONNX_DOMAIN,
-                version=decoder_opset,
-            )
-        ],
-    )
 
+    # preserve imports from the decoder without/with past ONNX
+    opset_imports = []
+    opset_domains = set()
+    for opset_import in list(decoder.opset_import) + list(decoder_with_past.opset_import):
+        if opset_import.domain not in opset_domains:
+            opset_imports.append(opset_import)
+            opset_domains.add(opset_import.domain)
+
+    merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name, opset_imports=opset_imports)
+
+    # for the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
     if merged_model.ByteSize() < ONNX_BYTE_SIZE_LIMIT:
-        onnx.checker.check_model(merged_model)
+        try:
+            onnx.checker.check_model(merged_model)
+        except Exception as e:
+            if "No Op registered for" in str(e):
+                pass
+            else:
+                raise e
         if save_path:
             save_path = Path(save_path).as_posix()
             onnx.save(merged_model, save_path)
@@ -209,7 +228,13 @@ def merge_decoders(
             all_tensors_to_one_file=True,
             location=os.path.basename(save_path) + "_data",
         )
-        onnx.checker.check_model(save_path)
+        try:
+            onnx.checker.check_model(merged_model)
+        except Exception as e:
+            if "No Op registered for" in str(e):
+                pass
+            else:
+                raise e
     else:
         logger.info("Merged ONNX model exceeds 2GB, the model will not be checked without `save_path` given.")
 

@@ -108,14 +108,11 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
                 decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
-                print("decoder_path", decoder_path)
-                print("decoder_with_past_path", decoder_with_past_path)
                 merge_decoders(
                     decoder=decoder_path,
                     decoder_with_past=decoder_with_past_path,
                     save_path=decoder_merged_path,
                 )
-                print("MERGED")
             except Exception as e:
                 raise Exception(f"Unable to merge decoders. Detailed error: {e}")
             os.remove(decoder_path)
