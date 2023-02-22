@@ -18,12 +18,11 @@ import importlib
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type, Union
-
-from transformers import PretrainedConfig, is_tf_available, is_torch_available
-from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import huggingface_hub
+from transformers import PretrainedConfig, is_tf_available, is_torch_available
+from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 
 if TYPE_CHECKING:
@@ -44,23 +43,33 @@ ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 
-def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str, TaskNameToExportConfigDict]:
+def supported_tasks_mapping(
+    *supported_tasks: Union[str, Tuple[str, Tuple[str, ...]]], **exporters: str
+) -> Dict[str, TaskNameToExportConfigDict]:
     """
     Generates the mapping between supported tasks and their corresponding `ExportConfig` for a given model, for
     every backend.
 
     Args:
-        supported_tasks (`Tuple[str]`):
+        supported_tasks (`Tuple[Union[str, Tuple[str, Tuple[str, ...]]]`):
             The names of the supported tasks.
+            If some task is supported by only a subset of all the backends, it can be specified as follows:
+                ```python
+                >>> ("multiple-choice", ("onnx",))
+                ```
+
+            The line above means that the multiple-choice task will be supported only by the ONNX backend.
+
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
-            >>> kwargs = {
-            >>>     "onnx": "BertOnnxConfig",
-            >>>     "tflite": "BertTFLiteConfig",
-            >>>     ...
-            >>> }
+            >>> kwargs = {  # doctest: +SKIP
+            ...     "onnx": "BertOnnxConfig",
+            ...     "tflite": "BertTFLiteConfig",
+            ...     ...
+            ... }
             ```
+
     Returns:
         `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExportConfig` constructor.
     """
@@ -69,6 +78,10 @@ def supported_tasks_mapping(*supported_tasks: str, **exporters: str) -> Dict[str
         config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
         mapping[backend] = {}
         for task in supported_tasks:
+            if isinstance(task, tuple):
+                task, supported_backends_for_task = task
+                if backend not in supported_backends_for_task:
+                    continue
             if "-with-past" in task:
                 mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
             else:
@@ -104,7 +117,9 @@ class TasksManager:
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-ctc": "AutoModelForCTC",
             "audio-xvector": "AutoModelForAudioXVector",
+            "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -138,7 +153,9 @@ class TasksManager:
         "audio-classification": "transformers",
         "audio-frame-classification": "transformers",
         "audio-xvector": "transformers",
+        "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
+        "zero-shot-object-detection": "transformers",
     }
 
     # TODO: some models here support causal-lm export but are not supported in ORTModelForCausalLM
@@ -157,6 +174,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="AlbertOnnxConfig",
+            tflite="AlbertTFLiteConfig",
         ),
         "bart": supported_tasks_mapping(
             "default",
@@ -181,29 +199,33 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="BertOnnxConfig",
+            tflite="BertTFLiteConfig",
         ),
-        "big-bird": supported_tasks_mapping(
-            "default",
-            "masked-lm",
-            # the logic for causal-lm is not supported for big-bird
-            # "causal-lm",
-            "sequence-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-            onnx="BigBirdOnnxConfig",
-        ),
-        "bigbird-pegasus": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "causal-lm",
-            "causal-lm-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
-            "sequence-classification",
-            "question-answering",
-            onnx="BigBirdPegasusOnnxConfig",
-        ),
+        # For big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
+        # "big-bird": supported_tasks_mapping(
+        #     "default",
+        #     "masked-lm",
+        #     # the logic for causal-lm is not supported for big-bird
+        #     # "causal-lm",
+        #     "sequence-classification",
+        #     "multiple-choice",
+        #     "token-classification",
+        #     "question-answering",
+        #     onnx="BigBirdOnnxConfig",
+        #     # TODO: check model_config.py to know why it cannot be enabled yet.
+        #     # tflite="BigBirdTFLiteConfig",
+        # ),
+        # "bigbird-pegasus": supported_tasks_mapping(
+        #     "default",
+        #     "default-with-past",
+        #     "causal-lm",
+        #     "causal-lm-with-past",
+        #     "seq2seq-lm",
+        #     "seq2seq-lm-with-past",
+        #     "sequence-classification",
+        #     "question-answering",
+        #     onnx="BigBirdPegasusOnnxConfig",
+        # ),
         "blenderbot": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -241,6 +263,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="CamembertOnnxConfig",
+            tflite="CamembertTFLiteConfig",
         ),
         "clip": supported_tasks_mapping(
             "default",
@@ -265,6 +288,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="ConvBertOnnxConfig",
+            tflite="ConvBertTFLiteConfig",
         ),
         "convnext": supported_tasks_mapping(
             "default",
@@ -302,15 +326,17 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="DebertaOnnxConfig",
+            tflite="DebertaTFLiteConfig",
         ),
         "deberta-v2": supported_tasks_mapping(
             "default",
             "masked-lm",
             "sequence-classification",
-            "multiple-choice",
+            ("multiple-choice", ("onnx",)),
             "token-classification",
             "question-answering",
             onnx="DebertaV2OnnxConfig",
+            tflite="DebertaV2TFLiteConfig",
         ),
         "deit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
         "detr": supported_tasks_mapping(
@@ -327,6 +353,11 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="DistilBertOnnxConfig",
+            tflite="DistilBertTFLiteConfig",
+        ),
+        "donut-swin": supported_tasks_mapping(
+            "default",
+            onnx="DonutSwinOnnxConfig",
         ),
         "electra": supported_tasks_mapping(
             "default",
@@ -338,6 +369,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="ElectraOnnxConfig",
+            tflite="ElectraTFLiteConfig",
         ),
         "flaubert": supported_tasks_mapping(
             "default",
@@ -347,6 +379,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="FlaubertOnnxConfig",
+            tflite="FlaubertTFLiteConfig",
         ),
         "gpt2": supported_tasks_mapping(
             "default",
@@ -373,6 +406,13 @@ class TasksManager:
             "causal-lm-with-past",
             "sequence-classification",
             onnx="GPTNeoOnnxConfig",
+        ),
+        "gpt-neox": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "causal-lm",
+            "causal-lm-with-past",
+            onnx="GPTNeoXOnnxConfig",
         ),
         "groupvit": supported_tasks_mapping(
             "default",
@@ -465,6 +505,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MobileBertOnnxConfig",
+            tflite="MobileBertTFLiteConfig",
         ),
         "mobilevit": supported_tasks_mapping(
             "default",
@@ -489,6 +530,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MPNetOnnxConfig",
+            tflite="MPNetTFLiteConfig",
         ),
         "mt5": supported_tasks_mapping(
             "default",
@@ -504,7 +546,16 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        # TODO: owlvit is actually not yet supported in exporters
+        "nystromformer": supported_tasks_mapping(
+            "default",
+            "masked-lm",
+            "multiple-choice",
+            "question-answering",
+            "sequence-classification",
+            "token-classification",
+            onnx="NystromformerOnnxConfig",
+        ),
+        # TODO: owlvit cannot be exported yet, check model_config.py to know why.
         # "owlvit": supported_tasks_mapping(
         #     "default",
         #     "zero-shot-object-detection",
@@ -545,6 +596,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="RobertaOnnxConfig",
+            tflite="RobertaTFLiteConfig",
         ),
         "roformer": supported_tasks_mapping(
             "default",
@@ -557,6 +609,7 @@ class TasksManager:
             "question-answering",
             "token-classification",
             onnx="RoFormerOnnxConfig",
+            tflite="RoFormerTFLiteConfig",
         ),
         "segformer": supported_tasks_mapping(
             "default",
@@ -583,6 +636,11 @@ class TasksManager:
             "speech2seq-lm-with-past",
             onnx="Speech2TextOnnxConfig",
         ),
+        "splinter": supported_tasks_mapping(
+            "default",
+            "question-answering",
+            onnx="SplinterOnnxConfig",
+        ),
         "squeezebert": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -605,6 +663,13 @@ class TasksManager:
             "seq2seq-lm-with-past",
             onnx="T5OnnxConfig",
         ),
+        "trocr": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+            onnx="TrOCROnnxConfig",
+        ),
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
@@ -623,9 +688,18 @@ class TasksManager:
             "audio-xvector",
             onnx="UniSpeechSATOnnxConfig",
         ),
-        "vae": supported_tasks_mapping(
+        "vae-encoder": supported_tasks_mapping(
             "semantic-segmentation",
-            onnx="VaeOnnxConfig",
+            onnx="VaeEncoderOnnxConfig",
+        ),
+        "vae-decoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeDecoderOnnxConfig",
+        ),
+        "vision-encoder-decoder": supported_tasks_mapping(
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+            onnx="VisionEncoderDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
         "wavlm": supported_tasks_mapping(
@@ -669,6 +743,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="XLMOnnxConfig",
+            tflite="XLMTFLiteConfig",
         ),
         "xlm-roberta": supported_tasks_mapping(
             "default",
@@ -680,6 +755,7 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="XLMRobertaOnnxConfig",
+            tflite="XLMRobertaTFLiteConfig",
         ),
         "yolos": supported_tasks_mapping(
             "default",
@@ -687,7 +763,7 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae", "clip-text-model"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "trocr"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @staticmethod
@@ -702,7 +778,7 @@ class TasksManager:
                 The model type to retrieve the supported tasks for.
             exporter (`str`):
                 The name of the exporter.
-            model_name (`Optional[str]`, *optional*):
+            model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
 
         Returns:
@@ -901,18 +977,21 @@ class TasksManager:
                     inferred_task_name = "stable-diffusion"
             else:
                 transformers_info = model_info.transformersInfo
-                if transformers_info is None or transformers_info.get("auto_model") is None:
-                    raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
-                auto_model_class_name = transformers_info["auto_model"]
-                if not auto_model_class_name.startswith("TF"):
-                    auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-                for task_name, class_name_for_task in tasks_to_automodels.items():
-                    if class_name_for_task == auto_model_class_name:
-                        inferred_task_name = task_name
-                        break
+                if model_info.config["model_type"] == "vision-encoder-decoder":
+                    inferred_task_name = "vision2seq-lm"
+                # TODO: handle other possible special cases here.
+                else:
+                    if transformers_info is None or transformers_info.get("auto_model") is None:
+                        raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
+                    auto_model_class_name = transformers_info["auto_model"]
+                    if not auto_model_class_name.startswith("TF"):
+                        auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
+                    for task_name, class_name_for_task in tasks_to_automodels.items():
+                        if class_name_for_task == auto_model_class_name:
+                            inferred_task_name = task_name
+                            break
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
-        logger.info(f"Automatic task detection to {inferred_task_name}.")
         return inferred_task_name
 
     @staticmethod
@@ -938,7 +1017,7 @@ class TasksManager:
         revision: Optional[str] = None,
         framework: Optional[str] = None,
         cache_dir: Optional[str] = None,
-        **model_kwargs
+        **model_kwargs,
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
         Retrieves a model from its name and the task to be enabled.
@@ -987,10 +1066,11 @@ class TasksManager:
     @staticmethod
     def get_exporter_config_constructor(
         exporter: str,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"] = None,
+        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
         task: str = "default",
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
+        exporter_config_kwargs: Optional[Dict[str, Any]] = None,
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
@@ -1006,13 +1086,14 @@ class TasksManager:
                 The model type to retrieve the config for.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
+            exporter_config_kwargs(`Optional[Dict[str, Any]]`, defaults to `None`):
+                Arguments that will be passed to the exporter config class when building the config constructor.
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
-        if model is None:
-            if model_type is None or model_name is None:
-                raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
+        if model is None and model_type is None:
+            raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
 
         if model_type is None:
             model_type = getattr(model.config, "model_type", model_type)
@@ -1029,4 +1110,9 @@ class TasksManager:
                 f"{model_type} doesn't support task {task} for the {exporter} backend."
                 f" Supported values are: {model_tasks}"
             )
-        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
+
+        exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
+        if exporter_config_kwargs is not None:
+            exporter_config_constructor = partial(exporter_config_constructor, **exporter_config_kwargs)
+
+        return exporter_config_constructor

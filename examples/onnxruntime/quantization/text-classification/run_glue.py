@@ -30,20 +30,18 @@ import datasets
 import numpy as np
 import transformers
 from datasets import load_dataset
+from evaluate import load
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from transformers import (
-    AutoConfig,
     AutoTokenizer,
     EvalPrediction,
     HfArgumentParser,
     PreTrainedTokenizer,
     TrainingArguments,
 )
-from transformers.onnx import FeaturesManager
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from evaluate import load
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel
@@ -498,9 +496,9 @@ def main():
 
         try:
             eval_dataset = eval_dataset.align_labels_with_mapping(label2id=model.config.label2id, label_column="label")
-        except Exception as e:
+        except Exception:
             logger.warning(
-                f"\nModel label mapping: {onnx_model.config.label2id}"
+                f"\nModel label mapping: {model.config.label2id}"
                 f"\nDataset label features: {eval_dataset.features['label']}"
                 f"\nCould not guarantee the model label mapping and the dataset labels match."
                 f" Evaluation results may suffer from a wrong matching."
@@ -514,7 +512,7 @@ def main():
         )
         outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics
-        with open(os.path.join(training_args.output_dir, f"eval_results.json"), "w") as f:
+        with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
 
     # Prediction
@@ -536,7 +534,7 @@ def main():
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
 
         # Save predictions
-        output_predictions_file = os.path.join(training_args.output_dir, f"prediction.txt")
+        output_predictions_file = os.path.join(training_args.output_dir, "prediction.txt")
         with open(output_predictions_file, "w") as writer:
             logger.info(f"***** Predict results {data_args.task_name} *****")
             writer.write("index\tprediction\n")

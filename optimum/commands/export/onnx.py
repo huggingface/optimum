@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Defines the command line for the export with ONNX."""
 
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -38,11 +40,12 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument(
-        "--for-ort",
+        "--monolith",
         action="store_true",
         help=(
-            "This exports models ready to be run with Optimum's ORTModel. Useful for encoder-decoder models for"
-            "conditional generation. If enabled the encoder and decoder of the model are exported separately."
+            "Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several"
+            " ONNX files, for example for encoder-decoder models where the encoder should be run only once while the"
+            " decoder is looped over."
         ),
     )
     optional_group.add_argument(
@@ -84,6 +87,19 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+    optional_group.add_argument(
+        "--trust-remote-code",
+        action="store_true",
+        help="Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.",
+    )
+    optional_group.add_argument(
+        "--no-post-process",
+        action="store_true",
+        help=(
+            "Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder"
+            " and decoder-with-past models into a single ONNX model file to reduce memory usage."
+        ),
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input.)"
@@ -143,6 +159,9 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
+
+    # deprecated argument
+    parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
 
 
 class ONNXExportCommand:

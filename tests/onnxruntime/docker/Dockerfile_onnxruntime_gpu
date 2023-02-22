@@ -16,8 +16,12 @@ RUN apt-get autoremove -y
 
 RUN python -m pip install -U pip
 
+RUN pip install transformers torch onnxruntime-gpu
+RUN pip install datasets evaluate diffusers scipy
+
 # Install Optimum
 COPY . /workspace/optimum
 RUN pip install /workspace/optimum[onnxruntime-gpu,tests]
 
-CMD python3 -m unittest discover -s onnxruntime -p 'test_*.py'
+ENV TEST_LEVEL=1
+CMD pytest onnxruntime/test_*.py --durations=0 -s -vvvvv -m gpu_test

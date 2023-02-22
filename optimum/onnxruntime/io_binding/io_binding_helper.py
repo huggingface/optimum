@@ -48,7 +48,7 @@ class TypeHelper(ORTTypeHelper):
             "tensor(int8)": np.int8,
             "tensor(float)": np.float32,
             "tensor(float16)": np.float16,
-            "tensor(bool)": np.uint8,
+            "tensor(bool)": bool,
         }
         if ort_type in ort_type_to_numpy_type_map:
             return ort_type_to_numpy_type_map[ort_type]
@@ -102,7 +102,7 @@ class IOBindingHelper:
         else:
             try:
                 return IOBindingHelper.to_pytorch_via_cupy(ort_value)
-            except Exception as e:
+            except Exception:
                 logging.error(traceback.format_exc())
                 logging.info("Unable to access output memory in CUDA, will offload to CPU")
                 return IOBindingHelper.to_pytorch_via_numpy(ort_value)
@@ -140,7 +140,7 @@ class IOBindingHelper:
     def to_pytorch_via_dlpack(ort_value: OrtValue) -> torch.Tensor:
         from torch._C import _from_dlpack
 
-        torch_tensor = ort_value.to_dlpacks(_from_dlpack)
+        torch_tensor = _from_dlpack(ort_value.to_dlpack())
         return torch_tensor
 
     @staticmethod
@@ -158,9 +158,9 @@ class IOBindingHelper:
         Returns an IOBinding object for an inference session. This method is for general purpose, if the inputs and outputs
         are determined, you can prepare data buffers directly to avoid tensor transfers across frameworks.
         """
-        if not all(input_name in inputs.keys() for input_name in ort_model.model_input_names):
+        if not all(input_name in inputs.keys() for input_name in ort_model.inputs_names):
             raise ValueError(
-                f"The ONNX model takes {ort_model.model_input_names} as inputs, but only {inputs.keys()} are given."
+                f"The ONNX model takes {ort_model.inputs_names.keys()} as inputs, but only {inputs.keys()} are given."
             )
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(ort_model.model)
@@ -169,7 +169,7 @@ class IOBindingHelper:
         io_binding = ort_model.model.io_binding()
 
         # Bind inputs
-        for input_name in ort_model.model_input_names:
+        for input_name in ort_model.inputs_names:
             onnx_input = inputs.pop(input_name)
             onnx_input = onnx_input.contiguous()
 
@@ -183,7 +183,7 @@ class IOBindingHelper:
             )
 
         # Bind outputs
-        for name in ort_model.model_output_names:
+        for name in ort_model.output_names:
             io_binding.bind_output(name, ort_model.device.type, device_id=ort_model.device.index)
 
         return io_binding

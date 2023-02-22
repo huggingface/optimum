@@ -18,6 +18,7 @@ import inspect
 import sys
 from contextlib import contextmanager
 
+import numpy as np
 import packaging
 from transformers.utils import is_torch_available
 
@@ -66,7 +67,7 @@ def is_onnxruntime_available():
         # will be set to `True` even if not installed.
         mod = importlib.import_module("onnxruntime")
         inspect.getsourcefile(mod)
-    except:
+    except Exception:
         return False
     return _onnxruntime_available
 
@@ -113,3 +114,15 @@ def check_if_transformers_greater(target_version: str) -> bool:
     import transformers
 
     return packaging.version.parse(transformers.__version__) >= packaging.version.parse(target_version)
+
+
+@contextmanager
+def require_numpy_strictly_lower(version: str, message: str):
+    if not packaging.version.parse(np.__version__) < packaging.version.parse(version):
+        raise ImportError(
+            f"Found an incompatible version of numpy. Found version {np.__version__}, but expected numpy<{version}. {message}"
+        )
+    try:
+        yield
+    finally:
+        pass

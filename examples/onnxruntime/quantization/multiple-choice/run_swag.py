@@ -25,19 +25,17 @@ import sys
 from dataclasses import dataclass, field
 from functools import partial
 from itertools import chain
-from typing import Optional, Union
+from typing import Optional
 
 import datasets
 import numpy as np
-import torch
 import transformers
 from datasets import load_dataset
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from transformers import AutoTokenizer, HfArgumentParser, TrainingArguments
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from optimum.onnxruntime import ORTModelForMultipleChoice, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
 from optimum.onnxruntime.model import ORTModel

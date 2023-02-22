@@ -19,25 +19,29 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
-from transformers import AutoModelForCausalLM
+from huggingface_hub import hf_hub_download
+from huggingface_hub.utils import EntryNotFoundError
+from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
-from huggingface_hub import hf_hub_download
-from huggingface_hub.utils import EntryNotFoundError
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export_models, get_decoder_models_for_export
-from ..onnx.utils import _get_external_data_paths
-from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..onnx.utils import _get_external_data_paths, has_onnx_input
+from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .io_binding import TypeHelper
+from .base import ORTDecoder
 from .modeling_ort import ORTModel
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, get_provider_for_device, parse_device
+from .utils import (
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    get_provider_for_device,
+    parse_device,
+)
 
 
 if TYPE_CHECKING:
@@ -59,7 +63,7 @@ DECODER_INPUTS_DOCSTRING = r"""
         attention_mask (`torch.LongTensor`, *optional*):
             Mask to avoid performing attention on padding token indices, of shape
             `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, sequence_length, embed_size_per_head)`.
@@ -72,7 +76,7 @@ CAUSALLM_ONNX_MODEL_DOCSTRING = r"""
         attention_mask (`torch.LongTensor`):
             Mask to avoid performing attention on padding token indices, of shape
             `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
-        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*)`
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
             `(batch_size, num_heads, sequence_length, embed_size_per_head)`.
@@ -94,7 +98,7 @@ TEXT_GENERATION_EXAMPLE = r"""
     >>> inputs = tokenizer("My name is Arthur and I live in", return_tensors="pt")
 
     >>> gen_tokens = model.generate(**inputs,do_sample=True,temperature=0.9, min_length=20,max_length=20)
-    >>> tokenizer.batch_decode(gen_tokens)
+    >>> tokenizer.batch_decode(gen_tokens)  # doctest: +IGNORE_RESULT
     ```
 
     Example using `transformers.pipelines`:
@@ -114,216 +118,7 @@ TEXT_GENERATION_EXAMPLE = r"""
 
 DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
-
-
-class ORTDecoder:
-    """
-    Decoder model with a language modeling head on top for ONNX Runtime inference.
-    """
-
-    def __init__(
-        self,
-        session: onnxruntime.InferenceSession,
-        config: "PretrainedConfig",
-        device: torch.device,
-        use_io_binding: Optional[bool] = None,
-    ):
-        self.session = session
-        self.config = config
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.config.model_type)(
-            self.config
-        )
-        self._device = device
-        self.use_io_binding = use_io_binding
-        self.session_inputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_inputs())}
-        self.session_outputs = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.session_input_names = list(self.session_inputs.keys())
-        self.session_output_names = list(self.session_outputs.keys())
-        # TODO: make this less hacky.
-        self.key_value_input_names = [key for key in self.session_input_names if (".key" in key) or (".value" in key)]
-        self.key_value_output_names = [
-            key for key in self.session_output_names if (".key" in key) or (".value" in key)
-        ]
-        self.name_to_np_type = TypeHelper.get_io_numpy_type_map(self.session) if self.use_io_binding else None
-
-    def prepare_output_buffer(
-        self,
-        output_name,
-        batch_size=None,
-        sequence_length=None,
-        past_sequence_length=None,
-    ):
-        """
-        Prepare the buffer of outputs(`logits`/`key_values`/`loss`) with 1D tensors.
-        """
-        ort_type = TypeHelper.get_output_type(self.session, output_name)
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-        if output_name == "logits":
-            output_shape = (batch_size, sequence_length, self.normalized_config.vocab_size)
-            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
-        elif ".key" in output_name or ".value" in output_name:
-            num_attention_heads = self.normalized_config.num_attention_heads
-            hidden_size = self.normalized_config.hidden_size
-            embed_size_per_head = hidden_size // num_attention_heads
-
-            if past_sequence_length is not None:
-                sequence_length += past_sequence_length
-            output_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
-
-            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self._device).contiguous()
-
-        return output_shape, output_buffer
-
-    def prepare_io_binding(
-        self,
-        input_ids: torch.LongTensor,
-        attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-    ):
-        io_binding = self.session.io_binding()
-
-        # Bind the inputs
-
-        # Bind input ids
-        input_ids = input_ids.contiguous()
-        io_binding.bind_input(
-            "input_ids",
-            input_ids.device.type,
-            self._device.index,
-            self.name_to_np_type["input_ids"],
-            tuple(input_ids.shape),
-            input_ids.data_ptr(),
-        )
-
-        # Bind the attention mask
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            "attention_mask",
-            attention_mask.device.type,
-            self._device.index,
-            self.name_to_np_type["attention_mask"],
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
-
-        # Bind the past key values
-        if past_key_values is not None:
-            for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                past_key_value = past_key_value.contiguous()
-                io_binding.bind_input(
-                    input_name,
-                    past_key_value.device.type,
-                    self._device.index,
-                    self.name_to_np_type[input_name],
-                    tuple(past_key_value.shape),
-                    past_key_value.data_ptr(),
-                )
-
-        # Bind the outputs
-
-        # Bind the logits
-        logits_shape, logits_buffer = self.prepare_output_buffer(
-            output_name="logits",
-            batch_size=input_ids.size(0),
-            sequence_length=input_ids.size(1),
-        )
-        io_binding.bind_output(
-            "logits",
-            logits_buffer.device.type,
-            self._device.index,
-            self.name_to_np_type["logits"],
-            logits_shape,
-            logits_buffer.data_ptr(),
-        )
-        output_shapes = {"logits": logits_shape}
-        output_buffers = {"logits": logits_buffer}
-
-        # Bind the past keys values
-        for key_value_output_name in self.key_value_output_names:
-            self_pkv_shape, self_pkv_buffer = self.prepare_output_buffer(
-                output_name=key_value_output_name,
-                batch_size=input_ids.size(0),
-                sequence_length=input_ids.size(1),
-                past_sequence_length=past_key_values[0].size(2)
-                if past_key_values
-                else None,  # sequence length of self-attention key for layer.0
-            )
-            io_binding.bind_output(
-                key_value_output_name,
-                self_pkv_buffer.device.type,
-                self._device.index,
-                self.name_to_np_type[key_value_output_name],
-                self_pkv_shape,
-                self_pkv_buffer.data_ptr(),
-            )
-            # set -1 for sequence_length as it could be larger than the real sequence_length for creating buffer
-            self_pkv_shape = self_pkv_shape[:2] + (-1,) + self_pkv_shape[3:]
-            output_shapes[key_value_output_name] = self_pkv_shape
-            output_buffers[key_value_output_name] = self_pkv_buffer
-
-        return io_binding, output_shapes, output_buffers
-
-    @add_start_docstrings_to_model_forward(DECODER_INPUTS_DOCSTRING)
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-    ) -> CausalLMOutputWithCrossAttentions:
-        # Flatten the past_key_values
-        if past_key_values is not None:
-            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
-
-        if self._device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids, attention_mask, past_key_values
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
-            past_key_values = tuple()
-            for name in self.key_value_output_names:
-                past_key_values += (output_buffers[name].view(output_shapes[name]),)
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to 2 (self-attention key and value per decoder layer)
-            num_pkv = 2
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-
-            logits = output_buffers["logits"].view(output_shapes["logits"])
-        else:
-            onnx_inputs = {
-                "input_ids": input_ids.cpu().detach().numpy(),
-                "attention_mask": attention_mask.cpu().detach().numpy(),
-            }
-
-            if past_key_values is not None:
-                # Add the past_key_values to the decoder inputs
-                for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                    onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
-
-            # Run inference
-            outputs = self.session.run(None, onnx_inputs)
-
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
-            past_key_values = tuple(
-                torch.from_numpy(outputs[self.session_outputs[key]]).to(self._device)
-                for key in self.key_value_output_names
-            )
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # per decoder layer
-            num_pkv = 2
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
-            logits = torch.from_numpy(outputs[self.session_outputs["logits"]]).to(self._device)
-
-        return CausalLMOutputWithCrossAttentions(logits=logits, past_key_values=past_key_values)
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
+DECODER_MERGED_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?merged(.*)?\.onnx"
 
 
 class ORTModelDecoder(ORTModel):
@@ -336,10 +131,12 @@ class ORTModelDecoder(ORTModel):
         decoder_session: onnxruntime.InferenceSession,
         config: "PretrainedConfig",
         decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
+        use_cache: bool = True,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
-        **kwargs
+        generation_config: Optional[GenerationConfig] = None,
+        **kwargs,
     ):
         """
         Args:
@@ -348,15 +145,21 @@ class ORTModelDecoder(ORTModel):
             config ([~`transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model. Initializing with a config file does
                 not load the weights associated with the model, only the configuration.
-            decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, *optional*):
-                The ONNX Runtime inference session associated to the decoder with past key values.
+            decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, defaults to `None`):
+                The ONNX Runtime inference session associated to the decoder with past key values. This argument should not
+                be set if use_merged=True is used.
+            use_cache (`bool`, defaults to `True`):
+                Whether or not past key/values cache should be used. Defaults to `True`.
             use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
-            model_save_dir (`str`, *optional*, defaults to `""`):
+            model_save_dir (`Optional[Union[str, Path, TemporaryDirectory]]`, defaults to `""`):
                 The directory under which the model exported to ONNX was saved.
             preprocessors (`Optional[List]`, defaults to `None`):
                 The list of the preprocessors (tokenizer, processor, feature_extractor) to save alongside the ORTModel.
+            generation_config (`Optional[GenerationConfig]`, defaults to `None`):
+                The generation configuration used by default when calling `generate()`.
+                Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
         self.shared_attributes_init(
             decoder_session,
@@ -380,25 +183,58 @@ class ORTModelDecoder(ORTModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        self.use_cache = decoder_with_past_session is not None
-        self.decoder = ORTDecoder(
-            session=decoder_session, config=self.config, device=self._device, use_io_binding=self.use_io_binding
-        )
+        if use_cache is True:
+            # Auto-detect whether the provided session is a merged non-past / with-past or not
+            # TODO: make __init__ private and pass `use_merged` as an argument
+            use_merged = "use_cache_branch" in [inp.name for inp in decoder_session.get_inputs()]
+
+            if use_merged is True and decoder_with_past_session is not None:
+                raise ValueError(
+                    "Detected a merged decoder, but decoder_with_past_session was provided."
+                    "Please only set decoder_session, or provide a non-merged decoder_session."
+                )
+            if use_cache is True and use_merged is False and decoder_with_past_session is None:
+                raise ValueError(
+                    "The parameter use_cache was set as True, but neither decoder_with_past_session was passed"
+                    " nor a use_cache branch can be found in the decoder_session."
+                    " Please pass a decoder_with_past_session or set use_cache=False."
+                )
+        else:
+            use_merged = False
+
+            if decoder_with_past_session is not None:
+                raise ValueError(
+                    "The parameter decoder_with_past_session was passed, although use_cache is False."
+                    "Please pass use_cache=True for decoder_with_past_session to be used."
+                )
+
+        self.use_cache = use_cache
+        self.use_merged = use_merged
+        self.decoder = ORTDecoder(decoder_session, self)
         self.decoder_model_path = Path(decoder_session._model_path)
         self.decoder_model_name = self.decoder_model_path.name
 
         self.decoder_with_past = None
         self.decoder_with_past_model_path = None
         self.decoder_with_past_model_name = None
-        if self.use_cache:
-            self.decoder_with_past = ORTDecoder(
-                session=decoder_with_past_session,
-                config=self.config,
-                device=self._device,
-                use_io_binding=self.use_io_binding,
-            )
+        if self.use_cache is True and self.use_merged is False:
+            self.decoder_with_past = ORTDecoder(decoder_with_past_session, self)
             self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
+
+        if generation_config is None:
+            generation_config = GenerationConfig.from_model_config(config)
+        self.generation_config = generation_config
+
+    @staticmethod
+    def _generate_regular_names_for_filename(filename: str):
+        name, extension = filename.rsplit(".", maxsplit=1)
+        return [
+            filename,
+            f"{name}_quantized.{extension}",
+            f"{name}_optimized.{extension}",
+            f"{name}_merged.{extension}",
+        ]
 
     @staticmethod
     def load_model(
@@ -438,13 +274,7 @@ class ORTModelDecoder(ORTModel):
 
         return decoder_session, decoder_with_past_session
 
-    def _save_pretrained(
-        self,
-        save_directory: Union[str, Path],
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        **kwargs,
-    ):
+    def _save_pretrained(self, save_directory: Union[str, Path]):
         """
         Saves the model decoder and decoder with past key values as well as its configuration file to a
         directory, so that it can be re-loaded using the
@@ -453,19 +283,13 @@ class ORTModelDecoder(ORTModel):
         Args:
             save_directory (`str` or `Path`):
                 The directory where to save the model files.
-            decoder_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
-                The decoder model file name. Overwrites the default file name and allows one to save the decoder model
-                with a different name.
-            decoder_with_past_file_name (`str`, *optional*, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
-                The decoder with past key values model file name overwriting the default file name, allowing to save
-                the decoder model with a different name.
         """
         src_paths = [self.decoder_model_path]
-        dst_file_names = [decoder_file_name]
+        dst_file_names = [self.decoder_model_path.name]
 
-        if self.use_cache:
+        if self.use_cache and not self.use_merged:
             src_paths.append(self.decoder_with_past_model_path)
-            dst_file_names.append(decoder_with_past_file_name)
+            dst_file_names.append(self.decoder_with_past_model_path.name)
 
         # add external data paths in case of large models
         src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
@@ -493,13 +317,14 @@ class ORTModelDecoder(ORTModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        **kwargs,
     ):
         model_path = Path(model_id)
 
         if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
             decoder_path = ORTModelDecoder.infer_onnx_filename(
                 model_id,
-                DECODER_ONNX_FILE_PATTERN,
+                [DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN],
                 "decoder_file_name",
                 subfolder=subfolder,
                 use_auth_token=use_auth_token,
@@ -507,6 +332,7 @@ class ORTModelDecoder(ORTModel):
             )
         else:
             decoder_path = model_path / subfolder / decoder_file_name
+
         decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
         if decoder_path.name not in decoder_regular_onnx_filenames:
             logger.warning(
@@ -515,12 +341,16 @@ class ORTModelDecoder(ORTModel):
             )
 
         decoder_with_past_path = None
-        if use_cache is True:
+        use_merged = has_onnx_input(decoder_path, "use_cache_branch")
+
+        # If the decoder without / with past has been merged, we do not need to look for any additional file
+        decoder_with_past_path = None
+        if use_cache is True and not use_merged:
             if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
                 try:
                     decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
                         model_id,
-                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                         "decoder_with_past_file_name",
                         subfolder=subfolder,
                         use_auth_token=use_auth_token,
@@ -539,32 +369,22 @@ class ORTModelDecoder(ORTModel):
                 ONNX_DECODER_WITH_PAST_NAME
             )
 
-            if (
-                decoder_with_past_path is not None
-                and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames
-            ):
+            if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
                 logger.warning(
                     f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
                     f"the {cls.__name__} might not behave as expected."
                 )
 
-            decoder_with_past_path = decoder_with_past_path if use_cache else None
-
         preprocessors = None
         if model_path.is_dir():
-            model = cls.load_model(
-                decoder_path=decoder_path,
-                decoder_with_past_path=decoder_with_past_path,
-                provider=provider,
-                session_options=session_options,
-                provider_options=provider_options,
-            )
             new_model_save_dir = model_path
             preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
                 "last_decoder_model_name": decoder_path.name,
-                "last_decoder_with_past_model_name": decoder_with_past_path.name if use_cache else None,
+                "last_decoder_with_past_model_name": decoder_with_past_path.name
+                if decoder_with_past_path is not None
+                else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -583,7 +403,7 @@ class ORTModelDecoder(ORTModel):
 
                 # try download external data
                 try:
-                    model_data_cache_path = hf_hub_download(
+                    hf_hub_download(
                         repo_id=model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
@@ -603,26 +423,44 @@ class ORTModelDecoder(ORTModel):
 
             last_decoder_with_past_name = paths.get("last_decoder_with_past_model_name", None)
             if last_decoder_with_past_name is not None:
-                last_decoder_with_past_name = new_model_save_dir / last_decoder_with_past_name
+                decoder_with_past_path = new_model_save_dir / last_decoder_with_past_name
 
-            model = cls.load_model(
-                decoder_path=new_model_save_dir / paths["last_decoder_model_name"],
-                decoder_with_past_path=last_decoder_with_past_name,
-                provider=provider,
-                session_options=session_options,
-                provider_options=provider_options,
-            )
+            decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
+
+        ort_inference_sessions = cls.load_model(
+            decoder_path=decoder_path,
+            decoder_with_past_path=decoder_with_past_path,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+        )
 
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
+        generation_config = None
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+                use_auth_token=use_auth_token,
+                revision=revision,
+                subfolder=subfolder,
+            )
+        except OSError:
+            logger.info("Generation config file not found, using a generation config created from the model config.")
+
         return cls(
-            model[0],
+            ort_inference_sessions[0],
             config,
-            decoder_with_past_session=model[1],
+            decoder_with_past_session=ort_inference_sessions[1],
+            use_cache=use_cache,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
+            generation_config=generation_config,
         )
 
     @classmethod
@@ -636,7 +474,9 @@ class ORTModelDecoder(ORTModel):
         cache_dir: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
         use_cache: bool = True,
+        use_merged: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[onnxruntime.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
@@ -645,6 +485,13 @@ class ORTModelDecoder(ORTModel):
     ) -> "ORTModelDecoder":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
+
+        if use_cache is False and use_merged is True:
+            raise ValueError(
+                "The incompatible arguments use_cache=False, use_merged=True were passed to ORTModelForCausalLM.from_pretrained()."
+                " Please pass either use_cache=False, use_merged=False to disable past key value caching, or use_cache=True, use_merged=False"
+                " to disable the merging of the decoder not using / using past key and value."
+            )
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
@@ -659,22 +506,28 @@ class ORTModelDecoder(ORTModel):
             use_auth_token=use_auth_token,
             local_files_only=local_files_only,
             force_download=force_download,
+            trust_remote_code=trust_remote_code,
         )
 
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
 
-        output_names = [ONNX_DECODER_NAME]
+        onnx_files_subpaths = [ONNX_DECODER_NAME]
         if use_cache is True:
-            output_names.append(ONNX_DECODER_WITH_PAST_NAME)
+            onnx_files_subpaths.append(ONNX_DECODER_WITH_PAST_NAME)
 
         models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
         export_models(
             models_and_onnx_configs=models_and_onnx_configs,
             opset=onnx_config.DEFAULT_ONNX_OPSET,
             output_dir=save_dir_path,
-            output_names=output_names,
+            output_names=onnx_files_subpaths,
         )
+
+        if use_merged is True:
+            _, _ = onnx_config.post_process_exported_models(
+                save_dir_path, models_and_onnx_configs, onnx_files_subpaths
+            )
 
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
@@ -706,10 +559,8 @@ class ORTModelDecoder(ORTModel):
 
         provider = get_provider_for_device(device)
         self.device = device
-        self.decoder._device = device
         self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
-            self.decoder_with_past._device = device
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
         self.providers = self.decoder.session.get_providers()
 
@@ -737,22 +588,39 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
+        use_cache_branch: None = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
+        # adding use_cache_branch in the signature here is just a hack for IO Binding
 
-        if past_key_values is None or self.decoder_with_past is None:
-            outputs = self.decoder(input_ids=input_ids, attention_mask=attention_mask)
+        if past_key_values is None or self.use_cache is False:
+            outputs = self.decoder(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                past_key_values=past_key_values,
+                labels=labels,
+            )
+        elif self.use_merged is True:
+            outputs = self.decoder(
+                input_ids=input_ids[:, -1:],
+                past_key_values=past_key_values,
+                attention_mask=attention_mask,
+            )
         else:
             outputs = self.decoder_with_past(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
+                labels=labels,
             )
 
-        return CausalLMOutputWithCrossAttentions(logits=outputs.logits, past_key_values=outputs.past_key_values)
+        return CausalLMOutputWithCrossAttentions(
+            loss=outputs.get("loss", None), logits=outputs.logits, past_key_values=outputs.past_key_values
+        )
 
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(self, input_ids, past=None, **kwargs):
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
 
         attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
@@ -760,7 +628,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
 
         return {
             "input_ids": input_ids,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "use_cache": use_cache,
             "position_ids": None,
             "attention_mask": attention_mask,
@@ -774,3 +642,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
             tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
             for layer_past in past
         )
+
+    def can_generate(self):
+        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
+        return True

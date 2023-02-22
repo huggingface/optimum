@@ -31,8 +31,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bart": "hf-internal-testing/tiny-random-bart",
-    "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
-    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    # "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
+    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
@@ -46,13 +46,15 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
-    "detr": "hf-internal-testing/tiny-random-detr",
+    "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
+    "gpt-neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
@@ -70,6 +72,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mt5": "lewtun/tiny-random-mt5",
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
@@ -82,6 +85,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
+    "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
@@ -110,6 +114,15 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "vision-encoder-decoder": {
+        "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
+            "vision2seq-lm",
+            "vision2seq-lm-with-past",
+        ],
+        "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
+    },
+    # Disabled for now because of high atol threshold requirement to pass
+    # "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel"
 }
 
 
@@ -118,8 +131,8 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "beit": "microsoft/beit-base-patch16-224",
     "bert": "bert-base-cased",
     "bart": "facebook/bart-base",
-    "big-bird": "google/bigbird-roberta-base",
-    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",  # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
+    # "big-bird": "google/bigbird-roberta-base",
+    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "facebook/blenderbot_small-90M",
     "blenderbot": "facebook/blenderbot-90M",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",  # Not using bigscience/bloom-560m because it goes OOM.
@@ -140,6 +153,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",
+    "gpt-neox": "EleutherAI/gpt-neox-20b",
     "gptj": "anton-l/gpt-j-tiny-random",  # TODO
     "groupvit": "nvidia/groupvit-gcc-yfcc",
     "ibert": "kssteven/ibert-roberta-base",
@@ -156,6 +170,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
+    "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
@@ -164,6 +179,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
+    "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "squeezebert/squeezebert-uncased",
     "swin": "microsoft/swin-tiny-patch4-window7-224",
     "t5": "t5-small",

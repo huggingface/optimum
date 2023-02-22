@@ -8,12 +8,14 @@ graphcore_add_support_for_new_model: graphcore/add_support_for_new_model
 # Optimum Habana
 habana_index: habana/index
 habana_quickstart: habana/quickstart
-habana_single_hpu: habana/usage_guides/single_hpu
-habana_distributed: habana/usage_guides/distributed
+habana_single_hpu: habana/tutorials/single_hpu
+habana_distributed: habana/tutorials/distributed
 habana_deepspeed: habana/usage_guides/deepspeed
-habana_accelerate_training: habana/tutorials/accelerate_training
+habana_accelerate_training: habana/usage_guides/accelerate_training
 habana_trainer: habana/package_reference/trainer
 habana_gaudi_config: habana/package_reference/gaudi_config
+habana/usage_guides/stable_diffusion: habana/tutorials/stable_diffusion
+habana/tutorials/pretraining: habana/usage_guides/pretraining
 
 # Optimum Intel
 intel_index: intel/index

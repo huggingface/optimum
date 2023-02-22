@@ -19,11 +19,11 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
+import onnx
 from datasets import Dataset, load_dataset
 from packaging.version import Version, parse
 from transformers import AutoConfig
 
-import onnx
 from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
@@ -134,7 +134,7 @@ class ORTQuantizer(OptimumQuantizer):
 
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise ValueError(ort_quantizer_error_message)
-        elif isinstance(model_or_path, Path):
+        elif isinstance(model_or_path, Path) and file_name is None:
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_or_path}")

@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from transformers import Seq2SeqTrainingArguments
-from transformers.utils import add_start_docstrings
 
 from .training_args import ORTTrainingArguments
 

@@ -32,7 +32,7 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
             albert_layer (`torch.nn.Module`):
                 The original ALBERT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, albert_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -81,6 +81,23 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
+
+        self.original_layers_mapping = {
+            "in_proj_weight": ["attention.query.weight", "attention.key.weight", "attention.value.weight"],
+            "in_proj_bias": ["attention.query.bias", "attention.key.bias", "attention.value.bias"],
+            "out_proj_weight": "attention.dense.weight",
+            "out_proj_bias": "attention.dense.bias",
+            "linear1_weight": "ffn.weight",
+            "linear1_bias": "ffn.bias",
+            "linear2_weight": "ffn_output.weight",
+            "linear2_bias": "ffn_output.bias",
+            "norm1_eps": "attention.LayerNorm.eps",
+            "norm1_weight": "attention.LayerNorm.weight",
+            "norm1_bias": "attention.LayerNorm.bias",
+            "norm2_eps": "full_layer_layer_norm.eps",
+            "norm2_weight": "full_layer_layer_norm.weight",
+            "norm2_bias": "full_layer_layer_norm.bias",
+        }
 
         self.validate_bettertransformer()
 
@@ -137,7 +154,7 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
             bert_layer (`torch.nn.Module`):
                 The original BERT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, bert_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -186,6 +203,27 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
+
+        self.original_layers_mapping = {
+            "in_proj_weight": [
+                "attention.self.query.weight",
+                "attention.self.key.weight",
+                "attention.self.value.weight",
+            ],
+            "in_proj_bias": ["attention.self.query.bias", "attention.self.key.bias", "attention.self.value.bias"],
+            "out_proj_weight": "attention.output.dense.weight",
+            "out_proj_bias": "attention.output.dense.bias",
+            "linear1_weight": "intermediate.dense.weight",
+            "linear1_bias": "intermediate.dense.bias",
+            "linear2_weight": "output.dense.weight",
+            "linear2_bias": "output.dense.bias",
+            "norm1_eps": "attention.output.LayerNorm.eps",
+            "norm1_weight": "attention.output.LayerNorm.weight",
+            "norm1_bias": "attention.output.LayerNorm.bias",
+            "norm2_eps": "output.LayerNorm.eps",
+            "norm2_weight": "output.LayerNorm.weight",
+            "norm2_bias": "output.LayerNorm.bias",
+        }
 
         self.validate_bettertransformer()
 
@@ -242,7 +280,7 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             bart_layer (`torch.nn.Module`):
                 The original `BartEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, bart_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -292,6 +330,23 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
+
+        self.original_layers_mapping = {
+            "in_proj_weight": ["self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"],
+            "in_proj_bias": ["self_attn.q_proj.bias", "self_attn.k_proj.bias", "self_attn.v_proj.bias"],
+            "out_proj_weight": "self_attn.out_proj.weight",
+            "out_proj_bias": "self_attn.out_proj.bias",
+            "linear1_weight": "fc1.weight",
+            "linear1_bias": "fc1.bias",
+            "linear2_weight": "fc2.weight",
+            "linear2_bias": "fc2.bias",
+            "norm1_eps": "self_attn_layer_norm.eps",
+            "norm1_weight": "self_attn_layer_norm.weight",
+            "norm1_bias": "self_attn_layer_norm.bias",
+            "norm2_eps": "final_layer_norm.eps",
+            "norm2_weight": "final_layer_norm.weight",
+            "norm2_bias": "final_layer_norm.bias",
+        }
 
         self.validate_bettertransformer()
 
@@ -357,7 +412,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             mbart_layer (`torch.nn.Module`):
                 The original `MBartEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, mbart_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -408,6 +463,28 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
         self.norm_first = True
+
+        self.original_layers_mapping = {
+            "in_proj_weight": [
+                "self_attn.q_proj.weight",
+                "self_attn.k_proj.weight",
+                "self_attn.v_proj.weight",
+            ],
+            "in_proj_bias": ["self_attn.q_proj.bias", "self_attn.k_proj.bias", "self_attn.v_proj.bias"],
+            "out_proj_weight": "self_attn.out_proj.weight",
+            "out_proj_bias": "self_attn.out_proj.bias",
+            "linear1_weight": "fc1.weight",
+            "linear1_bias": "fc1.bias",
+            "linear2_weight": "fc2.weight",
+            "linear2_bias": "fc2.bias",
+            "norm1_weight": "self_attn_layer_norm.weight",
+            "norm1_bias": "self_attn_layer_norm.bias",
+            "norm1_eps": "self_attn_layer_norm.eps",
+            "norm2_weight": "final_layer_norm.weight",
+            "norm2_bias": "final_layer_norm.bias",
+            "norm2_eps": "final_layer_norm.eps",
+        }
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
@@ -473,7 +550,7 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
             bert_layer (`torch.nn.Module`):
                 The original Distill-BERT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, bert_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -522,6 +599,22 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
+
+        self.original_layers_mapping = {
+            "in_proj_weight": ["attention.q_lin.weight", "attention.k_lin.weight", "attention.v_lin.weight"],
+            "in_proj_bias": ["attention.q_lin.bias", "attention.k_lin.bias", "attention.v_lin.bias"],
+            "out_proj_weight": "attention.out_lin.weight",
+            "out_proj_bias": "attention.out_lin.bias",
+            "linear1_weight": "ffn.lin1.weight",
+            "linear1_bias": "ffn.lin1.bias",
+            "linear2_weight": "ffn.lin2.weight",
+            "linear2_bias": "ffn.lin2.bias",
+            "norm1_weight": "sa_layer_norm.weight",
+            "norm1_bias": "sa_layer_norm.bias",
+            "norm2_weight": "output_layer_norm.weight",
+            "norm2_bias": "output_layer_norm.bias",
+        }
+
         self.validate_bettertransformer()
 
     def forward(self, x, attn_mask, head_mask=None, output_attentions=None, *_):
@@ -580,7 +673,7 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             whisper_layer (`torch.nn.Module`):
                 The original `WhisperEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, whisper_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -631,6 +724,22 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         self.is_last_layer = False
         self.norm_first = True
 
+        self.original_layers_mapping = {
+            "in_proj_weight": ["self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"],
+            "in_proj_bias": ["self_attn.q_proj.bias", "self_attn.k_proj.bias", "self_attn.v_proj.bias"],
+            "out_proj_weight": "self_attn.out_proj.weight",
+            "out_proj_bias": "self_attn.out_proj.bias",
+            "linear1_weight": "fc1.weight",
+            "linear1_bias": "fc1.bias",
+            "linear2_weight": "fc2.weight",
+            "linear2_bias": "fc2.bias",
+            "norm1_weight": "self_attn_layer_norm.weight",
+            "norm1_bias": "self_attn_layer_norm.bias",
+            "norm2_weight": "final_layer_norm.weight",
+            "norm2_bias": "final_layer_norm.bias",
+        }
+        self.keys_to_ignore.append("self_attn.k_proj.bias")
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, *_, **__):
@@ -676,7 +785,7 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
             vit_layer (`torch.nn.Module`):
                 The original `ViTLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, vit_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -727,6 +836,29 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
         self.is_last_layer = False
         self.norm_first = True
 
+        self.original_layers_mapping = {
+            "in_proj_weight": [
+                "attention.attention.query.weight",
+                "attention.attention.key.weight",
+                "attention.attention.value.weight",
+            ],
+            "in_proj_bias": [
+                "attention.attention.query.bias",
+                "attention.attention.key.bias",
+                "attention.attention.value.bias",
+            ],
+            "out_proj_weight": "attention.output.dense.weight",
+            "out_proj_bias": "attention.output.dense.bias",
+            "linear1_weight": "intermediate.dense.weight",
+            "linear1_bias": "intermediate.dense.bias",
+            "linear2_weight": "output.dense.weight",
+            "linear2_bias": "output.dense.bias",
+            "norm1_weight": "layernorm_before.weight",
+            "norm1_bias": "layernorm_before.bias",
+            "norm2_weight": "layernorm_after.weight",
+            "norm2_bias": "layernorm_after.bias",
+        }
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, *_, **__):
@@ -772,7 +904,7 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
             vilt_layer (`torch.nn.Module`):
                 The original `VilTLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, vilt_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -823,6 +955,29 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
         self.is_last_layer = False
         self.norm_first = True
 
+        self.original_layers_mapping = {
+            "in_proj_weight": [
+                "attention.attention.query.weight",
+                "attention.attention.key.weight",
+                "attention.attention.value.weight",
+            ],
+            "in_proj_bias": [
+                "attention.attention.query.bias",
+                "attention.attention.key.bias",
+                "attention.attention.value.bias",
+            ],
+            "out_proj_weight": "attention.output.dense.weight",
+            "out_proj_bias": "attention.output.dense.bias",
+            "linear1_weight": "intermediate.dense.weight",
+            "linear1_bias": "intermediate.dense.bias",
+            "linear2_weight": "output.dense.weight",
+            "linear2_bias": "output.dense.bias",
+            "norm1_weight": "layernorm_before.weight",
+            "norm1_bias": "layernorm_before.bias",
+            "norm2_weight": "layernorm_after.weight",
+            "norm2_bias": "layernorm_after.bias",
+        }
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, *_, **__):
@@ -868,7 +1023,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             wav2vec2_layer (`torch.nn.Module`):
                 The original `Wav2Vec2EncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, wav2vec2_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -917,6 +1072,26 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
+
+        self.original_layers_mapping = {
+            "in_proj_weight": ["attention.q_proj.weight", "attention.k_proj.weight", "attention.v_proj.weight"],
+            "in_proj_bias": ["attention.q_proj.bias", "attention.k_proj.bias", "attention.v_proj.bias"],
+            "out_proj_weight": "attention.out_proj.weight",
+            "out_proj_bias": "attention.out_proj.bias",
+            "linear1_weight": "feed_forward.intermediate_dense.weight",
+            "linear1_bias": "feed_forward.intermediate_dense.bias",
+            "linear2_weight": "feed_forward.output_dense.weight",
+            "linear2_bias": "feed_forward.output_dense.bias",
+            "norm1_weight": "layer_norm.weight",
+            "norm1_bias": "layer_norm.bias",
+            "norm1_eps": "layer_norm.eps",
+            "norm2_weight": "final_layer_norm.weight",
+            "norm2_bias": "final_layer_norm.bias",
+            "norm2_eps": "final_layer_norm.eps",
+        }
+
+        if config.do_stable_layer_norm:
+            self.norm_first = True
 
         self.validate_bettertransformer()
 
@@ -974,7 +1149,7 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             fsmt_layer (`torch.nn.Module`):
                 The original FSMT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, fsmt_layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -1023,6 +1198,21 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
+
+        self.original_layers_mapping = {
+            "in_proj_weight": ["self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"],
+            "in_proj_bias": ["self_attn.q_proj.bias", "self_attn.k_proj.bias", "self_attn.v_proj.bias"],
+            "out_proj_weight": "self_attn.out_proj.weight",
+            "out_proj_bias": "self_attn.out_proj.bias",
+            "linear1_weight": "fc1.weight",
+            "linear1_bias": "fc1.bias",
+            "linear2_weight": "fc2.weight",
+            "linear2_bias": "fc2.bias",
+            "norm1_weight": "self_attn_layer_norm.weight",
+            "norm1_bias": "self_attn_layer_norm.bias",
+            "norm2_weight": "final_layer_norm.weight",
+            "norm2_bias": "final_layer_norm.bias",
+        }
 
         self.validate_bettertransformer()
 
@@ -1096,7 +1286,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
             layer (`torch.nn.Module`):
                 The original `CLIPEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config)
+        super().__init__(config, layer)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -1146,6 +1336,23 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
         self.norm_first = True
+
+        self.original_layers_mapping = {
+            "in_proj_weight": ["self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"],
+            "in_proj_bias": ["self_attn.q_proj.bias", "self_attn.k_proj.bias", "self_attn.v_proj.bias"],
+            "out_proj_weight": "self_attn.out_proj.weight",
+            "out_proj_bias": "self_attn.out_proj.bias",
+            "linear1_weight": "mlp.fc1.weight",
+            "linear1_bias": "mlp.fc1.bias",
+            "linear2_weight": "mlp.fc2.weight",
+            "linear2_bias": "mlp.fc2.bias",
+            "norm1_eps": "layer_norm1.eps",
+            "norm1_weight": "layer_norm1.weight",
+            "norm1_bias": "layer_norm1.bias",
+            "norm2_eps": "layer_norm2.eps",
+            "norm2_weight": "layer_norm2.weight",
+            "norm2_bias": "layer_norm2.bias",
+        }
 
         self.validate_bettertransformer()
 

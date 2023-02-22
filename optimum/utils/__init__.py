@@ -23,6 +23,7 @@ from .import_utils import (
     is_onnxruntime_available,
     is_pydantic_available,
     is_torch_onnx_support_available,
+    require_numpy_strictly_lower,
     torch_version,
 )
 from .input_generators import (
@@ -39,9 +40,11 @@ from .input_generators import (
     DummyTrainingLabelsInputGenerator,
     DummyVisionInputGenerator,
 )
+from .modeling_utils import recurse_setattr
 from .normalized_config import (
     NormalizedConfig,
     NormalizedConfigManager,
+    NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,

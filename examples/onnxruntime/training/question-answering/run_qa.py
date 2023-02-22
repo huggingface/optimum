@@ -25,8 +25,10 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import datasets
+import evaluate
 import transformers
 from datasets import load_dataset
+from trainer_qa import QuestionAnsweringORTTrainer
 from transformers import (
     AutoConfig,
     AutoModelForQuestionAnswering,
@@ -41,11 +43,9 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
-
-import evaluate
-from optimum.onnxruntime.training_args import ORTTrainingArguments
-from trainer_qa import QuestionAnsweringORTTrainer
 from utils_qa import postprocess_qa_predictions
+
+from optimum.onnxruntime.training_args import ORTTrainingArguments
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.

@@ -98,7 +98,7 @@ def _infer_output_shape(output: ValueInfoProto):
         elif getattr(dim, "dim_value"):
             output_shape.append(getattr(dim, "dim_value"))
         else:
-            raise ValueError(f"Cannot find `dim_param` nor `dim_value` in the output dimension info.")
+            raise ValueError("Cannot find `dim_param` nor `dim_value` in the output dimension info.")
 
     return output_shape
 
@@ -133,20 +133,20 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
                     f"Can not match {model_output_1.name} with {model_output_2.name}. Make sure your"
                     f" model protos have same outputs, have same data types and are in the same order."
                 )
-            model1.graph.output.remove(model_output_1)
+            model2.graph.output.remove(model_output_2)
 
             new_output = onnx.helper.make_tensor_value_info(
-                model_output_2.name,
-                model_output_2.type.tensor_type.elem_type,
-                _infer_output_shape(model_output_2),
+                model_output_1.name,
+                model_output_1.type.tensor_type.elem_type,
+                _infer_output_shape(model_output_1),
             )
-            model1.graph.output.insert(idx, new_output)
+            model2.graph.output.insert(idx, new_output)
 
     if not all(
         model_output_1 == model_output_2
         for model_output_1, model_output_2 in zip(model1.graph.output, model2.graph.output)
     ):
-        raise RuntimeError(f"Failed to unify outputs of given ONNX model protos.")
+        raise RuntimeError("Failed to unify outputs of given ONNX model protos.")
 
 
 def _get_all_inputs(model_list: List[ModelProto]) -> List[onnx.onnx_ml_pb2.ValueInfoProto]:

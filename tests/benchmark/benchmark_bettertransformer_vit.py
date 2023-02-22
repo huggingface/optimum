@@ -1,10 +1,10 @@
 import argparse
 
+import requests
 import torch
 from PIL import Image
 from transformers import AutoFeatureExtractor, AutoModel
 
-import requests
 from optimum.bettertransformer import BetterTransformer
 
 
@@ -91,7 +91,6 @@ if __name__ == "__main__":
     output_file = open("log_{}.csv".format(args.model_name.replace("/", "-")), "w")
     output_file.write("num_batches,batch_size,is_cuda,is_half,HF_time,BT_time,Speedup\n")
     for bs in BATCH_SIZES:
-
         total_bt_time, total_hf_time = benchmark(
             args.model_name,
             args.num_batches,
