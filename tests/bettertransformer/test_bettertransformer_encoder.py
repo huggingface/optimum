@@ -81,7 +81,13 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         A test to check BetterTransformerManager.MODEL_MAPPING has good names.
         """
         for model_type, item in BetterTransformerManager.MODEL_MAPPING.items():
-            self.assertTrue(("Layer" in item[0]) or ("Block" in item[0]))
+            if isinstance(item[0], str):
+                self.assertTrue(("Layer" in item[0]) or ("Block" in item[0]))
+            else:
+                self.assertTrue(
+                    all("Layer" in sub_item for sub_item in item[0])
+                    or all("Block" in sub_item for sub_item in item[0])
+                )
 
     def test_raise_pos_emb(self):
         r"""
@@ -102,6 +108,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
         layer_class = BetterTransformerManager.MODEL_MAPPING[model_type][0]
+        if isinstance(layer_class, list):
+            layer_class = layer_class[0]
 
         if layer_class == "EncoderLayer":
             # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
