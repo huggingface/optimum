@@ -25,4 +25,4 @@ RUN pip install /workspace/optimum[onnxruntime-gpu,tests]
 
 ENV TEST_LEVEL=1
 ENV RUN_SLOW=1
-CMD pytest exporters --durations=0 -s -vvvvv -m gpu_test --exitfirst
+CMD pytest exporters --durations=0 -s -vvvvv -m gpu_test
