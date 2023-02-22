@@ -770,7 +770,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
                 fp16=True,
-                deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_1.json",
+                deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_1.json",
             )
 
             trainer, _ = get_ort_trainer(
@@ -808,7 +808,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
                 fp16=True,
-                deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
+                deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_2.json",
             )
 
             trainer, _ = get_ort_trainer(
@@ -830,7 +830,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
 class ORTTrainerIntegrationDDPTest(unittest.TestCase):
     def test_trainer_ddp_glue(self):
         subprocess.run(
-            "cp examples/onnxruntime/training/text-classification/run_glue.py ./",
+            "cp ../examples/onnxruntime/training/text-classification/run_glue.py ./",
             shell=True,
         )
 
