@@ -83,8 +83,11 @@ def replace_to_bettertransformer(model, config):
             )
 
         # replace the module if it is a transformer layer compatible with bettertransformer
+        target_class = BetterTransformerManager.MODEL_MAPPING[config.model_type][0]
         should_replace_module = (
-            module.__class__.__name__ == BetterTransformerManager.MODEL_MAPPING[config.model_type][0]
+            (module.__class__.__name__ == target_class)
+            if isinstance(target_class, str)
+            else module.__class__.__name__ in target_class
         )
         if should_replace_module:
             bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][1](module, config)
