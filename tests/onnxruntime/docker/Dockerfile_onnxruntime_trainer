@@ -47,4 +47,4 @@ COPY . /workspace/optimum
 RUN pip install /workspace/optimum[tests]
 
 ENV TEST_LEVEL=1
-CMD RUN_SLOW=1 pytest -v -rs onnxruntime/test_trainer.py --durations=0
+CMD RUN_SLOW=1 pytest -v -rs onnxruntime/nightly_test_trainer.py --durations=0
