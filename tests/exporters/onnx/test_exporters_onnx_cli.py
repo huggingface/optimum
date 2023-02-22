@@ -111,7 +111,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             print(out.stdout.decode("utf-8"))
             print(out.stderr.decode("utf-8"))  # logging's default output is stderr
             if out.returncode != 0:
-                raise subprocess.CalledProcessError(returncode=out.returncode, cmd=out.args, stderr=out.stderr)
+                raise subprocess.CalledProcessError(
+                    returncode=out.returncode, cmd=out.args, stderr=out.stderr.decode("utf-8")
+                )
 
     def test_all_models_tested(self):
         # make sure we test all models
@@ -148,7 +150,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             try:
                 self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
             except subprocess.CalledProcessError as e:
-                if "Tried to use ORTOptimizer for the model type" in e.stderr.decode("utf-8"):
+                if (
+                    "Tried to use ORTOptimizer for the model type" in e.stderr
+                    or "doesn't support the graph optimization" in e.stderr
+                ):
                     self.skipTest("unsupported model type in ORTOptimizer")
                 else:
                     raise e
@@ -165,7 +170,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         try:
             self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
         except subprocess.CalledProcessError as e:
-            if "Tried to use ORTOptimizer for the model type" in e.stderr.decode("utf-8"):
+            if (
+                "Tried to use ORTOptimizer for the model type" in e.stderr
+                or "doesn't support the graph optimization" in e.stderr
+            ):
                 self.skipTest("unsupported model type in ORTOptimizer")
             else:
                 raise e
