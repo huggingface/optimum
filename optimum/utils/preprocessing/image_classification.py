@@ -34,13 +34,13 @@ if TYPE_CHECKING:
 
 
 class ImageClassificationProcessing(DatasetProcessing):
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         if "secondary" in kwargs["data_keys"]:
             raise ValueError("Only one data column is supported for image-classification.")
         else:
             kwargs["data_keys"]["secondary"] = None
 
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
         if not isinstance(self.preprocessor, FeatureExtractionMixin):
             raise ValueError(

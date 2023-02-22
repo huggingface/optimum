@@ -116,6 +116,76 @@ def parse_args_tflite(parser):
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
 
+    quantization_group = parser.add_argument_group("Quantization")
+    quantization_group.add_argument(
+        "--quantize",
+        choices=["int8", "int8x16", "fp16"],
+        type=str,
+        default=None,
+        help="The method of quantization to perform. No quantization will happen if left unspecified.",
+    )
+    quantization_group.add_argument(
+        "--calibration_dataset",
+        type=str,
+        default=None,
+        help=(
+            "The dataset to use to calibration integer ranges when quantizing the model. This is needed to perform "
+            "static quantization."
+        )
+    )
+    quantization_group.add_argument(
+        "--num_calibration_samples",
+        type=int,
+        default=200,
+        help="The number of samples in the calibration dataset to use for calibration, usually something around 100-200 is enough."
+    )
+    quantization_group.add_argument(
+        "--calibration_split",
+        type=str,
+        default="train",
+        help="The split of the calibration dataset to use."
+    )
+    quantization_group.add_argument(
+        "--primary_key",
+        type=str,
+        default=None,
+        help=(
+            "The primary key in the dataset e.g. the name of the column that contains the data to preprocess to "
+            "create the dataset."
+        )
+    )
+    quantization_group.add_argument(
+        "--secondary_key",
+        type=str,
+        default=None,
+        help=(
+            "The secondary key in the dataset e.g. the name of the second column that contains the data to preprocess "
+            "to create the dataset."
+        )
+    )
+    quantization_group.add_argument(
+        "--fallback_to_float",
+        type=bool,
+        default=False,
+        help=(
+            "Whether to fall back to the float implementation for operators without an integer implementation. This "
+            "needs to be disabled for integer-only hardware."  
+        )
+    )
+    quantization_group.add_argument(
+        "--inputs_type",
+        choices=["int8", "uint8"],
+        default=None,
+        help="If specified, th."
+    )
+    quantization_group.add_argument(
+        "--outputs_type",
+        choices=["int8", "uint8"],
+        default=None,
+        help="If specified, th."
+    )
+
+
 
 class TFLiteExportCommand:
     def __init__(self, args_string):

@@ -24,16 +24,19 @@ if TYPE_CHECKING:
 
 
 class DatasetProcessing:
+    DEFAULT_DATA_KEYS = None
+    DEFAULT_REF_KEYS = None
+
     def __init__(
         self,
-        dataset_path: str,
-        dataset_name: str,
-        preprocessor: Union["FeatureExtractionMixin", "PreTrainedTokenizerBase"],
+        dataset_name_or_path: str,
         eval_split: str,
+        preprocessor: Union["FeatureExtractionMixin", "PreTrainedTokenizerBase"],
         static_quantization: bool,
-        data_keys: Dict[str, str],
-        ref_keys: List[str],
         config: "PretrainedConfig",
+        dataset_name: Optional[str] = None,
+        data_keys: Optional[Dict[str, str]] = None,
+        ref_keys: Optional[List[str]] = None,
         task_args: Optional[Dict] = None,
         num_calibration_samples: Optional[int] = None,
         calibration_split: Optional[str] = None,
@@ -57,12 +60,12 @@ class DatasetProcessing:
                 Dataset split used for evaluation (e.g. "test").
             static_quantization (`bool`): 
                 Whether the dataset is used for static quantization or not.
+            config ([`PretrainedConfig`]): 
+                Model configuration, useful for some tasks.
             data_keys (`Dict[str, str]`): 
                 Map "primary" and "secondary" to data column names.
             ref_keys (`List[str]`): 
                 References column names.
-            config ([`PretrainedConfig`]): 
-                Model configuration, useful for some tasks.
             task_args(`Optional[Dict[str, Any]]`, defaults to `None`): 
                 Task-specific arguments.
             num_calibration_samples (`Optional[int]`, defaults to `None`): 
@@ -74,8 +77,19 @@ class DatasetProcessing:
                 Maximum number of samples to use from the evaluation dataset for evaluation.
         """
 
-        if len(ref_keys) != 1:
-            raise ValueError("Only one label column is supported for now.")
+        if data_keys is None and self.DEFAULT_DATA_KEYS is None:
+            raise ValueError(
+                f"Data keys need to be specified since no default data keys exist for {self.__class__.__name__}"
+            )
+        elif data_keys is None:
+            data_keys = self.DEFAULT_DATA_KEYS
+
+        if ref_keys is None and self.DEFAULT_REF_KEYS is None:
+            raise ValueError(
+                f"Ref keys need to be specified since no default data keys exist for {self.__class__.__name__}"
+            )
+        elif ref_keys is None:
+            ref_keys = self.DEFAULT_REF_KEYS
 
         self.dataset_path = dataset_path
         self.dataset_name = dataset_name
@@ -89,6 +103,9 @@ class DatasetProcessing:
         self.task_args = task_args
         self.config = config
         self.max_eval_samples = max_eval_samples
+
+        if len(ref_keys) != 1:
+            raise ValueError("Only one label column is supported for now.")
 
         if self.static_quantization and not self.calibration_split:
             raise ValueError(f"A calibration dataset split must be provided when performing static quantization.")

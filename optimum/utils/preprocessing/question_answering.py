@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 
 
 class QuestionAnsweringProcessing(DatasetProcessing):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
             raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")

@@ -29,11 +29,11 @@ if TYPE_CHECKING:
 
 
 class TextClassificationProcessing(DatasetProcessing):
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         if "secondary" not in kwargs["data_keys"]:
             kwargs["data_keys"]["secondary"] = None
 
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         self.label_to_id = None
 
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):

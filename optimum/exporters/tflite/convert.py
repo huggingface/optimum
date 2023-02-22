@@ -15,12 +15,12 @@
 """TensorFlow Lite model check and export functions."""
 
 from pathlib import Path
-from re import I
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import numpy as np
-from optimum.utils.preprocessing.dataset_preprocessing_manager import DatasetProcessingManager
+from optimum.utils.preprocessing import DatasetProcessingManager
+from optimum.utils.save_utils import maybe_load_preprocessors
 from transformers.utils import is_tf_available
 
 from ...utils import logging
@@ -136,27 +136,53 @@ def validate_model_outputs(
 
 def create_calibration_dataset(
     task,
-    preprocessor,
     config,
-    dataset_name_or_path: str,
+    model_signatures, 
+    dataset_name_or_path: Union[str, Path],
+    preprocessor_name_or_path: Union[str, Path],
     num_calibration_samples: int = 200,
     calibration_split: str = "train",
+    primary_key_name: Optional[str] = None,
+    secondary_key_name: Optional[str] = None,
 ):
+    preprocessor = maybe_load_preprocessors(preprocessor_name_or_path)[0]
     dataset_processing = DatasetProcessingManager.for_task(
         task, 
         config=config,
         dataset_path=dataset_name_or_path,
+        preprocessor=preprocessor,
         num_calibration_samples=num_calibration_samples,
         calibration_split=calibration_split,
         static_quantization=True,
+        data_keys={"primary": primary_key_name, "secondary": secondary_key_name},
     )
     dataset = dataset_processing.load_datasets()["calibration"]
+
+    def calibration_dataset():
+        for data in dataset:
+            processed_data = {}
+            for signature_name, function in model_signatures.items():
+                input_names = set(input_.name for input_ in function.input_signature)
+                processed_data[signature_name] = {k: v for k, v in data.items() if k in input_names}
+            yield processed_data
+
+    return calibration_dataset
 
 
 def export(
     model: "TFPreTrainedModel",
     config: "TFLiteConfig",
     output: Path,
+    quantization: Optional[str] = None,
+    calibration_dataset: Optional[Union[str, Path]] = None,
+    num_calibration_samples: int = 200,
+    calibration_split: str = "train",
+    primary_key_name: Optional[str] = None,
+    secondary_key_name: Optional[str] = None,
+    preprocessor_name_or_path: Optional[Union[str, Path]] = None,
+    fallback_to_float: Optional[bool] = True,
+    inputs_dtype: Optional[str] = None,
+    outputs_dtype: Optional[str] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a TensorFlow model to a TensorFlow Lite model.
@@ -177,6 +203,10 @@ def export(
         raise ImportError("Cannot convert because TensorFlow is not installed. " "Please install TensorFlow first.")
     import tensorflow as tf
 
+    # TODO: validate quantization argument values.
+
+    str_to_dtype = {"int8": tf.int8, "uint8": tf.uint8}
+
     output.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Using TensorFlow: {tf.__version__}")
@@ -191,9 +221,55 @@ def export(
 
     signatures = config.model_to_signatures(model)
 
+    import pdb; pdb.set_trace()
+
     with TemporaryDirectory() as tmp_dir_name:
         model.save(tmp_dir_name, signatures=signatures)
         converter = tf.lite.TFLiteConverter.from_saved_model(tmp_dir_name)
+
+        if quantization in ["int8", "int8x16"]:
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            if calibration_dataset is None:
+                logger.info(
+                    "Performing dynamic quantization because no calibration dataset was provided, specify one to perform "
+                    "static quantization."
+                )
+            else:
+                if preprocessor_name_or_path is None:
+                    raise ValueError("A processor name or path needs to be provided when providing a calibration dataset.")
+                converter.representative_dataset = create_calibration_dataset(
+                    config.task, 
+                    model.config,
+                    signatures,
+                    calibration_dataset,
+                    preprocessor_name_or_path,
+                    num_calibration_samples=num_calibration_samples,
+                    calibration_split=calibration_split,
+                    primary_key_name=primary_key_name,
+                    secondary_key_name=secondary_key_name,
+                )
+            if quantization == "int8":
+                if calibration_dataset is not None:
+                    opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+                else:
+                    opsset = []
+            else:
+                logger.warning(
+                    "The latency with 8x16 quantization can be much slower than int8 only because it is currently an "
+                    "experimental feature, use this only if necessary."
+                )
+                opsset = [tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8]
+            if fallback_to_float:
+                opsset.append(tf.lite.OpsSet.TFLITE_BUILTINS)
+            converter.target_spec.supported_ops = opsset
+            if inputs_dtype is not None:
+                converter.inference_input_type = str_to_dtype[inputs_dtype]
+            if outputs_dtype is not None:
+                converter.inference_output_type = str_to_dtype[outputs_dtype]
+        elif quantization == "fp16":
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_types = [tf.float16]
+
         tflite_model = converter.convert()
 
     with open(output, "wb") as fp:

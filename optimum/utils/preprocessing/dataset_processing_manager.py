@@ -44,6 +44,6 @@ class DatasetProcessingManager:
 
 
     @classmethod
-    def for_task(cls, task: str, **dataset_processing_kwargs: Any) -> "DatasetProcessing":
-        return cls.get_dataset_processing_class_for_task(task)(**dataset_processing_kwargs)
+    def for_task(cls, task: str, *dataset_processing_args, **dataset_processing_kwargs: Any) -> "DatasetProcessing":
+        return cls.get_dataset_processing_class_for_task(task)(*dataset_processing_args, **dataset_processing_kwargs)
 

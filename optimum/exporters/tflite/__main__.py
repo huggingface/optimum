@@ -73,6 +73,14 @@ def main():
         model=model,
         config=tflite_config,
         output=args.output,
+        quantization=args.quantize,
+        calibration_dataset=args.calibration_dataset,
+        num_calibration_samples=args.num_calibration_samples,
+        calibration_split=args.calibration_split,
+        preprocessor_name_or_path=args.output.parent,
+        fallback_to_float=args.fallback_to_float,
+        inputs_dtype=args.inputs_type,
+        outputs_dtype=args.outputs_type,
     )
 
     try:

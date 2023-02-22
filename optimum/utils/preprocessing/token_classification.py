@@ -29,13 +29,13 @@ if TYPE_CHECKING:
 
 
 class TokenClassificationProcessing(DatasetProcessing):
-    def __init__(self, **kwargs):
-        if "secondary" in kwargs["data_keys"]:
+    def __init__(self, *args, **kwargs):
+        if kwargs["data_keys"].get("secondary", None) is not None:
             raise ValueError("Only one data column is supported for token-classification.")
         else:
             kwargs["data_keys"]["secondary"] = None
 
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
         if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
             raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
