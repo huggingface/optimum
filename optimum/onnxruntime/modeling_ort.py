@@ -1737,7 +1737,9 @@ class ORTModelForAudioClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_values, ordered_input_names=self._ordered_input_names)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_values, ordered_input_names=self._ordered_input_names
+            )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1813,7 +1815,9 @@ class ORTModelForCTC(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_values, ordered_input_names=self._ordered_input_names)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_values, ordered_input_names=self._ordered_input_names
+            )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1897,7 +1901,9 @@ class ORTModelForAudioXVector(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_values, ordered_input_names=self._ordered_input_names)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_values, ordered_input_names=self._ordered_input_names
+            )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1977,7 +1983,9 @@ class ORTModelForAudioFrameClassification(ORTModel):
         **kwargs,
     ):
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_values, ordered_input_names=self._ordered_input_names)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_values, ordered_input_names=self._ordered_input_names
+            )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
