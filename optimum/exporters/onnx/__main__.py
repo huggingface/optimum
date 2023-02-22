@@ -183,12 +183,8 @@ def main():
 
         optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.ort_optimize)
 
-        try:
-            optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")
-        except RuntimeError as e:
-            if "Incomplete symbolic shape inference." in str(e):
-                optimization_config.disable_shape_inference = True
-                optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")
+        optimization_config.disable_shape_inference = True
+        optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
