@@ -100,11 +100,15 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             optimization_level = f" --ort-optimize {optimization_level} " if optimization_level is not None else " "
             task = f" --task {task} " if task is not None else " "
             device = " --device cuda " if device == "cuda" else " "
-            subprocess.run(
+            out = subprocess.run(
                 f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{optimization_level}{device}{no_post_process}{task}{tmpdir}",
                 shell=True,
-                check=True,
+                capture_output=True,
             )
+            print(out.stdout.decode("utf-8"))
+            print(out.stderr.decode("utf-8"))  # logging's default output is stderr
+            if out.returncode != 0:
+                raise subprocess.CalledProcessError(returncode=out.returncode, cmd=out.args, stderr=out.stderr)
 
     def test_all_models_tested(self):
         # make sure we test all models
@@ -155,8 +159,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         try:
             self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
-        except NotImplementedError as e:
-            if "Tried to use ORTOptimizer for the model type" in str(e):
+        except subprocess.CalledProcessError as e:
+            if "Tried to use ORTOptimizer for the model type" in e.stderr.decode("utf-8"):
                 self.skipTest("unsupported model type in ORTOptimizer")
 
     @parameterized.expand([(False,), (True,)])
