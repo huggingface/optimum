@@ -144,8 +144,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         for optimization_level in ["O1", "O2", "O3"]:
             try:
                 self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
-            except NotImplementedError as e:
-                if "Tried to use ORTOptimizer for the model type" in str(e):
+            except subprocess.CalledProcessError as e:
+                if "Tried to use ORTOptimizer for the model type" in e.stderr.decode("utf-8"):
                     self.skipTest("unsupported model type in ORTOptimizer")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
