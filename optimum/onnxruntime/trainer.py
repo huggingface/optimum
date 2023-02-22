@@ -133,6 +133,7 @@ class ModuleWithLoss(nn.Module):
         super().__init__()
         self._original_model = model
         self.args = args
+        self.hf_trainer = Trainer(model)
         # Label smoothing
         if self.args.label_smoothing_factor != 0:
             from transformers.trainer_pt_utils import LabelSmoother
@@ -141,39 +142,8 @@ class ModuleWithLoss(nn.Module):
         else:
             self.label_smoother = None
 
-    def compute_loss(self, model, inputs, return_outputs=False):
-        """
-        How the loss is computed by Trainer. By default, all models return the loss in the first element.
-        Subclass and override for custom behavior.
-        """
-        if self.label_smoother is not None and "labels" in inputs:
-            labels = inputs.pop("labels")
-        else:
-            labels = None
-        outputs = model(**inputs)
-        # Save past state if it exists
-        # TODO: this needs to be fixed and made cleaner later.
-        if self.args.past_index >= 0:
-            self._past = outputs[self.args.past_index]
-
-        if labels is not None:
-            if unwrap_model(model)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
-                loss = self.label_smoother(outputs, labels, shift_labels=True)
-            else:
-                loss = self.label_smoother(outputs, labels)
-        else:
-            if isinstance(outputs, dict) and "loss" not in outputs:
-                raise ValueError(
-                    "The model did not return a loss from the inputs, only the following keys: "
-                    f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
-                )
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
-            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
-
-        return (loss, outputs) if return_outputs else loss
-
     def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
-        return self.compute_loss(self._original_model, inputs, return_outputs=False)
+        return self.hf_trainer.compute_loss(self._original_model, inputs, return_outputs=False)
 
     @property
     def config(self):
@@ -345,33 +315,8 @@ class ORTTrainer(Trainer):
             outputs = model_with_loss(inputs, return_outputs)
             return outputs
         else:
-
-            if self.label_smoother is not None and "labels" in inputs:
-                labels = inputs.pop("labels")
-            else:
-                labels = None
-
-            outputs = model_with_loss(**inputs)
-            # Save past state if it exists
-            # TODO: this needs to be fixed and made cleaner later.
-            if self.args.past_index >= 0:
-                self._past = outputs[self.args.past_index]
-
-            if labels is not None:
-                if unwrap_model(model_with_loss)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
-                    loss = self.label_smoother(outputs, labels, shift_labels=True)
-                else:
-                    loss = self.label_smoother(outputs, labels)
-            else:
-                if isinstance(outputs, dict) and "loss" not in outputs:
-                    raise ValueError(
-                        "The model did not return a loss from the inputs, only the following keys: "
-                        f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
-                    )
-                # We don't use .loss here since the model may return tuples instead of ModelOutput.
-                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
-
-            return (loss, outputs) if return_outputs else loss
+            loss, outputs = super().compute_loss(model_with_loss, inputs, return_outputs)
+            return (loss, outputs)
 
     def train(
         self,
@@ -551,6 +496,7 @@ class ORTTrainer(Trainer):
                     RuntimeWarning,
                 )
 
+            self.model = model
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
             )
