@@ -98,9 +98,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
                     output_names = [output.name for output in ort_sess._outputs_meta]
 
-                    input_feed = dict(
-                        map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
-                    )
+                    input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
 
                     ort_outputs = ort_sess.run(output_names, input_feed)
                     pt_outputs = model(**inputs)
@@ -161,7 +159,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
-            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
             ort_outputs = ort_sess.run(output_names, input_feed)
             pt_outputs = model(**inputs)
 
@@ -223,7 +221,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
-            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
 
             ort_sess.run(output_names, input_feed)
 

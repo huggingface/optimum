@@ -293,7 +293,7 @@ class ORTDecoder(ORTModelPart):
             io_binding.synchronize_outputs()
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
-            past_key_values = tuple()
+            past_key_values = ()
             for name in self.key_value_output_names:
                 past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
@@ -431,7 +431,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
-            past_key_values = tuple()
+            past_key_values = ()
             for name in self.key_value_output_names:
                 past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
