@@ -67,7 +67,7 @@ class ORTTrainingArguments(TrainingArguments):
 
     loss_in_train: Optional[bool] = field(
         default=False,
-        metadata={"help": "Use ModuleWithLoss Wrapper to compute loss inside the training loop."},
+        metadata={"help": "Use ModuleWithLoss Wrapper to compute loss inside the training loop, when label smoother is NOT none having this will help save memory for ORTMOdule Runs."},
     )
 
     # This method will not need to be overriden after the deprecation of `--adafactor` in version 5 of 🤗 Transformers.

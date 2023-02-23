@@ -23,7 +23,6 @@ import time
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
-from tqdm.auto import tqdm
 
 
 # Integrations must be imported before ML frameworks:
@@ -51,7 +50,6 @@ from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
-from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 from transformers.file_utils import (
     is_apex_available,
     is_sagemaker_dp_enabled,
@@ -146,6 +144,8 @@ class ModuleWithLoss(nn.Module):
         super().__init__()
         self._original_model = model
         self.args = args
+
+        # Creating an instance of huggingFace Trainer so we can use compute_loss() logic and avoid duplicated code.
         self.hf_trainer = Trainer(model)
         # Label smoothing
         if self.args.label_smoothing_factor != 0:
