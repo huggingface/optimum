@@ -202,7 +202,9 @@ def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
     return value
 
 
-def recursive_to_dtype(value: Union[Tuple, List, "torch.Tensor"], dtype: Optional[torch.dtype]):
+def recursive_to_dtype(
+    value: Union[Tuple, List, "torch.Tensor"], dtype: Optional[torch.dtype], start_dtype: Optional[torch.dtype] = None
+):
     if dtype is None:
         return value
 
@@ -215,7 +217,8 @@ def recursive_to_dtype(value: Union[Tuple, List, "torch.Tensor"], dtype: Optiona
         for i, val in enumerate(value):
             value[i] = recursive_to_dtype(val, dtype)
     elif isinstance(value, torch.Tensor):
-        value = value.to(dtype=dtype)
+        if start_dtype is None or (start_dtype is not None and value.dtype == start_dtype):
+            value = value.to(dtype=dtype)
 
     return value
 

@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+import numpy as np
 import onnx
 from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 from transformers.utils import is_torch_available
@@ -287,7 +288,9 @@ class OnnxConfig(ExportConfig, ABC):
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
 
-    def fix_dynamic_axes(self, model_path: "Path", device: str = "cpu", input_shapes: Dict = None):
+    def fix_dynamic_axes(
+        self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
+    ):
         """
         Fixes potential issues with dynamic axes.
 
@@ -332,6 +335,9 @@ class OnnxConfig(ExportConfig, ABC):
                     onnx_inputs.update({tensor_name: tensor for tensor_name, tensor in value.items()})
                 else:
                     onnx_inputs[name] = value
+            for name, value in onnx_inputs.items():
+                if value.dtype == np.float32 and dtype == "float16":
+                    onnx_inputs[name] = onnx_inputs[name].astype(np.float16)
             outputs = session.run(None, onnx_inputs)
             del session
 

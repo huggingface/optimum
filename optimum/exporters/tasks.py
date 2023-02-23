@@ -52,7 +52,7 @@ def supported_tasks_mapping(
     every backend.
 
     Args:
-        supported_tasks (`Tuple[str]`):
+        supported_tasks (`Tuple[Union[str, Tuple[str, Tuple[str, ...]]]`):
             The names of the supported tasks.
             If some task is supported by only a subset of all the backends, it can be specified as follows:
                 ```python

@@ -187,7 +187,7 @@ def main():
         output_names=onnx_files_subpaths,
         input_shapes=input_shapes,
         device=args.device,
-        dtype=torch_dtype,
+        dtype=args.dtype,
     )
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
@@ -211,6 +211,7 @@ def main():
             onnx_files_subpaths=onnx_files_subpaths,
             input_shapes=input_shapes,
             device=args.device,
+            dtype=torch_dtype,
         )
         logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.as_posix()}")
     except ShapeError as e:
@@ -224,7 +225,7 @@ def main():
             f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.as_posix()}"
         )
     except Exception as e:
-        logger.error(
+        raise Exception(
             f"An error occured during validation with the error message: {e}.\n The exported model was saved at: {args.output.as_posix()}"
         )
 
