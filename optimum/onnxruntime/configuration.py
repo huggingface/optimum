@@ -387,13 +387,7 @@ class AutoQuantizationConfig:
             operators_to_quantize (`List[NodeName]`, defaults to `["MatMul", "Add"]`):
                 Type of nodes to perform quantization on.
         """
-        ensure_valid_mode_or_raise(is_static, mode)
-
-        if format is None:
-            format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
-
-        if mode is None:
-            mode = QuantizationMode.QLinearOps if is_static else QuantizationMode.IntegerOps
+        format, mode = default_quantization_parameters(is_static)
 
         # u8/s8 is faster (than u8/u8) on lower-end ARM64 and identical on higher-end ARM64,
         # so let's use u8/s8 by default
