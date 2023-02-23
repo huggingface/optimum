@@ -3149,7 +3149,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     def _generate_random_audio_data(self):
         np.random.seed(10)
-        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        t = np.linspace(0, 5.0, int(5.0 * 18736), endpoint=False)
         # generate pure sine wave at 220 Hz
         audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
 

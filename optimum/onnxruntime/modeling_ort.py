@@ -1710,7 +1710,7 @@ AUDIO_CLASSIFICATION_EXAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model for sequence classification head on top (a linear layer over the pooled output) for tasks like
+    Onnx Model with a sequence classification head on top (a linear layer over the pooled output) for tasks like
     SUPERB Keyword Spotting.
     """,
     ONNX_MODEL_START_DOCSTRING,
@@ -1790,7 +1790,7 @@ CTC_EXAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model for with a `language modeling` head on top for Connectionist Temporal Classification (CTC).
+    Onnx Model with a language modeling head on top for Connectionist Temporal Classification (CTC).
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
