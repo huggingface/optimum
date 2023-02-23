@@ -183,6 +183,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "gptj" and (task is None or "-with-past" in task):
             self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
 
+        # TODO: disable due to a bug in PyTorch: https://github.com/pytorch/pytorch/issues/95377
+        if model_type == "yolos":
+            self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
+
         try:
             self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
         except subprocess.CalledProcessError as e:
