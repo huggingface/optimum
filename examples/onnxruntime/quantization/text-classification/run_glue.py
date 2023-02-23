@@ -417,6 +417,10 @@ def main():
         per_channel=optim_args.per_channel,
         reduce_range=optim_args.reduce_range,
         operators_to_quantize=["MatMul", "Add"],
+        activations_symmetric=True,
+        weights_symmetric=True,
+        qdq_dedicated_pair=True,
+        qdq_add_pair_to_weight=True,
     )
 
     ranges = None
