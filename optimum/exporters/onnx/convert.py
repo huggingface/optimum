@@ -684,6 +684,8 @@ def export(
                 f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
                 f" got: {torch.__version__}"
             )
+
+        torch_dtype = None
         if dtype == "fp16":
             torch_dtype = torch.float16
         elif dtype is not None:

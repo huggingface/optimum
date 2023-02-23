@@ -30,7 +30,6 @@ from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
-    str_dtype_to_torch_dtype,
 )
 
 

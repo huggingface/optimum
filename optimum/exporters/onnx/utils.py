@@ -221,10 +221,3 @@ def recursive_to_dtype(
             value = value.to(dtype=dtype)
 
     return value
-
-
-str_dtype_to_torch_dtype = {
-    None: None,
-    "float16": torch.float16,
-    "float32": torch.float32,
-}
