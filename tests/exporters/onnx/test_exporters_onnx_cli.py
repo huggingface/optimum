@@ -101,7 +101,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
             no_post_process = " --no-post-process " if no_post_process is True else " "
-            optimization_level = f" --ort-optimize {optimization_level} " if optimization_level is not None else " "
+            optimization_level = f" --optimize {optimization_level} " if optimization_level is not None else " "
             task = f" --task {task} " if task is not None else " "
             device = " --device cuda " if device == "cuda" else " "
 

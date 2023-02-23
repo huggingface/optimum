@@ -175,12 +175,18 @@ def main():
         device=args.device,
     )
 
-    if args.ort_optimize is not None:
+    if args.optimize == "O4" and args.device != "cuda":
+        raise ValueError(
+            "Requested O4 optimization, but this optimization requires to do the export on GPU."
+            " Please pass the argument `--device cuda`."
+        )
+
+    if args.optimize is not None:
         if onnx_files_subpaths is None:
             onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
         optimizer = ORTOptimizer.from_pretrained(args.output, file_names=onnx_files_subpaths)
 
-        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.ort_optimize)
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.optimize)
 
         optimization_config.disable_shape_inference = True
         optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")

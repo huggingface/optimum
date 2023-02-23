@@ -72,7 +72,7 @@ optimum-cli export onnx --help
 
 usage: optimum-cli <command> [<args>] export onnx [-h] -m MODEL [--task TASK] [--monolith] [--device DEVICE] [--opset OPSET] [--atol ATOL]
                                                   [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--trust-remote-code]
-                                                  [--no-post-process] [--ort-optimize {O1,O2,O3,O4}] [--batch_size BATCH_SIZE]
+                                                  [--no-post-process] [--optimize {O1,O2,O3,O4}] [--batch_size BATCH_SIZE]
                                                   [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT]
                                                   [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE] [--nb_max_frames NB_MAX_FRAMES]
                                                   [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
@@ -99,12 +99,13 @@ Optional arguments:
                         Path indicating where to store cache.
   --trust-remote-code   Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
   --no-post-process     Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder and decoder-with-past models into a single ONNX model file to reduce memory usage.
-  --ort-optimize {O1,O2,O3,O4}
-                        Allows to run ONNX Runtime optimizations directly during the export. Possible options:
+  --optimize {O1,O2,O3,O4}
+                        Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT. Possible options:
                             - O1: Basic general optimizations
                             - O2: Basic and extended general optimizations, transformers-specific fusions
                             - O3: Same as O2 with GELU approximation
                             - O4: Same as O3 with mixed precision (fp16, GPU-only, requires `--device cuda`)
+
 ```
 
 Exporting a checkpoint can be done as follows:

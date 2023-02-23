@@ -101,12 +101,12 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument(
-        "--ort-optimize",
+        "--optimize",
         type=str,
         default=None,
         choices=["O1", "O2", "O3", "O4"],
         help=(
-            "Allows to run ONNX Runtime optimizations directly during the export. Possible options:\n"
+            "Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT. Possible options:\n"
             "    - O1: Basic general optimizations\n"
             "    - O2: Basic and extended general optimizations, transformers-specific fusions\n"
             "    - O3: Same as O2 with GELU approximation\n"

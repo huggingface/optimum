@@ -16,10 +16,10 @@ specific language governing permissions and limitations under the License.
 
 ## Optimizing a model during the ONNX export
 
-The ONNX model can be directly optimized during the ONNX export using Optimum CLI, by passing the argument `--ort-optimize {O1,O2,O3,O4}` in the CLI, for example:
+The ONNX model can be directly optimized during the ONNX export using Optimum CLI, by passing the argument `--optimize {O1,O2,O3,O4}` in the CLI, for example:
 
 ```
-optimum-cli export onnx --model gpt2 --ort-optimize O3 gpt2_onnx/
+optimum-cli export onnx --model gpt2 --optimize O3 gpt2_onnx/
 ```
 
 The optimization levels are:
