@@ -296,7 +296,7 @@ class ORTEncoderForSpeech(ORTEncoder):
             )
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
-                model_inputs,
+                *model_inputs,
                 ordered_input_names=self._ordered_input_names,
             )
 

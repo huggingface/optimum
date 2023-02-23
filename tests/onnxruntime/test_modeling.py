@@ -3152,6 +3152,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
         # generate pure sine wave at 220 Hz
         audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+
         return audio_data
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -3279,6 +3280,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
+
+        generation_length = self.GENERATION_LENGTH
+        self.GENERATION_LENGTH = 10
         _ = model_with_pkv.generate(**features)  # warpup
         with Timer() as with_pkv_timer:
             outputs_model_with_pkv = model_with_pkv.generate(
@@ -3297,7 +3301,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
         self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH)
         self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH)
-
+        self.GENERATION_LENGTH = generation_length
         if os.environ.get("TEST_LEVEL", 0) == "1":
             self.assertTrue(
                 without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
