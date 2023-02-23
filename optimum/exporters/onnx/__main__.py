@@ -69,7 +69,7 @@ def main():
 
     if args.dtype is not None and args.device == "cpu":
         raise ValueError(
-            "The --dtype option is supported on when exporting on GPU. Please pass the option --device cuda."
+            "The --dtype option is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
 
     # get the shapes to be used to generate dummy inputs
