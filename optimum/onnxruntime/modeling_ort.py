@@ -1784,7 +1784,7 @@ CTC_EXAMPLE = r"""
     ...     logits = model(**inputs).logits
     >>> predicted_ids = torch.argmax(logits, dim=-1)
 
-    >>> transcription = processor.batch_decode(predicted_ids)`
+    >>> transcription = processor.batch_decode(predicted_ids)
     ```
 """
 
