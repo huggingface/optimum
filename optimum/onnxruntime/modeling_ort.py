@@ -1784,7 +1784,8 @@ CTC_EXAMPLE = r"""
     ...     logits = model(**inputs).logits
     >>> predicted_ids = torch.argmax(logits, dim=-1)
 
-    >>> transcription = processor.batch_decode(predicted_ids)
+    >>> transcription = processor.batch_decode(predicted_ids)`
+    ```
 """
 
 
@@ -1871,6 +1872,7 @@ AUDIO_XVECTOR_EXAMPLE = r"""
     >>> if similarity < threshold:
     ...     print("Speakers are not the same!")
     >>> round(similarity.item(), 2)
+    ```
 """
 
 
@@ -1953,6 +1955,7 @@ AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
     >>> probabilities = torch.sigmoid(logits[0])
     >>> labels = (probabilities > 0.5).long()
     >>> labels[0].tolist()
+    ```
 """
 
 
