@@ -147,7 +147,7 @@ def merge_decoders(
 
     deduplicated_initializers = _deduplicated_cross_model_initializers([decoder, decoder_with_past], suffix=graph_name)
 
-    # keep initializers of dim 0 (or dim 1 + int32/int64) in subgraphs for readability purposes, and also because
+    # Keep initializers of dim 0 (or dim 1 + int32/int64) in subgraphs for readability purposes, and also because
     # ONNX Runtime breaks after optimization + merge if they are not
     decoder_initializers = []
     for initializer in decoder.graph.initializer:
