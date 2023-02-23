@@ -356,10 +356,10 @@ class TasksManager:
             onnx="DistilBertOnnxConfig",
             tflite="DistilBertTFLiteConfig",
         ),
-        # "donut-swin": supported_tasks_mapping(
-        #     "default",
-        #     onnx="DonutSwinOnnxConfig",
-        # ),
+        "donut-swin": supported_tasks_mapping(
+            "default",
+            onnx="DonutSwinOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "default",
             "masked-lm",
