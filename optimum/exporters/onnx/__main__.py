@@ -179,7 +179,6 @@ def main():
         if onnx_files_subpaths is None:
             onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
         optimizer = ORTOptimizer.from_pretrained(args.output, file_names=onnx_files_subpaths)
-        print("onnx_files_subpaths", onnx_files_subpaths)
 
         optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.ort_optimize)
 
