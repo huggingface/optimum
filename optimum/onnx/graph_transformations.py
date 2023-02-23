@@ -23,7 +23,7 @@ from ..utils import logging
 from .transformations_utils import (
     _create_name_sharing_dict,
     _deduplicated_cross_model_initializers,
-    _find_duplicate_weights,
+    _find_duplicate_initializers,
     _get_all_inputs,
     _get_onnx_opset,
     _remove_redundant_initializers,
@@ -53,11 +53,11 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     """
     if not inplace:
         model = copy.deepcopy(model)
-    duplicates = _find_duplicate_weights(model)
+    duplicates = _find_duplicate_initializers(models=[model])
     name_sharing_dict = _create_name_sharing_dict(duplicates)
 
-    _replace_input_names(model, name_sharing_dict)
-    _remove_redundant_initializers(model, name_sharing_dict)
+    _replace_input_names(models=[model], name_sharing_dict=name_sharing_dict)
+    _remove_redundant_initializers(models=[model], name_sharing_dict=name_sharing_dict)
 
     return model
 
@@ -137,7 +137,7 @@ def merge_decoders(
 
     # Replace the axis name `sequence_length` of the attention_mask input by `attention_mask_sequence_length`.
     # This is because the merged model `input_ids` and `attention_mask` inputs may not always have the same length on the 2nd axis.
-    # In the first pass, `input_ids` and `attention_mask` are indeed of the same length, but in later path `input_ids` is of length 1
+    # In the first pass, `input_ids` and `attention_mask` are indeed of the same length, but in later pass `input_ids` is of length 1
     # while `attention_mask` is of length `past_sequence_length + 1`
     for _, inp in enumerate(all_inputs):
         if inp.name == "attention_mask":

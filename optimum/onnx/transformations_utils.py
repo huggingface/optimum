@@ -21,71 +21,84 @@ import onnx
 from onnx import ModelProto, ValueInfoProto, numpy_helper
 
 
-def _find_duplicate_weights(model) -> DefaultDict[Tuple[int, bytes], Set[str]]:
+def _find_duplicate_initializers(
+    models: List[ModelProto],
+) -> DefaultDict[Tuple[int, bytes, Tuple], Set[Tuple[str, int]]]:
     """
-    TODO: short documentation.
-    """
-    return _find_duplicate_initializers(model.graph.initializer)
+    Creates a map (unique data) --> set of (initializer name, model id)
 
-
-def _find_duplicate_initializers(initializers) -> DefaultDict[Tuple[int, bytes], Set[str]]:
-    """
-    TODO: short documentation.
+    Initializers with a dimension 0, or dimension 1 with data type int32 or int64, are not included in the generated map.
     """
     duplicates = defaultdict(set)
-    for initializer in initializers:
-        tensor_dims = tuple(getattr(initializer, "dims"))
-        if len(tensor_dims) > 1 or (len(tensor_dims) == 1 and initializer.data_type not in [6, 7]):
-            for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
-                tensor_data = getattr(initializer, data_attr)
-                if tensor_data:
-                    tensor_data = tuple(tensor_data)
-                    break
-            duplicates[(initializer.data_type, tensor_data, tensor_dims)].add(initializer.name)
+    for i in range(len(models)):
+        for initializer in models[i].graph.initializer:
+            tensor_dims = tuple(getattr(initializer, "dims"))
+            if len(tensor_dims) > 1 or (len(tensor_dims) == 1 and initializer.data_type not in [6, 7]):
+                for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
+                    tensor_data = getattr(initializer, data_attr)
+                    if tensor_data:
+                        tensor_data = tuple(tensor_data)
+                        break
+                duplicates[(initializer.data_type, tensor_data, tensor_dims)].add((initializer.name, i))
+
     return duplicates
 
 
 def _create_name_sharing_dict(
-    duplicate_weights: DefaultDict[Tuple[int, bytes], Set[str]], suffix: str = None
-) -> Dict[str, str]:
+    duplicate_weights: DefaultDict[Tuple[int, bytes], Set[Tuple[str, int]]], suffix: str = ""
+) -> Dict[Tuple[str, int], str]:
     """
-    TODO: short documentation.
-    """
+    Creates a map mapping old initializer names to new initializer names. As different ONNX models
+    may use the same initializer name but need to be mapped to a different new name, the map is actually from
+    (old name, model id) to new name.
 
-    def _create_name_sharing_dict_for_duplicates(duplicates: Set[str]) -> Dict[str, str]:
-        common_name = duplicates.pop()
-        duplicates.add(common_name)
-        if suffix:
-            return {k: f"{common_name}_{suffix}" for k in duplicates}
-        else:
-            return {k: common_name for k in duplicates}
+    Example of initializers with the same name that will need to be mapped to a different one:
+    Model 1 with:
+    /transformer/Constant_8_output_0 of datatype 1
+
+    Model 2 with:
+    /transformer/Constant_8_output_0 of datatype 7
+
+    Args:
+        duplicate_weights (`DefaultDict[Tuple[int, bytes]`):
+
+        suffix (`str`, defaults to `""`):
+    """
 
     name_sharing_dict = {}
     for duplicates in duplicate_weights.values():
-        name_sharing_dict.update(_create_name_sharing_dict_for_duplicates(duplicates))
+        common_name, model_id = duplicates.pop()
+        duplicates.add((common_name, model_id))
+        for k in duplicates:
+            assert k not in name_sharing_dict
+            name_sharing_dict[k] = f"{common_name}_{suffix}" if suffix != "" else f"{common_name}"
+
     return name_sharing_dict
 
 
-def _replace_input_names(model: ModelProto, name_sharing_dict: Dict[str, str]):
+def _replace_input_names(models: List[ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
     """
-    TODO: short documentation.
+    Replaces the names of node inputs from the models by the names in the name_sharing_dict.
     """
-    for node in model.graph.node:
-        for i in range(len(node.input)):
-            node.input[i] = name_sharing_dict.get(node.input[i], node.input[i])
+    for i in range(len(models)):
+        for node in models[i].graph.node:
+            for j in range(len(node.input)):
+                if (node.input[j], i) in name_sharing_dict:
+                    node.input[j] = name_sharing_dict[(node.input[j], i)]
 
 
-def _remove_redundant_initializers(model: ModelProto, name_sharing_dict: Dict[str, str]):
+def _remove_redundant_initializers(models: List[ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
     """
     TODO: short documentation.
     """
     to_pop = []
-    for idx, initializer in enumerate(model.graph.initializer):
-        if initializer.name != name_sharing_dict[initializer.name]:
-            to_pop.append(idx)
+    for i in range(len(models)):
+        for idx, initializer in enumerate(models[i].graph.initializer):
+            if initializer.name != name_sharing_dict[(initializer.name, i)]:
+                to_pop.append(idx)
 
-    for idx in sorted(to_pop, reverse=True):
-        model.graph.initializer.pop(idx)
+        for idx in sorted(to_pop, reverse=True):
+            models[i].graph.initializer.pop(idx)
 
 
 def _infer_output_shape(output: ValueInfoProto):
@@ -176,24 +189,22 @@ def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str
     """
     TODO: short documentation.
     """
-    all_initializers = []
-    for model in models:
-        all_initializers += list(model.graph.initializer)
 
-    duplicates = _find_duplicate_initializers(all_initializers)
-
+    duplicates = _find_duplicate_initializers(models)
     name_sharing_dict = _create_name_sharing_dict(duplicates, suffix=suffix)
-    for model in models:
-        _replace_input_names(model, name_sharing_dict)
+
+    _replace_input_names(models, name_sharing_dict)
 
     deduplicated_initializers = []
     deduplicated_name = set()
 
-    for initializer in all_initializers:
-        if initializer.name in name_sharing_dict and name_sharing_dict[initializer.name] not in deduplicated_name:
-            deduplicated_name.add(name_sharing_dict[initializer.name])
-            initializer.name = name_sharing_dict[initializer.name]
-            deduplicated_initializers.append(initializer)
+    for i in range(len(models)):
+        for initializer in models[i].graph.initializer:
+            name_id_pair = (initializer.name, i)
+            if name_id_pair in name_sharing_dict and name_sharing_dict[name_id_pair] not in deduplicated_name:
+                deduplicated_name.add(name_sharing_dict[name_id_pair])
+                initializer.name = name_sharing_dict[name_id_pair]
+                deduplicated_initializers.append(initializer)
 
     return deduplicated_initializers
 
