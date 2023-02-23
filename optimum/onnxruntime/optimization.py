@@ -283,5 +283,5 @@ class ORTOptimizer:
             for node in model.nodes():
                 op_types.add(node.op_type)
 
-        operators_difference = dict(map(lambda op_type: (op_type, nodes_difference_given_type(op_type)), op_types))
+        operators_difference = {op_type: nodes_difference_given_type(op_type) for op_type in op_types}
         return {k: v for k, v in operators_difference.items() if v != 0}

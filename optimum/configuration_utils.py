@@ -329,7 +329,7 @@ class BaseConfig(PretrainedConfig):
         config = cls(**config_dict)
 
         if hasattr(config, "pruned_heads"):
-            config.pruned_heads = dict((int(key), value) for key, value in config.pruned_heads.items())
+            config.pruned_heads = {int(key): value for key, value in config.pruned_heads.items()}
 
         # Update config with kwargs if needed
         if "num_labels" in kwargs and "id2label" in kwargs:
