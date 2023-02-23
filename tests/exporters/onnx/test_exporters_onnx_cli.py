@@ -95,7 +95,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         task: Optional[str],
         monolith: bool = False,
         no_post_process: bool = False,
-        optimization_level: str = None,
+        optimization_level: Optional[str] = None,
         device: str = None,
     ):
         with TemporaryDirectory() as tmpdir:
