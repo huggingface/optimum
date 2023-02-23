@@ -336,7 +336,7 @@ class OnnxConfig(ExportConfig, ABC):
                 else:
                     onnx_inputs[name] = value
             for name, value in onnx_inputs.items():
-                if value.dtype == np.float32 and dtype == "float16":
+                if value.dtype == np.float32 and dtype == "fp16":
                     onnx_inputs[name] = onnx_inputs[name].astype(np.float16)
             outputs = session.run(None, onnx_inputs)
             del session

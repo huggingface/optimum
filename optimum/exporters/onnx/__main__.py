@@ -17,6 +17,7 @@
 from argparse import ArgumentParser
 
 from transformers import AutoTokenizer
+from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
@@ -29,8 +30,11 @@ from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
-    str_dtype_to_torch_dtype,
 )
+
+
+if is_torch_available():
+    import torch
 
 
 logger = logging.get_logger()
@@ -64,12 +68,12 @@ def main():
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    if args.framework == "tf" and args.dtype is not None:
-        raise ValueError("The --dtype option is supported only for PyTorch.")
+    if (args.framework == "tf" and args.fp16 is True) or not is_torch_available():
+        raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if args.dtype is not None and args.device == "cpu":
+    if args.fp16 is True and args.device == "cpu":
         raise ValueError(
-            "The --dtype option is supported on when exporting on GPU. Please pass the option --device cuda."
+            "The --fp16 option is supported on when exporting on GPU. Please pass the option --device cuda."
         )
 
     # get the shapes to be used to generate dummy inputs
@@ -77,7 +81,7 @@ def main():
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
 
-    torch_dtype = str_dtype_to_torch_dtype[args.dtype]
+    torch_dtype = None if args.fp16 is False else torch.float16
     model = TasksManager.get_model_from_task(
         task,
         args.model,
@@ -187,7 +191,7 @@ def main():
         output_names=onnx_files_subpaths,
         input_shapes=input_shapes,
         device=args.device,
-        dtype=args.dtype,
+        dtype="fp16" if args.fp16 is True else None,
     )
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any

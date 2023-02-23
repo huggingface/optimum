@@ -18,9 +18,10 @@ import unittest
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
+import pytest
 from parameterized import parameterized
 from transformers import is_torch_available
-from transformers.testing_utils import require_torch, require_torch_gpu, require_vision
+from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -91,19 +92,21 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         task: Optional[str],
         monolith: bool = False,
         no_post_process: bool = False,
+        fp16: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
             no_post_process = " --no-post-process " if no_post_process is True else " "
+            fp16 = " --fp16 --device cuda " if fp16 is True else " "
             if task is not None:
                 subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}--task {task} {tmpdir}",
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{fp16}{no_post_process}--task {task} {tmpdir}",
                     shell=True,
                     check=True,
                 )
             else:
                 subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}{tmpdir}",
+                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{fp16}{no_post_process}{tmpdir}",
                     shell=True,
                     check=True,
                 )
@@ -175,11 +178,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_vision
     @require_torch_gpu
-    def test_export_on_float16(self):
-        with TemporaryDirectory() as tmpdirname:
-            _ = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --device cuda --dtype float16 --task seq2seq-lm-with-past {tmpdirname}",
-                shell=True,
-                check=True,
-            )
+    @slow
+    @pytest.mark.run_slow
+    def test_export_on_fp16(self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool):
+        self._onnx_export(test_name, model_name, task, monolith, no_post_process, fp16=True)

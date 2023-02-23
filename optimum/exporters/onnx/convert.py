@@ -377,7 +377,7 @@ def export_pytorch(
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
         dtype (`Optional[torch.dtype]`, defaults to `None`):
-            Data type to remap the model inputs to. PyTorch-only. Only `float16` is supported.
+            Data type to remap the model inputs to. PyTorch-only. Only `torch.float16` is supported.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
 
@@ -684,10 +684,10 @@ def export(
                 f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
                 f" got: {torch.__version__}"
             )
-        if dtype == "float16":
+        if dtype == "fp16":
             torch_dtype = torch.float16
         elif dtype is not None:
-            raise ValueError("Unsupported dtype, supported dtypes are: `float16`.")
+            raise ValueError("Unsupported dtype, supported dtypes are: `torch.float16`.")
 
         export_output = export_pytorch(
             model, config, opset, output, device=device, input_shapes=input_shapes, dtype=torch_dtype
