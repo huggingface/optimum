@@ -18,14 +18,14 @@ import unittest
 from pathlib import Path
 
 import onnxruntime
+import pytest
 import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
-    TFAutoModelForSequenceClassification,
 )
-from transformers.modeling_tf_utils import TFPreTrainedModel
 from transformers.modeling_utils import PreTrainedModel
+from transformers.utils import is_tf_available
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import OnnxConfigWithLoss, export
@@ -36,7 +36,13 @@ from optimum.utils import DummyTextInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
 
 
+if is_tf_available():
+    from transformers import TFAutoModelForSequenceClassification
+    from transformers.modeling_tf_utils import TFPreTrainedModel
+
+
 class TestOnnxConfigWithLoss(unittest.TestCase):
+    @pytest.mark.tensorflow_test
     def test_onnx_config_with_loss(self):
         # Prepare model and dataset
         model_checkpoint = "hf-internal-testing/tiny-random-bert"
@@ -92,9 +98,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
                     output_names = [output.name for output in ort_sess._outputs_meta]
 
-                    input_feed = dict(
-                        map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
-                    )
+                    input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
 
                     ort_outputs = ort_sess.run(output_names, input_feed)
                     pt_outputs = model(**inputs)
@@ -155,7 +159,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
-            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
             ort_outputs = ort_sess.run(output_names, input_feed)
             pt_outputs = model(**inputs)
 
@@ -217,7 +221,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
-            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
 
             ort_sess.run(output_names, input_feed)
 

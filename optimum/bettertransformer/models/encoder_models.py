@@ -1090,6 +1090,9 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             "norm2_eps": "final_layer_norm.eps",
         }
 
+        if config.do_stable_layer_norm:
+            self.norm_first = True
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, **__):

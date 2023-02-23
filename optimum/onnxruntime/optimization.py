@@ -27,6 +27,7 @@ from onnxruntime.transformers.optimizer import optimize_model
 from ..utils import CONFIG_NAME, NormalizedConfigManager
 from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
+from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
@@ -83,6 +84,17 @@ class ORTOptimizer:
                 # Add the decoder with past key/values if present
                 if model_or_path.use_cache:
                     onnx_model_path.append(model_or_path.decoder_with_past_model_path)
+            elif isinstance(model_or_path, ORTModelForCausalLM):
+                if model_or_path.use_merged is True:
+                    raise NotImplementedError(
+                        "ORTOptimizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
+                        " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. The can be done"
+                        " by using `ORTModelForCausalLM.from_pretrained(..., from_transformers=True, use_merged=False)`, or by"
+                        " using the option `--no-post-process` in the optimum-cli ONNX export tool."
+                    )
+                onnx_model_path.append(model_or_path.decoder_model_path)
+                if model_or_path.use_cache:
+                    onnx_model_path.append(model_or_path.decoder_with_past_model_path)
             else:
                 onnx_model_path.append(model_or_path.model_path)
             config = model_or_path.config
@@ -125,7 +137,7 @@ class ORTOptimizer:
         """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
-        ORTConfigManager.check_optimization_supported_model(self.model_type)
+        ORTConfigManager.check_optimization_supported_model(self.model_type, optimization_config)
 
         self.config.save_pretrained(save_dir)
         maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
@@ -264,5 +276,5 @@ class ORTOptimizer:
             for node in model.nodes():
                 op_types.add(node.op_type)
 
-        operators_difference = dict(map(lambda op_type: (op_type, nodes_difference_given_type(op_type)), op_types))
+        operators_difference = {op_type: nodes_difference_given_type(op_type) for op_type in op_types}
         return {k: v for k, v in operators_difference.items() if v != 0}

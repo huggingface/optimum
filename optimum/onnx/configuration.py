@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from transformers.file_utils import TensorType
 from transformers.utils import logging
@@ -30,7 +30,7 @@ logger = logging.get_logger(__name__)
 
 class EncoderOnnxConfig(OnnxConfig):
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         return OrderedDict(
             [
                 ("input_ids", {0: "batch", 1: "sequence"}),
@@ -39,13 +39,13 @@ class EncoderOnnxConfig(OnnxConfig):
         )
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         return OrderedDict({"last_hidden_state": {0: "batch", 1: "sequence"}})
 
 
 class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+    def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = OrderedDict(
             [
                 ("input_ids", {0: "batch", 1: "past_decoder_sequence + sequence"}),
@@ -65,7 +65,7 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         seq_length: int = -1,
         is_pair: bool = False,
         framework: Optional[TensorType] = None,
-    ) -> Mapping[str, Any]:
+    ) -> Dict[str, Any]:
         import torch
 
         common_inputs = {}
@@ -84,12 +84,12 @@ class DecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return common_inputs
 
     @property
-    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+    def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super(OnnxConfigWithPast, self).outputs
         self.fill_with_past_key_values_(common_outputs, direction="outputs")
         return common_outputs
 
-    def fill_with_past_key_values_(self, inputs_or_outputs: Mapping[str, Mapping[int, str]], direction: str):
+    def fill_with_past_key_values_(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         num_pkv_per_layer = 4
         _, num_decoder_layers = self.num_layers
         name = "past" if direction == "inputs" else "present"
