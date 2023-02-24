@@ -197,7 +197,7 @@ def merge_decoders(
         initializer=deduplicated_initializers,
     )
 
-    # preserve imports from the decoder without/with past ONNX
+    # Preserve imports from the decoder without/with past ONNX
     opset_imports = []
     opset_domains = set()
     for opset_import in list(decoder.opset_import) + list(decoder_with_past.opset_import):
