@@ -615,8 +615,8 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "last_hidden_state": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
-            "pooler_output": {0: "batch_size", 1: "feature_dim"},
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+            "pooler_output": {0: "batch_size"},
         }
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
