@@ -73,7 +73,7 @@ def main():
 
     if args.fp16 is True and args.device == "cpu":
         raise ValueError(
-            "The --fp16 option is supported on when exporting on GPU. Please pass the option --device cuda."
+            "The --fp16 option is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
 
     # get the shapes to be used to generate dummy inputs
