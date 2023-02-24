@@ -3195,7 +3195,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             features = processor.feature_extractor(data, return_tensors=input_type)
 
             if input_type == "np":
-                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.long) * decoder_start_token_id}
+                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
 
             onnx_outputs = onnx_model(**features, **decoder_inputs)
 

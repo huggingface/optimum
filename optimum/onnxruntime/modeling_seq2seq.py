@@ -319,6 +319,8 @@ class ORTEncoderForSpeech(ORTEncoder):
                     onnx_inputs["attention_mask"] = attention_mask
 
             # TODO: Replace with a better solution
+            # attention_mask is exported with int64 datatype and tokenizer produces int32 input
+            # for speech2text model. Hence, the input is type casted for inference.
             if "attention_mask" in self.input_names:
                 if self.session.get_inputs()[1].type == "tensor(int64)":
                     onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
