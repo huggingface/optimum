@@ -142,7 +142,7 @@ class ORTModelDecoder(ORTModel):
         Args:
             decoder_session (`onnxruntime.InferenceSession`):
                 The ONNX Runtime inference session associated to the decoder.
-            config ([~`transformers.PretrainedConfig`]):
+            config ([`~transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model. Initializing with a config file does
                 not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, defaults to `None`):
