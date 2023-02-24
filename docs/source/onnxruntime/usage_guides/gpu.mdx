@@ -407,7 +407,7 @@ When it comes to quantized models, TensorRT only supports models that use [**sta
 
 Using this `qconfig`, static quantization can be performed as explained in the [static quantization guide](quantization#static-quantization-example).
 
-In the code sample below, after performing static quantization, the resulting model is loaded into the [`~onnxruntime.ORTModel`] class using TensorRT as the execution provider. ONNX Runtime graph optimization need to be disabled for the model to be consumed and optimized by TensorRT, and the fact that INT8 operations are used needs to be specified to TensorRT.
+In the code sample below, after performing static quantization, the resulting model is loaded into the [`~onnxruntime.ORTModel`] class using TensorRT as the execution provider. ONNX Runtime graph optimization needs to be disabled for the model to be consumed and optimized by TensorRT, and the fact that INT8 operations are used needs to be specified to TensorRT.
 
 ```python
 >>> import onnxruntime
