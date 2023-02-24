@@ -207,7 +207,7 @@ def merge_decoders(
 
     merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name, opset_imports=opset_imports)
 
-    # for the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
+    # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
     if merged_model.ByteSize() < ONNX_BYTE_SIZE_LIMIT:
         try:
             onnx.checker.check_model(merged_model)
