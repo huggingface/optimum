@@ -653,7 +653,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
         return {
             "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
             "timestep": {0: "steps"},
-            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
 
     @property
