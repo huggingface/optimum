@@ -29,7 +29,7 @@ __The following example applies the acceleration features powered by ONNX Runtim
 The following example trains GPT2 on wikitext-2 with mixed precision (fp16).
 
 ```bash
-python run_clm.py \
+torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_clm.py \
     --model_name_or_path gpt2 \
     --dataset_name wikitext \
     --dataset_config_name wikitext-2-raw-v1 \
