@@ -1736,6 +1736,8 @@ class ORTModelForAudioClassification(ORTModel):
         attenton_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        use_torch = isinstance(input_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_values, ordered_input_names=self._ordered_input_names
@@ -1749,14 +1751,22 @@ class ORTModelForAudioClassification(ORTModel):
             # converts output to namedtuple for pipelines post-processing
             return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "input_values": input_values.cpu().detach().numpy(),
-            }
+            if use_torch:
+                # converts pytorch inputs into numpy inputs for onnx
+                onnx_inputs = {
+                    "input_values": input_values.cpu().detach().numpy(),
+                }
+            else:
+                onnx_inputs = {
+                    "input_values": input_values,
+                }
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
+
+            logits = outputs[self.output_names["logits"]]
+            if use_torch:
+                logits = torch.from_numpy(logits).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return SequenceClassifierOutput(logits=logits)
@@ -1815,6 +1825,8 @@ class ORTModelForCTC(ORTModel):
         input_values: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        use_torch = isinstance(input_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_values, ordered_input_names=self._ordered_input_names
@@ -1828,15 +1840,22 @@ class ORTModelForCTC(ORTModel):
             # converts output to namedtuple for pipelines post-processing
             return CausalLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "input_values": input_values.cpu().detach().numpy(),
-            }
+            if use_torch:
+                # converts pytorch inputs into numpy inputs for onnx
+                onnx_inputs = {
+                    "input_values": input_values.cpu().detach().numpy(),
+                }
+            else:
+                onnx_inputs = {
+                    "input_values": input_values,
+                }
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
+            logits = outputs[self.output_names["logits"]]
+            if use_torch:
+                logits = torch.from_numpy(logits).to(self.device)
             # converts output to namedtuple for pipelines post-processing
             return CausalLMOutput(logits=logits)
 
@@ -1902,6 +1921,8 @@ class ORTModelForAudioXVector(ORTModel):
         input_values: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        use_torch = isinstance(input_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_values, ordered_input_names=self._ordered_input_names
@@ -1918,15 +1939,24 @@ class ORTModelForAudioXVector(ORTModel):
                 embeddings=output_buffers["embeddings"].view(output_shapes["embeddings"]),
             )
         else:
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "input_values": input_values.cpu().detach().numpy(),
-            }
+            if use_torch:
+                # converts pytorch inputs into numpy inputs for onnx
+                onnx_inputs = {
+                    "input_values": input_values.cpu().detach().numpy(),
+                }
+            else:
+                onnx_inputs = {
+                    "input_values": input_values,
+                }
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
-            embeddings = torch.from_numpy(outputs[self.output_names["embeddings"]]).to(self.device)
+
+            logits = outputs[self.output_names["logits"]]
+            embeddings = outputs[self.output_names["embeddings"]]
+            if use_torch:
+                logits = torch.from_numpy(logits).to(self.device)
+                embeddings = torch.from_numpy(embeddings).to(self.device)
 
             # converts output to namedtuple for pipelines post-processing
             return XVectorOutput(logits=logits, embeddings=embeddings)
@@ -1985,6 +2015,9 @@ class ORTModelForAudioFrameClassification(ORTModel):
         input_values: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        use_torch = isinstance(input_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
+
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_values, ordered_input_names=self._ordered_input_names
@@ -1998,15 +2031,22 @@ class ORTModelForAudioFrameClassification(ORTModel):
             # converts output to namedtuple for pipelines post-processing
             return TokenClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "input_values": input_values.cpu().detach().numpy(),
-            }
+            if use_torch:
+                # converts pytorch inputs into numpy inputs for onnx
+                onnx_inputs = {
+                    "input_values": input_values.cpu().detach().numpy(),
+                }
+            else:
+                onnx_inputs = {
+                    "input_values": input_values,
+                }
 
             # run inference
             outputs = self.model.run(None, onnx_inputs)
-            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
+            logits = outputs[self.output_names["logits"]]
+            if use_torch:
+                logits = torch.from_numpy(logits).to(self.device)
             # converts output to namedtuple for pipelines post-processing
             return TokenClassifierOutput(logits=logits)
 

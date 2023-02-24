@@ -2458,17 +2458,21 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForAudioClassification.from_pretrained(model_id)
         processor = AutoFeatureExtractor.from_pretrained(model_id)
-        input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
-        onnx_outputs = onnx_model(**input_values)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+        input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**input_values)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            input_values = processor(self._generate_random_audio_data(), return_tensors=input_type)
+            onnx_outputs = onnx_model(**input_values)
+
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2606,17 +2610,21 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForCTC.from_pretrained(model_id)
         processor = AutoFeatureExtractor.from_pretrained(model_id)
-        input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
-        onnx_outputs = onnx_model(**input_values)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+        input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**input_values)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        for input_type in ["pt", "np"]:
+            input_values = processor(self._generate_random_audio_data(), return_tensors=input_type)
+            onnx_outputs = onnx_model(**input_values)
+
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -2688,18 +2696,22 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         transformers_model = AutoModelForAudioXVector.from_pretrained(model_id)
         processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
-        onnx_outputs = onnx_model(**input_values)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-        self.assertIsInstance(onnx_outputs.embeddings, torch.Tensor)
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**input_values)
+        for input_type in ["pt", "np"]:
+            input_values = processor(self._generate_random_audio_data(), return_tensors=input_type)
+            onnx_outputs = onnx_model(**input_values)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
-        self.assertTrue(torch.allclose(onnx_outputs.embeddings, transformers_outputs.embeddings, atol=1e-4))
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+            self.assertIsInstance(onnx_outputs.embeddings, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            self.assertTrue(
+                torch.allclose(torch.Tensor(onnx_outputs.embeddings), transformers_outputs.embeddings, atol=1e-4)
+            )
 
         gc.collect()
 
@@ -2776,16 +2788,18 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         transformers_model = AutoModelForAudioFrameClassification.from_pretrained(model_id)
         processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
-        onnx_outputs = onnx_model(**input_values)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**input_values)
+        for input_type in ["pt", "np"]:
+            input_values = processor(self._generate_random_audio_data(), return_tensors=input_type)
+            onnx_outputs = onnx_model(**input_values)
 
-        # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -3198,19 +3212,28 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         processor = get_preprocessor(model_id)
 
         data = self._generate_random_audio_data()
+
         features = processor.feature_extractor(data, return_tensors="pt")
 
         decoder_start_token_id = transformers_model.config.decoder_start_token_id
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
-        onnx_outputs = onnx_model(**features, **decoder_inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**features, **decoder_inputs)
-        # Compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        for input_type in ["pt", "np"]:
+            features = processor.feature_extractor(data, return_tensors=input_type)
+
+            if input_type == "np":
+                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.long) * decoder_start_token_id}
+
+            onnx_outputs = onnx_model(**features, **decoder_inputs)
+
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 

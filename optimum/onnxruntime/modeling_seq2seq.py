@@ -290,6 +290,9 @@ class ORTEncoderForSpeech(ORTEncoder):
         attention_mask: torch.LongTensor,
         **kwargs,
     ) -> BaseModelOutput:
+        use_torch = isinstance(input_features, torch.Tensor)
+        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             model_inputs = (
                 [input_features, attention_mask] if "attention_mask" in self.input_names else [input_features]
@@ -306,16 +309,25 @@ class ORTEncoderForSpeech(ORTEncoder):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
-            if "attention_mask" in self.input_names:
-                onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
+            if use_torch:
+                onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
+            else:
+                onnx_inputs = {"input_features": input_features}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask
 
-                # TODO: Replace with a better solution
+            # TODO: Replace with a better solution
+            if "attention_mask" in self.input_names:
                 if self.session.get_inputs()[1].type == "tensor(int64)":
                     onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
 
             outputs = self.session.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self.device)
+
+            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+            if use_torch:
+                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -335,6 +347,9 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         pixel_values: torch.FloatTensor,
         **kwargs,
     ) -> BaseModelOutput:
+        use_torch = isinstance(pixel_values, torch.Tensor)
+        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session, pixel_values, ordered_input_names=self._ordered_input_names
@@ -346,10 +361,16 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            onnx_inputs = {"pixel_values": pixel_values.cpu().detach().numpy()}
+            if use_torch:
+                onnx_inputs = {"pixel_values": pixel_values.cpu().detach().numpy()}
+            else:
+                onnx_inputs = {"pixel_values": pixel_values}
 
             outputs = self.session.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self.device)
+
+            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+            if use_torch:
+                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
