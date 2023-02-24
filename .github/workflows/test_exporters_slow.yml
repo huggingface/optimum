@@ -30,11 +30,11 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        RUN_SLOW=1 pytest exporters -s -m "not tensorflow_test" --durations=0
+        RUN_SLOW=1 pytest exporters -s -m "not tensorflow_test and run_slow" --durations=0
     - name: Install dependencies for tensorflow export
       run: |
         pip install .[tests,exporters-tf]
     - name: Test with unittest
       working-directory: tests
       run: |
-        RUN_SLOW=1 pytest exporters -s -m "tensorflow_test" --durations=0
+        RUN_SLOW=1 pytest exporters -s -m "tensorflow_test and run_slow" --durations=0

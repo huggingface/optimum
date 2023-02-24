@@ -19,6 +19,7 @@ from argparse import ArgumentParser
 from transformers import AutoTokenizer
 
 from ...commands.export.onnx import parse_args_onnx
+from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
@@ -174,6 +175,22 @@ def main():
         device=args.device,
     )
 
+    if args.optimize == "O4" and args.device != "cuda":
+        raise ValueError(
+            "Requested O4 optimization, but this optimization requires to do the export on GPU."
+            " Please pass the argument `--device cuda`."
+        )
+
+    if args.optimize is not None:
+        if onnx_files_subpaths is None:
+            onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
+        optimizer = ORTOptimizer.from_pretrained(args.output, file_names=onnx_files_subpaths)
+
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.optimize)
+
+        optimization_config.disable_shape_inference = True
+        optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")
+
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
     if not args.no_post_process and task != "stable-diffusion":
@@ -208,8 +225,8 @@ def main():
             f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.as_posix()}"
         )
     except Exception as e:
-        logger.error(
-            f"An error occured during validation with the error message: {e}.\n The exported model was saved at: {args.output.as_posix()}"
+        raise Exception(
+            f"An error occured during validation, but the model was saved nonetheless at {args.output.as_posix()}. Detailed error: {e}."
         )
 
 

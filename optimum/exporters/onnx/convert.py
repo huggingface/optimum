@@ -204,7 +204,8 @@ def validate_model_outputs(
 
     # Create ONNX Runtime session
     session_options = SessionOptions()
-    session_options.graph_optimization_level = GraphOptimizationLevel.ORT_DISABLE_ALL  # no need to optimize here
+    # We could well set ORT_DISABLE_ALL here, but it makes CUDA export with O4 of gpt_neo fail
+    session_options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_BASIC
 
     if device.startswith("cuda"):
         provider = "CUDAExecutionProvider"
@@ -399,7 +400,7 @@ def export_pytorch(
 
         device = torch.device(device)
         if device.type == "cuda" and torch.cuda.is_available():
-            model.to(device)
+            model = model.to(device)
             dummy_inputs = tree_map(
                 lambda value: value.to(device) if isinstance(value, torch.Tensor) else value, dummy_inputs
             )
