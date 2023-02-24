@@ -45,7 +45,7 @@ from .utils import is_onnxruntime_available
 from .utils.file_utils import find_files_matching_pattern
 
 
-SUPPORTED_TASKS = {}
+SUPPORTED_TASKS = dict(TRANSFORMERS_SUPPORTED_TASKS)
 
 if is_onnxruntime_available():
     from .onnxruntime import (
@@ -157,7 +157,7 @@ for task, values in SUPPORTED_TASKS.items():
         NO_FEATURE_EXTRACTOR_TASKS.add(task)
     elif values["type"] == "image":
         NO_TOKENIZER_TASKS.add(task)
-    elif values["type"] != "multimodal":
+    elif values["type"] not in ["multimodal", "audio", "video"]:
         raise ValueError(f"SUPPORTED_TASK {task} contains invalid type {values['type']}")
 
 

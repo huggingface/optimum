@@ -14,10 +14,12 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import patch
 
 from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer
+from optimum.pipelines import pipeline
 
 
 class BetterTransformerIntegrationTests(unittest.TestCase):
@@ -28,3 +30,11 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             bt_model = BetterTransformer.transform(model)
             bt_model = BetterTransformer.transform(bt_model)
         self.assertTrue("was called on a model already using Better Transformer" in str(cm.exception))
+
+    @patch("optimum.utils.import_utils.is_onnxruntime_available")
+    def test_direct_pipleine_initialization_without_onnx_installed(self, mock_onnxruntime_availability):
+        mock_onnxruntime_availability.return_value = False
+        pipe = pipeline("question-answering", "hf-internal-testing/tiny-random-BertModel",
+                        accelerator="bettertransformer", )
+        pipe(question=["Is huggingface getting better?", "Will it ever stop getting better?"],
+             context=["Huggingface will never stop getting better."] * 2)
