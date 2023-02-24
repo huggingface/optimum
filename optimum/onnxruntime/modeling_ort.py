@@ -1897,7 +1897,7 @@ AUDIO_XVECTOR_EXAMPLE = r"""
 
 @add_start_docstrings(
     """
-    Onnx Model for with an XVector feature extraction head on top for tasks like Speaker Verification.
+    Onnx Model with an XVector feature extraction head on top for tasks like Speaker Verification.
     """,
     ONNX_MODEL_START_DOCSTRING,
 )
@@ -2019,17 +2019,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # converts output to namedtuple for pipelines post-processing
-            return TokenClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+            raise NotImplementedError()
         else:
             if use_torch:
                 # converts pytorch inputs into numpy inputs for onnx

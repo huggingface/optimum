@@ -2803,36 +2803,6 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    # @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    # @require_torch_gpu
-    # @pytest.mark.gpu_test
-    # def test_compare_to_io_binding(self, model_arch):
-    #     model_args = {"test_name": model_arch, "model_arch": model_arch}
-    #     self._setup(model_args)
-
-    #     model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
-    #     onnx_model = ORTModelForAudioFrameClassification.from_pretrained(
-    #         self.onnx_model_dirs[model_arch], use_io_binding=False
-    #     ).to("cuda")
-    #     io_model = ORTModelForAudioFrameClassification.from_pretrained(
-    #         self.onnx_model_dirs[model_arch], use_io_binding=True
-    #     ).to("cuda")
-
-    #     processor = AutoFeatureExtractor.from_pretrained(model_id)
-    #     data = self._generate_random_audio_data()
-
-    #     input_values = processor(data, return_tensors="pt")
-    #     onnx_outputs = onnx_model(**input_values)
-    #     io_outputs = io_model(**input_values)
-
-    #     self.assertTrue("logits" in io_outputs)
-    #     self.assertIsInstance(io_outputs.logits, torch.Tensor)
-
-    #     # compare tensor outputs
-    #     self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
-
-    #     gc.collect()
-
 
 class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
