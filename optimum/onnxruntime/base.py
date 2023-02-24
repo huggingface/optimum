@@ -251,7 +251,10 @@ class ORTDecoder(ORTModelPart):
         attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
+        use_cache_branch: None = None,
     ) -> CausalLMOutputWithCrossAttentions:
+        # adding use_cache_branch in the signature here is just a hack for IO Binding
+
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]

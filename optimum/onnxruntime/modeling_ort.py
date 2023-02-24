@@ -284,6 +284,9 @@ class ORTModel(OptimizedModel):
         """
         device, provider_options = parse_device(device)
 
+        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
+            return self
+
         if device.type == "cuda" and self._use_io_binding is False:
             self.use_io_binding = True
             logger.info(

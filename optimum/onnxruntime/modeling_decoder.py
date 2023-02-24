@@ -41,6 +41,7 @@ from .utils import (
     ONNX_DECODER_WITH_PAST_NAME,
     get_provider_for_device,
     parse_device,
+    validate_provider_availability,
 )
 
 
@@ -557,7 +558,11 @@ class ORTModelDecoder(ORTModel):
         """
         device, provider_options = parse_device(device)
 
+        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
+            return self
+
         provider = get_provider_for_device(device)
+        validate_provider_availability(provider)  # raise error if the provider is not available
         self.device = device
         self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
@@ -589,11 +594,8 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         attention_mask: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
-        use_cache_branch: None = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
-        # adding use_cache_branch in the signature here is just a hack for IO Binding
-
         if past_key_values is None or self.use_cache is False:
             outputs = self.decoder(
                 input_ids=input_ids,
