@@ -834,3 +834,18 @@ class WhisperOnnxConfig(TextAndAudioOnnxConfig):
         self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
     ) -> SpeechSeq2SeqDecoderOnnxConfig:
         return SpeechSeq2SeqDecoderOnnxConfig(config, task, use_past=use_past)
+    
+class ImageGPTOnnxConfig():
+    pass
+
+
+
+
+
+
+
+
+
+
+
+
