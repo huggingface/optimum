@@ -37,4 +37,4 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         pipe = pipeline("question-answering", "hf-internal-testing/tiny-random-BertModel",
                         accelerator="bettertransformer", )
         pipe(question=["Is huggingface getting better?", "Will it ever stop getting better?"],
-             context=["Huggingface will never stop getting better."] * 2)
+             context=["Huggingface will never stop getting better."] * 2, batch_size=10)
