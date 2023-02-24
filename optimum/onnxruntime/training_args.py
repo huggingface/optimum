@@ -16,7 +16,7 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Optional
 
 from transformers import TrainingArguments
 from transformers.debug_utils import DebugOption
@@ -28,13 +28,13 @@ from transformers.trainer_utils import (
     SchedulerType,
     ShardedDDPOption,
 )
-from transformers.training_args import OptimizerNames, default_logdir, logger, trainer_log_levels
+from transformers.training_args import OptimizerNames, default_logdir, logger
 from transformers.utils import (
     ExplicitEnum,
-    add_start_docstrings,
     get_full_repo_name,
     is_torch_available,
-    is_torch_bf16_available,
+    is_torch_bf16_cpu_available,
+    is_torch_bf16_gpu_available,
     is_torch_tf32_available,
     logging,
 )
@@ -138,23 +138,31 @@ class ORTTrainingArguments(TrainingArguments):
             self.greater_is_better = self.metric_for_best_model not in ["loss", "eval_loss"]
         if self.run_name is None:
             self.run_name = self.output_dir
+        if self.framework == "pt" and is_torch_available():
+            if self.fp16_backend and self.fp16_backend != "auto":
+                warnings.warn(
+                    "`fp16_backend` is deprecated and will be removed in version 5 of 🤗 Transformers. Use"
+                    " `half_precision_backend` instead",
+                    FutureWarning,
+                )
+                self.half_precision_backend = self.fp16_backend
 
-        if self.fp16_backend and self.fp16_backend != "auto":
-            warnings.warn(
-                "`fp16_backend` is deprecated and will be removed in version 5 of 🤗 Transformers. Use"
-                " `half_precision_backend` instead",
-                FutureWarning,
-            )
-            self.half_precision_backend = self.fp16_backend
-
-        if (self.bf16 or self.bf16_full_eval) and not is_torch_bf16_available() and not self.no_cuda:
-            raise ValueError(
-                "Your setup doesn't support bf16. You need torch>=1.10, using Ampere GPU with cuda>=11.0 or using CPU"
-                " (no_cuda)"
-            )
+            if self.bf16 or self.bf16_full_eval:
+                if self.no_cuda and not is_torch_bf16_cpu_available():
+                    # cpu
+                    raise ValueError("Your setup doesn't support bf16/cpu. You need torch>=1.10")
+                elif not self.no_cuda and torch.cuda.is_available() and not is_torch_bf16_gpu_available():
+                    # gpu
+                    raise ValueError(
+                        "Your setup doesn't support bf16/gpu. You need torch>=1.10, using Ampere GPU with cuda>=11.0"
+                    )
 
         if self.fp16 and self.bf16:
             raise ValueError("At most one of fp16 and bf16 can be True, but not both")
+
+        if self.fp16_full_eval and self.bf16_full_eval:
+            raise ValueError("At most one of fp16 and bf16 can be True for full eval, but not both")
+
         if self.bf16:
             if self.half_precision_backend == "apex":
                 raise ValueError(
@@ -199,6 +207,15 @@ class ORTTrainingArguments(TrainingArguments):
                 " (`--bf16_full_eval`) can only be used on CUDA or CPU devices."
             )
 
+        if self.framework == "pt" and is_torch_available() and self.torchdynamo is not None:
+            if is_torch_tf32_available():
+                if self.tf32 is None and not self.fp16 or self.bf16:
+                    logger.info("Setting TF32 in CUDA backends to speedup torchdynamo.")
+                    torch.backends.cuda.matmul.allow_tf32 = True
+            else:
+                logger.warning(
+                    "The speedups for torchdynamo mostly come wih GPU Ampere or higher and which is not detected here."
+                )
         if is_torch_available() and self.tf32 is not None:
             if self.tf32:
                 if is_torch_tf32_available():

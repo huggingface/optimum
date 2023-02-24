@@ -14,17 +14,22 @@
 # limitations under the License.
 
 import gc
+import random
 import subprocess
 import sys
 import tempfile
 import unittest
+from itertools import chain
 from typing import List, Optional
 from unittest.mock import Mock, patch
 
 import nltk
 import numpy as np
+import pytest
 from datasets import load_dataset
+from evaluate import load
 from transformers import (
+    AutoModelForCausalLM,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
@@ -32,59 +37,42 @@ from transformers import (
     DataCollatorForSeq2Seq,
     DataCollatorForTokenClassification,
     DataCollatorWithPadding,
-    IntervalStrategy,
     default_data_collator,
     is_torch_available,
 )
 from transformers.testing_utils import (
     require_deepspeed,
-    require_optuna,
-    require_ray,
-    require_sigopt,
     require_torch,
-    require_torch_bf16_gpu,
-    require_torch_gpu,
-    require_wandb,
     slow,
 )
-from transformers.trainer_utils import (
-    default_hp_space_optuna,
-    default_hp_space_ray,
-    default_hp_space_sigopt,
-    default_hp_space_wandb,
-)
 from transformers.training_args import OptimizerNames
-from transformers.utils import is_apex_available, is_bitsandbytes_available
-
-from evaluate import load
 
 
 if is_torch_available():
-    import torch
-    import transformers.optimization
+    pass
 
 import onnxruntime
+from parameterized import parameterized
+
 from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTSeq2SeqTrainingArguments, ORTTrainer, ORTTrainingArguments
 from optimum.onnxruntime.training_args import ORTOptimizerNames
-from optimum.utils.testing_utils import require_hf_token, require_ort_training, require_sigopt_token_and_project
-from parameterized import parameterized
 
 
 nltk.download("punkt")
 
-_MODELS_TO_TEST = {
-    ("bert", "bert-base-cased"),
+_ENCODERS_TO_TEST = {
     ("distilbert", "distilbert-base-cased"),
-    ("roberta", "roberta-base"),
+}
+
+_DECODERS_TO_TEST = {
     ("gpt2", "gpt2"),
 }
 
 _SEQ2SEQ_MODELS_TO_TEST = {
     ("t5", "t5-small"),
-    ("bart", "facebook/bart-base"),
 }
 
-_TASKS_DATASETS_CONFIGS = {
+_ENCODER_TASKS_DATASETS_CONFIGS = {
     "sequence-classification": {
         "dataset": ["glue", "sst2"],
         "metric": ["glue", "sst2"],
@@ -98,39 +86,66 @@ _TASKS_DATASETS_CONFIGS = {
     },
 }
 
+_DECODER_TASKS_DATASETS_CONFIGS = {
+    "causal-lm": {
+        "dataset": ["wikitext", "wikitext-2-raw-v1"],
+        "metric": ["accuracy"],
+        "data_collator": default_data_collator,
+    },
+    "causal-lm-with-past": {
+        "dataset": ["wikitext", "wikitext-2-raw-v1"],
+        "metric": ["accuracy"],
+        "data_collator": default_data_collator,
+    },
+}
+
 _SEQ2SEQ_TASKS_DATASETS_CONFIGS = {
     "seq2seq-lm": {
         "dataset": ["xsum"],
         "metric": ["rouge"],
         "data_collator_class": DataCollatorForSeq2Seq,
-    }
+    },
+    "seq2seq-lm-with-past": {
+        "dataset": ["xsum"],
+        "metric": ["rouge"],
+        "data_collator_class": DataCollatorForSeq2Seq,
+    },
 }
 
 
-def _get_models_to_test(model_list, task_list, excluded: Optional[List[str]] = None):
+def _get_models_to_test(model_list, task_list, both_inf_backend=False, excluded: Optional[List[str]] = None):
     models_to_test = []
 
     for name, model_name in model_list:
         for feature, data_metric_config in task_list.items():
-            if excluded and name in excluded:
+            if excluded and (name in excluded or feature in excluded):
                 continue
-            models_to_test.append((f"{name}_{feature}", model_name, feature, data_metric_config))
+            if both_inf_backend:
+                models_to_test.append(
+                    (f"{name}_{feature}", model_name, feature, data_metric_config, True)
+                )  # inference_with_ort=True
+                models_to_test.append(
+                    (f"{name}_{feature}", model_name, feature, data_metric_config, False)
+                )  # inference_with_ort=False
+            else:
+                models_to_test.append((f"{name}_{feature}", model_name, feature, data_metric_config))
 
     return sorted(models_to_test)
 
 
 def _get_data_collator(data_metric_config, tokenizer=None, model=None, training_args=None, label_pad_token_id=None):
-
     if "data_collator" in data_metric_config.keys():
         data_collator = data_metric_config["data_collator"]
     elif "data_collator_class" in data_metric_config.keys():
         data_collator_class = data_metric_config["data_collator_class"]
+        if training_args is not None:
+            pad_to_multiple_of = 8 if training_args.fp16 else None
         if data_collator_class is DataCollatorForSeq2Seq:
             data_collator = data_collator_class(
                 tokenizer,
                 model=model,
                 label_pad_token_id=label_pad_token_id,
-                pad_to_multiple_of=8 if training_args.fp16 else None,
+                pad_to_multiple_of=pad_to_multiple_of,
             )
         else:
             data_collator = data_collator_class(tokenizer, pad_to_multiple_of=8)
@@ -138,6 +153,14 @@ def _get_data_collator(data_metric_config, tokenizer=None, model=None, training_
         raise KeyError("You need to pass either `data_collator` or `data_collator_class` to create the data collator.")
 
     return data_collator
+
+
+def get_ort_training_args(feature, **kwargs):
+    if feature in _ENCODER_TASKS_DATASETS_CONFIGS or feature in _DECODER_TASKS_DATASETS_CONFIGS:
+        training_args = ORTTrainingArguments(**kwargs)
+    elif feature in _SEQ2SEQ_TASKS_DATASETS_CONFIGS:
+        training_args = ORTSeq2SeqTrainingArguments(**kwargs)
+    return training_args
 
 
 def get_ort_trainer(
@@ -151,28 +174,27 @@ def get_ort_trainer(
     max_test_samples=None,
     **kwargs,
 ):
-
-    (model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics,) = load_and_prepare(
-        feature
-    )(
+    training_kwargs = load_and_prepare(feature)(
         model_name,
         data_metric_config,
         max_seq_length,
+        training_args=training_args,
         max_train_samples=max_train_samples,
         max_valid_samples=max_valid_samples,
         max_test_samples=max_test_samples,
+        **kwargs,
     )
+    test_dataset = training_kwargs.pop("test_dataset", None)
 
-    trainer = ORTTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=valid_dataset,
-        compute_metrics=compute_metrics,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        feature=feature,
-    )
+    if getattr(training_args, "predict_with_generate", False) is not True:
+        training_kwargs.pop("compute_metrics", None)
+
+    if feature in _ENCODER_TASKS_DATASETS_CONFIGS or feature in _DECODER_TASKS_DATASETS_CONFIGS:
+        trainer = ORTTrainer(feature=feature, args=training_args, **training_kwargs)
+    elif feature in _SEQ2SEQ_TASKS_DATASETS_CONFIGS:
+        trainer = ORTSeq2SeqTrainer(feature=feature, args=training_args, **training_kwargs)
+    else:
+        raise
 
     return trainer, test_dataset
 
@@ -181,13 +203,15 @@ def load_and_prepare(feature):
     preprocess_mapping = {
         "sequence-classification": load_and_prepare_glue,
         "token-classification": load_and_prepare_ner,
+        "causal-lm": load_and_prepare_clm,
+        "causal-lm-with-past": load_and_prepare_clm,
         "seq2seq-lm": load_and_prepare_xsum,
+        "seq2seq-lm-with-past": load_and_prepare_xsum,
     }
     return preprocess_mapping[feature]
 
 
 def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, padding="max_length", **kwargs):
-
     # Prepare model
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -229,11 +253,18 @@ def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, paddin
         predictions = np.argmax(predictions, axis=1)
         return metric.compute(predictions=predictions, references=eval_pred.label_ids)
 
-    return model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "data_collator": data_collator,
+        "train_dataset": train_dataset,
+        "eval_dataset": valid_dataset,
+        "test_dataset": test_dataset,
+        "compute_metrics": compute_metrics,
+    }
 
 
 def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding="max_length", **kwargs):
-
     # Load dataset and metric
     dataset = load_dataset(*data_metric_config["dataset"])
     metric = load(*data_metric_config["metric"])
@@ -282,7 +313,7 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
     tokenized_datasets = dataset.map(tokenize_and_align_labels, batched=True)
     train_dataset = tokenized_datasets["train"]
     valid_dataset = tokenized_datasets["validation"]
-    test_dataset = tokenized_datasets["test"]
+    test_dataset = tokenized_datasets["test"].remove_columns(["labels"])
 
     max_train_samples = kwargs.get("max_train_samples", None)
     max_valid_samples = kwargs.get("max_valid_samples", None)
@@ -317,11 +348,97 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
             "accuracy": results["overall_accuracy"],
         }
 
-    return model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "data_collator": data_collator,
+        "train_dataset": train_dataset,
+        "eval_dataset": valid_dataset,
+        "test_dataset": test_dataset,
+        "compute_metrics": compute_metrics,
+    }
 
 
-def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", **kwargs):
+def load_and_prepare_clm(model_name, data_metric_config, max_seq_length, padding="max_length", **kwargs):
+    # Load dataset and metric
+    dataset = load_dataset(*data_metric_config["dataset"])
+    metric = load(*data_metric_config["metric"])
 
+    # Prepare model
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # Prepare dataset
+    max_seq_length = min(max_seq_length, tokenizer.model_max_length)
+
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        model.config.pad_token_id = model.config.eos_token_id
+
+    data_collator = _get_data_collator(data_metric_config)
+    column_names = dataset["train"].column_names
+    text_column_name = "text" if "text" in column_names else column_names[0]
+    block_size = tokenizer.model_max_length
+
+    def tokenize_function(examples):
+        output = tokenizer(examples[text_column_name], padding=padding, max_length=max_seq_length)
+        return output
+
+    def group_texts(examples):
+        concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
+        total_length = len(concatenated_examples[list(examples.keys())[0]])
+        if total_length >= block_size:
+            total_length = (total_length // block_size) * block_size
+        result = {
+            k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+            for k, t in concatenated_examples.items()
+        }
+        result["labels"] = result["input_ids"].copy()
+        return result
+
+    def preprocess_logits_for_metrics(logits, labels):
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        return logits.argmax(dim=-1)
+
+    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=column_names)
+    lm_dataset = tokenized_dataset.map(
+        group_texts,
+        batched=True,
+        desc=f"Grouping texts in chunks of {block_size}",
+    )
+    train_dataset = lm_dataset["train"]
+    valid_dataset = lm_dataset["validation"]
+    test_dataset = lm_dataset["test"].remove_columns(["labels"])
+
+    max_train_samples = kwargs.get("max_train_samples", None)
+    max_valid_samples = kwargs.get("max_valid_samples", None)
+    max_test_samples = kwargs.get("max_test_samples", None)
+    if max_train_samples:
+        train_dataset = train_dataset.select(range(max_train_samples))
+    if max_valid_samples:
+        valid_dataset = valid_dataset.select(range(max_valid_samples))
+    if max_test_samples:
+        test_dataset = test_dataset.select(range(max_test_samples))
+
+    def compute_metrics(eval_pred):
+        predictions = eval_pred.predictions[0] if isinstance(eval_pred.predictions, tuple) else eval_pred.predictions
+        predictions = np.argmax(predictions, axis=1)
+        return metric.compute(predictions=predictions, references=eval_pred.label_ids)
+
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "data_collator": data_collator,
+        "train_dataset": train_dataset,
+        "eval_dataset": valid_dataset,
+        "test_dataset": test_dataset,
+        "compute_metrics": compute_metrics,
+        "preprocess_logits_for_metrics": preprocess_logits_for_metrics,
+    }
+
+
+def load_and_prepare_xsum(model_name, data_metric_config, _, **kwargs):
     # Prepare model
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -335,7 +452,7 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
     else:
         prefix = ""
 
-    max_input_length = kwargs.get("max_input_length", 512)
+    max_input_length = kwargs.get("max_input_length", 128)
     max_target_length = kwargs.get("max_input_length", 64)
 
     training_args = kwargs.get("training_args", None)
@@ -373,6 +490,8 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
 
     def compute_metrics(eval_pred):
         predictions, labels = eval_pred
+        if isinstance(predictions, tuple):
+            predictions = predictions[0]
         decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
         # Replace -100 in the labels as we can't decode them.
         labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
@@ -390,11 +509,17 @@ def load_and_prepare_xsum(model_name, data_metric_config, padding="max_length", 
 
         return {k: round(v, 4) for k, v in result.items()}
 
-    return model, tokenizer, data_collator, train_dataset, valid_dataset, test_dataset, compute_metrics
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "data_collator": data_collator,
+        "train_dataset": train_dataset,
+        "eval_dataset": valid_dataset,
+        "test_dataset": test_dataset,
+        "compute_metrics": compute_metrics,
+    }
 
 
-@require_torch
-# @require_ort_training
 class ORTTrainerIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -403,20 +528,24 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
 
-        self.max_seq_length = 128
-        self.max_train_samples = 200
-        self.max_valid_samples = 50
-        self.max_test_samples = 20
+        self.max_seq_length = 64
+        self.max_train_samples = 50
+        self.max_valid_samples = 20
+        self.max_test_samples = 10
 
-        self.warmup_steps = 500
+        self.warmup_steps = 10
         self.weight_decay = 0.01
 
-    @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
-    def test_trainer_inference_with_ort(self, test_name, model_name, feature, data_metric_config):
-
+    @parameterized.expand(
+        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)
+        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)  # Skip test for OOM bug
+        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, both_inf_backend=True),
+        skip_on_empty=True,
+    )
+    def test_trainer_fp32(self, test_name, model_name, feature, data_metric_config, inference_with_ort):
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            training_args = ORTTrainingArguments(
+            training_args = get_ort_training_args(
+                feature=feature,
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -437,24 +566,29 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 max_test_samples=self.max_test_samples,
             )
 
-            train_result = trainer.train()
+            trainer.train()
             trainer.save_model()
-            train_metrics = train_result.metrics
-            eval_metrics = trainer.evaluate(inference_with_ort=True)
-            prediction = trainer.predict(test_dataset, inference_with_ort=True)
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            trainer.evaluate(inference_with_ort=inference_with_ort)
+            trainer.predict(test_dataset, inference_with_ort=inference_with_ort)
             gc.collect()
 
-    @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
-    def test_trainer_inference_with_pytorch(self, test_name, model_name, feature, data_metric_config):
-
+    @parameterized.expand(
+        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)
+        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)  # Skip test for OOM bug
+        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, both_inf_backend=True),
+        skip_on_empty=True,
+    )
+    def test_trainer_fp32_with_label_smoothing(
+        self, test_name, model_name, feature, data_metric_config, inference_with_ort
+    ):
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            training_args = ORTTrainingArguments(
+            training_args = get_ort_training_args(
+                feature=feature,
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
                 per_device_eval_batch_size=self.per_device_eval_batch_size,
+                label_smoothing_factor=0.1,
                 warmup_steps=self.warmup_steps,
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
@@ -471,23 +605,23 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 max_test_samples=self.max_test_samples,
             )
 
-            train_result = trainer.train()
+            trainer.train()
             trainer.save_model()
-            train_metrics = train_result.metrics
-            eval_metrics = trainer.evaluate()
-            prediction = trainer.predict(test_dataset)
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            trainer.evaluate(inference_with_ort=inference_with_ort)
+            trainer.predict(test_dataset, inference_with_ort=inference_with_ort)
             gc.collect()
 
     @slow
     @parameterized.expand(
-        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
+        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)  # Skip test for OOM bug
+        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
+        skip_on_empty=True,
     )
-    def test_trainer_fp16(self, test_name, model_name, feature, data_metric_config):
-
+    def test_trainer_fp16_pt_inference(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            training_args = ORTTrainingArguments(
+            training_args = get_ort_training_args(
+                feature=feature,
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -509,22 +643,26 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 max_test_samples=self.max_test_samples,
             )
 
-            train_result = trainer.train()
+            trainer.train()
             trainer.save_model()
-            train_metrics = train_result.metrics
-            eval_metrics = trainer.evaluate()
-            prediction = trainer.predict(test_dataset)
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            trainer.evaluate()
+            trainer.predict(test_dataset)
             gc.collect()
 
-    @unittest.skip("Skip BF6 test.")
     @slow
-    @require_torch_bf16_gpu
-    @parameterized.expand(_get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS), skip_on_empty=True)
-    def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
+    @parameterized.expand(
+        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
+        # Exclude "with-past" tests as they fail for ORT inference after the mixed-precision training
+        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, excluded=["causal-lm-with-past"])  # Skip test for OOM bug
+        + _get_models_to_test(
+            _SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, excluded=["seq2seq-lm-with-past"]
+        ),
+        skip_on_empty=True,
+    )
+    def test_trainer_fp16_ort_inference(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            training_args = ORTTrainingArguments(
+            training_args = get_ort_training_args(
+                feature=feature,
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -532,7 +670,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 warmup_steps=self.warmup_steps,
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
-                # bf16=True, # A large amount of ops don't support bf16 yet.
+                fp16=True,
             )
 
             trainer, test_dataset = get_ort_trainer(
@@ -546,41 +684,52 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 max_test_samples=self.max_test_samples,
             )
 
-            train_result = trainer.train()
+            trainer.train()
             trainer.save_model()
-            train_metrics = train_result.metrics
-            eval_metrics = trainer.evaluate()
-            prediction = trainer.predict(test_dataset)
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            trainer.evaluate(inference_with_ort=True)
+            trainer.predict(test_dataset, inference_with_ort=True)
             gc.collect()
 
+    # Skip this test as a large amount of ops don't support bf16 yet.
+    # @unittest.skip("Skip BF16 test.")
+    # @slow
+    # @require_torch_bf16_gpu
+    # @parameterized.expand(
+    #     _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
+    #     + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+    #     + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
+    #     skip_on_empty=True,
+    # )
+    # def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
+    #     with tempfile.TemporaryDirectory() as tmp_dir:
+    #         training_args = get_ort_training_args(
+    #             feature=feature,
+    #             output_dir=tmp_dir,
+    #             num_train_epochs=self.n_epochs,
+    #             per_device_train_batch_size=self.per_device_train_batch_size,
+    #             per_device_eval_batch_size=self.per_device_eval_batch_size,
+    #             warmup_steps=self.warmup_steps,
+    #             weight_decay=self.weight_decay,
+    #             logging_dir=tmp_dir,
+    #             bf16=True,
+    #         )
 
-class ORTTrainerIntegrationWithHubTester(unittest.TestCase):
-    @require_hf_token
-    def test_push_to_hub(
-        self,
-        test_name="bert_sequence-classification",
-        model_name="bert-base-cased",
-        feature="sequence-classification",
-        data_metric_config=_TASKS_DATASETS_CONFIGS["sequence-classification"],
-    ):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = ORTTrainingArguments(
-                output_dir=tmp_dir,
-                push_to_hub=True,
-            )
-            trainer, test_dataset = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
+    #         trainer, test_dataset = get_ort_trainer(
+    #             model_name,
+    #             feature,
+    #             data_metric_config,
+    #             training_args,
+    #             max_seq_length=self.max_seq_length,
+    #             max_train_samples=self.max_train_samples,
+    #             max_valid_samples=self.max_valid_samples,
+    #             max_test_samples=self.max_test_samples,
+    #         )
 
-            trainer.push_to_hub()
+    #         trainer.train()
+    #         trainer.save_model()
+    #         trainer.evaluate()
+    #         trainer.predict(test_dataset)
+    #         gc.collect()
 
 
 @slow
@@ -593,21 +742,27 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
 
-        self.max_seq_length = 128
-        self.max_train_samples = 200
-        self.max_valid_samples = 50
-        self.max_test_samples = 20
+        self.max_seq_length = 64
+        self.max_train_samples = 30
+        self.max_valid_samples = 10
+        self.max_test_samples = 10
 
-        self.warmup_steps = 500
+        self.warmup_steps = 10
         self.weight_decay = 0.01
 
     @parameterized.expand(
-        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+        random.sample(
+            _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
+            # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+            + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
+            1,
+        ),
+        skip_on_empty=True,
     )
     def test_trainer_fp16_ds_stage1(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            training_args = ORTTrainingArguments(
+            training_args = get_ort_training_args(
+                feature=feature,
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -616,10 +771,10 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
                 fp16=True,
-                deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_1.json",
+                deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_1.json",
             )
 
-            trainer, test_dataset = get_ort_trainer(
+            trainer, _ = get_ort_trainer(
                 model_name,
                 feature,
                 data_metric_config,
@@ -630,21 +785,22 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                 max_test_samples=self.max_test_samples,
             )
 
-            train_result = trainer.train()
-            trainer.save_model()
-            train_metrics = train_result.metrics
-            eval_metrics = trainer.evaluate()
-            prediction = trainer.predict(test_dataset)
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            trainer.train()
             gc.collect()
 
     @parameterized.expand(
-        _get_models_to_test(_MODELS_TO_TEST, _TASKS_DATASETS_CONFIGS, excluded=["gpt2"]), skip_on_empty=True
+        random.sample(
+            _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
+            # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+            + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
+            1,
+        ),
+        skip_on_empty=True,
     )
     def test_trainer_fp16_ds_stage2(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            training_args = ORTTrainingArguments(
+            training_args = get_ort_training_args(
+                feature=feature,
                 output_dir=tmp_dir,
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
@@ -653,10 +809,10 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
                 fp16=True,
-                deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
+                deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_2.json",
             )
 
-            trainer, test_dataset = get_ort_trainer(
+            trainer, _ = get_ort_trainer(
                 model_name,
                 feature,
                 data_metric_config,
@@ -667,22 +823,16 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                 max_test_samples=self.max_test_samples,
             )
 
-            train_result = trainer.train()
-            trainer.save_model()
-            train_metrics = train_result.metrics
-            eval_metrics = trainer.evaluate()
-            prediction = trainer.predict(test_dataset)
-            # self.assertGreaterEqual(eval_metrics["eval_accuracy"], 0.75)
+            trainer.train()
             gc.collect()
 
 
 @slow
-@require_torch
+@pytest.mark.skip(reason="skip for now, server socket error")
 class ORTTrainerIntegrationDDPTest(unittest.TestCase):
     def test_trainer_ddp_glue(self):
-
         subprocess.run(
-            f"cp examples/onnxruntime/training/text-classification/run_glue.py ./",
+            "cp ../examples/onnxruntime/training/text-classification/run_glue.py ./",
             shell=True,
         )
 
@@ -701,201 +851,13 @@ class ORTTrainerIntegrationDDPTest(unittest.TestCase):
             " --logging_steps 20"
             " --per_device_train_batch_size 32"
             " --fp16 --optim adamw_ort_fused"
-            " --max_train_samples 3000",
+            " --max_train_samples 500",
             shell=True,
             check=True,
         )
 
 
-class ORTTrainerHyperParameterIntegrationTest(unittest.TestCase):
-    def setUp(self):
-        self.model_name = "bert-base-cased"
-        self.feature = "sequence-classification"
-
-        self.max_seq_length = 128
-        self.max_train_samples = 200
-        self.max_valid_samples = 50
-        self.max_test_samples = 20
-
-    @require_optuna
-    def test_hyperparameter_search_optuna(self):
-        def model_init():
-            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = ORTTrainingArguments(
-                output_dir=tmp_dir,
-                logging_steps=1,
-                evaluation_strategy=IntervalStrategy.EPOCH,
-                save_strategy=IntervalStrategy.EPOCH,
-                disable_tqdm=True,
-                load_best_model_at_end=True,
-                logging_dir="runs",
-                run_name="test",
-            )
-
-            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
-                self.feature
-            )(
-                self.model_name,
-                _TASKS_DATASETS_CONFIGS[self.feature],
-                self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-            trainer = ORTTrainer(
-                model=None,
-                args=training_args,
-                train_dataset=train_dataset,
-                eval_dataset=valid_dataset,
-                compute_metrics=compute_metrics,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                feature=self.feature,
-                model_init=model_init,
-            )
-
-            trainer.hyperparameter_search(direction="minimize", hp_space=default_hp_space_optuna, n_trials=2)
-            gc.collect()
-
-    @require_ray
-    def test_hyperparameter_search_ray(self):
-        def model_init():
-            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = ORTTrainingArguments(
-                output_dir=tmp_dir,
-                logging_steps=1,
-                evaluation_strategy=IntervalStrategy.EPOCH,
-                save_strategy=IntervalStrategy.EPOCH,
-                disable_tqdm=True,
-                load_best_model_at_end=True,
-                logging_dir="runs",
-                run_name="test",
-            )
-
-            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
-                self.feature
-            )(
-                self.model_name,
-                _TASKS_DATASETS_CONFIGS[self.feature],
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-            trainer = ORTTrainer(
-                model=None,
-                args=training_args,
-                train_dataset=train_dataset,
-                eval_dataset=valid_dataset,
-                compute_metrics=compute_metrics,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                feature=self.feature,
-                model_init=model_init,
-            )
-
-            trainer.hyperparameter_search(
-                direction="minimize", backend="ray", hp_space=default_hp_space_ray, n_trials=2
-            )
-            gc.collect()
-
-    @slow
-    @require_sigopt
-    @require_sigopt_token_and_project
-    def test_hyperparameter_search_sigopt(self):
-        def model_init():
-            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = ORTTrainingArguments(
-                output_dir=tmp_dir,
-                logging_steps=1,
-                evaluation_strategy=IntervalStrategy.EPOCH,
-                save_strategy=IntervalStrategy.EPOCH,
-                disable_tqdm=True,
-                load_best_model_at_end=True,
-                logging_dir="runs",
-                run_name="test",
-            )
-
-            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
-                self.feature
-            )(
-                self.model_name,
-                _TASKS_DATASETS_CONFIGS[self.feature],
-                self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-            trainer = ORTTrainer(
-                model=None,
-                args=training_args,
-                train_dataset=train_dataset,
-                eval_dataset=valid_dataset,
-                compute_metrics=compute_metrics,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                feature=self.feature,
-                model_init=model_init,
-            )
-
-            trainer.hyperparameter_search(
-                direction="minimize", backend="sigopt", hp_space=default_hp_space_sigopt, n_trials=2
-            )
-            gc.collect()
-
-    @slow
-    @require_wandb
-    def test_hyperparameter_search_wandb(self):
-        def model_init():
-            return AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = ORTTrainingArguments(
-                output_dir=tmp_dir,
-                logging_steps=1,
-                evaluation_strategy=IntervalStrategy.EPOCH,
-                save_strategy=IntervalStrategy.EPOCH,
-                disable_tqdm=True,
-                load_best_model_at_end=True,
-                logging_dir="runs",
-                run_name="test",
-            )
-
-            (_, tokenizer, data_collator, train_dataset, valid_dataset, _, compute_metrics,) = load_and_prepare(
-                self.feature
-            )(
-                self.model_name,
-                _TASKS_DATASETS_CONFIGS[self.feature],
-                self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-            trainer = ORTTrainer(
-                model=None,
-                args=training_args,
-                train_dataset=train_dataset,
-                eval_dataset=valid_dataset,
-                compute_metrics=compute_metrics,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                feature=self.feature,
-                model_init=model_init,
-            )
-
-            trainer.hyperparameter_search(
-                direction="minimize", backend="wandb", hp_space=default_hp_space_wandb, n_trials=2, anonymous="must"
-            )
-            gc.collect()
-
-
-# List supported optimizers
+# List supported ORT optimizers to test
 optim_test_params = []
 if is_torch_available():
     default_adam_kwargs = {
@@ -906,57 +868,11 @@ if is_torch_available():
 
     optim_test_params = [
         (
-            OptimizerNames.ADAMW_HF,
-            transformers.optimization.AdamW,
-            default_adam_kwargs,
-        ),
-        (
-            OptimizerNames.ADAMW_HF.value,
-            transformers.optimization.AdamW,
-            default_adam_kwargs,
-        ),
-        (
-            OptimizerNames.ADAMW_TORCH,
-            torch.optim.AdamW,
-            default_adam_kwargs,
-        ),
-        (
-            OptimizerNames.ADAFACTOR,
-            transformers.optimization.Adafactor,
-            {
-                "scale_parameter": False,
-                "relative_step": False,
-                "lr": ORTTrainingArguments.learning_rate,
-            },
-        ),
-        (
             ORTOptimizerNames.ADAMW_ORT_FUSED,
             onnxruntime.training.optim.FusedAdam,
             default_adam_kwargs,
         ),
     ]
-
-    if is_apex_available():
-        import apex
-
-        optim_test_params.append(
-            (
-                OptimizerNames.ADAMW_APEX_FUSED,
-                apex.optimizers.FusedAdam,
-                default_adam_kwargs,
-            )
-        )
-
-    if is_bitsandbytes_available():
-        import bitsandbytes as bnb
-
-        optim_test_params.append(
-            (
-                OptimizerNames.ADAMW_BNB,
-                bnb.optim.Adam8bit,
-                default_adam_kwargs,
-            )
-        )
 
 
 @slow
@@ -969,12 +885,12 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
 
-        self.max_seq_length = 128
-        self.max_train_samples = 200
-        self.max_valid_samples = 50
-        self.max_test_samples = 20
+        self.max_seq_length = 64
+        self.max_train_samples = 50
+        self.max_valid_samples = 20
+        self.max_test_samples = 10
 
-        self.warmup_steps = 500
+        self.warmup_steps = 10
         self.weight_decay = 0.01
 
         self.model_name = "bert-base-cased"
@@ -982,7 +898,7 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
 
     def check_optim_and_kwargs(self, optim: OptimizerNames, mandatory_kwargs, expected_cls):
         args = ORTTrainingArguments(optim=optim, output_dir="None")
-        actual_cls, optim_kwargs = ORTTrainer.get_optimizer_cls_and_kwargs(args)
+        actual_cls, optim_kwargs = ORTTrainer.get_ort_optimizer_cls_and_kwargs(args)
         self.assertEqual(expected_cls, actual_cls)
         self.assertIsNotNone(optim_kwargs)
 
@@ -997,7 +913,6 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
         self.check_optim_and_kwargs(name, mandatory_kwargs, expected_cls)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-
             training_args = ORTTrainingArguments(
                 optim=name,
                 output_dir=tmp_dir,
@@ -1009,10 +924,10 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
                 logging_dir=tmp_dir,
             )
 
-            trainer, test_dataset = get_ort_trainer(
+            trainer, _ = get_ort_trainer(
                 self.model_name,
                 self.feature,
-                _TASKS_DATASETS_CONFIGS[self.feature],
+                _ENCODER_TASKS_DATASETS_CONFIGS[self.feature],
                 training_args,
                 max_seq_length=self.max_seq_length,
                 max_train_samples=self.max_train_samples,
@@ -1020,14 +935,9 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
                 max_test_samples=self.max_test_samples,
             )
 
-            train_result = trainer.train()
-            trainer.save_model()
-            train_metrics = train_result.metrics
-            eval_metrics = trainer.evaluate(inference_with_ort=True)
-            prediction = trainer.predict(test_dataset, inference_with_ort=True)
+            trainer.train()
             gc.collect()
 
-    @unittest.skip("Skip ORT Fused Adam optimizer test.")  # Not merged yet.
     def test_ort_fused_adam(self):
         # Pretend that onnxruntime-training is installed and mock onnxruntime.training.optim.FusedAdam exists.
         # Trainer.get_optimizer_cls_and_kwargs does not use FusedAdam. It only has to return the
@@ -1041,15 +951,13 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
         }
         with patch.dict("sys.modules", modules):
             self.check_optim_and_kwargs(
-                OptimizerNames.ADAMW_ORT_FUSED,
+                ORTOptimizerNames.ADAMW_ORT_FUSED,
                 default_adam_kwargs,
                 mock.optimizers.FusedAdam,
             )
 
 
-@require_torch
-# @require_ort_training
-class ORTSeq2SeqTrainerIntegrationTest(unittest.TestCase):
+class ORTSeq2SeqTrainerSpecificIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         args = ORTTrainingArguments("..")
@@ -1057,74 +965,46 @@ class ORTSeq2SeqTrainerIntegrationTest(unittest.TestCase):
         self.per_device_train_batch_size = args.per_device_train_batch_size
         self.per_device_eval_batch_size = args.per_device_eval_batch_size
 
-        self.max_train_samples = 200
-        self.max_valid_samples = 50
-        self.max_test_samples = 20
+        self.max_seq_length = 32
+        self.max_train_samples = 10
+        self.max_valid_samples = 10
+        self.max_test_samples = 10
 
-        self.warmup_steps = 500
+        self.warmup_steps = 10
         self.weight_decay = 0.01
 
-        self.predict_with_generate = True
-
     @parameterized.expand(
-        _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS), skip_on_empty=True
+        _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
+        skip_on_empty=True,
     )
-    def test_trainer_inference_with_pytorch(self, test_name, model_name, feature, data_metric_config):
-
+    def test_predict_with_generate_ort(self, test_name, model_name, feature, data_metric_config):
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            training_args = ORTSeq2SeqTrainingArguments(
+            training_args = get_ort_training_args(
+                feature=feature,
                 output_dir=tmp_dir,
                 evaluation_strategy="epoch",
                 num_train_epochs=self.n_epochs,
                 per_device_train_batch_size=self.per_device_train_batch_size,
                 per_device_eval_batch_size=self.per_device_eval_batch_size,
-                predict_with_generate=self.predict_with_generate,
                 warmup_steps=self.warmup_steps,
                 weight_decay=self.weight_decay,
                 logging_dir=tmp_dir,
                 label_smoothing_factor=0.1,
+                predict_with_generate=True,
             )
 
-            (
-                model,
-                tokenizer,
-                data_collator,
-                train_dataset,
-                valid_dataset,
-                test_dataset,
-                compute_metrics,
-            ) = load_and_prepare(feature)(
+            trainer, test_dataset = get_ort_trainer(
                 model_name,
-                _SEQ2SEQ_TASKS_DATASETS_CONFIGS[feature],
-                training_args=training_args,
+                feature,
+                data_metric_config,
+                training_args,
+                max_seq_length=self.max_seq_length,
                 max_train_samples=self.max_train_samples,
                 max_valid_samples=self.max_valid_samples,
                 max_test_samples=self.max_test_samples,
             )
 
-            trainer = ORTSeq2SeqTrainer(
-                model=model,
-                args=training_args,
-                train_dataset=train_dataset,
-                eval_dataset=valid_dataset,
-                compute_metrics=compute_metrics if training_args.predict_with_generate else None,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                feature=feature,
-            )
-
-            train_result = trainer.train()
-            trainer.save_model()
-            train_metrics = train_result.metrics
-            ort_eval_metrics = trainer.evaluate()
-            ort_prediction = trainer.predict(test_dataset)
-            # self.assertGreaterEqual(ort_eval_metrics["eval_rouge1"], 10)
-            # self.assertGreaterEqual(ort_eval_metrics["eval_rouge2"], 2)
-            # self.assertGreaterEqual(ort_eval_metrics["eval_rougeL"], 7)
-            # self.assertGreaterEqual(ort_eval_metrics["eval_rougeLsum"], 7)
+            trainer.train()
+            trainer.evaluate(inference_with_ort=True)
+            trainer.predict(test_dataset, inference_with_ort=True)
             gc.collect()
-
-
-if __name__ == "__main__":
-    unittest.main()

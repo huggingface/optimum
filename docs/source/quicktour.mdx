@@ -14,11 +14,125 @@ specific language governing permissions and limitations under the License.
 
 This quick tour is intended for developers who are ready to dive into the code and see examples of how to integrate 🤗 Optimum into their model training and inference workflows.
 
+## Accelerated inference
+
+#### ONNX Runtime
+
+To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for graph optimization and quantization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
+
+Before applying quantization or optimization, first we need to load our model. To load a model and run inference with ONNX Runtime, you can just replace the canonical Transformers [`AutoModelForXxx`](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModel) class with the corresponding [`ORTModelForXxx`](https://huggingface.co/docs/optimum/onnxruntime/package_reference/modeling_ort#optimum.onnxruntime.ORTModel) class. If you want to load from a PyTorch checkpoint, set `from_transformers=True` to export your model to the ONNX format.
+
+```python
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import AutoTokenizer
+
+>>> model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
+>>> save_directory = "tmp/onnx/"
+
+>>> # Load a model from transformers and export it to ONNX
+>>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+>>> ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
+
+>>> # Save the ONNX model and tokenizer
+>>> ort_model.save_pretrained(save_directory)
+>>> tokenizer.save_pretrained(save_directory)  # doctest: +IGNORE_RESULT
+```
+
+Let's see now how we can apply dynamic quantization with ONNX Runtime:
+
+```python
+>>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
+>>> from optimum.onnxruntime import ORTQuantizer
+
+>>> # Define the quantization methodology
+>>> qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
+>>> quantizer = ORTQuantizer.from_pretrained(ort_model)
+
+>>> # Apply dynamic quantization on the model
+>>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)  # doctest: +IGNORE_RESULT
+```
+
+In this example, we've quantized a model from the Hugging Face Hub, in the same manner we can quantize a model hosted locally by providing the path to the directory containing the model weights. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
+
+```python
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import pipeline, AutoTokenizer
+
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
+>>> tokenizer = AutoTokenizer.from_pretrained(save_directory)
+>>> classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> results = classifier("I love burritos!")
+```
+
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/quickstart) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime).
+
+
+#### Intel
+
+To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
+If you want to load a PyTorch checkpoint, set `from_transformers=True` to convert your model to the OpenVINO IR (Intermediate Representation).
+
+```diff
+- from transformers import AutoModelForSequenceClassification
++ from optimum.intel.openvino import OVModelForSequenceClassification
+  from transformers import AutoTokenizer, pipeline
+
+  # Download a tokenizer and model from the Hub and convert to OpenVINO format
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
+  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+- model = AutoModelForSequenceClassification.from_pretrained(model_id)
++ model = OVModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+
+  # Run inference!
+  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+  results = classifier("He's a dreadful magician.")
+```
+
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
+
+
 ## Accelerated training
 
-### Optimum Graphcore
+#### Habana
 
-To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+
+```diff
+- from transformers import Trainer, TrainingArguments
++ from optimum.habana import GaudiTrainer, GaudiTrainingArguments
+
+  # Download a pretrained model from the Hub
+  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
+
+  # Define the training arguments
+- training_args = TrainingArguments(
++ training_args = GaudiTrainingArguments(
+      output_dir="path/to/save/folder/",
++     use_habana=True,
++     use_lazy_mode=True,
++     gaudi_config_name="Habana/bert-base-uncased",
+      ...
+  )
+
+  # Initialize the trainer
+- trainer = Trainer(
++ trainer = GaudiTrainer(
+      model=model,
+      args=training_args,
+      train_dataset=train_dataset,
+      ...
+  )
+
+  # Use Habana Gaudi processor for training!
+  trainer.train()
+```
+
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/habana/quickstart) and in the [examples](https://github.com/huggingface/optimum-habana/tree/main/examples).
+
+
+#### Graphcore
+
+To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
 ```diff
 - from transformers import Trainer, TrainingArguments
@@ -52,44 +166,12 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
   trainer.train()
 ```
 
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/graphcore/quickstart) and in the [examples](https://github.com/huggingface/optimum-graphcore/tree/main/examples).
 
-### Optimum Habana
 
-To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+#### ONNX Runtime
 
-```diff
-- from transformers import Trainer, TrainingArguments
-+ from optimum.habana import GaudiTrainer, GaudiTrainingArguments
-
-  # Download a pretrained model from the Hub
-  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
-
-  # Define the training arguments
-- training_args = TrainingArguments(
-+ training_args = GaudiTrainingArguments(
-      output_dir="path/to/save/folder/",
-+     use_habana=True,
-+     use_lazy_mode=True,
-+     gaudi_config_name="Habana/bert-base-uncased",
-      ...
-  )
-
-  # Initialize the trainer
-- trainer = Trainer(
-+ trainer = GaudiTrainer(
-      model=model,
-      args=training_args,
-      train_dataset=train_dataset,
-      ...
-  )
-
-  # Use Habana Gaudi processor for training!
-  trainer.train()
-```
-
-### ONNX Runtime
-
-To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the [🤗 Transformers trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
 ```diff
 - from transformers import Trainer, TrainingArguments
@@ -120,69 +202,42 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
   trainer.train()
 ```
 
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
 
-## Accelerated inference
+## Out of the box ONNX export
 
-### ONNX Runtime
+The Optimum library handles out of the box the ONNX export of Transformers and Diffusers models!
 
-To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for optimization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
+Exporting a model to ONNX is as simple as
 
-Before applying quantization or optimization, first export our model to the ONNX format:
+```bash
+optimum-cli export onnx --model gpt2 gpt2_onnx/
+```
+
+Check out the help for more options:
+
+```bash
+optimum-cli export onnx --help
+```
+
+Check out the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) for more.
+
+## PyTorch's BetterTransformer support
+
+[BetterTransformer](https://pytorch.org/blog/a-better-transformer-for-fast-transformer-encoder-inference/) is a free-lunch PyTorch-native optimization to gain x1.25 - x4 speedup on the inference of Transformer-based models. It has been marked as stable in [PyTorch 1.13](https://pytorch.org/blog/PyTorch-1.13-release/). We integrated BetterTransformer with the most-used models from the 🤗 Transformers libary, and using the integration is as simple as:
 
 ```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification
->>> from transformers import AutoTokenizer
->>> model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
->>> save_directory = "tmp/onnx/"
->>> # Load a model from transformers and export it to ONNX
->>> tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
->>> ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
->>> # Save the onnx model and tokenizer
->>> ort_model.save_pretrained(save_directory)
->>> tokenizer.save_pretrained(save_directory)
+>>> from optimum.bettertransformer import BetterTransformer
+>>> from transformers import AutoModelForSequenceClassification
+
+>>> model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+>>> model = BetterTransformer.transform(model)
 ```
 
-Let's see now how we can apply dynamic quantization with ONNX Runtime:
+Check out the [documentation](https://huggingface.co/docs/optimum/bettertransformer/overview) for more details, and the [blog post on PyTorch's Medium](https://medium.com/pytorch/bettertransformer-out-of-the-box-performance-for-huggingface-transformers-3fbe27d50ab2) to find out more about the integration!
 
-```python
->>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
->>> from optimum.onnxruntime import ORTQuantizer
+## `torch.fx` integration
 
->>> # Define the quantization methodology
->>> qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
->>> quantizer = ORTQuantizer.from_pretrained(ort_model)
->>> # Apply dynamic quantization on the model
->>> quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
-```
+Optimum integrates with `torch.fx`, providing as a one-liner several graph transformations. We aim at supporting a better management of [quantization](https://huggingface.co/docs/optimum/concept_guides/quantization) through `torch.fx`, both for quantization-aware training (QAT) and post-training quantization (PTQ).
 
-In this example, we've quantized a model from the Hugging Face Hub, but it could also be a path to a local model directory. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
-
-```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification
->>> from transformers import pipeline, AutoTokenizer
-
->>> model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
->>> tokenizer = AutoTokenizer.from_pretrained(save_directory)
->>> classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
->>> results = classifier("I love burritos!")
-```
-
-### Optimum Intel
-
-Here is an example on how to perform inference with the OpenVINO Runtime:
-
-```diff
-- from transformers import AutoModelForSequenceClassification
-+ from optimum.intel.openvino import OVModelForSequenceClassification
-  from transformers import AutoTokenizer, pipeline
-
-  # Download a tokenizer and model from the Hub and convert to OpenVINO format
-  tokenizer = AutoTokenizer.from_pretrained(model_id)
-  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
-- model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
-
-  # Run inference!
-  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-  results = classifier("He's a dreadful magician.")
-```
+Check out the [documentation](https://huggingface.co/docs/optimum/torch_fx/usage_guides/optimization) and [reference](https://huggingface.co/docs/optimum/torch_fx/package_reference/optimization) for more!

@@ -18,15 +18,15 @@ import unittest
 from functools import partial
 from pathlib import Path
 
-from transformers import AutoTokenizer
-
 from onnx import load as onnx_load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from parameterized import parameterized
+from transformers import AutoTokenizer
+
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
 from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
-from parameterized import parameterized
 
 
 class ORTQuantizerTest(unittest.TestCase):
@@ -54,7 +54,7 @@ class ORTQuantizerTest(unittest.TestCase):
     def test_fail_from_pretrained_method(self):
         with self.assertRaises(Exception) as context:
             ORTQuantizer.from_pretrained("bert-base-cased")
-        self.assertIn("Unable to load model from bert-base-cased", str(context.exception))
+        self.assertIn("Could not find any ONNX model file in bert-base-cased", str(context.exception))
 
         with self.assertRaises(Exception) as context:
             model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")

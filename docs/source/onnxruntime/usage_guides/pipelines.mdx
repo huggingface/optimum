@@ -1,16 +1,17 @@
-# Inference pipelines
+# Inference pipelines with the ONNX Runtime accelerator
 
-The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models) for accelerated inference on a variety of tasks such as text classification, question answering and image classification.
+The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models)
+for accelerated inference on a variety of tasks such as text classification, question answering and image classification.
 
 <Tip>
 
-You can also use the [pipeline()](https://huggingface.co/docs/transformers/main/en/main_classes/pipelines#pipelines) function from Transformers and provide your Optimum model class.
+You can also use the
+[pipeline()](https://huggingface.co/docs/transformers/main/en/main_classes/pipelines#pipelines) function from
+Transformers and provide your Optimum model class.
 
 </Tip>
 
-Currently supported tasks are:
-
-**ONNX Runtime**
+Currently the supported tasks are:
 
 * `feature-extraction`
 * `text-classification`
@@ -22,11 +23,13 @@ Currently supported tasks are:
 * `summarization`
 * `translation`
 * `image-classification`
+* `automatic-speech-recognition`
+* `image-to-text`
 
 ## Optimum pipeline usage
 
 While each task has an associated pipeline class, it is simpler to use the general [`~pipelines.pipeline`] function which wraps all the task-specific pipelines in one object.
-The [`~pipelines.pipeline`] function automatically loads a default model and tokenizer/feature-extractor capable of inference for your task.
+The [`~pipelines.pipeline`] function automatically loads a default model and tokenizer/feature-extractor capable of performing inference for your task.
 
 1. Start by creating a pipeline by specifying an inference task:
 
@@ -34,24 +37,49 @@ The [`~pipelines.pipeline`] function automatically loads a default model and tok
 >>> from optimum.pipelines import pipeline
 
 >>> classifier = pipeline(task="text-classification", accelerator="ort")
-
 ```
 
 2. Pass your input text/image to the [`~pipelines.pipeline`] function:
 
 ```python
->>> classifier("I like you. I love you.")
+>>> classifier("I like you. I love you.")  # doctest: +IGNORE_RESULT
 [{'label': 'POSITIVE', 'score': 0.9998838901519775}]
 ```
 
-_Note: The default models used in the [`~pipelines.pipeline`] function are not optimized or quantized, so there won't be a performance improvement compared to their PyTorch counterparts._
+_Note: The default models used in the [`~pipelines.pipeline`] function are not optimized for inference or quantized, so there won't be a performance improvement compared to their PyTorch counterparts._
 
 ### Using vanilla Transformers model and converting to ONNX
 
-The [`~pipelines.pipeline`] function accepts any supported model from the [Model Hub](https://huggingface.co/models).
+The [`~pipelines.pipeline`] function accepts any supported model from the [Hugging Face Hub](https://huggingface.co/models).
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task.
-Once you've picked an appropriate model, load it with the `from_pretrained("{model_id}",from_transformers=True)` method associated with the `ORTModelFor*`
-`AutoTokenizer' class. For example, here's how you can load the [`~onnxruntime.ORTModelForQuestionAnswering`] class for question answering:
+
+<Tip>
+
+To be able to load the model with the ONNX Runtime backend, the export to ONNX needs
+to be supported for the considered architecture.
+
+You can check the list of supported architectures
+[here](/exporters/onnx/package_reference/configuration#Supported-architectures).
+
+</Tip>
+
+Once you have picked an appropriate model, you can create the [`~pipelines.pipeline`] by specifying the model repo:
+
+```python
+>>> from optimum.pipelines import pipeline
+
+# The model will be loaded to an ORTModelForQuestionAnswering.
+>>> onnx_qa = pipeline("question-answering", model="deepset/roberta-base-squad2", accelerator="ort")
+>>> question = "What's my name?"
+>>> context = "My name is Philipp and I live in Nuremberg."
+
+>>> pred = onnx_qa(question=question, context=context)
+```
+
+It is also possible to load it with the `from_pretrained(model_name_or_path, from_transformers=True)`
+method associated with the `ORTModelForXXX` class.
+
+For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnswering`] class for question answering:
 
 ```python
 >>> from transformers import AutoTokenizer
@@ -59,10 +87,15 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 >>> from optimum.pipelines import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
->>> # Loading the pytorch checkpoint and converting to ORT format by providing the from_transformers=True parameter
->>> model = ORTModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2",from_transformers=True)
 
->>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
+>>> # Loading the PyTorch checkpoint and converting to the ONNX format by providing
+>>> # from_transformers=True
+>>> model = ORTModelForQuestionAnswering.from_pretrained(
+...     "deepset/roberta-base-squad2",
+...     from_transformers=True
+... )
+
+>>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer, accelerator="ort")
 >>> question = "What's my name?"
 >>> context = "My name is Philipp and I live in Nuremberg."
 
@@ -71,10 +104,22 @@ Once you've picked an appropriate model, load it with the `from_pretrained("{mod
 
 ### Using Optimum models
 
-The [`~pipelines.pipeline`] function is tightly integrated with [Model Hub](https://huggingface.co/models) and can load optimized models directly, e.g. those created with ONNX Runtime.
-There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task.
-Once you've picked an appropriate model, load it with the `from_pretrained()` method associated with the corresponding `ORTModelFor*`
-and `AutoTokenizer'/`AutoFeatureExtractor` class. For example, here's how you can load an optimized model for question answering:
+The [`~pipelines.pipeline`] function is tightly integrated with the [Hugging Face Hub](https://huggingface.co/models) and can load ONNX models directly.
+
+```python
+>>> from optimum.pipelines import pipeline
+
+>>> onnx_qa = pipeline("question-answering", model="optimum/roberta-base-squad2", accelerator="ort")
+>>> question = "What's my name?"
+>>> context = "My name is Philipp and I live in Nuremberg."
+
+>>> pred = onnx_qa(question=question, context=context)
+```
+
+It is also possible to load it with the `from_pretrained(model_name_or_path)`
+method associated with the `ORTModelForXXX` class.
+
+For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnswering`] class for question answering:
 
 ```python
 >>> from transformers import AutoTokenizer
@@ -82,10 +127,11 @@ and `AutoTokenizer'/`AutoFeatureExtractor` class. For example, here's how you ca
 >>> from optimum.pipelines import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
->>> # Loading already converted and optimized ORT checkpoint for inference
+
+>>> # Loading directly an ONNX model from a model repo.
 >>> model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
 
->>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
+>>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer, accelerator="ort")
 >>> question = "What's my name?"
 >>> context = "My name is Philipp and I live in Nuremberg."
 
@@ -95,97 +141,88 @@ and `AutoTokenizer'/`AutoFeatureExtractor` class. For example, here's how you ca
 
 ## Optimizing and quantizing in pipelines
 
-The [`~pipelines.pipeline`] function can not only run inference on vanilla ONNX Runtime checkpoints - you can also use checkpoints optimized with `ORTQuantizer` and `ORTOptimizer`.
-Below you can find two examples on how you could [`~onnxruntime.ORTOptimizer`] and [`~onnxruntime.ORTQuantizer`] to optimize/quantize your model and use it for inference afterwards.
+The [`~pipelines.pipeline`] function can not only run inference on vanilla ONNX Runtime checkpoints - you can also use
+checkpoints optimized with the [`~optimum.onnxruntime.ORTQuantizer`] and the [`~optimum.onnxruntime.ORTOptimizer`].
 
-### Quantizing with `ORTQuantizer`
+Below you can find two examples of how you could use the [`~optimum.onnxruntime.ORTOptimizer`] and the
+[`~optimum.onnxruntime.ORTQuantizer`] to optimize/quantize your model and use it for inference afterwards.
+
+### Quantizing with the `ORTQuantizer`
 
 ```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTQuantizer
->>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
->>> from optimum.pipelines import pipeline
 >>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import (
+...     AutoQuantizationConfig,
+...     ORTModelForSequenceClassification,
+...     ORTQuantizer
+... )
+>>> from optimum.pipelines import pipeline
 
-# Load the tokenizer and export the model to the ONNX format
+>>> # Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
->>> save_dir = "tmp/onnx/"
->>> tokenizer = AutoTokenizer.from_pretrained(model_id)
+>>> save_dir = "distilbert_quantized"
+
 >>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
 
-# Load the quantization configuration detailing the quantization we wish to apply
+>>> # Load the quantization configuration detailing the quantization we wish to apply
 >>> qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=True)
 >>> quantizer = ORTQuantizer.from_pretrained(model)
-# Apply dynamic quantization and save the resulting model
->>> quantizer.quantize(save_dir=save_dir, quantization_config=qconfig)
 
-# Load the quantized model from a local repository
->>> model = ORTModelForSequenceClassification.from_pretrained(save_dir, file_name="model_quantized.onnx")
+>>> # Apply dynamic quantization and save the resulting model
+>>> quantizer.quantize(save_dir=save_dir, quantization_config=qconfig)  # doctest: +IGNORE_RESULT
 
-# Create the transformers pipeline
->>> onnx_clx = pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> # Load the quantized model from a local repository
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_dir)
+
+>>> # Create the transformers pipeline
+>>> onnx_clx = pipeline("text-classification", model=model, accelerator="ort")
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
->>> print(pred)
+>>> print(pred)  # doctest: +IGNORE_RESULT
+>>> # [{'label': 'POSITIVE', 'score': 0.9974810481071472}]
 
-# Save and push the model to the hub
->>> tokenizer.save_pretrained("new_path_for_directory")
+>>> # Save and push the model to the hub (in practice save_dir could be used here instead)
 >>> model.save_pretrained("new_path_for_directory")
->>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
+>>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)  # doctest: +SKIP
 ```
 
 ### Optimizing with `ORTOptimizer`
 
 ```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import (
+...     AutoOptimizationConfig,
+...     ORTModelForSequenceClassification,
+...     ORTOptimizer
+... )
 >>> from optimum.onnxruntime.configuration import OptimizationConfig
 >>> from optimum.pipelines import pipeline
->>> from transformers import AutoTokenizer
 
-# Load the tokenizer and export the model to the ONNX format
+>>> # Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
->>> save_dir = "tmp/onnx/"
+>>> save_dir = "distilbert_optimized"
+
 >>> tokenizer = AutoTokenizer.from_pretrained(model_id)
 >>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
 
-# Load the optimization configuration detailing the optimization we wish to apply
->>> optimization_config = OptimizationConfig(optimization_level=2)
+>>> # Load the optimization configuration detailing the optimization we wish to apply
+>>> optimization_config = AutoOptimizationConfig.O3()
 >>> optimizer = ORTOptimizer.from_pretrained(model)
-# Apply optimization and save the resulting model
->>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
+
+>>> optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)  # doctest: +IGNORE_RESULT
 
 # Load the optimized model from a local repository
->>> model = ORTModelForSequenceClassification.from_pretrained(save_dir, file_name="model_optimized.onnx")
+>>> model = ORTModelForSequenceClassification.from_pretrained(save_dir)
 
 # Create the transformers pipeline
->>> onnx_clx = pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> onnx_clx = pipeline("text-classification", model=model, accelerator="ort")
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
->>> print(pred)
+>>> print(pred)  # doctest: +IGNORE_RESULT
+>>> # [{'label': 'POSITIVE', 'score': 0.9973127245903015}]
 
 # Save and push the model to the hub
->>> tokenizer.save_pretrained("new_path_for_directory")
+>>> tokenizer.save_pretrained("new_path_for_directory")  # doctest: +IGNORE_RESULT
 >>> model.save_pretrained("new_path_for_directory")
->>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)
-```
-
-## Transformers pipeline usage
-
-The [`~pipelines.pipeline`] function is just a light wrapper around the `transformers.pipeline` function to enable checks for supported tasks and additional features
-, like quantization and optimization. This being said you can use the `transformers.pipeline` and just replace your `AutoModelFor*` with the optimum
- `ORTModelFor*` class.
-
-```diff
-from transformers import AutoTokenizer, pipeline
--from transformers import AutoModelForQuestionAnswering
-+from optimum.onnxruntime import ORTModelForQuestionAnswering
-
--model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2")
-+model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
-tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
-
-onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
-
-question = "What's my name?"
-context = "My name is Philipp and I live in Nuremberg."
-pred = onnx_qa(question, context)
+>>> model.push_to_hub("new_path_for_directory", repository_id="my-onnx-repo", use_auth_token=True)  # doctest: +SKIP
 ```

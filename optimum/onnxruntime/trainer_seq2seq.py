@@ -14,20 +14,15 @@
 """
 The ORTSeq2SeqTrainer class, to easily train a sequence to sequence model in 🤗 Transformers from scratch or finetune it on a new task with ONNX Runtime.
 """
-
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from packaging import version
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, RandomSampler
+from torch.utils.data import DataLoader, Dataset
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.onnx import export
-from transformers.onnx.features import FeaturesManager
 from transformers.trainer_pt_utils import (
     DistributedTensorGatherer,
     IterableDatasetShard,
@@ -44,26 +39,14 @@ from transformers.trainer_utils import (
     denumpify_detensorize,
     has_length,
 )
-from transformers.utils import check_min_version, logging
+from transformers.utils import logging
 
-import onnxruntime
-
-from ..onnx.configuration import DecoderOnnxConfig, EncoderOnnxConfig
-from ..onnx.modeling_seq2seq import _DecoderWithLMhead
-from .modeling_ort import ORTModel, ORTModelForCustomTasks
+from ..exporters import TasksManager
+from ..exporters.onnx import export
+from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .trainer import ORTTrainer
-from .utils import (
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_ENCODER_NAME,
-    fix_atenops_to_gather,
-    wrap_onnx_config_for_loss,
-)
-
-
-if version.parse(torch.__version__) >= version.parse("1.8"):
-    from torch.cuda.amp import autocast
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, wrap_onnx_config_for_loss
 
 
 logger = logging.get_logger(__name__)
@@ -76,7 +59,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
         inference_with_ort: bool = False,
-        **gen_kwargs
+        **gen_kwargs,
     ) -> Dict[str, float]:
         """
         Run evaluation with ONNX Runtime or PyTorch backend and returns metrics.
@@ -119,7 +102,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
         inference_with_ort: bool = False,
-        **gen_kwargs
+        **gen_kwargs,
     ) -> PredictionOutput:
         """
         Run prediction and returns predictions and potential metrics.
@@ -177,7 +160,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
     ) -> EvalLoopOutput:
-
         """
         Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
 
@@ -211,10 +193,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             self.onnx_model_path = onnx_model_path.as_posix()
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
-        # Load ORT model
-        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path)
-
         args = self.args
+        # Load ORT model
+        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path).to(args.device)
 
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
@@ -267,11 +248,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
 
             # Update containers on host
             if loss is not None:
-                loss = loss.to(args.device)
                 losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if labels is not None:
-                labels = labels.to(args.device)
                 labels = self._pad_across_processes(labels)
                 labels = self._nested_gather(labels)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
@@ -284,7 +263,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                     else nested_concat(inputs_host, inputs_decode, padding_index=-100)
                 )
             if logits is not None:
-                logits = logits.to(args.device) if isinstance(logits, torch.Tensor) else logits
                 logits = self._pad_across_processes(logits)
                 logits = self._nested_gather(logits)
                 if self.preprocess_logits_for_metrics is not None:
@@ -427,10 +405,11 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             self.onnx_model_path = onnx_model_path.as_posix()
             logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
 
-        # Load ORT model
-        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(model_id=self.onnx_model_path)
-
         args = self.args
+        # Load ORT model
+        self.ort_model = ORTModelForSeq2SeqLM.from_pretrained(
+            model_id=self.onnx_model_path, provider="CUDAExecutionProvider"
+        )
 
         if not has_length(dataloader):
             raise ValueError("dataloader must implement a working __len__")
@@ -472,14 +451,11 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
 
             if loss is not None:
-                loss = loss.to(args.device)
                 losses = loss.repeat(batch_size)
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
-                logits = logits.to(args.device)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
             if labels is not None:
-                labels = labels.to(args.device)
                 labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
             if inputs_decode is not None:
                 inputs_host = (
@@ -556,7 +532,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 The model to evaluate.
             inputs (`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.
-
                 The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
                 argument `labels`. Check your model's documentation for all accepted arguments.
             prediction_loss_only (`bool`):
@@ -787,6 +762,8 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
             with_loss (`bool`, defaults to `True`):
                 Whether to export ONNX model with the loss in outputs.
+            decoders_only (`bool`, defaults to `False`):
+                Whether to just export decoder models.
         """
         if model is None:
             if not (self.args.fp16 and self.args.deepspeed):
@@ -794,13 +771,18 @@ class ORTSeq2SeqTrainer(ORTTrainer):
                 self.model.to("cpu")
             model = unwrap_model(self.model)
 
-        use_cache = kwargs.get("use_cache", True)
-        _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature=self.feature)
-        onnx_config = model_onnx_config(model.config)
-        opset = onnx_config.default_onnx_opset if opset is None else opset
-        onnx_config_encoder = EncoderOnnxConfig(model.config, task="default")
-        onnx_config_decoder = DecoderOnnxConfig(model.config, task=self.feature, use_past=False)
-        onnx_config_decoder_with_past = DecoderOnnxConfig(model.config, task=self.feature, use_past=True)
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=self.feature
+        )
+        onnx_config = onnx_config_constructor(model.config)
+
+        opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
+
+        encoder = model.get_encoder()
+
+        onnx_config_encoder = onnx_config.with_behavior("encoder")
+        onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)
+        onnx_config_decoder_with_past = onnx_config.with_behavior("decoder", use_past=True)
 
         if with_loss:
             # Add `loss` to the ONNX config of decoders
@@ -808,17 +790,9 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             onnx_config_decoder_with_past = wrap_onnx_config_for_loss(onnx_config_decoder_with_past)
             opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
-        # Extract the encoder for ONNX export
-        encoder = model.get_encoder()
-        # Concatenate the decoder with the language model head for ONNX export
-        decoder_with_lm_head = _DecoderWithLMhead(model)
-
-        # transformers >= 4.21.0 is required to export with specified device
-        check_min_version("4.21.0")
         # Export the encoder
         if not decoders_only:
             _ = export(
-                preprocessor=self.tokenizer,
                 model=encoder,
                 config=onnx_config_encoder,
                 opset=opset,
@@ -827,20 +801,22 @@ class ORTSeq2SeqTrainer(ORTTrainer):
             )
         # Export the decoder without the past key values
         export(
-            preprocessor=self.tokenizer,
-            model=decoder_with_lm_head,
+            model=model,
             config=onnx_config_decoder,
             opset=opset,
             output=Path(save_dir).joinpath(ONNX_DECODER_NAME),
             device=device,
         )
+
         # Export the decoder with the past key values
+        use_cache = kwargs.get("use_cache", True)
         if use_cache:
             export(
-                preprocessor=self.tokenizer,
-                model=decoder_with_lm_head,
+                model=model,
                 config=onnx_config_decoder_with_past,
                 opset=opset,
                 output=Path(save_dir).joinpath(ONNX_DECODER_WITH_PAST_NAME),
                 device=device,
             )
+
+        model.config.save_pretrained(save_dir)

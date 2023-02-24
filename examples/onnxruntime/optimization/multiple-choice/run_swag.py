@@ -25,20 +25,18 @@ import sys
 from dataclasses import dataclass, field
 from functools import partial
 from itertools import chain
-from typing import Optional, Union
+from typing import Optional
 
 import datasets
 import numpy as np
-import torch
 import transformers
 from datasets import load_dataset
 from transformers import AutoTokenizer, HfArgumentParser, TrainingArguments
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 
 from optimum.onnxruntime import ORTModelForMultipleChoice, ORTOptimizer
-from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
+from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.model import ORTModel
 
 
@@ -238,7 +236,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    model_path = os.path.join(training_args.output_dir, "model.onnx")
     optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)

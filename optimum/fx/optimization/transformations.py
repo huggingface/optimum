@@ -44,9 +44,9 @@ _EXAMPLE_DOCSTRING = r"""
 
 >>> model = BertModel.from_pretrained("bert-base-uncased")
 >>> traced = symbolic_trace(
->>>     model,
->>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
->>> )
+...     model,
+...     input_names=["input_ids", "attention_mask", "token_type_ids"],
+... )
 >>> transformation = {class_name}()
 >>> transformed_model = transformation(traced)
 ```
@@ -59,9 +59,9 @@ _REVERSIBLE_EXAMPLE_DOCSTRING = r"""
 
 >>> model = BertModel.from_pretrained("bert-base-uncased")
 >>> traced = symbolic_trace(
->>>     model,
->>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
->>> )
+...     model,
+...     input_names=["input_ids", "attention_mask", "token_type_ids"],
+... )
 >>> transformation = {class_name}()
 >>> transformed_model = transformation(traced)
 >>> restored_model = transformation(transformed_model, reverse=True)
@@ -72,7 +72,7 @@ _REVERSIBLE_EXAMPLE_DOCSTRING = r"""
 def add_docstring(add_example=True):
     def wrapper(class_):
         example_docstring = _EXAMPLE_DOCSTRING
-        if "ReversibleTransformation" in map(lambda cls: cls.__name__, class_.mro()):
+        if "ReversibleTransformation" in (cls.__name__ for cls in class_.mro()):
             example_docstring = _REVERSIBLE_EXAMPLE_DOCSTRING
         new_doc = [f"{class_.__doc__}", f"{_ATTRIBUTES_DOCSTRING}"]
         if add_example:
@@ -406,7 +406,7 @@ class FuseBiasInLinear(ReversibleTransformation):
 
         def insert_concat(linear_input):
             shape = linear_input.shape[:-1] + (1,)
-            return torch.cat([linear_input, torch_ones(shape)], dim=-1)
+            return torch.cat([linear_input, torch_ones(shape, device=linear_input.device)], dim=-1)
 
         tracer = torch.fx.proxy.GraphAppendingTracer(graph_module.graph)
         for node in graph_module.graph.nodes:
@@ -494,22 +494,22 @@ class FuseBatchNorm2dInConv2d(Transformation):
 
     Example:
     ```python
-    from transformers.utils.fx import symbolic_trace
-    from transformers import AutoModelForImageClassification
+    >>> from transformers.utils.fx import symbolic_trace
+    >>> from transformers import AutoModelForImageClassification
 
-    from optimum.fx.optimization import FuseBatchNorm2dInConv2d
+    >>> from optimum.fx.optimization import FuseBatchNorm2dInConv2d
 
-    model = AutoModelForImageClassification.from_pretrained("microsoft/resnet-50")
-    model.eval()
+    >>> model = AutoModelForImageClassification.from_pretrained("microsoft/resnet-50")
+    >>> model.eval()  # doctest: +IGNORE_RESULT
 
-    traced_model = symbolic_trace(
-        model,
-        input_names=["pixel_values"],
-        disable_check=True
-    )
+    >>> traced_model = symbolic_trace(
+    ...     model,
+    ...     input_names=["pixel_values"],
+    ...     disable_check=True
+    ... )
 
-    transformation = FuseBatchNorm2dInConv2d()
-    transformed_model = transformation(traced_model)
+    >>> transformation = FuseBatchNorm2dInConv2d()
+    >>> transformed_model = transformation(traced_model)
     ```
     """
 
@@ -578,22 +578,22 @@ class FuseBatchNorm1dInLinear(Transformation):
 
     Example:
     ```python
-    from transformers.utils.fx import symbolic_trace
-    from transformers import AutoModel
+    >>> from transformers.utils.fx import symbolic_trace
+    >>> from transformers import AutoModel
 
-    from optimum.fx.optimization import FuseBatchNorm1dInLinear
+    >>> from optimum.fx.optimization import FuseBatchNorm1dInLinear
 
-    model = AutoModel.from_pretrained("nvidia/groupvit-gcc-yfcc")
-    model.eval()
+    >>> model = AutoModel.from_pretrained("nvidia/groupvit-gcc-yfcc")
+    >>> model.eval()  # doctest: +IGNORE_RESULT
 
-    traced_model = symbolic_trace(
-        model,
-        input_names=["input_ids", "attention_mask", "pixel_values"],
-        disable_check=True
-    )
+    >>> traced_model = symbolic_trace(
+    ...     model,
+    ...     input_names=["input_ids", "attention_mask", "pixel_values"],
+    ...     disable_check=True
+    ... )
 
-    transformation = FuseBatchNorm1dInLinear()
-    transformed_model = transformation(traced_model)
+    >>> transformation = FuseBatchNorm1dInLinear()
+    >>> transformed_model = transformation(traced_model)
     ```
     """
 
@@ -744,9 +744,9 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
 
     >>> model = BertModel.from_pretrained("bert-base-uncased")
     >>> traced = symbolic_trace(
-    >>>     model,
-    >>>     input_names=["input_ids", "attention_mask", "token_type_ids"],
-    >>> )
+    ...     model,
+    ...     input_names=["input_ids", "attention_mask", "token_type_ids"],
+    ... )
     >>> composition = compose(ChangeTrueDivToMulByInverse(), MergeLinears())
     >>> transformed_model = composition(traced)
     ```

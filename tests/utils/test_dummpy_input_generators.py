@@ -14,11 +14,21 @@
 # limitations under the License.
 
 from contextlib import nullcontext
+from typing import TYPE_CHECKING, Tuple
 from unittest import TestCase
 
-from transformers import AutoConfig
-
+import torch
 from parameterized import parameterized
+from transformers import AutoConfig
+from transformers.utils import is_tf_available
+
+from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
+from optimum.utils.normalized_config import NormalizedConfigManager
+from optimum.utils.testing_utils import grid_parameters
+
+
+if TYPE_CHECKING:
+    from optimum.utils.input_generators import DummyInputGenerator
 
 
 TEXT_ENCODER_MODELS = {"distilbert": "distilbert-base-cased"}
@@ -43,25 +53,34 @@ DUMMY_SHAPES = {
     "audio_sequence_length": [16000, 8000],
 }
 
-import itertools
-from typing import Any, Dict, Iterable
-
-import torch
-from transformers import AutoConfig
-
-from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
-from optimum.utils.normalized_config import NormalizedConfigManager
-
-
-def grid_parameters(parameters: Dict[str, Iterable[Any]]) -> Iterable[Dict[str, Any]]:
-    """
-    Generate an iterable over the grid of all combinations of parameters
-    """
-    for params in itertools.product(*parameters.values()):
-        yield list(params)
-
 
 class GenerateDummy(TestCase):
+    _FRAMEWORK_TO_SHAPE_CLS = {
+        "pt": torch.Size,
+        "np": tuple,
+    }
+    if is_tf_available():
+        import tensorflow as tf
+
+        _FRAMEWORK_TO_SHAPE_CLS["tf"] = tf.TensorShape
+
+    def validate_shape_for_framework(
+        self, generator: "DummyInputGenerator", input_name: str, framework: str, target_shape: Tuple[int, ...]
+    ):
+        generated_shape = generator.generate(input_name).shape
+        target_shape = self._FRAMEWORK_TO_SHAPE_CLS[framework](target_shape)
+        if generated_shape != target_shape:
+            raise ValueError(
+                f"{input_name} shape is wrong for framework = {framework}. Expected {target_shape} but got "
+                f"{generated_shape}"
+            )
+
+    def validate_shape_for_all_frameworks(
+        self, generator: "DummyInputGenerator", input_name: str, target_shape: Tuple[int, ...]
+    ):
+        for framework in self._FRAMEWORK_TO_SHAPE_CLS:
+            self.validate_shape_for_framework(generator, input_name, framework, target_shape)
+
     @parameterized.expand(
         grid_parameters(
             {
@@ -72,7 +91,9 @@ class GenerateDummy(TestCase):
             }
         )
     )
-    def test_text_models(self, model_name: str, batch_size: int, num_choices: int, sequence_length: int):
+    def test_text_models(
+        self, test_name: str, model_name: str, batch_size: int, num_choices: int, sequence_length: int
+    ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
         normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
@@ -85,11 +106,8 @@ class GenerateDummy(TestCase):
             num_choices=num_choices,
             sequence_length=sequence_length,
         )
-        generated_tensor = input_generator.generate("input_ids")
-        assert generated_tensor.shape == torch.Size((batch_size, sequence_length))
-
-        generated_tensor = input_generator.generate("attention_mask")
-        assert generated_tensor.shape == torch.Size((batch_size, sequence_length))
+        self.validate_shape_for_all_frameworks(input_generator, "input_ids", (batch_size, sequence_length))
+        self.validate_shape_for_all_frameworks(input_generator, "attention_mask", (batch_size, sequence_length))
 
         input_generator = DummyTextInputGenerator(
             task="multiple-choice",
@@ -98,11 +116,12 @@ class GenerateDummy(TestCase):
             num_choices=num_choices,
             sequence_length=sequence_length,
         )
-        generated_tensor = input_generator.generate("input_ids")
-        assert generated_tensor.shape == torch.Size((batch_size, num_choices, sequence_length))
-
-        generated_tensor = input_generator.generate("attention_mask")
-        assert generated_tensor.shape == torch.Size((batch_size, num_choices, sequence_length))
+        self.validate_shape_for_all_frameworks(
+            input_generator, "input_ids", (batch_size, num_choices, sequence_length)
+        )
+        self.validate_shape_for_all_frameworks(
+            input_generator, "attention_mask", (batch_size, num_choices, sequence_length)
+        )
 
     @parameterized.expand(
         grid_parameters(
@@ -115,7 +134,9 @@ class GenerateDummy(TestCase):
             }
         )
     )
-    def test_vision_models(self, model_name: str, batch_size: int, num_channels: int, height: int, width: int):
+    def test_vision_models(
+        self, test_name: str, model_name: str, batch_size: int, num_channels: int, height: int, width: int
+    ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
         normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
@@ -129,12 +150,11 @@ class GenerateDummy(TestCase):
             height=height,
             width=width,
         )
-        with self.assertRaises(AssertionError) if num_channels != normalized_config.num_channels else nullcontext():
-            generated_tensor = input_generator.generate("pixel_values")
-            assert generated_tensor.shape == torch.Size((batch_size, num_channels, height, width))
-
-            generated_tensor = input_generator.generate("pixel_mask")
-            assert generated_tensor.shape == torch.Size((batch_size, height, width))
+        with self.assertRaises(ValueError) if num_channels != normalized_config.num_channels else nullcontext():
+            self.validate_shape_for_all_frameworks(
+                input_generator, "pixel_values", (batch_size, num_channels, height, width)
+            )
+            self.validate_shape_for_all_frameworks(input_generator, "pixel_mask", (batch_size, height, width))
 
     @parameterized.expand(
         grid_parameters(
@@ -148,7 +168,13 @@ class GenerateDummy(TestCase):
         )
     )
     def test_audio_models(
-        self, model_name: str, batch_size: int, feature_size: int, nb_max_frames: int, audio_sequence_length: int
+        self,
+        test_name: str,
+        model_name: str,
+        batch_size: int,
+        feature_size: int,
+        nb_max_frames: int,
+        audio_sequence_length: int,
     ):
         # isn't this very verbose?
         config = AutoConfig.from_pretrained(model_name)
@@ -156,15 +182,14 @@ class GenerateDummy(TestCase):
         normalized_config = normalized_config_class(config)
 
         input_generator = DummyAudioInputGenerator(
-            task="image-classification",
+            task="audio-classification",
             normalized_config=normalized_config,
             batch_size=batch_size,
             feature_size=feature_size,
             nb_max_frames=nb_max_frames,
-            sequence_length=audio_sequence_length,
+            audio_sequence_length=audio_sequence_length,
         )
-        generated_tensor = input_generator.generate("input_values")
-        assert generated_tensor.shape == torch.Size((batch_size, audio_sequence_length))
-
-        generated_tensor = input_generator.generate("input_features")
-        assert generated_tensor.shape == torch.Size((batch_size, feature_size, nb_max_frames))
+        self.validate_shape_for_all_frameworks(input_generator, "input_values", (batch_size, audio_sequence_length))
+        self.validate_shape_for_all_frameworks(
+            input_generator, "input_feautres", (batch_size, feature_size, nb_max_frames)
+        )

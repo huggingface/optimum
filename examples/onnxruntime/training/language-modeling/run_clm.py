@@ -29,6 +29,7 @@ from itertools import chain
 from typing import Optional
 
 import datasets
+import evaluate
 import transformers
 from datasets import load_dataset
 from transformers import (
@@ -47,7 +48,6 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
-import evaluate
 from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
 
@@ -396,7 +396,7 @@ def main():
         )
     else:
         model = AutoModelForCausalLM.from_config(config)
-        n_params = sum(dict((p.data_ptr(), p.numel()) for p in model.parameters()).values())
+        n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
         logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
 
     model.resize_token_embeddings(len(tokenizer))

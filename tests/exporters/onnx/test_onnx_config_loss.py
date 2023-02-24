@@ -17,31 +17,32 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import tensorflow as tf
+import onnxruntime
+import pytest
 import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
-    AutoTokenizer,
-    TFAutoModelForSequenceClassification,
 )
-from transformers.modeling_tf_utils import TFPreTrainedModel
 from transformers.modeling_utils import PreTrainedModel
-from transformers.onnx import export
-from transformers.onnx.features import FeaturesManager
-from transformers.utils import TensorType
+from transformers.utils import is_tf_available
 
-import onnxruntime
+from optimum.exporters import TasksManager
+from optimum.exporters.onnx import OnnxConfigWithLoss, export
 
 # OnnxConfig wrapper
-from optimum.onnx import OnnxConfigWithLoss, OnnxConfigWithPastAndLoss, OnnxSeq2SeqConfigWithPastAndLoss
-from optimum.onnx.configuration import DecoderOnnxConfig
-from optimum.onnx.modeling_seq2seq import _DecoderWithLMhead
-from optimum.onnxruntime.utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.onnxruntime.utils import ONNX_DECODER_NAME
+from optimum.utils import DummyTextInputGenerator
+from optimum.utils.normalized_config import NormalizedConfigManager
+
+
+if is_tf_available():
+    from transformers import TFAutoModelForSequenceClassification
+    from transformers.modeling_tf_utils import TFPreTrainedModel
 
 
 class TestOnnxConfigWithLoss(unittest.TestCase):
-    # @unittest.skip("Skip OnnxConfigWithLoss test.")
+    @pytest.mark.tensorflow_test
     def test_onnx_config_with_loss(self):
         # Prepare model and dataset
         model_checkpoint = "hf-internal-testing/tiny-random-bert"
@@ -49,24 +50,21 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             AutoModelForSequenceClassification.from_pretrained(model_checkpoint),
             TFAutoModelForSequenceClassification.from_pretrained(model_checkpoint),
         }
-        tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
         for model in models:
             with self.subTest(model=model):
                 with tempfile.TemporaryDirectory() as tmp_dir:
-
-                    # Wrap OnnxConfig
-                    _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
-                        model, feature="sequence-classification"
+                    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                        model=model, exporter="onnx", task="sequence-classification"
                     )
-                    onnx_config = model_onnx_config(model.config)
+                    onnx_config = onnx_config_constructor(model.config)
+
                     wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
 
                     # Export model from PyTorch to ONNX
                     onnx_model_path = Path(os.path.join(tmp_dir, f"{model.config.model_type}.onnx"))
-                    opset = max(onnx_config.default_onnx_opset, 12)
+                    opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
                     _ = export(
-                        preprocessor=tokenizer,
                         model=model,
                         config=wrapped_onnx_config,
                         opset=opset,
@@ -83,37 +81,25 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                             else "CPUExecutionProvider"
                         ],
                     )
-                    if issubclass(type(model), PreTrainedModel):
-                        inputs = {
-                            "input_ids": torch.tensor(
-                                [
-                                    [101, 100, 100, 100, 100, 100, 100, 102],
-                                    [101, 100, 100, 100, 100, 100, 100, 102],
-                                    [101, 100, 100, 100, 100, 100, 100, 102],
-                                ]
-                            ),
-                            "token_type_ids": torch.tensor(
-                                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
-                            ),
-                            "attention_mask": torch.tensor(
-                                [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
-                            ),
-                            "labels": torch.LongTensor([0, 0, 0]),
-                        }
-                    elif issubclass(type(model), TFPreTrainedModel):
-                        inputs = {
-                            "input_ids": tf.constant(
-                                [[101, 100, 100, 100, 100, 100, 100, 102], [101, 100, 100, 100, 100, 100, 100, 102]]
-                            ),
-                            "token_type_ids": tf.constant([[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]),
-                            "attention_mask": tf.constant([[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]),
-                            "labels": tf.constant([0, 0], dtype=tf.int64),
-                        }
+                    framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
+                    normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
+                    input_generator = DummyTextInputGenerator(
+                        "sequence-classification", normalized_config, batch_size=2, sequence_length=16
+                    )
+
+                    inputs = {
+                        name: input_generator.generate(name, framework=framework)
+                        for name in ["input_ids", "attention_mask", "token_type_ids"]
+                    }
+                    inputs["labels"] = input_generator.constant_tensor(
+                        [2], value=0, dtype=inputs["input_ids"].dtype, framework=framework
+                    )
+
                     input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
                     output_names = [output.name for output in ort_sess._outputs_meta]
-                    input_feed = dict(
-                        map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names)
-                    )
+
+                    input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
+
                     ort_outputs = ort_sess.run(output_names, input_feed)
                     pt_outputs = model(**inputs)
 
@@ -136,27 +122,23 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                             )
                     gc.collect()
 
-    # @unittest.skip("Skip OnnxConfigWithPastAndLoss test.")
-    def test_onnx_config_with_past_and_loss(self):
+    def test_onnx_decoder_model_with_config_with_loss(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Prepare model and dataset
             model_checkpoint = "hf-internal-testing/tiny-random-gpt2"
             model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint)
-            tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
             # Wrap OnnxConfig
-            _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(
-                model, feature="sequence-classification"
+            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                model=model, exporter="onnx", task="sequence-classification"
             )
-            onnx_config = model_onnx_config(model.config)
-            wrapped_onnx_config = OnnxConfigWithPastAndLoss(onnx_config)
+            onnx_config = onnx_config_constructor(model.config)
+            wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
 
             # Export model from PyTorch to ONNX
             onnx_model_path = Path(os.path.join(tmp_dir, f"{model.config.model_type}.onnx"))
-            opset = max(onnx_config.default_onnx_opset, 12)
-            export(
-                preprocessor=tokenizer, model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path
-            )
+            opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
+            export(model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path)
 
             # ONNX Runtime Inference
             ort_sess = onnxruntime.InferenceSession(
@@ -167,6 +149,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     else "CPUExecutionProvider"
                 ],
             )
+
             batch = 3
             seq_length = 8
             inputs = {
@@ -176,7 +159,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
-            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
             ort_outputs = ort_sess.run(output_names, input_feed)
             pt_outputs = model(**inputs)
 
@@ -190,28 +173,29 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             )
             gc.collect()
 
-    # @unittest.skip("Skip OnnxSeq2SeqConfigWithPastAndLoss test.")
-    def test_onnx_seq2seq_config_with_past_and_loss(self):
+    def test_onnx_seq2seq_model_with_config_with_loss(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Prepare model and dataset
             model_checkpoint = "hf-internal-testing/tiny-random-t5"
             model = AutoModelForSeq2SeqLM.from_pretrained(model_checkpoint)
-            decoder_with_lm_head = _DecoderWithLMhead(model)
-            tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
 
             # Wrap OnnxConfig(decoders)
-            _, model_onnx_config = FeaturesManager.check_supported_model_or_raise(model, feature="seq2seq-lm")
-            onnx_config = model_onnx_config(model.config)
-            onnx_config_decoder = DecoderOnnxConfig(model.config, task="seq2seq-lm", use_past=False)
-            wrapped_onnx_config_decoder = OnnxSeq2SeqConfigWithPastAndLoss(onnx_config_decoder)
+            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                model=model, exporter="onnx", task="seq2seq-lm"
+            )
+            onnx_config = onnx_config_constructor(model.config)
+
+            onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)
+
+            wrapped_onnx_config_decoder = OnnxConfigWithLoss(onnx_config_decoder)
 
             # Export decoder models from PyTorch to ONNX
-            opset = max(onnx_config.default_onnx_opset, 12)
+            opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
 
             onnx_model_path = Path(tmp_dir).joinpath(ONNX_DECODER_NAME)
+
             export(
-                preprocessor=tokenizer,
-                model=decoder_with_lm_head,
+                model=model,
                 config=wrapped_onnx_config_decoder,
                 opset=opset,
                 output=onnx_model_path,
@@ -237,8 +221,9 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
             output_names = [output.name for output in ort_sess._outputs_meta]
-            input_feed = dict(map(lambda input_name: (input_name, inputs[input_name].cpu().numpy()), input_names))
-            ort_outputs = ort_sess.run(output_names, input_feed)
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
+
+            ort_sess.run(output_names, input_feed)
 
             gc.collect()
 

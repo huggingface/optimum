@@ -1,10 +1,10 @@
 import argparse
 
+import requests
 import torch
 from PIL import Image
 from transformers import AutoFeatureExtractor, AutoModel
 
-import requests
 from optimum.bettertransformer import BetterTransformer
 
 
@@ -71,9 +71,9 @@ def benchmark(model_name, num_batches, batch_size, is_cuda, is_half):
         input_features = input_features.to(0)
 
     # Warmup
-    _ = hf_model(input_features[0].unsqueeze(0))
+    _ = hf_model(input_features)
     torch.cuda.synchronize()
-    _ = bt_model(input_features[0].unsqueeze(0))
+    _ = bt_model(input_features)
     torch.cuda.synchronize()
 
     total_hf_time = timing_cuda(hf_model, num_batches, input_features)
@@ -91,7 +91,6 @@ if __name__ == "__main__":
     output_file = open("log_{}.csv".format(args.model_name.replace("/", "-")), "w")
     output_file.write("num_batches,batch_size,is_cuda,is_half,HF_time,BT_time,Speedup\n")
     for bs in BATCH_SIZES:
-
         total_bt_time, total_hf_time = benchmark(
             args.model_name,
             args.num_batches,
