@@ -99,11 +99,9 @@ class DebertaV2TFLiteConfig(DebertaTFLiteConfig):
     pass
 
 
-class ViTTFLiteConfig(VisionTFLiteConfig):
+class ResNetTFLiteConfig(VisionTFLiteConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("resnet")
+
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
-
-
-class ResNetTFLiteConfig(ViTTFLiteConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("resnet")

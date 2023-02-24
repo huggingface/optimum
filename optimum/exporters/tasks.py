@@ -582,9 +582,7 @@ class TasksManager:
             onnx="PoolFormerOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="ResNetOnnxConfig",
+            "default", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
         "roberta": supported_tasks_mapping(
             "default",
