@@ -27,10 +27,6 @@ from huggingface_hub.utils import EntryNotFoundError
 from transformers import (
     AutoConfig,
     AutoModel,
-    AutoModelForAudioClassification,
-    AutoModelForAudioFrameClassification,
-    AutoModelForAudioXVector,
-    AutoModelForCTC,
     AutoModelForImageClassification,
     AutoModelForMaskedLM,
     AutoModelForMultipleChoice,
@@ -42,7 +38,6 @@ from transformers import (
 from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
     BaseModelOutput,
-    CausalLMOutput,
     ImageClassifierOutput,
     MaskedLMOutput,
     ModelOutput,
@@ -51,7 +46,6 @@ from transformers.modeling_outputs import (
     SemanticSegmenterOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
-    XVectorOutput,
 )
 
 import onnxruntime as ort
@@ -83,7 +77,6 @@ logger = logging.getLogger(__name__)
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
-_PROCESSOR_FOR_DOC = "AutoProcessor"
 
 ONNX_MODEL_START_DOCSTRING = r"""
     This model inherits from [`~onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
@@ -122,13 +115,6 @@ ONNX_IMAGE_INPUTS_DOCSTRING = r"""
         pixel_values (`Union[torch.Tensor, np.ndarray, None]` of shape `({0})`, defaults to `None`):
             Pixel values corresponding to the images in the current batch.
             Pixel values can be obtained from encoded images using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
-"""
-
-ONNX_AUDIO_INPUTS_DOCSTRING = r"""
-    Args:
-        input_values (`torch.Tensor` of shape `({0})`):
-            Float values of input raw speech waveform..
-            Input values can be obtained from audio file loaded into an array using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
 """
 
 
@@ -554,6 +540,7 @@ class ORTModel(OptimizedModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
+        **kwargs
     ) -> "ORTModel":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
@@ -1663,382 +1650,6 @@ class ORTModelForSemanticSegmentation(ORTModel):
                 onnx_inputs[input] = onnx_inputs[input].cpu().detach().numpy()
 
         return onnx_inputs
-
-
-AUDIO_CLASSIFICATION_EXAMPLE = r"""
-    Example of audio classification:
-
-    ```python
-    >>> from transformers import {processor_class}
-    >>> from optimum.onnxruntime import {model_class}
-    >>> from datasets import load_dataset
-    >>> import torch
-
-    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
-    >>> dataset = dataset.sort("id")
-    >>> sampling_rate = dataset.features["audio"].sampling_rate
-
-    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-
-    >>> # audio file is decoded on the fly
-    >>> inputs = feature_extractor(dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="pt")
-
-    >>> with torch.no_grad():
-    ...     logits = model(**inputs).logits
-
-    >>> predicted_class_ids = torch.argmax(logits, dim=-1).item()
-    >>> predicted_label = model.config.id2label[predicted_class_ids]
-    ```
-    Example using `transformers.pipeline`:
-
-    ```python
-    >>> from transformers import {processor_class}, pipeline
-    >>> from optimum.onnxruntime import {model_class}
-
-    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
-    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
-    >>> dataset = dataset.sort("id")
-
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-    >>> onnx_ac = pipeline("audio-classification", model=model, feature_extractor=feature_extractor)
-
-    >>> pred = onnx_ac(dataset[0]["audio"]["array"])
-    ```
-"""
-
-
-@add_start_docstrings(
-    """
-    Onnx Model with a sequence classification head on top (a linear layer over the pooled output) for tasks like
-    SUPERB Keyword Spotting.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
-class ORTModelForAudioClassification(ORTModel):
-    """
-    Audio Classification model for ONNX.
-    """
-
-    auto_model_class = AutoModelForAudioClassification
-
-    @add_start_docstrings_to_model_forward(
-        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + AUDIO_CLASSIFICATION_EXAMPLE.format(
-            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
-            model_class="ORTModelForAudioClassification",
-            checkpoint="optimum/hubert-base-superb-ks",
-        )
-    )
-    def forward(
-        self,
-        input_values: Optional[torch.Tensor] = None,
-        attenton_mask: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
-        use_torch = isinstance(input_values, torch.Tensor)
-        self.raise_on_numpy_input_io_binding(use_torch)
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
-            else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
-
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(logits=logits)
-
-
-CTC_EXAMPLE = r"""
-    Example of CTC:
-
-    ```python
-    >>> from transformers import {processor_class}, HubertForCTC
-    >>> from optimum.onnxruntime import {model_class}
-    >>> from datasets import load_dataset
-    >>> import torch
-
-    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
-    >>> dataset = dataset.sort("id")
-    >>> sampling_rate = dataset.features["audio"].sampling_rate
-
-    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-
-    >>> # audio file is decoded on the fly
-    >>> inputs = processor(dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="pt")
-    >>> with torch.no_grad():
-    ...     logits = model(**inputs).logits
-    >>> predicted_ids = torch.argmax(logits, dim=-1)
-
-    >>> transcription = processor.batch_decode(predicted_ids)
-    ```
-"""
-
-
-@add_start_docstrings(
-    """
-    Onnx Model with a language modeling head on top for Connectionist Temporal Classification (CTC).
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
-class ORTModelForCTC(ORTModel):
-    """
-    CTC model for ONNX.
-    """
-
-    auto_model_class = AutoModelForCTC
-
-    @add_start_docstrings_to_model_forward(
-        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + CTC_EXAMPLE.format(
-            processor_class=_PROCESSOR_FOR_DOC,
-            model_class="ORTModelForCTC",
-            checkpoint="optimum/hubert-large-ls960-ft",
-        )
-    )
-    def forward(
-        self,
-        input_values: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
-        use_torch = isinstance(input_values, torch.Tensor)
-        self.raise_on_numpy_input_io_binding(use_torch)
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # converts output to namedtuple for pipelines post-processing
-            return CausalLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
-            else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
-
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-            # converts output to namedtuple for pipelines post-processing
-            return CausalLMOutput(logits=logits)
-
-
-AUDIO_XVECTOR_EXAMPLE = r"""
-    Example of Audio XVector:
-
-    ```python
-    >>> from transformers import {processor_class}
-    >>> from optimum.onnxruntime import {model_class}
-    >>> from datasets import load_dataset
-    >>> import torch
-
-    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
-    >>> dataset = dataset.sort("id")
-    >>> sampling_rate = dataset.features["audio"].sampling_rate
-
-    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}")
-
-    >>> # audio file is decoded on the fly
-    >>> inputs = feature_extractor(
-    ...     [d["array"] for d in dataset[:2]["audio"]], sampling_rate=sampling_rate, return_tensors="pt", padding=True
-    ... )
-    >>> with torch.no_grad():
-    ...     embeddings = model(**inputs).embeddings
-
-    >>> embeddings = torch.nn.functional.normalize(embeddings, dim=-1).cpu()
-
-    >>> cosine_sim = torch.nn.CosineSimilarity(dim=-1)
-    >>> similarity = cosine_sim(embeddings[0], embeddings[1])
-    >>> threshold = 0.7
-    >>> if similarity < threshold:
-    ...     print("Speakers are not the same!")
-    >>> round(similarity.item(), 2)
-    ```
-"""
-
-
-@add_start_docstrings(
-    """
-    Onnx Model with an XVector feature extraction head on top for tasks like Speaker Verification.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
-class ORTModelForAudioXVector(ORTModel):
-    """
-    Audio XVector model for ONNX.
-    """
-
-    auto_model_class = AutoModelForAudioXVector
-
-    @add_start_docstrings_to_model_forward(
-        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + AUDIO_XVECTOR_EXAMPLE.format(
-            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
-            model_class="ORTModelForAudioXVector",
-            checkpoint="optimum/wav2vec2-base-superb-sv",
-        )
-    )
-    def forward(
-        self,
-        input_values: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
-        use_torch = isinstance(input_values, torch.Tensor)
-        self.raise_on_numpy_input_io_binding(use_torch)
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names
-            )
-
-            # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # converts output to namedtuple for pipelines post-processing
-            return XVectorOutput(
-                logits=output_buffers["logits"].view(output_shapes["logits"]),
-                embeddings=output_buffers["embeddings"].view(output_shapes["embeddings"]),
-            )
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
-            else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
-
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-
-            logits = outputs[self.output_names["logits"]]
-            embeddings = outputs[self.output_names["embeddings"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-                embeddings = torch.from_numpy(embeddings).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return XVectorOutput(logits=logits, embeddings=embeddings)
-
-
-AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
-    Example of audio frame classification:
-
-    ```python
-    >>> from transformers import {processor_class}
-    >>> from optimum.onnxruntime import {model_class}
-    >>> from datasets import load_dataset
-    >>> import torch
-
-    >>> dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
-    >>> dataset = dataset.sort("id")
-    >>> sampling_rate = dataset.features["audio"].sampling_rate
-
-    >>> feature_extractor = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model =  {model_class}.from_pretrained("{checkpoint}")
-
-    >>> inputs = feature_extractor(dataset[0]["audio"]["array"], return_tensors="pt", sampling_rate=sampling_rate)
-    >>> with torch.no_grad():
-    ...     logits = model(**inputs).logits
-
-    >>> probabilities = torch.sigmoid(logits[0])
-    >>> labels = (probabilities > 0.5).long()
-    >>> labels[0].tolist()
-    ```
-"""
-
-
-@add_start_docstrings(
-    """
-    Onnx Model for with a frame classification head on top for tasks like Speaker Diarization.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
-class ORTModelForAudioFrameClassification(ORTModel):
-    """
-    Audio Frame Classification model for ONNX.
-    """
-
-    auto_model_class = AutoModelForAudioFrameClassification
-
-    @add_start_docstrings_to_model_forward(
-        ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
-        + AUDIO_FRAME_CLASSIFICATION_EXAMPLE.format(
-            processor_class=_FEATURE_EXTRACTOR_FOR_DOC,
-            model_class="ORTModelForAudioFrameClassification",
-            checkpoint="optimum/wav2vec2-base-superb-sd",
-        )
-    )
-    def forward(
-        self,
-        input_values: Optional[torch.Tensor] = None,
-        **kwargs,
-    ):
-        use_torch = isinstance(input_values, torch.Tensor)
-        self.raise_on_numpy_input_io_binding(use_torch)
-
-        if self.device.type == "cuda" and self.use_io_binding:
-            raise NotImplementedError()
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
-            else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
-
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-            # converts output to namedtuple for pipelines post-processing
-            return TokenClassifierOutput(logits=logits)
 
 
 CUSTOM_TASKS_EXAMPLE = r"""
