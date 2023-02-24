@@ -12,57 +12,98 @@ specific language governing permissions and limitations under the License.
 
 # Models
 
-## ORTModel
+## Generic model classes
+
+The following ORT classes are available for instantiating a base model class without a specific head.
+
+### ORTModel
 
 [[autodoc]] onnxruntime.ORTModel
 
-## ORTModelForCausalLM
+## Natural Language Processing
+
+The following ORT classes are available for the following natural language processing tasks.
+
+### ORTModelForCausalLM
 
 [[autodoc]] onnxruntime.ORTModelForCausalLM
 
-## ORTModelForCustomTasks
+### ORTModelForMaskedLM
 
-[[autodoc]] onnxruntime.ORTModelForCustomTasks
-
-## ORTModelForFeatureExtraction
-
-[[autodoc]] onnxruntime.ORTModelForFeatureExtraction
-
-## ORTModelForImageClassification
-
-[[autodoc]] onnxruntime.ORTModelForImageClassification
-
-## ORTModelForMaskedLM
 [[autodoc]] onnxruntime.ORTModelForMaskedLM
 
-## ORTModelForMultipleChoice
-
-[[autodoc]] onnxruntime.ORTModelForMultipleChoice
-
-## ORTModelForQuestionAnswering
-
-[[autodoc]] onnxruntime.ORTModelForQuestionAnswering
-
-## ORTModelForSemanticSegmentation
-
-[[autodoc]] onnxruntime.ORTModelForSemanticSegmentation
-
-## ORTModelForSeq2SeqLM
+### ORTModelForSeq2SeqLM
 
 [[autodoc]] onnxruntime.ORTModelForSeq2SeqLM
 
-## ORTModelForSequenceClassification
+### ORTModelForSequenceClassification
 
 [[autodoc]] onnxruntime.ORTModelForSequenceClassification
 
-## ORTModelForSpeechSeq2Seq
-
-[[autodoc]] onnxruntime.ORTModelForSpeechSeq2Seq
-
-## ORTModelForTokenClassification
+### ORTModelForTokenClassification
 
 [[autodoc]] onnxruntime.ORTModelForTokenClassification
 
-## ORTModelForVision2Seq
+### ORTModelForMultipleChoice
+
+[[autodoc]] onnxruntime.ORTModelForMultipleChoice
+
+## Computer vision
+
+The following ORT classes are available for the following computer vision tasks.
+
+### ORTModelForQuestionAnswering
+
+[[autodoc]] onnxruntime.ORTModelForQuestionAnswering
+
+### ORTModelForImageClassification
+
+[[autodoc]] onnxruntime.ORTModelForImageClassification
+
+### ORTModelForSemanticSegmentation
+
+[[autodoc]] onnxruntime.ORTModelForSemanticSegmentation
+
+## Audio
+
+The following ORT classes are available for the following audio tasks.
+
+### ORTModelForAudioClassification
+
+[[autodoc]] onnxruntime.ORTModelForAudioClassification
+
+### ORTModelForAudioFrameClassification
+
+[[autodoc]] onnxruntime.ORTModelForAudioFrameClassification
+
+### ORTModelForCTC
+
+[[autodoc]] onnxruntime.ORTModelForCTC
+
+### ORTModelForSpeechSeq2Seq
+
+[[autodoc]] onnxruntime.ORTModelForSpeechSeq2Seq
+
+### ORTModelForAudioXVector
+
+[[autodoc]] onnxruntime.ORTModelForAudioXVector
+
+## Multimodal
+
+The following ORT classes are available for the following multimodal tasks.
+
+### ORTModelForVision2Seq
 
 [[autodoc]] onnxruntime.ORTModelForVision2Seq
+
+## Custom Tasks
+
+The following ORT classes are available for the following custom tasks.
+
+#### ORTModelForCustomTasks
+
+[[autodoc]] onnxruntime.ORTModelForCustomTasks
+
+#### ORTModelForFeatureExtraction
+
+[[autodoc]] onnxruntime.ORTModelForFeatureExtraction

@@ -23,6 +23,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoModelForVision2Seq, GenerationConfig
@@ -74,10 +75,10 @@ SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
             `(batch_size, encoder_sequence_length)`. Mask values selected in `[0, 1]`.
 """
 
-WHISPER_ENCODER_INPUTS_DOCSTRING = r"""
+SPEECH_ENCODER_INPUTS_DOCSTRING = r"""
     Args:
         input_features (`torch.FloatTensor`):
-            Mel features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
+            Mel / fbank features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
 """
 
 VISION_ENCODER_INPUTS_DOCSTRING = r"""
@@ -273,7 +274,7 @@ DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
 
 
-class ORTEncoderForWhisper(ORTEncoder):
+class ORTEncoderForSpeech(ORTEncoder):
     """
     Encoder model for ONNX Runtime inference for Whisper model.
 
@@ -282,15 +283,24 @@ class ORTEncoderForWhisper(ORTEncoder):
             The ONNX Runtime inference session associated to the encoder.
     """
 
-    @add_start_docstrings_to_model_forward(WHISPER_ENCODER_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(SPEECH_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
         input_features: torch.FloatTensor,
+        attention_mask: torch.LongTensor,
         **kwargs,
     ) -> BaseModelOutput:
+        use_torch = isinstance(input_features, torch.Tensor)
+        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+            model_inputs = (
+                [input_features, attention_mask] if "attention_mask" in self.input_names else [input_features]
+            )
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session, input_features, ordered_input_names=self._ordered_input_names
+                self.session,
+                *model_inputs,
+                ordered_input_names=self._ordered_input_names,
             )
 
             io_binding.synchronize_inputs()
@@ -299,10 +309,27 @@ class ORTEncoderForWhisper(ORTEncoder):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
+            if use_torch:
+                onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
+            else:
+                onnx_inputs = {"input_features": input_features}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask
+
+            # TODO: Replace with a better solution
+            # attention_mask is exported with int64 datatype and tokenizer produces int32 input
+            # for speech2text model. Hence, the input is type casted for inference.
+            if "attention_mask" in self.input_names:
+                if self.session.get_inputs()[1].type == "tensor(int64)":
+                    onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
 
             outputs = self.session.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self.device)
+
+            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+            if use_torch:
+                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -322,6 +349,9 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         pixel_values: torch.FloatTensor,
         **kwargs,
     ) -> BaseModelOutput:
+        use_torch = isinstance(pixel_values, torch.Tensor)
+        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session, pixel_values, ordered_input_names=self._ordered_input_names
@@ -333,10 +363,16 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            onnx_inputs = {"pixel_values": pixel_values.cpu().detach().numpy()}
+            if use_torch:
+                onnx_inputs = {"pixel_values": pixel_values.cpu().detach().numpy()}
+            else:
+                onnx_inputs = {"pixel_values": pixel_values}
 
             outputs = self.session.run(None, onnx_inputs)
-            last_hidden_state = torch.from_numpy(outputs[self.output_names["last_hidden_state"]]).to(self.device)
+
+            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+            if use_torch:
+                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -934,18 +970,8 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
 
-    _MODEL_TYPE_TO_ORTENCODER = {
-        "whisper": ORTEncoderForWhisper,
-    }
-
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
-        if self.config.model_type not in self._MODEL_TYPE_TO_ORTENCODER:
-            raise KeyError(
-                f"{self.config.model_type} is not supported yet. "
-                f"Only {list(self._MODEL_TYPE_TO_ORTENCODER.keys())} are supported. "
-                f"If you want to support {self.config.model_type} please propose a PR or open up an issue."
-            )
-        return self._MODEL_TYPE_TO_ORTENCODER[self.config.model_type](session, self)
+        return ORTEncoderForSpeech(session, self)
 
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, feature_size, sequence_length")
@@ -958,6 +984,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     def forward(
         self,
         input_features: Optional[torch.FloatTensor] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
@@ -966,7 +993,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     ) -> Seq2SeqLMOutput:
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
-            encoder_outputs = self.encoder(input_features=input_features)
+            encoder_outputs = self.encoder(input_features=input_features, attention_mask=attention_mask)
 
         # Decode
         if past_key_values is None or self.decoder_with_past is None:
@@ -992,6 +1019,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     def prepare_inputs_for_generation(
         self,
         input_ids,
+        attention_mask=None,
         past_key_values=None,
         head_mask=None,
         decoder_head_mask=None,
