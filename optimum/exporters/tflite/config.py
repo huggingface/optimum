@@ -31,3 +31,11 @@ class TextEncoderTFliteConfig(TFLiteConfig):
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
     MANDATORY_AXES = ("batch_size", "sequence_length", ("multiple-choice", "num_choices"))
+
+
+class VisionTFLiteConfig(TFLiteConfig):
+    """
+    Handles vision architectures.
+    """
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
