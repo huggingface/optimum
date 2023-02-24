@@ -554,6 +554,7 @@ class ORTModel(OptimizedModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
+        **kwargs
     ) -> "ORTModel":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
