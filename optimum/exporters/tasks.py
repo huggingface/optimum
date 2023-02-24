@@ -126,6 +126,7 @@ class TasksManager:
             "default": "TFAutoModel",
             "masked-lm": "TFAutoModelForMaskedLM",
             "causal-lm": "TFAutoModelForCausalLM",
+            "image-classification": "TFAutoModelForImageClassification",
             "seq2seq-lm": "TFAutoModelForSeq2SeqLM",
             "sequence-classification": "TFAutoModelForSequenceClassification",
             "token-classification": "TFAutoModelForTokenClassification",
