@@ -1952,6 +1952,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
             pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer, device=0)
             text = "My Name is Philipp and i live"
+
             outputs = pipe(text)
             # check model device
             self.assertEqual(pipe.model.device.type.lower(), "cuda")

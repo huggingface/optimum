@@ -290,7 +290,7 @@ class ORTEncoderForWhisper(ORTEncoder):
     ) -> BaseModelOutput:
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session, input_features
+                self.session, input_features, ordered_input_names=self._ordered_input_names
             )
 
             io_binding.synchronize_inputs()
@@ -324,7 +324,7 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
     ) -> BaseModelOutput:
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session, pixel_values
+                self.session, pixel_values, ordered_input_names=self._ordered_input_names
             )
 
             io_binding.synchronize_inputs()
@@ -805,6 +805,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             `ORTModel`: the model placed on the requested device.
         """
         device, provider_options = parse_device(device)
+
+        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
+            return self
 
         provider = get_provider_for_device(device)
         validate_provider_availability(provider)  # raise error if the provider is not available
