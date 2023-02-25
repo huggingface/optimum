@@ -38,4 +38,4 @@ class VisionTFLiteConfig(TFLiteConfig):
     Handles vision architectures.
     """
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
