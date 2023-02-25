@@ -17,7 +17,7 @@ Common TensorFlow Lite configuration classes that handle most of the features fo
 configurations.
 """
 
-from ...utils import DummyTextInputGenerator, logging
+from ...utils import DummyTextInputGenerator, DummyVisionInputGenerator, logging
 from .base import TFLiteConfig
 
 
@@ -39,3 +39,4 @@ class VisionTFLiteConfig(TFLiteConfig):
     """
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+    MANDATORY_AXES = ("batch_size", "num_channels", "width", "height")
