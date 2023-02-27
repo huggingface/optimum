@@ -72,9 +72,10 @@ optimum-cli export onnx --help
 
 usage: optimum-cli <command> [<args>] export onnx [-h] -m MODEL [--task TASK] [--monolith] [--device DEVICE] [--opset OPSET] [--atol ATOL]
                                                   [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--trust-remote-code]
-                                                  [--batch_size BATCH_SIZE] [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH]
-                                                  [--height HEIGHT] [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE]
-                                                  [--nb_max_frames NB_MAX_FRAMES] [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
+                                                  [--no-post-process] [--optimize {O1,O2,O3,O4}] [--batch_size BATCH_SIZE]
+                                                  [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT]
+                                                  [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE] [--nb_max_frames NB_MAX_FRAMES]
+                                                  [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
                                                   output
 
 optional arguments:
@@ -86,24 +87,25 @@ Required arguments:
   output                Path indicating the directory where to store generated ONNX model.
 
 Optional arguments:
-  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on
-                        the model, but are among: ['default', 'masked-lm', 'causal-lm', 'seq2seq-lm', 'sequence-classification', 'token-classification',
-                        'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-
-                        segmentation', 'speech2seq-lm', 'audio-classification', 'audio-frame-classification', 'audio-ctc', 'audio-xvector', 'vision2seq-
-                        lm', 'stable-diffusion']. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder.
-  --monolith            Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several ONNX files, for
-                        example for encoder-decoder models where the encoder should be run only once while thedecoder is looped over.
+  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on the model, but are among: ['default', 'masked-lm', 'causal-lm', 'seq2seq-lm', 'sequence-classification', 'token-classification', 'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-segmentation', 'speech2seq-lm', 'audio-classification', 'audio-frame-classification', 'audio-ctc', 'audio-xvector', 'vision2seq-lm', 'stable-diffusion', 'zero-shot-object-detection']. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder.
+  --monolith            Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several ONNX files, for example for encoder-decoder models where the encoder should be run only once while the decoder is looped over.
   --device DEVICE       The device to use to do the export. Defaults to "cpu".
   --opset OPSET         If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.
   --atol ATOL           If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
-  --framework {pt,tf}   The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is
-                        available in the environment.
+  --framework {pt,tf}   The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is available in the environment.
   --pad_token_id PAD_TOKEN_ID
                         This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
   --cache_dir CACHE_DIR
                         Path indicating where to store cache.
-  --trust-remote-code   Allow to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust
-                        and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
+  --trust-remote-code   Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
+  --no-post-process     Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder and decoder-with-past models into a single ONNX model file to reduce memory usage.
+  --optimize {O1,O2,O3,O4}
+                        Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT. Possible options:
+                            - O1: Basic general optimizations
+                            - O2: Basic and extended general optimizations, transformers-specific fusions
+                            - O3: Same as O2 with GELU approximation
+                            - O4: Same as O3 with mixed precision (fp16, GPU-only, requires `--device cuda`)
+
 ```
 
 Exporting a checkpoint can be done as follows:

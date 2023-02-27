@@ -35,4 +35,5 @@ markers = [
     "gpu_test",
     "tensorflow_test",
     "run_in_series",
+    "run_slow",
 ]

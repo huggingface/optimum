@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 
 from .. import BaseOptimumCLICommand
 from .onnx import ONNXExportCommand, parse_args_onnx
@@ -36,7 +36,9 @@ class ExportCommand(BaseOptimumCLICommand):
         )
         export_sub_parsers = export_parser.add_subparsers()
 
-        onnx_parser = export_sub_parsers.add_parser("onnx", help="Export PyTorch and TensorFlow to ONNX.")
+        onnx_parser = export_sub_parsers.add_parser(
+            "onnx", help="Export PyTorch and TensorFlow to ONNX.", formatter_class=RawTextHelpFormatter
+        )
 
         parse_args_onnx(onnx_parser)
         onnx_parser.set_defaults(func=onnx_export_factory)

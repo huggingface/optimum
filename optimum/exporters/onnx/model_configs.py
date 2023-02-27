@@ -959,8 +959,10 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
         allow_new=True,
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        Speech2TextDummyAudioInputGenerator,
-    ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+        (Speech2TextDummyAudioInputGenerator,)
+        + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+        + (DummyTextInputGenerator,)
+    )
     ATOL_FOR_VALIDATION = 1e-4
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
@@ -979,11 +981,27 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
+        common_inputs = {}
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
         if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"][
-                1
-            ] = f"{common_inputs['encoder_outputs'][1]} / {( 2 * self._config.num_conv_layers)}"
+            common_inputs["encoder_outputs"] = {
+                0: "batch_size",
+                1: f"encoder_sequence_length / {( 2 * self._config.num_conv_layers)}",
+            }
+
         return common_inputs
 
     @property

@@ -296,6 +296,7 @@ class OnnxExportTestCase(TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
+    @pytest.mark.run_slow
     @slow
     def test_pytorch_export(
         self,
@@ -321,6 +322,8 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @require_torch_gpu
     @slow
+    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
     def test_pytorch_export_on_cuda(
         self,
         test_name,
@@ -348,6 +351,7 @@ class OnnxExportTestCase(TestCase):
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow
+    @pytest.mark.run_slow
     @require_tf
     @require_vision
     @pytest.mark.tensorflow_test

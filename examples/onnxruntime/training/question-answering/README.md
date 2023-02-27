@@ -33,7 +33,7 @@ __The following example applies the acceleration features powered by ONNX Runtim
 The following example fine-tunes a BERT on the SQuAD 1.0 dataset.
 
 ```bash
-python run_qa.py \
+torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_qa.py \
     --model_name_or_path bert-base-uncased \
     --dataset_name squad \
     --do_train \
