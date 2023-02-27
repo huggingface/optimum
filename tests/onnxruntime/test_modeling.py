@@ -951,7 +951,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             }:
                 folder_contents = os.listdir(os.path.join(tmpdirname, subfoler))
                 self.assertIn(ONNX_WEIGHTS_NAME, folder_contents)
-                self.assertIn(ONNX_WEIGHTS_NAME + "_data" , folder_contents)
+                self.assertIn(ONNX_WEIGHTS_NAME + "_data", folder_contents)
 
             # verify loading from local folder works
             model = ORTStableDiffusionPipeline.from_pretrained(tmpdirname, export=False)

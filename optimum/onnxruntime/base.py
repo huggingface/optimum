@@ -17,7 +17,6 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import torch
-from transformers import PretrainedConfig
 from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput
 
 from onnxruntime import InferenceSession

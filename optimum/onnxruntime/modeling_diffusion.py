@@ -2,6 +2,7 @@ import importlib
 import logging
 import os
 import shutil
+from abc import abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Optional, Union
@@ -15,7 +16,6 @@ from huggingface_hub import snapshot_download
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 import onnxruntime as ort
-from abc import abstractmethod
 
 from ..exporters.onnx import (
     export_models,
@@ -32,8 +32,8 @@ from ..utils import (
 )
 from .modeling_ort import ORTModel
 from .utils import (
-    ONNX_WEIGHTS_NAME,
     _ORT_TO_NP_TYPE,
+    ONNX_WEIGHTS_NAME,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
@@ -252,7 +252,9 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             model_save_dir = new_model_save_dir
 
         if use_io_binding:
-            raise ValueError("IOBinding is not yet available for stable diffusion model, please set `use_io_binding` to False.")
+            raise ValueError(
+                "IOBinding is not yet available for stable diffusion model, please set `use_io_binding` to False."
+            )
 
         return cls(
             *inference_sessions,
@@ -360,12 +362,13 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         self.save_config(save_directory)
 
 
-# TODO : Temporary class while IOBinding are not supported
+# TODO : Use ORTModelPart once IOBinding support is added
 class _ORTDiffusionModelPart:
     """
     For multi-file ONNX models, represents a part of the model.
     It has its own `onnxruntime.InferenceSession`, and can perform a forward pass.
     """
+
     def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
         self.session = session
         self.parent_model = parent_model
@@ -382,7 +385,7 @@ class _ORTDiffusionModelPart:
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
-    
+
 
 class ORTModelTextEncoder(_ORTDiffusionModelPart):
     def forward(self, input_ids: np.ndarray):
