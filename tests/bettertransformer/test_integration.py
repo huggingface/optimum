@@ -34,7 +34,13 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
     @patch("optimum.utils.import_utils.is_onnxruntime_available")
     def test_direct_pipleine_initialization_without_onnx_installed(self, mock_onnxruntime_availability):
         mock_onnxruntime_availability.return_value = False
-        pipe = pipeline("question-answering", "hf-internal-testing/tiny-random-BertModel",
-                        accelerator="bettertransformer", )
-        pipe(question=["Is huggingface getting better?", "Will it ever stop getting better?"],
-             context=["Huggingface will never stop getting better."] * 2, batch_size=10)
+        pipe = pipeline(
+            "question-answering",
+            "hf-internal-testing/tiny-random-BertModel",
+            accelerator="bettertransformer",
+        )
+        pipe(
+            question=["Is huggingface getting better?", "Will it ever stop getting better?"],
+            context=["Huggingface will never stop getting better."] * 2,
+            batch_size=10,
+        )
