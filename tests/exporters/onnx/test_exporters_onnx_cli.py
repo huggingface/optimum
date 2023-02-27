@@ -97,6 +97,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool = False,
         optimization_level: Optional[str] = None,
         device: str = None,
+        fp16: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
@@ -104,8 +105,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             optimization_level = f" --optimize {optimization_level} " if optimization_level is not None else " "
             task = f" --task {task} " if task is not None else " "
             device = " --device cuda " if device == "cuda" else " "
-
-            command = f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{optimization_level}{device}{no_post_process}{task}{tmpdir}"
+            fp16 = " --fp16 --device cuda " if fp16 is True else " "
+            command = f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{fp16}{optimization_level}{device}{no_post_process}{task}{tmpdir}"
             print("\nRUNNING:", command)
             out = subprocess.run(
                 command,
@@ -250,3 +251,34 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 shell=True,
                 check=True,
             )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    def test_export_on_fp16(
+        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
+        if model_type == "yolos":
+            self.skipTest("yolos export on fp16 not supported due to a pytorch bug")
+
+        # TODO: refer to https://huggingface.slack.com/archives/C014N4749J9/p1677245766278129
+        if model_type == "deberta":
+            self.skipTest("deberta export on fp16 not supported due to a transformers bug")
+
+        # TODO: test once https://github.com/huggingface/transformers/pull/21789 is released
+        if (model_type == "vit" and task == "masked-im") or model_type == "vision-encoder-decoder":
+            self.skipTest(
+                "vit + masked-im, and vision-encoder-decoder export on fp16 not supported due to a transformers bug"
+            )
+
+        # TODO: test once https://github.com/huggingface/transformers/pull/21787 is released
+        if model_type == "perceiver" and task == "image-classification":
+            self.skipTest("perceiver + image-classification export on fp16 not supported due to a transformers bug")
+
+        if model_type == "ibert":
+            self.skipTest("ibert can not be supported in fp16")
+
+        self._onnx_export(model_name, task, monolith, no_post_process, fp16=True)

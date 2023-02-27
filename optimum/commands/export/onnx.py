@@ -55,6 +55,11 @@ def parse_args_onnx(parser):
         help='The device to use to do the export. Defaults to "cpu".',
     )
     optional_group.add_argument(
+        "--fp16",
+        action="store_true",
+        help="Experimental option: use half precision during the export. PyTorch-only, requires `--device cuda`.",
+    )
+    optional_group.add_argument(
         "--opset",
         type=int,
         default=None,

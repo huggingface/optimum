@@ -17,6 +17,7 @@
 from argparse import ArgumentParser
 
 from transformers import AutoTokenizer
+from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
@@ -31,6 +32,10 @@ from .utils import (
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
 )
+
+
+if is_torch_available():
+    import torch
 
 
 logger = logging.get_logger()
@@ -64,13 +69,27 @@ def main():
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
+    if (args.framework == "tf" and args.fp16 is True) or not is_torch_available():
+        raise ValueError("The --fp16 option is supported only for PyTorch.")
+
+    if args.fp16 is True and args.device == "cpu":
+        raise ValueError(
+            "The --fp16 option is supported only when exporting on GPU. Please pass the option `--device cuda`."
+        )
+
     # get the shapes to be used to generate dummy inputs
     input_shapes = {}
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
 
+    torch_dtype = None if args.fp16 is False else torch.float16
     model = TasksManager.get_model_from_task(
-        task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
+        task,
+        args.model,
+        framework=args.framework,
+        cache_dir=args.cache_dir,
+        trust_remote_code=args.trust_remote_code,
+        torch_dtype=torch_dtype,
     )
 
     if task.endswith("-with-past") and args.monolith is True:
@@ -173,6 +192,7 @@ def main():
         output_names=onnx_files_subpaths,
         input_shapes=input_shapes,
         device=args.device,
+        dtype="fp16" if args.fp16 is True else None,
     )
 
     if args.optimize == "O4" and args.device != "cuda":
@@ -212,6 +232,7 @@ def main():
             onnx_files_subpaths=onnx_files_subpaths,
             input_shapes=input_shapes,
             device=args.device,
+            dtype=torch_dtype,
         )
         logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.as_posix()}")
     except ShapeError as e:
