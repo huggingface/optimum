@@ -1,23 +1,27 @@
-from tempfile import NamedTemporaryFile
-
 import tensorflow as tf
-from typing import Any, Dict, List, Union, Optional
+from typing import Callable, List, Optional, Union
 from iree import runtime as ireert
 from iree.compiler import compile_str
 from iree.compiler import tf as tfc
 from iree._runtime import HalDevice
-from iree.tf.support import module_utils
-from transformers import TFPreTrainedModel
+# from transformers import TFPreTrainedModel
 from tir import TirTarget, TirDispatcher
 
 
 class TensorflowDispatcher(TirDispatcher):
 
+    def __init__(self, model, target: TirTarget, use_tflite: bool = False):
+        super().__init__(model, target)
+        self._use_tflite = use_tflite
+
     def validate_forward_inputs(self, *args, **kwargs):
         # TODO: Check this
         return args + tuple(kwargs.values())
 
-    def export_model_to_mlir(self, model: TFPreTrainedModel, examples: Optional = None, dynamic_axes: List[int] = None):
+    def _internal_call(self, dispatch: Callable, curated_args):
+        return dispatch(curated_args)
+
+    def export_model_to_mlir(self, model: "TFPreTrainedModel", target: TirTarget, examples: Optional = None, dynamic_axes: List[int] = None):
         # Define function signature
         if examples is not None:
             serving_signature = {
@@ -41,18 +45,41 @@ class TensorflowDispatcher(TirDispatcher):
         # Bind the function on the module (TODO: my eyes are already crying blood at this stage ...)
         model.forward = forward.__get__(model, type(model))
 
-        return tfc.compile_module(
-            model,
-            import_only=True,
-            output_mlir_debuginfo=False,
-            import_extra_args=["--output-format=mlir-ir"],
-            exported_names=["forward"],
-            # saved_model_tags=["serve"],
-        )
+        if self._use_tflite:
+            from iree.compiler.tflite import compile_str as compile_tflite_str
 
-    def compile_from_mlir(self, mlir: Union[bytes, str], target: TirTarget, device: Optional[HalDevice] = None):
-        # backend = module_utils.BackendInfo(f"iree_{target.value.replace('-', '')}")
+            forward_f = model.forward.get_concrete_function()
+            converter = tf.lite.TFLiteConverter.from_concrete_functions([forward_f], model)
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
+            if target is TirTarget.COMPILED_CUDA:
+                converter.target_spec.supported_types = [tf.float16]
+
+            tflite_module = converter.convert()
+            return compile_tflite_str(
+                tflite_module,
+                import_only=True,
+                target_backends=[target.value]
+            )
+        else:
+            return tfc.compile_module(
+                model,
+                import_only=True,
+                output_mlir_debuginfo=False,
+                import_extra_args=["--output-format=mlir-ir"],
+                exported_names=["forward"],
+                # saved_model_tags=["serve"],
+            )
+
+    def compile_from_mlir(
+        self,
+        mlir,
+        target: TirTarget,
+        device: Optional[HalDevice] = None,
+        compiler_args: List[str] = None
+    ):
+
+        # TODO: Refactor this outside of TF, can be used everywhere
         if target is TirTarget.COMPILED_CUDA:
             extra_args = [
                 # TODO: Change this hard-coded value

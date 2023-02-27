@@ -1,2 +1,3 @@
 from .lang import TirFrontend, TirTarget
-from .engine import TirDispatcher, TirEngine
+from .dispatch import TirDispatcher
+from .engine import TirEngine
