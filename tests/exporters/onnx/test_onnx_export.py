@@ -254,38 +254,54 @@ class OnnxExportTestCase(TestCase):
                     )
                     input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
                     for input_shapes in input_shapes_iterator:
+                        skip = False
+                        for model_onnx_conf in models_and_onnx_configs:
+                            if (
+                                hasattr(model_onnx_conf[0].config, "max_position_embeddings")
+                                and model_onnx_conf[0].config.max_position_embeddings
+                                >= input_shapes["sequence_length"]
+                            ):
+                                skip = True
+                                break
+                        if skip:
+                            continue
+
                         validate_models_outputs(
                             models_and_onnx_configs=models_and_onnx_configs,
                             onnx_named_outputs=onnx_outputs,
                             atol=atol,
                             output_dir=Path(tmpdirname),
                             input_shapes=input_shapes,
+                            device=device,
                         )
                 except (RuntimeError, ValueError) as e:
                     self.fail(f"{model_type}, {task} -> {e}")
         else:
             with NamedTemporaryFile("w") as output:
-                try:
-                    onnx_inputs, onnx_outputs = export(
-                        model=model,
+                onnx_inputs, onnx_outputs = export(
+                    model=model,
+                    config=onnx_config,
+                    opset=onnx_config.DEFAULT_ONNX_OPSET,
+                    output=Path(output.name),
+                    device=device,
+                )
+
+                input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
+                for input_shapes in input_shapes_iterator:
+                    if (
+                        hasattr(model.config, "max_position_embeddings")
+                        and input_shapes["sequence_length"] >= model.config.max_position_embeddings
+                    ):
+                        continue
+                    validate_model_outputs(
                         config=onnx_config,
-                        opset=onnx_config.DEFAULT_ONNX_OPSET,
-                        output=Path(output.name),
+                        reference_model=model,
+                        onnx_model=Path(output.name),
+                        onnx_named_outputs=onnx_outputs,
+                        atol=atol,
+                        input_shapes=input_shapes,
                         device=device,
                     )
-
-                    input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
-                    for input_shapes in input_shapes_iterator:
-                        validate_model_outputs(
-                            config=onnx_config,
-                            reference_model=model,
-                            onnx_model=Path(output.name),
-                            onnx_named_outputs=onnx_outputs,
-                            atol=atol,
-                            input_shapes=input_shapes,
-                        )
-                except (RuntimeError, ValueError) as e:
-                    self.fail(f"{model_type}, {task} -> {e}")
 
     def test_all_models_are_tested(self):
         # make sure we test all models

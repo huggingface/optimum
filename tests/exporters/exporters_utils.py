@@ -15,7 +15,7 @@
 
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "batch_size": [2, 4, 6],
-    "sequence_length": [8, 17, 33, 64, 96, 154],
+    "sequence_length": [8, 19, 33, 64, 96, 154],
     "num_choices": [2, 4],
 }
 
