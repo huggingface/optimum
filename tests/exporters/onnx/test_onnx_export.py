@@ -314,7 +314,7 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @pytest.mark.run_slow
     @slow
-    def test_pytorch_export(
+    def test_pytorch_export_on_cpu(
         self,
         test_name,
         name,
