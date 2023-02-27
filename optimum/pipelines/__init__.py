@@ -15,8 +15,6 @@
 
 from .pipelines_base import (
     MAPPING_LOADING_FUNC,
-    NO_FEATURE_EXTRACTOR_TASKS,
-    NO_TOKENIZER_TASKS,
     load_bettertransformer,
     load_ort_pipeline,
     pipeline,
