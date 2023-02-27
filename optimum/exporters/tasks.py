@@ -127,6 +127,7 @@ class TasksManager:
             "default": "TFAutoModel",
             "masked-lm": "TFAutoModelForMaskedLM",
             "causal-lm": "TFAutoModelForCausalLM",
+            "image-classification": "TFAutoModelForImageClassification",
             "seq2seq-lm": "TFAutoModelForSeq2SeqLM",
             "sequence-classification": "TFAutoModelForSequenceClassification",
             "token-classification": "TFAutoModelForTokenClassification",
@@ -583,9 +584,7 @@ class TasksManager:
             onnx="PoolFormerOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
-            "default",
-            "image-classification",
-            onnx="ResNetOnnxConfig",
+            "default", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
         "roberta": supported_tasks_mapping(
             "default",
