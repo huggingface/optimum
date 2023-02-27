@@ -38,7 +38,7 @@ ONNX_DECODER_NAME = "decoder_model.onnx"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
 
-ORT_TO_NP_TYPE = {
+_ORT_TO_NP_TYPE = {
     "tensor(bool)": np.bool_,
     "tensor(int8)": np.int8,
     "tensor(uint8)": np.uint8,

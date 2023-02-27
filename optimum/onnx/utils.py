@@ -54,7 +54,7 @@ def _get_external_data_paths(src_paths: List[Path], dst_paths: List[Path]) -> Tu
         else:
             # if external data doesnt exist or was saved in multiple files
             src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
-            dst_paths.extend(dst_paths[idx].parent + "/" + tensor_name for tensor_name in model_tensors_ext)
+            dst_paths.extend(dst_paths[idx].parent / tensor_name for tensor_name in model_tensors_ext)
     return src_paths, dst_paths
 
 

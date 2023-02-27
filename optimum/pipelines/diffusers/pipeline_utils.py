@@ -1,4 +1,4 @@
-#  Copyright 2022 The HuggingFace Team. All rights reserved.
+#  Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ class DiffusionPipelineMixin(ConfigMixin):
     @staticmethod
     def numpy_to_pil(images):
         """
-        Convert a numpy image or a batch of images to a PIL image.
+        Converts a numpy image or a batch of images to a PIL image.
         """
         if images.ndim == 3:
             images = images[None, ...]

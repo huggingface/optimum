@@ -351,7 +351,7 @@ class OptimizedModel(ABC):
                 subfolder=subfolder,
             )
 
-        if not export and trust_remote_code is not False:
+        if not export and trust_remote_code:
             logger.warning(
                 "The argument `trust_remote_code` is to be used along with export=True. It will be ignored."
             )

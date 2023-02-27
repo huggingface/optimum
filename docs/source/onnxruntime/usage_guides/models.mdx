@@ -92,23 +92,33 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 >>> # [{'translation_text': "Il n'est jamais sorti sans un livre sous son bras, et il est souvent revenu avec deux."}]
 ```
 
-## Export and inference of stable diffusion models
+## Export and inference of Stable Diffusion models
 
-Stable diffusion models can also be used when running inference with ONNX Runtime. When Stable diffusion models
-are exported to the ONNX format, they are decomposed into three components that are later combined during inference:
-- The text encoder component
-- The U-NET component
-- The VAE decoder component
+Stable Diffusion models can also be used when running inference with ONNX Runtime. When Stable Diffusion models
+are exported to the ONNX format, they are split into three components that are later combined during inference:
+- The text encoder
+- The U-NET
+- The VAE decoder
 
-Here is an example of how you can load a stable diffusion model, export it to the ONNX format and run inference using ONNX Runtime:
+Here is an example of how you can load an ONNX Stable Diffusion model and run inference using ONNX Runtime:
 
 ```python
 from optimum.onnxruntime import ORTStableDiffusionPipeline
 
 model_id = "runwayml/stable-diffusion-v1-5"
-stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(model_id, export=True)
+stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(model_id, revision="onnx")
 prompt = "sailing ship in storm by Leonardo da Vinci"
 image = stable_diffusion(prompt).images[0]
+```
+
+To load your PyTorch model and convert it to ONNX on-the-fly, simply pass `export=True` to the `from_pretrained` method.
+After this step, don't forget to save your model using the `save_pretrained` method, to be able to load your ONNX model directly.
+
+```python
+stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(model_id, export=True)
+
+# Save exported the model
+stable_diffusion.save_pretrained("a_local_path_for_convert_onnx_model")
 ```
 
 ![img](https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/stable_diffusion_v1_5_ort_sail_boat.png)

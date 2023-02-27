@@ -1,4 +1,4 @@
-#  Copyright 2022 The HuggingFace Team. All rights reserved.
+#  Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -181,6 +181,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
 
+        # Adapted from diffusers to extend it for other runtimes than ORT
         timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
@@ -223,6 +224,9 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             safety_checker_input = self.feature_extractor(
                 self.numpy_to_pil(image), return_tensors="np"
             ).pixel_values.astype(image.dtype)
+
+            # Adapted from diffusers (removed)
+            # image, has_nsfw_concepts = self.safety_checker(clip_input=safety_checker_input, images=image)
 
             # safety_checker does not support batched inputs yet
             images, has_nsfw_concept = [], []

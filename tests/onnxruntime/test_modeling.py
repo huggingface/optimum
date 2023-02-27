@@ -865,14 +865,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
             model.save_pretrained(tmpdirname)
             folder_contents = os.listdir(tmpdirname)
-            self.assertTrue(model.config_name in folder_contents)
+            self.assertIn(model.config_name, folder_contents)
             for subfoler in {
                 DIFFUSION_MODEL_UNET_SUBFOLDER,
                 DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
                 DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
             }:
                 folder_contents = os.listdir(os.path.join(tmpdirname, subfoler))
-                self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
+                self.assertIn(ONNX_WEIGHTS_NAME, folder_contents)
 
     def test_save_load_ort_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -882,9 +882,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             # verify external data is exported
             folder_contents = os.listdir(tmpdirname)
-            self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
-            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
-
+            self.assertIn(ONNX_WEIGHTS_NAME, folder_contents)
+            self.assertIn(ONNX_WEIGHTS_NAME + "_data", folder_contents)
             # verify loading from local folder works
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, from_transformers=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
@@ -951,8 +950,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
             }:
                 folder_contents = os.listdir(os.path.join(tmpdirname, subfoler))
-                self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
-                self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
+                self.assertIn(ONNX_WEIGHTS_NAME, folder_contents)
+                self.assertIn(ONNX_WEIGHTS_NAME + "_data" , folder_contents)
 
             # verify loading from local folder works
             model = ORTStableDiffusionPipeline.from_pretrained(tmpdirname, export=False)

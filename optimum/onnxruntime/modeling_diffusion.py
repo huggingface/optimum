@@ -15,6 +15,7 @@ from huggingface_hub import snapshot_download
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 import onnxruntime as ort
+from abc import abstractmethod
 
 from ..exporters.onnx import (
     export_models,
@@ -29,11 +30,10 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
-from .base import ORTModelPart
 from .modeling_ort import ORTModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
-    ORT_TO_NP_TYPE,
+    _ORT_TO_NP_TYPE,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
@@ -81,7 +81,7 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             feature_extractor (`Optional[CLIPFeatureExtractor]`, defaults to `None`):
                 A model extracting features from generated images to be used as inputs for the `safety_checker`
             use_io_binding (`Optional[bool]`, defaults to `None`):
-                Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
+                Whether to use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
             model_save_dir (`Optional[str]`, defaults to `None`):
                 The directory under which the model exported to ONNX was saved.
@@ -121,16 +121,16 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         provider_options: Optional[Dict] = None,
     ):
         """
-        Creates three inference sessions for respectively the vae decoder, the text encoder and the unet models.
+        Creates three inference sessions for respectively the VAE decoder, the text encoder and the U-NET models.
         The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
 
         Args:
             vae_decoder_path (`Union[str, Path]`):
-                The path of the VAE decoder ONNX model.
+                The path to the VAE decoder ONNX model.
             text_encoder_path (`Union[str, Path]`):
-                The path of the text encoder ONNX model.
+                The path to the text encoder ONNX model.
             unet_path (`Union[str, Path]`):
-                The path of the U-NET ONNX model.
+                The path to the U-NET ONNX model.
             provider (`str`, defaults to `"CPUExecutionProvider"`):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers.
@@ -154,24 +154,6 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         unet_file_name: str = ONNX_WEIGHTS_NAME,
         **kwargs,
     ):
-        """
-        Saves the vae decoder, the text encoder and the unet subcomponents as well as the model configuration to a
-        directory, so that it can be re-loaded using the
-        [`~optimum.onnxruntime.modeling_diffusion.ORT.ORTStableDiffusionPipeline`] class method.
-
-        Args:
-            save_directory (`Union[str, Path`]):
-                The directory where to save the model files.
-            vae_decoder_file_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
-                The VAE decoder model file name. Overwrites the default file name and allows one to save the VAE decoder model
-                with a different name.
-            text_encoder_file_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_WEIGHTS_NAME`):
-                The text encoder model file name. Overwrites the default file name and allows one to save the text encoder model
-                with a different name.
-            unet_file_name (`str`, defaults to `optimum.onnxruntime.ONNX_WEIGHTS_NAME`):
-                The U-NET model file name. Overwrites the default file name and allows one to save the U-NET model
-                with a different name.
-        """
         save_directory = Path(save_directory)
         src_to_dst_path = {
             self.vae_decoder_model_path: save_directory
@@ -270,8 +252,7 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             model_save_dir = new_model_save_dir
 
         if use_io_binding:
-            logger.warning("OBinding is not yet available, `use_io_binding` set to False.")
-            use_io_binding = False
+            raise ValueError("IOBinding is not yet available for stable diffusion model, please set `use_io_binding` to False.")
 
         return cls(
             *inference_sessions,
@@ -379,7 +360,31 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         self.save_config(save_directory)
 
 
-class ORTModelTextEncoder(ORTModelPart):
+# TODO : Temporary class while IOBinding are not supported
+class _ORTDiffusionModelPart:
+    """
+    For multi-file ONNX models, represents a part of the model.
+    It has its own `onnxruntime.InferenceSession`, and can perform a forward pass.
+    """
+    def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
+        self.session = session
+        self.parent_model = parent_model
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+
+    @property
+    def device(self):
+        return self.parent_model.device
+
+    @abstractmethod
+    def forward(self, *args, **kwargs):
+        pass
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+    
+
+class ORTModelTextEncoder(_ORTDiffusionModelPart):
     def forward(self, input_ids: np.ndarray):
         onnx_inputs = {
             "input_ids": input_ids,
@@ -388,10 +393,10 @@ class ORTModelTextEncoder(ORTModelPart):
         return outputs
 
 
-class ORTModelUnet(ORTModelPart):
-    def __init__(self, session: ort.InferenceSession, parent_model: "ORTModel"):
+class ORTModelUnet(_ORTDiffusionModelPart):
+    def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
         super().__init__(session, parent_model)
-        self.input_dtype = {inputs.name: ORT_TO_NP_TYPE[inputs.type] for inputs in self.session.get_inputs()}
+        self.input_dtype = {inputs.name: _ORT_TO_NP_TYPE[inputs.type] for inputs in self.session.get_inputs()}
 
     def forward(self, sample: np.ndarray, timestep: np.ndarray, encoder_hidden_states: np.ndarray):
         onnx_inputs = {
@@ -403,7 +408,7 @@ class ORTModelUnet(ORTModelPart):
         return outputs
 
 
-class ORTModelVaeDecoder(ORTModelPart):
+class ORTModelVaeDecoder(_ORTDiffusionModelPart):
     def forward(self, latent_sample: np.ndarray):
         onnx_inputs = {
             "latent_sample": latent_sample,
