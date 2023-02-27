@@ -29,6 +29,7 @@ from transformers import (
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
     QuestionAnsweringPipeline,
+    SequenceFeatureExtractor,
     SummarizationPipeline,
     Text2TextGenerationPipeline,
     TextClassificationPipeline,
@@ -158,18 +159,6 @@ if is_onnxruntime_available():
         },
     }
 
-NO_FEATURE_EXTRACTOR_TASKS = set()
-NO_TOKENIZER_TASKS = set()
-for task, values in TRANSFORMERS_SUPPORTED_TASKS.items():
-    if values["type"] == "text":
-        NO_FEATURE_EXTRACTOR_TASKS.add(task)
-    elif values["type"] in {"image", "video"}:
-        NO_TOKENIZER_TASKS.add(task)
-    elif values["type"] in {"audio"}:
-        NO_TOKENIZER_TASKS.add(task)
-    elif values["type"] not in ["multimodal", "audio", "video"]:
-        raise ValueError(f"SUPPORTED_TASK {task} contains invalid type {values['type']}")
-
 
 def load_bettertransformer(
     model,
@@ -272,7 +261,7 @@ def load_ort_pipeline(
                 )
         if feature_extractor is None and load_feature_extractor:
             for preprocessor in model.preprocessors:
-                if isinstance(preprocessor, PreTrainedFeatureExtractor):
+                if isinstance(preprocessor, SequenceFeatureExtractor):
                     feature_extractor = preprocessor
                     break
             if feature_extractor is None:
@@ -334,8 +323,22 @@ def pipeline(
         config = AutoConfig.from_pretrained(model, _from_pipeline=task, **hub_kwargs, **kwargs)
         hub_kwargs["_commit_hash"] = config._commit_hash
 
+    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
+
+    no_feature_extractor_tasks = set()
+    no_tokenizer_tasks = set()
+    for task, values in supported_tasks.items():
+        if values["type"] == "text":
+            no_feature_extractor_tasks.add(task)
+        elif values["type"] in {"image", "video"}:
+            no_tokenizer_tasks.add(task)
+        elif values["type"] in {"audio"}:
+            no_tokenizer_tasks.add(task)
+        elif values["type"] not in ["multimodal", "audio", "video"]:
+            raise ValueError(f"SUPPORTED_TASK {task} contains invalid type {values['type']}")
+
     # copied from transformers.pipelines.__init__.py l.609
-    if targeted_task in NO_TOKENIZER_TASKS:
+    if targeted_task in no_tokenizer_tasks:
         # These will never require a tokenizer.
         # the model on the other hand might have a tokenizer, but
         # the files could be missing from the hub, instead of failing
@@ -343,12 +346,12 @@ def pipeline(
         load_tokenizer = False
     else:
         load_tokenizer = True
-    if targeted_task in NO_FEATURE_EXTRACTOR_TASKS:
+
+    if targeted_task in no_feature_extractor_tasks:
         load_feature_extractor = False
     else:
         load_feature_extractor = True
 
-    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
     model, model_id, tokenizer, feature_extractor = MAPPING_LOADING_FUNC[accelerator](
         model,
         targeted_task,
@@ -369,7 +372,7 @@ def pipeline(
         feature_extractor = get_preprocessor(model_id)
 
     return transformers_pipeline(
-        task,
+        targeted_task,
         model=model,
         tokenizer=tokenizer,
         feature_extractor=feature_extractor,
