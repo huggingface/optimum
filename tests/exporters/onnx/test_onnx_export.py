@@ -255,11 +255,11 @@ class OnnxExportTestCase(TestCase):
                     input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
                     for input_shapes in input_shapes_iterator:
                         skip = False
-                        for model_onnx_conf in models_and_onnx_configs:
+                        for _, model_onnx_conf in models_and_onnx_configs.items():
                             if (
                                 hasattr(model_onnx_conf[0].config, "max_position_embeddings")
-                                and model_onnx_conf[0].config.max_position_embeddings
-                                >= input_shapes["sequence_length"]
+                                and input_shapes["sequence_length"]
+                                >= model_onnx_conf[0].config.max_position_embeddings
                             ):
                                 skip = True
                                 break
