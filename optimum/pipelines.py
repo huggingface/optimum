@@ -192,7 +192,7 @@ def load_bettertransformer(
         model_classes=model_classes,
         config=config,
         framework="pt",
-        task=task,
+        task=targeted_task,
         **hub_kwargs,
         **model_kwargs,
     )
