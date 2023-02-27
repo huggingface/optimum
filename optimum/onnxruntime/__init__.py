@@ -29,7 +29,11 @@ _import_structure = {
     ],
     "modeling_ort": [
         "ORTModel",
+        "ORTModelForAudioClassification",
+        "ORTModelForAudioFrameClassification",
+        "ORTModelForAudioXVector",
         "ORTModelForCustomTasks",
+        "ORTModelForCTC",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
         "ORTModelForMaskedLM",
@@ -49,6 +53,7 @@ _import_structure = {
     "training_args_seq2seq": ["ORTSeq2SeqTrainingArguments"],
     "utils": [
         "ONNX_DECODER_NAME",
+        "ONNX_DECODER_MERGED_NAME",
         "ONNX_DECODER_WITH_PAST_NAME",
         "ONNX_ENCODER_NAME",
         "ONNX_WEIGHTS_NAME",
@@ -63,6 +68,10 @@ if TYPE_CHECKING:
     from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
         ORTModel,
+        ORTModelForAudioClassification,
+        ORTModelForAudioFrameClassification,
+        ORTModelForAudioXVector,
+        ORTModelForCTC,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
@@ -81,6 +90,7 @@ if TYPE_CHECKING:
     from .training_args import ORTTrainingArguments
     from .training_args_seq2seq import ORTSeq2SeqTrainingArguments
     from .utils import (
+        ONNX_DECODER_MERGED_NAME,
         ONNX_DECODER_NAME,
         ONNX_DECODER_WITH_PAST_NAME,
         ONNX_ENCODER_NAME,

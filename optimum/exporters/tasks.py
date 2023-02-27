@@ -26,6 +26,7 @@ from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 
 if TYPE_CHECKING:
+    import torch
     from transformers import PreTrainedModel, TFPreTrainedModel
 
     from .base import ExportConfig
@@ -201,30 +202,31 @@ class TasksManager:
             onnx="BertOnnxConfig",
             tflite="BertTFLiteConfig",
         ),
-        "big-bird": supported_tasks_mapping(
-            "default",
-            "masked-lm",
-            # the logic for causal-lm is not supported for big-bird
-            # "causal-lm",
-            "sequence-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-            onnx="BigBirdOnnxConfig",
-            # TODO: check model_config.py to know why it cannot be enabled yet.
-            # tflite="BigBirdTFLiteConfig",
-        ),
-        "bigbird-pegasus": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "causal-lm",
-            "causal-lm-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
-            "sequence-classification",
-            "question-answering",
-            onnx="BigBirdPegasusOnnxConfig",
-        ),
+        # For big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
+        # "big-bird": supported_tasks_mapping(
+        #     "default",
+        #     "masked-lm",
+        #     # the logic for causal-lm is not supported for big-bird
+        #     # "causal-lm",
+        #     "sequence-classification",
+        #     "multiple-choice",
+        #     "token-classification",
+        #     "question-answering",
+        #     onnx="BigBirdOnnxConfig",
+        #     # TODO: check model_config.py to know why it cannot be enabled yet.
+        #     # tflite="BigBirdTFLiteConfig",
+        # ),
+        # "bigbird-pegasus": supported_tasks_mapping(
+        #     "default",
+        #     "default-with-past",
+        #     "causal-lm",
+        #     "causal-lm-with-past",
+        #     "seq2seq-lm",
+        #     "seq2seq-lm-with-past",
+        #     "sequence-classification",
+        #     "question-answering",
+        #     onnx="BigBirdPegasusOnnxConfig",
+        # ),
         "blenderbot": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -1016,6 +1018,7 @@ class TasksManager:
         revision: Optional[str] = None,
         framework: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        torch_dtype: Optional["torch.dtype"] = None,
         **model_kwargs,
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
@@ -1037,6 +1040,8 @@ class TasksManager:
                 none be provided.
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            torch_dtype (`Optional[torch.dtype]`, defaults to `None`):
+                Data type to load the model on. PyTorch-only argument.
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
 
@@ -1050,6 +1055,8 @@ class TasksManager:
         model_class = TasksManager.get_model_class_for_task(task, framework)
         kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
+            if framework == "pt":
+                kwargs["torch_dtype"] = torch_dtype
             model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
             if framework == "pt":

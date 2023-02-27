@@ -17,6 +17,7 @@
 from typing import Any, Dict, Optional, Union
 
 from transformers import (
+    AudioClassificationPipeline,
     AutomaticSpeechRecognitionPipeline,
     FeatureExtractionPipeline,
     FillMaskPipeline,
@@ -45,10 +46,9 @@ from .utils import is_onnxruntime_available
 from .utils.file_utils import find_files_matching_pattern
 
 
-SUPPORTED_TASKS = {}
-
 if is_onnxruntime_available():
     from .onnxruntime import (
+        ORTModelForAudioClassification,
         ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
@@ -63,7 +63,7 @@ if is_onnxruntime_available():
     )
     from .onnxruntime.modeling_ort import ORTModel
 
-    SUPPORTED_TASKS = {
+    ORT_SUPPORTED_TASKS = {
         "feature-extraction": {
             "impl": FeatureExtractionPipeline,
             "class": (ORTModelForFeatureExtraction,),
@@ -148,16 +148,24 @@ if is_onnxruntime_available():
             "default": "nlpconnect/vit-gpt2-image-captioning",
             "type": "multimodal",
         },
+        "audio-classification": {
+            "impl": AudioClassificationPipeline,
+            "class": (ORTModelForAudioClassification,),
+            "default": "superb/hubert-base-superb-ks",
+            "type": "audio",
+        },
     }
 
 NO_FEATURE_EXTRACTOR_TASKS = set()
 NO_TOKENIZER_TASKS = set()
-for task, values in SUPPORTED_TASKS.items():
+for task, values in TRANSFORMERS_SUPPORTED_TASKS.items():
     if values["type"] == "text":
         NO_FEATURE_EXTRACTOR_TASKS.add(task)
-    elif values["type"] == "image":
+    elif values["type"] in {"image", "video"}:
         NO_TOKENIZER_TASKS.add(task)
-    elif values["type"] != "multimodal":
+    elif values["type"] in {"audio"}:
+        NO_TOKENIZER_TASKS.add(task)
+    elif values["type"] not in ["multimodal", "audio", "video"]:
         raise ValueError(f"SUPPORTED_TASK {task} contains invalid type {values['type']}")
 
 
@@ -179,11 +187,11 @@ def load_bettertransformer(
         model_kwargs = {}
 
     if model is None:
-        model_id = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["default"]
-        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, **model_kwargs)
+        model_id = SUPPORTED_TASKS[targeted_task]["default"]
+        model = SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, **model_kwargs)
     elif isinstance(model, str):
         model_id = model
-        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, **model_kwargs)
+        model = SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, **model_kwargs)
     else:
         raise ValueError(
             f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
@@ -285,9 +293,9 @@ def pipeline(
     targeted_task = "translation" if task.startswith("translation") else task
 
     if accelerator == "ort":
-        if targeted_task not in list(SUPPORTED_TASKS.keys()):
+        if targeted_task not in list(ORT_SUPPORTED_TASKS.keys()):
             raise ValueError(
-                f"Task {targeted_task} is not supported. Supported tasks are { list(SUPPORTED_TASKS.keys())}"
+                f"Task {targeted_task} is not supported for the ONNX Runtime pipeline. Supported tasks are { list(ORT_SUPPORTED_TASKS.keys())}"
             )
 
     if accelerator not in MAPPING_LOADING_FUNC:
@@ -309,6 +317,7 @@ def pipeline(
     else:
         load_feature_extractor = True
 
+    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
     model, model_id, tokenizer, feature_extractor = MAPPING_LOADING_FUNC[accelerator](
         model,
         targeted_task,
@@ -316,7 +325,7 @@ def pipeline(
         tokenizer,
         feature_extractor,
         load_feature_extractor,
-        SUPPORTED_TASKS,
+        SUPPORTED_TASKS=supported_tasks,
         *model_kwargs,
         **kwargs,
     )

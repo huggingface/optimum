@@ -31,7 +31,7 @@ __The following example applies the acceleration features powered by ONNX Runtim
 The following example fine-tunes a BERT on the sst-2 task.
 
 ```bash
-python run_glue.py \
+torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_glue.py \
     --model_name_or_path bert-base-uncased \
     --task_name sst2 \
     --do_train \

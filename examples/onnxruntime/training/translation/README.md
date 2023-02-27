@@ -38,7 +38,7 @@ __The following example applies the acceleration features powered by ONNX Runtim
 The following example fine-tunes a T5 large model on the wmt16 dataset.
 
 ```bash
-python run_translation.py \
+torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_translation.py \
     --model_name_or_path t5-large \
     --dataset_name wmt16 \
     --dataset_config ro-en \

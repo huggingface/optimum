@@ -31,7 +31,7 @@ __The following example applies the acceleration features powered by ONNX Runtim
 The following example fine-tunes a BERT on the sst-2 task.
 
 ```bash
-python run_ner.py \
+torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_ner.py \
     --model_name_or_path bert-base-cased \
     --dataset_name conll2003 \
     --do_train \

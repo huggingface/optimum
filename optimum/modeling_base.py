@@ -123,13 +123,13 @@ class OptimizedModel(ABC):
         self.config.save_pretrained(save_directory)
         for preprocessor in self.preprocessors:
             preprocessor.save_pretrained(save_directory)
-        self._save_pretrained(save_directory, **kwargs)
+        self._save_pretrained(save_directory)
 
         if push_to_hub:
             return self.push_to_hub(save_directory, **kwargs)
 
     @abstractmethod
-    def _save_pretrained(self, save_directory, **kwargs):
+    def _save_pretrained(self, save_directory):
         """
         Saves a model weights into a directory, so that it can be re-loaded using the
         [`from_pretrained`] class method.
