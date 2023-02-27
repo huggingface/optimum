@@ -41,6 +41,7 @@ from .utils import (
     ONNX_DECODER_WITH_PAST_NAME,
     get_provider_for_device,
     parse_device,
+    validate_provider_availability,
 )
 
 
@@ -142,7 +143,7 @@ class ORTModelDecoder(ORTModel):
         Args:
             decoder_session (`onnxruntime.InferenceSession`):
                 The ONNX Runtime inference session associated to the decoder.
-            config ([~`transformers.PretrainedConfig`]):
+            config ([`~transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model. Initializing with a config file does
                 not load the weights associated with the model, only the configuration.
             decoder_with_past_session (`Optional[onnxruntime.InferenceSession]`, defaults to `None`):
@@ -350,7 +351,7 @@ class ORTModelDecoder(ORTModel):
                 try:
                     decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
                         model_id,
-                        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                         "decoder_with_past_file_name",
                         subfolder=subfolder,
                         use_auth_token=use_auth_token,
@@ -557,7 +558,11 @@ class ORTModelDecoder(ORTModel):
         """
         device, provider_options = parse_device(device)
 
+        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
+            return self
+
         provider = get_provider_for_device(device)
+        validate_provider_availability(provider)  # raise error if the provider is not available
         self.device = device
         self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
@@ -596,6 +601,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 past_key_values=past_key_values,
+                labels=labels,
             )
         elif self.use_merged is True:
             outputs = self.decoder(

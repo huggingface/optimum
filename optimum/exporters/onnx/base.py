@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+import numpy as np
 import onnx
 from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 from transformers.utils import is_torch_available
@@ -287,7 +288,9 @@ class OnnxConfig(ExportConfig, ABC):
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
 
-    def fix_dynamic_axes(self, model_path: "Path", device: str = "cpu", input_shapes: Dict = None):
+    def fix_dynamic_axes(
+        self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
+    ):
         """
         Fixes potential issues with dynamic axes.
 
@@ -332,6 +335,9 @@ class OnnxConfig(ExportConfig, ABC):
                     onnx_inputs.update({tensor_name: tensor for tensor_name, tensor in value.items()})
                 else:
                     onnx_inputs[name] = value
+            for name, value in onnx_inputs.items():
+                if value.dtype == np.float32 and dtype == "fp16":
+                    onnx_inputs[name] = onnx_inputs[name].astype(np.float16)
             outputs = session.run(None, onnx_inputs)
             del session
 
@@ -803,7 +809,9 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         "default": {"labels": {0: "batch_size"}},
         "masked-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "causal-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "causal-lm-with-past": {"labels": {0: "batch_size"}},
         "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "seq2seq-lm-with-past": {"labels": {0: "batch_size"}},
         "sequence-classification": {"labels": {0: "batch_size"}},
         "token-classification": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "multiple-choice": {"labels": {0: "batch_size"}},
@@ -850,7 +858,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         batch_size = dummy_inputs[input_name].shape[0]
 
         # TODO: doesn't this break attention_mask generation?
-        if isinstance(self._onnx_config, OnnxSeq2SeqConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
+        if isinstance(self._onnx_config, OnnxConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
             kwargs["sequence_length"] = 1
 
         dummy_inputs_generators = [
@@ -874,6 +882,30 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         return self._onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
+
+    def flatten_decoder_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.key"] = t[0]
+        flattened_output[f"{name}.{idx}.value"] = t[1]
+
+    def flatten_seq2seq_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
+        flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
+        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+
+    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+        flattened_output = {}
+        if name in ["present", "past_key_values"]:
+            if "causal-lm" in self.task:
+                for idx, t in enumerate(field):
+                    self.flatten_decoder_past_key_values(flattened_output, name, idx, t)
+            elif "seq2seq-lm" in self.task:
+                for idx, t in enumerate(field):
+                    self.flatten_seq2seq_past_key_values(flattened_output, name, idx, t)
+        else:
+            flattened_output = super().flatten_output_collection_property(name, field)
+
+        return flattened_output
 
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:

@@ -18,9 +18,10 @@ import unittest
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
+import pytest
 from parameterized import parameterized
 from transformers import is_torch_available
-from transformers.testing_utils import require_torch, require_vision
+from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -52,24 +53,28 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
-                    models_to_test.append((f"{model_type}_{task}", model_name, task, False, False))
+                    models_to_test.append((f"{model_type}_{task}", model_type, model_name, task, False, False))
 
                     # -with-past and monolith case are absurd, so we don't test them as not supported
                     if any(
                         task == ort_special_task
                         for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
                     ):
-                        models_to_test.append((f"{model_type}_{task}_monolith", model_name, task, True, False))
+                        models_to_test.append(
+                            (f"{model_type}_{task}_monolith", model_type, model_name, task, True, False)
+                        )
 
                     # For other tasks, we don't test --no-post-process as there is none anyway
                     if task == "causal-lm-with-past":
-                        models_to_test.append((f"{model_type}_{task}_no_postprocess", model_name, task, False, True))
+                        models_to_test.append(
+                            (f"{model_type}_{task}_no_postprocess", model_type, model_name, task, False, True)
+                        )
 
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
             if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
-                models_to_test.append((f"{model_type}_no_task", model_name, None, False, False))
+                models_to_test.append((f"{model_type}_no_task", model_type, model_name, None, False, False))
 
         return sorted(models_to_test)
     else:
@@ -86,26 +91,33 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
     def _onnx_export(
         self,
-        test_name: str,
         model_name: str,
         task: Optional[str],
         monolith: bool = False,
         no_post_process: bool = False,
+        optimization_level: Optional[str] = None,
+        device: str = None,
+        fp16: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
             monolith = " --monolith " if monolith is True else " "
             no_post_process = " --no-post-process " if no_post_process is True else " "
-            if task is not None:
-                subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}--task {task} {tmpdir}",
-                    shell=True,
-                    check=True,
-                )
-            else:
-                subprocess.run(
-                    f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{no_post_process}{tmpdir}",
-                    shell=True,
-                    check=True,
+            optimization_level = f" --optimize {optimization_level} " if optimization_level is not None else " "
+            task = f" --task {task} " if task is not None else " "
+            device = " --device cuda " if device == "cuda" else " "
+            fp16 = " --fp16 --device cuda " if fp16 is True else " "
+            command = f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{fp16}{optimization_level}{device}{no_post_process}{task}{tmpdir}"
+            print("\nRUNNING:", command)
+            out = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+            )
+            print(out.stdout.decode("utf-8"))
+            print(out.stderr.decode("utf-8"))  # logging's default output is stderr
+            if out.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    returncode=out.returncode, cmd=out.args, stderr=out.stderr.decode("utf-8")
                 )
 
     def test_all_models_tested(self):
@@ -118,9 +130,74 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch
     @require_vision
     def test_exporters_cli_pytorch(
-        self, test_name: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
-        self._onnx_export(test_name, model_name, task, monolith, no_post_process)
+        self._onnx_export(model_name, task, monolith, no_post_process)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_vision
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_exporters_cli_pytorch_gpu(
+        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_with_optimization(
+        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        # TODO: optimization for codegen not supported until https://github.com/microsoft/onnxruntime/pull/14751 is released
+        if model_type == "codegen":
+            self.skipTest("codegen not supported")
+
+        for optimization_level in ["O1", "O2", "O3"]:
+            try:
+                self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
+            except subprocess.CalledProcessError as e:
+                if (
+                    "Tried to use ORTOptimizer for the model type" in e.stderr
+                    or "doesn't support the graph optimization" in e.stderr
+                ):
+                    self.skipTest("unsupported model type in ORTOptimizer")
+                else:
+                    raise e
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch_gpu
+    @require_vision
+    @slow
+    @pytest.mark.gpu_test
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_with_O4_optimization(
+        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        # TODO: optimization for codegen not supported until https://github.com/microsoft/onnxruntime/pull/14751 is released
+        if model_type == "codegen":
+            self.skipTest("codegen not supported")
+
+        # TODO: investigate why gptj with past is the only failing one (as in ORTOptimizer)
+        if model_type == "gptj" and (task is None or "-with-past" in task):
+            self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
+
+        # TODO: disable due to a bug in PyTorch: https://github.com/pytorch/pytorch/issues/95377
+        if model_type == "yolos":
+            self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
+
+        try:
+            self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
+        except subprocess.CalledProcessError as e:
+            if (
+                "Tried to use ORTOptimizer for the model type" in e.stderr
+                or "doesn't support the graph optimization" in e.stderr
+            ):
+                self.skipTest("unsupported model type in ORTOptimizer")
+            else:
+                raise e
 
     @parameterized.expand([(False,), (True,)])
     def test_external_data(self, use_cache: bool):
@@ -174,3 +251,34 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 shell=True,
                 check=True,
             )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    def test_export_on_fp16(
+        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+    ):
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
+        if model_type == "yolos":
+            self.skipTest("yolos export on fp16 not supported due to a pytorch bug")
+
+        # TODO: refer to https://huggingface.slack.com/archives/C014N4749J9/p1677245766278129
+        if model_type == "deberta":
+            self.skipTest("deberta export on fp16 not supported due to a transformers bug")
+
+        # TODO: test once https://github.com/huggingface/transformers/pull/21789 is released
+        if (model_type == "vit" and task == "masked-im") or model_type == "vision-encoder-decoder":
+            self.skipTest(
+                "vit + masked-im, and vision-encoder-decoder export on fp16 not supported due to a transformers bug"
+            )
+
+        # TODO: test once https://github.com/huggingface/transformers/pull/21787 is released
+        if model_type == "perceiver" and task == "image-classification":
+            self.skipTest("perceiver + image-classification export on fp16 not supported due to a transformers bug")
+
+        if model_type == "ibert":
+            self.skipTest("ibert can not be supported in fp16")
+
+        self._onnx_export(model_name, task, monolith, no_post_process, fp16=True)

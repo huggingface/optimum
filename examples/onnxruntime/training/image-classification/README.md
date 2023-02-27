@@ -27,7 +27,7 @@ __The following example applies the acceleration features powered by ONNX Runtim
 The following example trains ViT on beans dataset with mixed precision (fp16).
 
 ```bash
-python run_image_classification.py \
+torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_image_classification.py \
     --model_name_or_path google/vit-base-patch16-224-in21k \
     --dataset_name beans \
     --output_dir ./beans_outputs/ \

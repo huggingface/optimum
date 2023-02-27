@@ -394,41 +394,45 @@ The model can then be used with the common 🤗 Transformers API for inference a
 
 ### Use TensorRT execution provider with quantized models
 
-**Note: quantization in ONNX Runtime with TensorRT as a target is currently broken due to [a bug in ONNX Runtime](https://github.com/microsoft/onnxruntime/issues/14142).**
+When it comes to quantized models, TensorRT only supports models that use [**static** quantization](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#enable_int8_c) with [**symmetric quantization** for weights and activations](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#intro-quantization).
 
-When it comes to quantized models, TensorRT only supports models that use **static** quantization with **symmetric quantization** for weights and activations. Thus, to be able to consume with TensorRT models quantized through 🤗 Optimum, the following configuration needs to be passed when doing [static quantization](quantization#static-quantization-example):
+
+🤗 Optimum provides a quantization config ready to be used with [`~onnxruntime.ORTQuantizer`] with the constraints of TensorRT quantization:
 
 ```python
->>> from optimum.onnxruntime import QuantizationConfig
+>>> from optimum.onnxruntime import AutoQuantizationConfig
 
->>> qconfig = QuantizationConfig(
-...     ...,
-...     is_static=True,
-...     activations_symmetric=True,
-...     weights_symmetric=True,
-...     qdq_dedicated_pair=True,
-...     qdq_add_pair_to_weight=True
-... )
+>>> qconfig = AutoQuantizationConfig.tensorrt(per_channel=False)
 ```
 
-The `qdq_dedicated_pair=True` argument is required by TensorRT, since it expects a single node after each `QuantizeLinear` + `DequantizeLinear` (QDQ) pair.
+Using this `qconfig`, static quantization can be performed as explained in the [static quantization guide](quantization#static-quantization-example).
 
-The parameter `qdq_add_pair_to_weight=True` is also required by TensorRT, that since it consumes a graph where the weights are stored in float32 with a QDQ pair. Normally, weights would be stored in fixed point 8-bits format and only a `DequantizeLinear` would be applied on the weights. As such, the storage savings from quantization can not be leveraged when we expect to later use the quantized ONNX model with TensorRT.
-
-In the code sample below, after performing static quantization, the resulting model is loaded into the `ORTModel` class using TensorRT as the execution provider. ONNX Runtime graph optimization need to be disabled for the model to be consumed and optimized by TensorRT, and the fact that INT8 operations are used needs to be specified to TensorRT.
+In the code sample below, after performing static quantization, the resulting model is loaded into the [`~onnxruntime.ORTModel`] class using TensorRT as the execution provider. ONNX Runtime graph optimization needs to be disabled for the model to be consumed and optimized by TensorRT, and the fact that INT8 operations are used needs to be specified to TensorRT.
 
 ```python
+>>> import onnxruntime
+>>> from transformers import AutoTokenizer
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+
 >>> session_options = onnxruntime.SessionOptions()
 >>> session_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
 
->>> model_name = "fxmarty/distilbert-base-uncased-finetuned-sst-2-english-int8-static-symmetric-dedicated-qdq-everywhere"
+>>> tokenizer = AutoTokenizer.from_pretrained("fxmarty/distilbert-base-uncased-sst2-onnx-int8-for-tensorrt")
 >>> ort_model = ORTModelForSequenceClassification.from_pretrained(
-...     model_name,
-...     from_transformers=False,
+...     "fxmarty/distilbert-base-uncased-sst2-onnx-int8-for-tensorrt",
 ...     provider="TensorrtExecutionProvider",
 ...     session_options=session_options,
 ...     provider_options={"trt_int8_enable": True},
-... )
+>>> )
+
+>>> inp = tokenizer("TensorRT is a bit painful to use, but at the end of day it runs smoothly and blazingly fast!", return_tensors="np")
+
+>>> res = ort_model(**inp)
+
+>>> print(res)
+>>> print(ort_model.config.id2label[res.logits[0].argmax()])
+>>> # SequenceClassifierOutput(loss=None, logits=array([[-0.545066 ,  0.5609764]], dtype=float32), hidden_states=None, attentions=None)
+>>> # POSITIVE
 ```
 
 The model can then be used with the common 🤗 Transformers API for inference and evaluation, such as [pipelines](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/pipelines).
@@ -438,7 +442,7 @@ The model can then be used with the common 🤗 Transformers API for inference a
 As highlighted in the previous section, TensorRT supports only a limited range of quantized models:
 * Static quantization only
 * Weights and activations quantization ranges are symmetric
-* Weights need to be stored in float32 in the ONNX model, thus there is no storage space saving from quantization.
+* Weights need to be stored in float32 in the ONNX model, thus there is no storage space saving from quantization. TensorRT indeed requires to insert full Quantize + Dequantize pairs. Normally, weights would be stored in fixed point 8-bits format and only a `DequantizeLinear` would be applied on the weights.
 
 In case `provider="TensorrtExecutionProvider"` is passed and the model has not been quantized strictly following these constraints, various errors may be raised, where error messages can be unclear.
 

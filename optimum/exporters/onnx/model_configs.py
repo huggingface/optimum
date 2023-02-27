@@ -144,10 +144,6 @@ class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
-class BigBirdOnnxConfig(DistilBertOnnxConfig):
-    pass
-
-
 class DebertaOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
@@ -221,6 +217,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
@@ -472,12 +469,21 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
     pass
 
 
+# big_bird and bigbird_pegasus are unsupported for now as block sparse attention is written in pure python and numpy in transformers.
+# Thus, the case attention_type == "block_sparse" is unusable.
+# Even with rewritting this part in pure PyTorch, torch.onnx.export is then prohibitively slow.
+# References: https://github.com/pytorch/pytorch/issues/63734 & https://github.com/pytorch/pytorch/issues/94821
+"""
+class BigBirdOnnxConfig(DistilBertOnnxConfig):
+    pass
+
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
             # TODO: check why the attention mask is not present in the exported model
             reference_model_inputs.pop("attention_mask")
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+"""
 
 
 class PegasusOnnxConfig(BartOnnxConfig):
@@ -953,8 +959,10 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
         allow_new=True,
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        Speech2TextDummyAudioInputGenerator,
-    ) + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+        (Speech2TextDummyAudioInputGenerator,)
+        + AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:]
+        + (DummyTextInputGenerator,)
+    )
     ATOL_FOR_VALIDATION = 1e-4
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
@@ -973,11 +981,27 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
+        common_inputs = {}
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
         if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"][
-                1
-            ] = f"{common_inputs['encoder_outputs'][1]} / {( 2 * self._config.num_conv_layers)}"
+            common_inputs["encoder_outputs"] = {
+                0: "batch_size",
+                1: f"encoder_sequence_length / {( 2 * self._config.num_conv_layers)}",
+            }
+
         return common_inputs
 
     @property

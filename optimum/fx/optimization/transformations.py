@@ -72,7 +72,7 @@ _REVERSIBLE_EXAMPLE_DOCSTRING = r"""
 def add_docstring(add_example=True):
     def wrapper(class_):
         example_docstring = _EXAMPLE_DOCSTRING
-        if "ReversibleTransformation" in map(lambda cls: cls.__name__, class_.mro()):
+        if "ReversibleTransformation" in (cls.__name__ for cls in class_.mro()):
             example_docstring = _REVERSIBLE_EXAMPLE_DOCSTRING
         new_doc = [f"{class_.__doc__}", f"{_ATTRIBUTES_DOCSTRING}"]
         if add_example:

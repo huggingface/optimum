@@ -17,6 +17,7 @@
 from typing import Any, Dict, Optional, Union
 
 from transformers import (
+    AudioClassificationPipeline,
     AutomaticSpeechRecognitionPipeline,
     FeatureExtractionPipeline,
     FillMaskPipeline,
@@ -49,6 +50,7 @@ SUPPORTED_TASKS = {}
 
 if is_onnxruntime_available():
     from ..onnxruntime import (
+        ORTModelForAudioClassification,
         ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
@@ -148,6 +150,12 @@ if is_onnxruntime_available():
             "default": "nlpconnect/vit-gpt2-image-captioning",
             "type": "multimodal",
         },
+        "audio-classification": {
+            "impl": AudioClassificationPipeline,
+            "class": (ORTModelForAudioClassification,),
+            "default": "superb/hubert-base-superb-ks",
+            "type": "audio",
+        },
     }
 
 NO_FEATURE_EXTRACTOR_TASKS = set()
@@ -155,7 +163,9 @@ NO_TOKENIZER_TASKS = set()
 for task, values in SUPPORTED_TASKS.items():
     if values["type"] == "text":
         NO_FEATURE_EXTRACTOR_TASKS.add(task)
-    elif values["type"] == "image":
+    elif values["type"] in {"image", "video"}:
+        NO_TOKENIZER_TASKS.add(task)
+    elif values["type"] in {"audio"}:
         NO_TOKENIZER_TASKS.add(task)
     elif values["type"] != "multimodal":
         raise ValueError(f"SUPPORTED_TASK {task} contains invalid type {values['type']}")
