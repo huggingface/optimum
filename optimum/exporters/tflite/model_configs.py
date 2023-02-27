@@ -18,7 +18,7 @@
 from typing import List
 
 from ...utils.normalized_config import NormalizedConfigManager
-from .config import TextEncoderTFliteConfig
+from .config import TextEncoderTFliteConfig, VisionTFLiteConfig
 
 
 class BertTFLiteConfig(TextEncoderTFliteConfig):
@@ -97,3 +97,11 @@ class DebertaTFLiteConfig(BertTFLiteConfig):
 
 class DebertaV2TFLiteConfig(DebertaTFLiteConfig):
     pass
+
+
+class ResNetTFLiteConfig(VisionTFLiteConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("resnet")
+
+    @property
+    def inputs(self) -> List[str]:
+        return ["pixel_values"]
