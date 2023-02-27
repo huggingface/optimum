@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional, Union
 
 from transformers import (
     AudioClassificationPipeline,
+    AutoConfig,
     AutomaticSpeechRecognitionPipeline,
     FeatureExtractionPipeline,
     FillMaskPipeline,
@@ -40,6 +41,7 @@ from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 from transformers.onnx.utils import get_preprocessor
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
+from transformers.pipelines import infer_framework_load_model
 
 from .bettertransformer import BetterTransformer
 from .utils import is_onnxruntime_available
@@ -183,6 +185,8 @@ def load_bettertransformer(
     use_auth_token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
+    config: AutoConfig = None,
+    hub_kwargs: Optional[Dict] = None,
     **kwargs,
 ):
     if model_kwargs is None:
@@ -190,14 +194,25 @@ def load_bettertransformer(
 
     if model is None:
         model_id = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["default"]
-        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model_id, **model_kwargs)
     elif isinstance(model, str):
         model_id = model
-        model = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"][0].from_pretrained(model, **model_kwargs)
     else:
-        raise ValueError(
-            f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
-            You can also provide non model then a default one will be used"""
+        model_id = None
+
+    model_classes = {"pt": TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["pt"]}
+    framework, model = infer_framework_load_model(
+        model,
+        model_classes=model_classes,
+        config=config,
+        framework="pt",
+        task=task,
+        **hub_kwargs,
+        **model_kwargs,
+    )
+
+    if framework == "tf":
+        raise NotImplementedError(
+            "BetterTransormer is PyTorch-specific. It will not work with the provided TensorFlow model."
         )
 
     model = BetterTransformer.transform(model, **kwargs)
@@ -217,6 +232,7 @@ def load_ort_pipeline(
     use_auth_token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
+    config: AutoConfig = None,
     **kwargs,
 ):
     if model_kwargs is None:
@@ -289,6 +305,8 @@ def pipeline(
     use_fast: bool = True,
     use_auth_token: Optional[Union[str, bool]] = None,
     accelerator: Optional[str] = "ort",
+    revision: Optional[str] = None,
+    trust_remote_code: Optional[bool] = None,
     *model_kwargs,
     **kwargs,
 ) -> Pipeline:
@@ -304,6 +322,19 @@ def pipeline(
         raise ValueError(
             f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
         )
+
+    # copied from transformers.pipelines.__init__.py
+    hub_kwargs = {
+        "revision": revision,
+        "use_auth_token": use_auth_token,
+        "trust_remote_code": trust_remote_code,
+        "_commit_hash": None,
+    }
+
+    config = kwargs.get("config", None)
+    if config is None and isinstance(model, str):
+        config = AutoConfig.from_pretrained(model, _from_pipeline=task, **hub_kwargs, **kwargs)
+        hub_kwargs["_commit_hash"] = config._commit_hash
 
     # copied from transformers.pipelines.__init__.py l.609
     if targeted_task in NO_TOKENIZER_TASKS:
@@ -327,6 +358,8 @@ def pipeline(
         feature_extractor,
         load_feature_extractor,
         SUPPORTED_TASKS,
+        config=config,
+        hub_kwargs=hub_kwargs,
         *model_kwargs,
         **kwargs,
     )
