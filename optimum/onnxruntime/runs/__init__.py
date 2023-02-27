@@ -8,7 +8,7 @@ from transformers.onnx.utils import get_preprocessor
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 
-from ...pipelines import SUPPORTED_TASKS
+from ...pipelines import ORT_SUPPORTED_TASKS
 from ...pipelines import pipeline as _optimum_pipeline
 from ...runs_base import Run, TimeBenchmark, get_autoclass_name, task_processing_map
 from .. import ORTQuantizer
@@ -35,7 +35,7 @@ class OnnxRuntimeRun(Run):
             operators_to_quantize=run_config["operators_to_quantize"],
         )
 
-        onnx_model = SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
+        onnx_model = ORT_SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
             run_config["model_name_or_path"], from_transformers=True
         )
 
