@@ -1,13 +1,16 @@
 import os
 from abc import ABC, abstractmethod
+from functools import singledispatch
 from logging import getLogger
-from typing import Any, List, Optional, Callable
+from typing import Any, List, Optional, Callable, Union
+from transformers import PreTrainedModel, TFPreTrainedModel, is_torch_available, is_tf_available
+from . import TirFrontend, TirTarget, TirConfig
 
-from tir import TirFrontend, TirTarget
+
+LOGGER = getLogger("TirDispatcher")
 
 
 class TirDispatcher(ABC):
-    LOGGER = getLogger("TirDispatcher")
 
     """
     The registry is an associative storage which keeps track all the succeeded compilations.
@@ -15,15 +18,22 @@ class TirDispatcher(ABC):
     __slots__ = ("_model", "_target", "_executor", "_cache", "_parameters")
 
     @staticmethod
-    def for_frontend(frontend: TirFrontend, model, target: TirTarget) -> "TirDispatcher":
-        if frontend == TirFrontend.PYTORCH:
+    def for_frontend(model, target: TirTarget, config: TirConfig) -> "TirDispatcher":
+        if is_torch_available():
+            from torch.nn import Module
             from .pytorch import TorchDispatcher
-            return TorchDispatcher(model, target)
-        elif frontend in {TirFrontend.TENSORFLOW, TirFrontend.TFLITE}:
+
+            if isinstance(model, Module) or isinstance(model, PreTrainedModel):
+                LOGGER.info(f"TirDispatcher initializing frontend for PyTorch.")
+                return TorchDispatcher(model, target, config)
+        elif is_tf_available():
             from .tensorflow import TensorflowDispatcher
-            return TensorflowDispatcher(model, target)
-        else:
-            raise NotImplementedError()
+            if isinstance(model, TFPreTrainedModel):
+                LOGGER.info(f"TirDispatcher initializing frontend for TensorFlow.")
+                return TensorflowDispatcher(model, target, config)
+
+        LOGGER.error("At least torch or tensorflow needs to be installed.")
+        raise ImportError(f"Unsupported model type {type(model)}. Only pytorch and tensorflow are supported")
 
     def __init__(self, model, target: TirTarget):
         self._model = model
@@ -46,10 +56,10 @@ class TirDispatcher(ABC):
         key = (len(curated_args), ) + tuple(curated_args[0].shape)
 
         if key in self._cache:
-            TirDispatcher.LOGGER.debug(f"Cache hit for dispatch key: {key}.")
+            LOGGER.debug(f"Cache hit for dispatch key: {key}.")
             dispatch = self._cache[key]
         else:
-            TirDispatcher.LOGGER.debug(f"Cache miss for dispatch key: {key}.")
+            LOGGER.debug(f"Cache miss for dispatch key: {key}.")
             exported_module = self.export_model_to_mlir(self._model, self._target, curated_args)
             inferred_compiler_args = self.compiler_args_for_target(exported_module)
             dispatch = self.compile_from_mlir(exported_module, self._target, None, inferred_compiler_args)
@@ -72,8 +82,6 @@ class TirDispatcher(ABC):
             extra_args += [
                 # "--mlir-print-elementsattrs-with-hex-if-larger=100000",
                 # "--mlir-print-ir-before-all",
-                # "-mlir-print-ir-before=iree-tosa-to-linalg-ext",
-                # "-mlir-print-ir-after=iree-tosa-to-linalg-ext"
             ]
 
         if self._target == TirTarget.COMPILED_CPU:

@@ -3,49 +3,30 @@ from os import PathLike
 from typing import Union
 
 from transformers import is_torch_available, is_tf_available, PreTrainedModel, TFPreTrainedModel
-from tir import TirFrontend, TirTarget, TirDispatcher
+from . import TirFrontend, TirTarget, TirDispatcher, TirConfig
 
 LOGGER = getLogger("TirEngine")
 
 
 class TirEngine:
 
-    __slots__ = ("_model", "_target", "_frontend", "_dispatcher")
+    __slots__ = ("_model", "_target", "_config", "_frontend", "_dispatcher")
 
     def __init__(
         self,
         model: Union[PreTrainedModel, TFPreTrainedModel, "torch.nn.Module"],
-        target: TirTarget = TirTarget.COMPILED_CPU,
-        export_tf_to_tflite: bool = True
+        target: TirTarget,
+        config: TirConfig,
     ):
         self._model = model
         self._target = target
+        self._config = config
         self._dispatcher = None
-
-        if is_torch_available():
-            from torch.nn import Module
-            if isinstance(self._model, Module) or isinstance(self._model, PreTrainedModel):
-                LOGGER.info(f"TirEngine initializing frontend for PyTorch.")
-                self._frontend = TirFrontend.PYTORCH
-        elif is_tf_available():
-            if export_tf_to_tflite:
-                LOGGER.info(f"TirEngine initializing frontend for TFLite.")
-                self._frontend = TirFrontend.TFLITE
-            else:
-                LOGGER.info(f"TirEngine initializing frontend for Tensorflow.")
-                self._frontend = TirFrontend.TENSORFLOW
-        else:
-            LOGGER.error("At least torch or tensorflow needs to be installed.")
-            raise ImportError("At elast torch or tensorflow needs to be installed.")
 
     def __enter__(self) -> 'TirEngine':
         if self._dispatcher is None:
             LOGGER.debug("Creating empty compilation dispatcher.")
-            self._dispatcher = TirDispatcher.for_frontend(
-                self._frontend,
-                self._model,
-                self._target,
-            )
+            self._dispatcher = TirDispatcher.for_frontend(self._model, self._target, self._config)
         else:
             # this branch covers the case
             # with TirEngine.from_precompiled(...) as engine:
@@ -62,7 +43,7 @@ class TirEngine:
     def __call__(self, *args, **kwargs):
         if self._dispatcher is None:
             LOGGER.debug("Creating empty compilation dispatcher.")
-            self._dispatcher = TirDispatcher.for_frontend(self._frontend, self._model, self._target, False)
+            self._dispatcher = TirDispatcher.for_frontend(self._model, self._target, self._config)
 
         return self._dispatcher(*args, **kwargs)
 
