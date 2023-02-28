@@ -7,9 +7,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
   # uncomment to enable on PR merge on main branch:
-  #push:
-  #  branches:
-  #    - main
+  push:
+    branches:
+      - main
 
 jobs:
   start-runner:
