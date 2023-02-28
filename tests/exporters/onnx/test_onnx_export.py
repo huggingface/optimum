@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
+import gc
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
@@ -41,7 +41,6 @@ from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     TENSORFLOW_EXPORT_MODELS,
-    VALIDATE_EXPORT_ON_SHAPES_FAST,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
 )
 
@@ -287,6 +286,8 @@ class OnnxExportTestCase(TestCase):
                 except AtolError as e:
                     print(f"The ONNX export succeeded with the warning: {e}")
 
+                gc.collect()
+
     def test_all_models_are_tested(self):
         # make sure we test all models
         missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
@@ -333,11 +334,6 @@ class OnnxExportTestCase(TestCase):
         onnx_config_class_constructor,
         monolith: bool,
     ):
-        if os.environ.get("RUN_SLOW", False):
-            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_SLOW
-        else:
-            shapes_to_validate = VALIDATE_EXPORT_ON_SHAPES_FAST
-
         self._onnx_export(
             test_name,
             name,
@@ -345,7 +341,7 @@ class OnnxExportTestCase(TestCase):
             task,
             onnx_config_class_constructor,
             device="cuda",
-            shapes_to_validate=shapes_to_validate,
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
             monolith=monolith,
         )
 
