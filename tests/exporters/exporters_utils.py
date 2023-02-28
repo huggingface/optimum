@@ -92,7 +92,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "t5": "hf-internal-testing/tiny-random-t5",
     "vit": "hf-internal-testing/tiny-random-vit",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
-    "whisper": "openai/whisper-tiny.en",  # "fxmarty/whisper-tiny-working", #"openai/whisper-tiny.en",  # hf-internal-testing ones are broken
+    "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
