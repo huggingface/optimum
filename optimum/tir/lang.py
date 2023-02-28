@@ -1,7 +1,7 @@
 from enum import Enum
 from os import PathLike
 from pathlib import Path
-from typing import NamedTuple, Dict, Optional, Any, List
+from typing import NamedTuple, Dict, Optional, Any, List, Set, Union, Tuple
 
 from huggingface_hub import cached_download, hf_hub_url
 from iree.compiler import InputType
@@ -30,6 +30,15 @@ class TirFrontend(Enum):
 
 class iree_cl:
     __slots__ = ("_position", "_id", "_value")
+
+    @staticmethod
+    def from_sequence(parts: Union[Tuple[int, str], Tuple[int, str, Any]]) -> "iree_cl":
+        if len(parts) == 2:
+            return iree_cl(int(parts[0]), str(parts[1]))
+        elif len(parts) == 3:
+            return iree_cl(int(parts[0]), str(parts[1]), parts[2])
+        else:
+            raise ValueError(f"Unable to create iree_cl from {len(parts)} only pair and triplet are supported.")
 
     def __init__(self, position: int, id: str, value: Optional[Any] = None):
         self._position = position
@@ -65,10 +74,14 @@ class TirConfig:
 
     __slots__ = ("_flags", )
 
+    @staticmethod
+    def parse_flags(flags: List[str]) -> Set[iree_cl]:
+        return set(map(lambda f: iree_cl.from_sequence((f[0], ) + f[1:]), enumerate(flags)))
+
     def __init__(self, flags: Optional[List[str]] = None):
 
         if flags:
-            self._flags = parse_flags(flags)
+            self._flags = TirConfig.parse_flags(flags)
         else:
             self._flags = set()
 
@@ -78,8 +91,8 @@ class TirConfig:
         :return:
         """
 
-        self._flags.add(iree_cl(0, "--mlir-elide-elementattrs-if-larger", 1))
-        self._flags.add(iree_cl(0, "--mlir-print-ir-before-all"))
+        self._flags.add(iree_cl(-1000, "--mlir-elide-elementattrs-if-larger", 1))
+        self._flags.add(iree_cl(-1000, "--mlir-print-ir-before-all"))
         return self
 
     def with_cpu_target(self, target: str = None) -> "TirConfig":
@@ -110,7 +123,7 @@ class TirConfig:
         :return:
         """
 
-        return [str(flag) for flag in sorted(self._flags, key=lambda f: f.position, reverse=True)]
+        return [str(flag) for flag in sorted(self._flags, key=lambda f: f.position)]
 
     def get_tuned_parameters_for_device(self, device: TirTarget) -> Optional[Dict[str, Any]]:
         """
