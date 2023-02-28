@@ -141,6 +141,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_gpu(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
+        # TODO: disable due to a bug in PyTorch: https://github.com/pytorch/pytorch/issues/95377
+        if model_type == "yolos":
+            self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
+
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))

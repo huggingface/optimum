@@ -21,7 +21,7 @@ RUN pip install datasets evaluate diffusers scipy
 
 # Install Optimum
 COPY . /workspace/optimum
-RUN pip install /workspace/optimum[onnxruntime-gpu,tests]
+RUN pip install /workspace/optimum[onnxruntime-gpu,tests,exporters]
 
 ENV TEST_LEVEL=1
 ENV RUN_SLOW=1
