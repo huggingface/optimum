@@ -31,7 +31,7 @@ class TirConfigTest(TestCase):
         with self.subTest("non default - specific target"):
             config = TirConfig().with_gpu_target("8.0")  # 8.0 == Ampere
             args = config.get_compiler_args()
-            self.assertIn("--iree-hal-cuda-llvm-target-arch=8.0", args)
+            self.assertIn("--iree-hal-cuda-llvm-target-arch=sm_80", args)
 
     def args_priority(self):
         config = TirConfig() \

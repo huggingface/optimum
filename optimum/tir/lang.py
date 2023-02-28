@@ -114,7 +114,8 @@ class TirConfig:
         :return:
         """
         # TODO: Improve "target_sm" will not speak to many people
-        self._flags.add(iree_cl(-1, "--iree-hal-cuda-llvm-target-arch", target_sm))
+        # example sm_80 for Ampere
+        self._flags.add(iree_cl(-1, "--iree-hal-cuda-llvm-target-arch", f"sm_{target_sm.replace('.', '')}"))
         return self
 
     def get_compiler_args(self) -> List[str]:
