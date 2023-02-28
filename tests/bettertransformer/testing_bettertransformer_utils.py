@@ -176,6 +176,17 @@ class BetterTransformersTestMixin:
             self.assertTrue(isinstance(converted_model, hf_random_model.__class__))
             self.assertTrue(hasattr(converted_model, "generate"))
 
+    def test_state_dict_does_not_contain_orig_layer(self, model_id, keep_original_model=True):
+        r"""
+        This test checks if the original layer is removed from the state dict.
+        """
+        hf_model = AutoModel.from_pretrained(model_id).eval()
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+
+        for key in bt_model.state_dict().keys():
+            self.assertFalse('orig_layer' in key)
+
+
     def test_invert_modules(self, model_id, keep_original_model=False):
         r"""
         Test that the inverse converted model and hf model have the same modules
