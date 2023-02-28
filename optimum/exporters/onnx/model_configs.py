@@ -526,6 +526,11 @@ class ResNetOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
 
 
+class RegNetOnnxConfig(ViTOnnxConfig):
+    # This config has the same inputs as ViTOnnxConfig
+    pass
+
+
 class DetrOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 

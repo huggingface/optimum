@@ -82,6 +82,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
+    "regnet": "hf-internal-testing/tiny-random-RegNet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
