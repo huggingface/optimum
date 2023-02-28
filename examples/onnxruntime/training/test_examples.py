@@ -71,7 +71,7 @@ class ExamplesTests(TestCasePlus):
         tmp_dir = self.get_auto_remove_tmp_dir()
         testargs = f"""
             run_glue.py
-            --model_name_or_path bert-base-uncased     
+            --model_name_or_path bert-base-uncased
             --task_name sst2
             --do_train
             --do_eval
