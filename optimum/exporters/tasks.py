@@ -581,6 +581,11 @@ class TasksManager:
             "image-classification",
             onnx="PoolFormerOnnxConfig",
         ),
+        "regnet": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="RegNetOnnxConfig",
+        ),
         "resnet": supported_tasks_mapping(
             "default",
             "image-classification",

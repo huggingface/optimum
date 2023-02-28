@@ -522,13 +522,13 @@ class MobileViTOnnxConfig(ViTOnnxConfig):
     pass
 
 
-class ResNetOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
-
-
 class RegNetOnnxConfig(ViTOnnxConfig):
     # This config has the same inputs as ViTOnnxConfig
     pass
+
+
+class ResNetOnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
 
 
 class DetrOnnxConfig(ViTOnnxConfig):

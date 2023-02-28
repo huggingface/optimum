@@ -203,6 +203,7 @@ class NormalizedConfigManager:
         "nystromformer": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
+        "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
         "splinter": NormalizedTextConfig,
