@@ -105,7 +105,7 @@ class ORTConfigManager:
         "nystromformer": "bert",
         "pegasus": "bert",
         "roberta": "bert",
-        "t5": "bert",
+        "t5": "bart",
         "xlm-roberta": "bert",
     }
 
