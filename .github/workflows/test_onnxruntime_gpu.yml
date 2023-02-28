@@ -1,15 +1,10 @@
 name: ONNX Runtime / Test GPU
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: 0 1 */3 * * # at 1am every 3 days
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
-  # uncomment to enable on PR merge on main branch:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   start-runner:
