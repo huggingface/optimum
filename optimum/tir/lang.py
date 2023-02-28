@@ -142,16 +142,16 @@ class TirConfig:
         """
         raise NotImplementedError()
 
-    def register_additional_parameters(self, device: TirTarget, parameter: str, value: Optional[Any], index: int = -1):
+    def register_additional_parameters(self, name: str, value: Optional[Any] = None, index: int = -1) -> 'TirConfig':
         """
 
-        :param device: The device we are trying to tune for.
-        :param parameter: The parameter name to append.
-        :param value: The value for parameter.
+        :param name: The parameter name to append.
+        :param value: The value for parameter if any.
         :param index: Where in the pipeline we should insert this parameter (default -1: at the end).
         :return:
         """
-        raise NotImplementedError()
+        self._flags.add((index, name, value))
+        return self
 
 
 class TirConfigStore:
