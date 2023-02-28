@@ -72,7 +72,7 @@ class iree_cl:
 
 class TirConfig:
 
-    __slots__ = ("_flags", )
+    __slots__ = ("_flags", "_mlir_output_path")
 
     @staticmethod
     def parse_flags(flags: List[str]) -> Set[iree_cl]:
@@ -91,7 +91,7 @@ class TirConfig:
         :return:
         """
 
-        self._flags.add(iree_cl(-1000, "--mlir-elide-elementattrs-if-larger", 1))
+        self._flags.add(iree_cl(-1000, "--mlir-elide-elementsattrs-if-larger", 1))
         self._flags.add(iree_cl(-1000, "--mlir-print-ir-before-all"))
         return self
 
@@ -117,6 +117,20 @@ class TirConfig:
         # example sm_80 for Ampere
         self._flags.add(iree_cl(-1, "--iree-hal-cuda-llvm-target-arch", f"sm_{target_sm.replace('.', '')}"))
         return self
+
+    def with_mlir_ir_output(self, path: PathLike) -> "TirConfig":
+        """
+        Save intermediate representations (IR) at the specified path
+        :param path: Path where to store MLIR IR.
+        :return:
+        """
+        self._mlir_output_path = path
+        return self
+
+    def save_ir(self, mlir_module: str):
+        if self._mlir_output_path:
+            with open(self._mlir_output_path, "w", encoding="utf-8") as f:
+                f.write(mlir_module)
 
     def get_compiler_args(self) -> List[str]:
         """
@@ -151,7 +165,7 @@ class TirConfig:
         :param index: Where in the pipeline we should insert this parameter (default -1: at the end).
         :return:
         """
-        self._flags.add((index, name, value))
+        self._flags.add(iree_cl(index, name, value))
         return self
 
 
