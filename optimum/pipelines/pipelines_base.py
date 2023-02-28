@@ -158,6 +158,8 @@ if is_onnxruntime_available():
             "type": "audio",
         },
     }
+else:
+    ORT_SUPPORTED_TASKS = {}
 
 
 def load_bettertransformer(
