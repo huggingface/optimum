@@ -327,15 +327,15 @@ def pipeline(
 
     no_feature_extractor_tasks = set()
     no_tokenizer_tasks = set()
-    for task, values in supported_tasks.items():
+    for _task, values in supported_tasks.items():
         if values["type"] == "text":
-            no_feature_extractor_tasks.add(task)
+            no_feature_extractor_tasks.add(_task)
         elif values["type"] in {"image", "video"}:
-            no_tokenizer_tasks.add(task)
+            no_tokenizer_tasks.add(_task)
         elif values["type"] in {"audio"}:
-            no_tokenizer_tasks.add(task)
+            no_tokenizer_tasks.add(_task)
         elif values["type"] not in ["multimodal", "audio", "video"]:
-            raise ValueError(f"SUPPORTED_TASK {task} contains invalid type {values['type']}")
+            raise ValueError(f"SUPPORTED_TASK {_task} contains invalid type {values['type']}")
 
     # copied from transformers.pipelines.__init__.py l.609
     if targeted_task in no_tokenizer_tasks:
@@ -372,7 +372,7 @@ def pipeline(
         feature_extractor = get_preprocessor(model_id)
 
     return transformers_pipeline(
-        targeted_task,
+        task,
         model=model,
         tokenizer=tokenizer,
         feature_extractor=feature_extractor,
