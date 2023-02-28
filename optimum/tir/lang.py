@@ -28,20 +28,58 @@ class TirFrontend(Enum):
     JAX = TirFrontendInfo("jax", InputType.XLA)
 
 
+class iree_cl:
+    __slots__ = ("_position", "_id", "_value")
+
+    def __init__(self, position: int, id: str, value: Optional[Any] = None):
+        self._position = position
+        self._id = id
+        self._value = value
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def position(self) -> int:
+        return self._position
+
+    @property
+    def value(self) -> Any:
+        return self._value
+
+    def __hash__(self):
+        return hash(self._id)
+
+    def __str__(self):
+        if self._value:
+            return f"{self.id}={self.value}"
+        else:
+            return self.id
+
+    def __repr__(self):
+        return f"{str(self)}@{self.position}"
+
+
 class TirConfig:
 
-    __slots__ = ("flags", )
+    __slots__ = ("_flags", )
 
     def __init__(self, flags: Optional[List[str]] = None):
-        self.flags = flags or []
+
+        if flags:
+            self._flags = parse_flags(flags)
+        else:
+            self._flags = set()
 
     def with_debug_flags(self) -> "TirConfig":
         """
         Include the MLIR debugging flags to the compiler invocation
         :return:
         """
-        self.flags.insert(0, "mlir-elide-elementattrs-if-larger=1")
-        self.flags.insert(0, "mlir-print-ir-before-all")
+
+        self._flags.add(iree_cl(0, "--mlir-elide-elementattrs-if-larger", 1))
+        self._flags.add(iree_cl(0, "--mlir-print-ir-before-all"))
         return self
 
     def with_cpu_target(self, target: str = None) -> "TirConfig":
@@ -53,7 +91,7 @@ class TirConfig:
         if target is None:
             target = "host"
 
-        self.flags.append(f"--iree-llvm-target-cpu-features={target}")
+        self._flags.add(iree_cl(-1, "--iree-llvm-target-cpu-features", target))
         return self
 
     def with_gpu_target(self, target_sm: str) -> "TirConfig":
@@ -63,7 +101,7 @@ class TirConfig:
         :return:
         """
         # TODO: Improve "target_sm" will not speak to many people
-        self.flags.append(f"--iree-hal-cuda-llvm-target-arch={target_sm}")
+        self._flags.add(iree_cl(-1, "--iree-hal-cuda-llvm-target-arch", target_sm))
         return self
 
     def get_compiler_args(self) -> List[str]:
@@ -71,7 +109,8 @@ class TirConfig:
         Return the flags to be forwarded to IREE's compiler
         :return:
         """
-        return self.flags
+
+        return [str(flag) for flag in sorted(self._flags, key=lambda f: f.position, reverse=True)]
 
     def get_tuned_parameters_for_device(self, device: TirTarget) -> Optional[Dict[str, Any]]:
         """
